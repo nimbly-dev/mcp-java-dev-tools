@@ -182,6 +182,48 @@ function buildProbeJavaToolOptions(args: {
   return { ok: true, javaToolOptions };
 }
 
+function buildProbeJavaAgentArg(args: {
+  serviceName: string;
+  profileName: string;
+  registry: ProbeRegistry;
+}): { ok: true; agentArg: string; probeBaseUrl: string } | { ok: false; detail: string } {
+  const profile = args.registry.profiles?.[args.profileName];
+  const probe = profile?.probes?.[args.serviceName];
+  if (!probe) {
+    return {
+      ok: false,
+      detail: `Probe registry entry missing for startup '${args.serviceName}' in profile '${args.profileName}'.`,
+    };
+  }
+  const baseUrl = typeof probe.baseUrl === "string" ? probe.baseUrl.trim() : "";
+  const port = baseUrl ? extractProbePort(baseUrl) : null;
+  if (!port) {
+    return {
+      ok: false,
+      detail: `Probe baseUrl missing/invalid for startup '${args.serviceName}' in profile '${args.profileName}'.`,
+    };
+  }
+  const include = Array.isArray(probe.include) ? probe.include.filter((entry) => typeof entry === "string" && entry.trim().length > 0) : [];
+  if (include.length === 0) {
+    return {
+      ok: false,
+      detail: `Probe include[] missing for startup '${args.serviceName}' in profile '${args.profileName}'.`,
+    };
+  }
+  const agentJar = getAgentJarPathForAutoStart();
+  if (!agentJar) {
+    return {
+      ok: false,
+      detail: "Auto-start probe injection requires MCP_JAVA_AGENT_JAR (or MCP_PROBE_JAVA_AGENT_JAR) to be set.",
+    };
+  }
+  return {
+    ok: true,
+    agentArg: `-javaagent:${agentJar}=host=0.0.0.0;port=${port};include=${include.join(",")}`,
+    probeBaseUrl: baseUrl,
+  };
+}
+
 async function tcpCheck(target: string, timeoutMs: number): Promise<boolean> {
   const [host, portStr] = target.split(":");
   const port = Number(portStr);
@@ -216,6 +258,68 @@ async function httpCheck(urlRaw: string, method: string, timeoutMs: number, expe
   } catch {
     return false;
   }
+}
+
+function extractServerPortFromStartupArgs(args: string[] | undefined): number | null {
+  if (!Array.isArray(args)) return null;
+  for (const raw of args) {
+    if (typeof raw !== "string") continue;
+    const match = raw.match(/^--server\.port=(\d{2,5})$/);
+    if (!match) continue;
+    const port = Number(match[1]);
+    if (Number.isInteger(port) && port > 0 && port <= 65535) return port;
+  }
+  return null;
+}
+
+async function isPortOpen(host: string, port: number, timeoutMs = 1200): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    const socket = new net.Socket();
+    let done = false;
+    const end = (ok: boolean) => {
+      if (done) return;
+      done = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs, () => end(false));
+    socket.once("error", () => end(false));
+    socket.connect(port, host, () => end(true));
+  });
+}
+
+async function findPidListeningOnPortWindows(port: number): Promise<number | null> {
+  return await new Promise<number | null>((resolve) => {
+    const child = spawn("netstat", ["-ano", "-p", "tcp"], { windowsHide: true });
+    let stdout = "";
+    child.stdout.on("data", (buf) => {
+      stdout += String(buf ?? "");
+    });
+    child.on("close", () => {
+      const lines = stdout.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.includes(`:${port}`)) continue;
+        if (!line.toUpperCase().includes("LISTENING")) continue;
+        const parts = line.trim().split(/\s+/);
+        const pidRaw = parts[parts.length - 1];
+        const pid = Number(pidRaw);
+        if (Number.isInteger(pid) && pid > 0) {
+          resolve(pid);
+          return;
+        }
+      }
+      resolve(null);
+    });
+    child.on("error", () => resolve(null));
+  });
+}
+
+async function killProcessByPidWindows(pid: number): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    const child = spawn("taskkill", ["/PID", String(pid), "/F"], { windowsHide: true });
+    child.on("close", (code) => resolve(code === 0));
+    child.on("error", () => resolve(false));
+  });
 }
 
 function selectWorkspace(
@@ -309,7 +413,20 @@ async function defaultRuntimeStarter(args: {
       };
     }
     const started: string[] = [];
+    const startedProbeBaseUrls: Array<{ name: string; baseUrl: string }> = [];
     for (const startup of startups) {
+      const agent = buildProbeJavaAgentArg({
+        serviceName: startup.name,
+        profileName: registry.profileName,
+        registry: registry.registry,
+      });
+      if (!agent.ok) {
+        return {
+          attempted: true,
+          success: false,
+          detail: agent.detail,
+        };
+      }
       const toolOptions = buildProbeJavaToolOptions({
         serviceName: startup.name,
         workspaceRootAbs,
@@ -331,8 +448,28 @@ async function defaultRuntimeStarter(args: {
             ? startup.appdir
             : path.resolve(workspaceRootAbs, startup.appdir))
         : workspaceRootAbs;
+      const apiPort = extractServerPortFromStartupArgs(startup.args);
+      if (apiPort) {
+        const apiUp = await isPortOpen("127.0.0.1", apiPort);
+        const probePort = extractProbePort(agent.probeBaseUrl);
+        const probeUp = probePort ? await isPortOpen("127.0.0.1", probePort) : false;
+        if (apiUp && !probeUp && process.platform === "win32") {
+          const pid = await findPidListeningOnPortWindows(apiPort);
+          if (pid) {
+            await killProcessByPidWindows(pid);
+            await new Promise((resolve) => setTimeout(resolve, 600));
+          }
+        }
+      }
+      const isJavaCommand = /(^|\\|\/)java(\.exe)?$/i.test(startup.command.trim());
+      const baseArgs = startup.args ?? [];
+      const hasJavaAgentArg = baseArgs.some((arg) => typeof arg === "string" && arg.trim().startsWith("-javaagent:"));
+      const commandArgs =
+        isJavaCommand && !hasJavaAgentArg
+          ? [agent.agentArg, ...baseArgs]
+          : baseArgs;
       try {
-        const child = spawn(startup.command, startup.args ?? [], {
+        const child = spawn(startup.command, commandArgs, {
           cwd,
           env: {
             ...process.env,
@@ -345,11 +482,23 @@ async function defaultRuntimeStarter(args: {
         });
         child.unref();
         started.push(startup.name);
+        startedProbeBaseUrls.push({ name: startup.name, baseUrl: agent.probeBaseUrl });
       } catch (error) {
         return {
           attempted: true,
           success: false,
           detail: `Terminal runtime start failed for '${startup.name}': ${error instanceof Error ? error.message : String(error)}`,
+        };
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    for (const entry of startedProbeBaseUrls) {
+      const ok = await httpCheck(`${entry.baseUrl.replace(/\/$/, "")}/__probe/status`, "GET", 2000);
+      if (!ok) {
+        return {
+          attempted: true,
+          success: false,
+          detail: `Probe listener not reachable after startup for '${entry.name}' at ${entry.baseUrl}.`,
         };
       }
     }
@@ -477,7 +626,7 @@ export async function resolveProjectContextForRegression(
 
   const env = args.env ?? process.env;
   const contextPatch: Record<string, unknown> = {};
-  const bearerKey = workspace.auth?.bearerTokenEnv;
+  const bearerKey = workspace.variables?.bearerTokenEnv;
   if (bearerKey) {
     const bearer = env[bearerKey];
     if (!bearer || bearer.trim().length === 0) {

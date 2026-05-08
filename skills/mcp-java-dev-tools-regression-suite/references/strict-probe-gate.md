@@ -9,6 +9,9 @@
    - if still unreachable, fail closed with `external_healthcheck_failed`
 3. If JVM is already running without probe wiring, do not mutate command line in place; require restart through runtime startup path.
 4. `manual_wrapped_transport` fallback is allowed only when `probeVerification=false`.
+5. If project runtime context exists, ad-hoc `java -jar` fallback is non-compliant:
+   - do not run ad-hoc direct JVM startup
+   - fail closed and require runtime restart via `projects.json` runtime context/startups
 
 ## Terminal Runtime Alignment
 
@@ -17,6 +20,7 @@
 3. Use `--agent-port <port>` only as explicit override.
 4. Do not rely on auto-scanned probe ports in strict mode.
 5. Wrapper script usage is optional implementation detail; probe-wired startup is mandatory.
+6. Startup source-of-truth is `projects.json` runtime context, not temporary shell heuristics.
 
 ## Non-Compliant Process Gate (Unskippable)
 

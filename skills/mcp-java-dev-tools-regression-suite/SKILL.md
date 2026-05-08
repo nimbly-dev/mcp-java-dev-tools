@@ -61,5 +61,6 @@ Use these reference docs as the canonical execution bible:
 3. If probe remains unreachable after allowed auto-start attempt, fail closed with `external_healthcheck_failed`.
 4. For terminal runtime with strict probe verification, use deterministic probe port mapping from `.mcpjvm/probe-config.json` (`--probe-id <id>` preferred; `--agent-port <port>` explicit override).
 5. Do not rely on auto-scanned probe ports in strict mode.
+6. If `projects.json` runtime context exists, startup/restart must use that context; ad-hoc direct `java -jar` fallback is non-compliant and must fail closed.
 
 

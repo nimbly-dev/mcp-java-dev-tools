@@ -3,7 +3,7 @@
     {
       "projectRoot": "C:\\workspace\\spring-petclinic-microservices",
       "envFile": ".env",
-      "auth": {
+      "variables": {
         "bearerTokenEnv": "AUTH_BEARER_TOKEN"
       },
       "runtimeContexts": [

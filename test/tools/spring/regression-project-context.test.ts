@@ -42,7 +42,7 @@ test("resolveProjectContextForRegression resolves auth.bearer from env key refer
       workspaces: [
         {
           projectRoot: root,
-          auth: {
+          variables: {
             bearerTokenEnv: "AUTH_BEARER_TOKEN",
           },
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
@@ -144,7 +144,7 @@ test("resolveProjectContextForRegression fails closed when env key value is miss
       workspaces: [
         {
           projectRoot: root,
-          auth: {
+          variables: {
             bearerTokenEnv: "AUTH_BEARER_TOKEN",
           },
         },

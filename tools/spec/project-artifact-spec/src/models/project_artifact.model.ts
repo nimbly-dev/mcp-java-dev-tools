@@ -48,7 +48,7 @@ export type ProjectExternalSystem = {
 export type ProjectWorkspaceEntry = {
   projectRoot: string;
   envFile?: string;
-  auth?: {
+  variables?: {
     bearerTokenEnv?: string;
   };
   runtimeContexts?: ProjectRuntimeContext[];

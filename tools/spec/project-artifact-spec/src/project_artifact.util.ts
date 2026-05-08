@@ -199,16 +199,19 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
     return null;
   }
   const envFile = asTrimmedString(input.envFile) ?? undefined;
-  let auth: ProjectWorkspaceEntry["auth"] | undefined;
-  if (isRecord(input.auth)) {
-    const bearerTokenEnv = asTrimmedString(input.auth.bearerTokenEnv) ?? undefined;
+  if ("auth" in input) {
+    errors.push(`workspaces[${index}].auth is unsupported; use variables`);
+  }
+  let variables: ProjectWorkspaceEntry["variables"] | undefined;
+  if (isRecord(input.variables)) {
+    const bearerTokenEnv = asTrimmedString(input.variables.bearerTokenEnv) ?? undefined;
     if (bearerTokenEnv && !/^[A-Z_][A-Z0-9_]*$/.test(bearerTokenEnv)) {
-      errors.push(`workspaces[${index}].auth.bearerTokenEnv must be ENV_KEY format`);
+      errors.push(`workspaces[${index}].variables.bearerTokenEnv must be ENV_KEY format`);
     }
-    if ("bearerToken" in input.auth) {
-      errors.push(`workspaces[${index}].auth.bearerToken is forbidden; use bearerTokenEnv`);
+    if ("bearerToken" in input.variables) {
+      errors.push(`workspaces[${index}].variables.bearerToken is forbidden; use bearerTokenEnv`);
     }
-    auth = bearerTokenEnv ? { bearerTokenEnv } : undefined;
+    variables = bearerTokenEnv ? { bearerTokenEnv } : undefined;
   }
 
   const runtimeContexts = Array.isArray(input.runtimeContexts)
@@ -233,7 +236,7 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
   return {
     projectRoot,
     ...(envFile ? { envFile } : {}),
-    ...(auth ? { auth } : {}),
+    ...(variables ? { variables } : {}),
     ...(runtimeContexts.length > 0 ? { runtimeContexts } : {}),
     ...(externalSystems.length > 0 ? { externalSystems } : {}),
     ...(defaults ? { defaults } : {}),

@@ -21,7 +21,7 @@ test("validateProjectArtifact accepts minimal valid shape", () => {
       {
         projectRoot: "C:\\workspace\\spring",
         envFile: ".env",
-        auth: {
+        variables: {
           bearerTokenEnv: "AUTH_BEARER_TOKEN",
         },
         runtimeContexts: [
@@ -64,11 +64,11 @@ test("validateProjectArtifact accepts minimal valid shape", () => {
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.equal(result.artifact.workspaces.length, 1);
-    assert.equal(result.artifact.workspaces[0].auth?.bearerTokenEnv, "AUTH_BEARER_TOKEN");
+    assert.equal(result.artifact.workspaces[0].variables?.bearerTokenEnv, "AUTH_BEARER_TOKEN");
   }
 });
 
-test("validateProjectArtifact fails closed when secret value field is present", () => {
+test("validateProjectArtifact fails closed when legacy auth field is present", () => {
   const result = validateProjectArtifact({
     workspaces: [
       {
@@ -82,8 +82,8 @@ test("validateProjectArtifact fails closed when secret value field is present", 
   });
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(result.reasonCode, "env_key_missing");
-    assert.match(result.errors.join("\n"), /bearerToken is forbidden/);
+    assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /auth is unsupported/);
   }
 });
 

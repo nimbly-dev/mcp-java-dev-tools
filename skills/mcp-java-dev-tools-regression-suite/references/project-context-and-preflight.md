@@ -13,6 +13,10 @@
    - `runtime_context_unknown`
    - `external_system_invalid`
    - `external_healthcheck_failed`
+5. Runtime startup authority:
+   - when `projects.json` defines `runtimeContexts`, startup/restart must follow that context contract.
+   - do not bypass with ad-hoc terminal commands outside `runtimeContexts` guidance.
+   - if startup contract is incomplete for the selected context, fail closed and return `needs_user_input`.
 
 ## Discovery-First Orchestration
 

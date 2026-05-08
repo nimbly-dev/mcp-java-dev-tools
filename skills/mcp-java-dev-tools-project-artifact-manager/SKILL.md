@@ -42,7 +42,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
     {
       "projectRoot": "C:\\workspace\\example",
       "envFile": ".env",
-      "auth": {
+      "variables": {
         "bearerTokenEnv": "AUTH_BEARER_TOKEN"
       },
       "runtimeContexts": [

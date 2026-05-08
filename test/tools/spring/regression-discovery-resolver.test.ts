@@ -303,7 +303,7 @@ test("buildReplayPreflightWithDiscovery applies project context env auth before 
       workspaces: [
         {
           projectRoot: root,
-          auth: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
         },
       ],
     });
@@ -356,7 +356,7 @@ test("buildReplayPreflightWithDiscovery fails closed when project context env ke
       workspaces: [
         {
           projectRoot: root,
-          auth: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
         },
       ],
     });
