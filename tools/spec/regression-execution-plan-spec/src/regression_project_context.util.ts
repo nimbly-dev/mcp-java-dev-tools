@@ -1,5 +1,6 @@
 import net from "node:net";
 import { spawn } from "node:child_process";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 import { URL } from "node:url";
 
@@ -49,6 +50,137 @@ type RuntimeStarter = (args: {
   runtimeContext: ProjectRuntimeContext;
   workspaceRootAbs: string;
 }) => Promise<RuntimeStartResult>;
+
+type ProbeRegistry = {
+  defaultProfile?: string;
+  profiles?: Record<
+    string,
+    {
+      probes?: Record<
+        string,
+        {
+          include?: string[];
+          baseUrl?: string;
+        }
+      >;
+    }
+  >;
+  workspaces?: Array<{
+    root?: string;
+    profile?: string;
+  }>;
+};
+
+function extractProbePort(baseUrl: string): number | null {
+  try {
+    const parsed = new URL(baseUrl);
+    const port = Number(parsed.port);
+    if (!Number.isInteger(port) || port <= 0) return null;
+    return port;
+  } catch {
+    return null;
+  }
+}
+
+function stripBom(input: string): string {
+  return input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
+}
+
+async function readProbeRegistryFromWorkspace(workspaceRootAbs: string): Promise<{
+  ok: true;
+  registry: ProbeRegistry;
+  profileName: string;
+} | {
+  ok: false;
+  detail: string;
+}> {
+  const registryPath = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  let raw: string;
+  try {
+    raw = await fs.readFile(registryPath, "utf8");
+  } catch {
+    return {
+      ok: false,
+      detail: `Probe registry not found at ${registryPath}`,
+    };
+  }
+  let parsed: ProbeRegistry;
+  try {
+    parsed = JSON.parse(stripBom(raw)) as ProbeRegistry;
+  } catch {
+    return {
+      ok: false,
+      detail: `Probe registry JSON is invalid at ${registryPath}`,
+    };
+  }
+  const workspaces = Array.isArray(parsed.workspaces) ? parsed.workspaces : [];
+  const workspaceMatch = workspaces.find((entry) => entry.root === workspaceRootAbs);
+  const profileName = workspaceMatch?.profile ?? parsed.defaultProfile;
+  if (!profileName || !parsed.profiles || !parsed.profiles[profileName]) {
+    return {
+      ok: false,
+      detail: `Probe profile could not be resolved for workspace ${workspaceRootAbs}`,
+    };
+  }
+  return {
+    ok: true,
+    registry: parsed,
+    profileName,
+  };
+}
+
+function getAgentJarPathForAutoStart(): string | null {
+  const configured =
+    process.env.MCP_JAVA_AGENT_JAR ??
+    process.env.MCP_PROBE_JAVA_AGENT_JAR ??
+    process.env.MCP_AGENT_JAR_PATH;
+  if (!configured || configured.trim().length === 0) return null;
+  return configured.trim();
+}
+
+function buildProbeJavaToolOptions(args: {
+  serviceName: string;
+  workspaceRootAbs: string;
+  profileName: string;
+  registry: ProbeRegistry;
+  existingJavaToolOptions?: string;
+}): { ok: true; javaToolOptions: string } | { ok: false; detail: string } {
+  const { serviceName, profileName, registry, existingJavaToolOptions } = args;
+  const profile = registry.profiles?.[profileName];
+  const probe = profile?.probes?.[serviceName];
+  if (!probe) {
+    return {
+      ok: false,
+      detail: `Probe registry entry missing for startup '${serviceName}' in profile '${profileName}'.`,
+    };
+  }
+  const baseUrl = typeof probe.baseUrl === "string" ? probe.baseUrl.trim() : "";
+  const port = baseUrl ? extractProbePort(baseUrl) : null;
+  if (!port) {
+    return {
+      ok: false,
+      detail: `Probe baseUrl missing/invalid for startup '${serviceName}' in profile '${profileName}'.`,
+    };
+  }
+  const include = Array.isArray(probe.include) ? probe.include.filter((entry) => typeof entry === "string" && entry.trim().length > 0) : [];
+  if (include.length === 0) {
+    return {
+      ok: false,
+      detail: `Probe include[] missing for startup '${serviceName}' in profile '${profileName}'.`,
+    };
+  }
+  const agentJar = getAgentJarPathForAutoStart();
+  if (!agentJar) {
+    return {
+      ok: false,
+      detail: "Auto-start probe injection requires MCP_JAVA_AGENT_JAR (or MCP_PROBE_JAVA_AGENT_JAR) to be set.",
+    };
+  }
+  const sidecar = `-javaagent:${agentJar}=host=0.0.0.0;port=${port};include=${include.join(",")}`;
+  const existing = (existingJavaToolOptions ?? "").trim();
+  const javaToolOptions = existing.length > 0 ? `${sidecar} ${existing}` : sidecar;
+  return { ok: true, javaToolOptions };
+}
 
 async function tcpCheck(target: string, timeoutMs: number): Promise<boolean> {
   const [host, portStr] = target.split(":");
@@ -159,6 +291,74 @@ async function defaultRuntimeStarter(args: {
   workspaceRootAbs: string;
 }): Promise<RuntimeStartResult> {
   const { runtimeContext, workspaceRootAbs } = args;
+  if (runtimeContext.mode === "terminal") {
+    const startups = runtimeContext.startups ?? [];
+    if (startups.length === 0) {
+      return {
+        attempted: true,
+        success: false,
+        detail: "Terminal runtime auto-start requires runtimeContexts[].startups[].",
+      };
+    }
+    const registry = await readProbeRegistryFromWorkspace(workspaceRootAbs);
+    if (!registry.ok) {
+      return {
+        attempted: true,
+        success: false,
+        detail: registry.detail,
+      };
+    }
+    const started: string[] = [];
+    for (const startup of startups) {
+      const toolOptions = buildProbeJavaToolOptions({
+        serviceName: startup.name,
+        workspaceRootAbs,
+        profileName: registry.profileName,
+        registry: registry.registry,
+        ...(typeof startup.env?.JAVA_TOOL_OPTIONS === "string"
+          ? { existingJavaToolOptions: startup.env.JAVA_TOOL_OPTIONS }
+          : {}),
+      });
+      if (!toolOptions.ok) {
+        return {
+          attempted: true,
+          success: false,
+          detail: toolOptions.detail,
+        };
+      }
+      const cwd = startup.appdir
+        ? (path.isAbsolute(startup.appdir)
+            ? startup.appdir
+            : path.resolve(workspaceRootAbs, startup.appdir))
+        : workspaceRootAbs;
+      try {
+        const child = spawn(startup.command, startup.args ?? [], {
+          cwd,
+          env: {
+            ...process.env,
+            ...(startup.env ?? {}),
+            JAVA_TOOL_OPTIONS: toolOptions.javaToolOptions,
+          },
+          windowsHide: true,
+          detached: true,
+          stdio: "ignore",
+        });
+        child.unref();
+        started.push(startup.name);
+      } catch (error) {
+        return {
+          attempted: true,
+          success: false,
+          detail: `Terminal runtime start failed for '${startup.name}': ${error instanceof Error ? error.message : String(error)}`,
+        };
+      }
+    }
+    return {
+      attempted: true,
+      success: true,
+      detail: `Started terminal runtime apps: ${started.join(", ")}`,
+    };
+  }
   if (runtimeContext.mode !== "docker") {
     return {
       attempted: false,
@@ -324,6 +524,9 @@ export async function resolveProjectContextForRegression(
       autoStartAttempted = startResult.attempted;
       autoStarted = startResult.success;
       autoStartDetail = startResult.detail;
+      if (autoStarted) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
       health = await runRequiredHealthChecks(workspace);
     }
     if (!health.ok) {

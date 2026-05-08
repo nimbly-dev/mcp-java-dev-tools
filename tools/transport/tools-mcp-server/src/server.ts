@@ -204,6 +204,7 @@ async function main() {
     probeBaseUrl: currentBaseUrl(),
     probeStatusPath,
     workspaceRootAbs: cfg.workspaceRootAbs,
+    getProbeRegistry: () => activeRegistry,
   });
   registerProbeTools(server, {
     probeBaseUrl: currentBaseUrl(),

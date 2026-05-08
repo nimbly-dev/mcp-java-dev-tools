@@ -102,7 +102,7 @@ test("regression suite skill remains execution-focused and result skill is avail
   const suiteText = readUtf8(suitePath);
   const resultText = readUtf8(resultPath);
 
-  assert.match(suiteText, /Using Crafted Plans/);
+  assert.match(suiteText, /Single-Call Execution Contract/);
   assert.match(suiteText, /\.mcpjvm\/<project_name>\/plans\/regression\/<plan>\/runs\/<run_id>/);
   assert.match(suiteText, /correlation\.json/);
   assert.match(suiteText, /correlation-index\.json/);
@@ -112,7 +112,7 @@ test("regression suite skill remains execution-focused and result skill is avail
   assert.match(suiteText, /do not author `correlation\.json` directly/i);
   assert.match(suiteText, /artifact writer flow/i);
   assert.match(suiteText, /Discovery-First Orchestration/);
-  assert.match(suiteText, /run-spring-app-with-mcp\.sh/);
+  assert.match(suiteText, /Wrapper script usage is optional implementation detail/i);
   assert.match(suiteText, /external_healthcheck_failed/);
   assert.match(suiteText, /--probe-id <id>/);
   assert.match(suiteText, /--agent-port <port>/);

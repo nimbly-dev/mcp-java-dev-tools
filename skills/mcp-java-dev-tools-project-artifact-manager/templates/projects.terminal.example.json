@@ -1,0 +1,82 @@
+{
+  "workspaces": [
+    {
+      "projectRoot": "C:\\workspace\\spring-petclinic-microservices",
+      "envFile": ".env",
+      "auth": {
+        "bearerTokenEnv": "AUTH_BEARER_TOKEN"
+      },
+      "runtimeContexts": [
+        {
+          "name": "terminal-cli",
+          "mode": "terminal",
+          "autoStart": true,
+          "autoStopOnFinish": true,
+          "startups": [
+            {
+              "name": "config-server",
+              "command": "java",
+              "args": [
+                "-jar",
+                "target\\spring-petclinic-config-server.jar",
+                "--server.port=8888"
+              ],
+              "appdir": "spring-petclinic-config-server"
+            },
+            {
+              "name": "discovery-server",
+              "command": "java",
+              "args": [
+                "-jar",
+                "target\\spring-petclinic-discovery-server.jar",
+                "--server.port=8761"
+              ],
+              "appdir": "spring-petclinic-discovery-server"
+            }
+          ]
+        },
+        {
+          "name": "docker-compose-infra",
+          "mode": "docker",
+          "composeFile": "docker\\docker-compose-infra.yml",
+          "autoStart": false,
+          "autoStopOnFinish": false
+        }
+      ],
+      "externalSystems": [
+        {
+          "name": "postgres",
+          "kind": "database",
+          "host": "localhost",
+          "port": 5432,
+          "healthChecks": [
+            {
+              "id": "tcp-open",
+              "type": "tcp",
+              "target": "localhost:5432",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "keycloak",
+          "kind": "identity",
+          "host": "localhost",
+          "port": 8081,
+          "healthChecks": [
+            {
+              "id": "http-health",
+              "type": "http",
+              "target": "http://localhost:8081/health",
+              "required": false
+            }
+          ]
+        }
+      ],
+      "defaults": {
+        "requestTimeoutMs": 10000,
+        "retryMax": 1
+      }
+    }
+  ]
+}

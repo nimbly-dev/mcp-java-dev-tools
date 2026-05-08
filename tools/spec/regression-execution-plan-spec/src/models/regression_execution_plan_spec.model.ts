@@ -75,7 +75,7 @@ export type PlanMetadata = {
   specVersion: string;
   execution: {
     intent: RegressionExecutionIntent;
-    verifyRuntime: boolean;
+    probeVerification: boolean;
     pinStrictProbeKey: boolean;
     discoveryPolicy: "disabled" | "allow_discoverable_prerequisites";
     retry?: {

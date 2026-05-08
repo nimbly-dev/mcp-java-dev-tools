@@ -58,7 +58,7 @@ function baseMetadata(overrides = {}) {
     specVersion: "1.0.0",
     execution: {
       intent: "regression",
-      verifyRuntime: true,
+      probeVerification: true,
       pinStrictProbeKey: false,
       discoveryPolicy: "allow_discoverable_prerequisites",
       ...overrides,
@@ -383,7 +383,7 @@ test("buildReplayPreflightWithDiscovery fails closed when project context env ke
   }
 });
 
-test("buildReplayPreflightWithDiscovery fails closed when verifyRuntime=true and probeBaseUrl is unreachable", async () => {
+test("buildReplayPreflightWithDiscovery fails closed when probeVerification=true and probeBaseUrl is unreachable", async () => {
   const closedPort = await reservePortAndRelease();
   const contract = baseContract({
     prerequisites: [
@@ -414,7 +414,7 @@ test("buildReplayPreflightWithDiscovery fails closed when verifyRuntime=true and
   assert.match((result.preflight.checks ?? [])[0] ?? "", new RegExp(`^probe:http://127\\.0\\.0\\.1:${closedPort}=unreachable$`));
 });
 
-test("buildReplayPreflightWithDiscovery remains ready when verifyRuntime=true and probeBaseUrl is reachable", async () => {
+test("buildReplayPreflightWithDiscovery remains ready when probeVerification=true and probeBaseUrl is reachable", async () => {
   const { server, baseUrl } = await createHttpServer();
   try {
     const contract = baseContract({

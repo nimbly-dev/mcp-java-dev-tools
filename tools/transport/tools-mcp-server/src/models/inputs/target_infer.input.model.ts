@@ -25,4 +25,12 @@ export const TargetInferInputSchema = {
   methodHint: z.string().optional().describe("Method hint, e.g. finalPriceLte"),
   lineHint: z.number().int().positive().optional().describe("Optional line hint"),
   maxCandidates: z.number().int().positive().optional(),
+  probeId: z
+    .string()
+    .optional()
+    .describe("Optional probe registry id to force runtime line validation against a specific probe."),
+  probeBaseUrl: z
+    .string()
+    .optional()
+    .describe("Optional explicit probe base URL override for runtime line validation."),
 } as const;

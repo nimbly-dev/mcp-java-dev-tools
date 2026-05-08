@@ -19,7 +19,7 @@ Use this checklist before finalizing a crafted plan.
 
 ## Runtime Verification
 
-1. `verifyRuntime`/`pinStrictProbeKey` values match requested behavior.
+1. `probeVerification`/`pinStrictProbeKey` values match requested behavior.
 2. If pinning is enabled, strict key format is `FQCN#method:line`.
 
 ## Consistency

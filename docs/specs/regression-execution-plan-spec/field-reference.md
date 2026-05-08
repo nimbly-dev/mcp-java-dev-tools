@@ -24,15 +24,15 @@ Required fields:
 
 - `specVersion` (string): spec compatibility marker
 - `execution.intent` (string): execution intent. Current value: `regression`
-- `execution.verifyRuntime` (boolean): whether runtime probe verification is required
+- `execution.probeVerification` (boolean): whether runtime probe verification is required
 - `execution.pinStrictProbeKey` (boolean): whether strict probe key must be explicitly pinned
 - `execution.discoveryPolicy` (string): prerequisite discovery policy (`disabled` or `allow_discoverable_prerequisites`)
 
 Notes:
 
-- `verifyRuntime=false`: no runtime probe verification
-- `verifyRuntime=true` and `pinStrictProbeKey=false`: strict probe key is auto-resolved
-- `verifyRuntime=true` and `pinStrictProbeKey=true`: strict probe key must be provided by plan contract
+- `probeVerification=false`: no runtime probe verification
+- `probeVerification=true` and `pinStrictProbeKey=false`: strict probe key is auto-resolved
+- `probeVerification=true` and `pinStrictProbeKey=true`: strict probe key must be provided by plan contract
 
 ## `contract.json`
 
