@@ -14,7 +14,7 @@ function baseMetadata(overrides = {}) {
     specVersion: "1.0.0",
     execution: {
       intent: "regression",
-      verifyRuntime: true,
+      probeVerification: true,
       pinStrictProbeKey: false,
       discoveryPolicy: "allow_discoverable_prerequisites",
       ...overrides,

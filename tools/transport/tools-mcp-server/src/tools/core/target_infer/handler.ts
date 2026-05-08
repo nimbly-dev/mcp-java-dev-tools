@@ -18,6 +18,28 @@ export type TargetInferHandlerDeps = {
   config: ServerConfig;
 };
 
+function resolveProbeBaseUrlForTargetInfer(args: {
+  config: ServerConfig;
+  probeId?: string;
+  probeBaseUrl?: string;
+}): { ok: true; probeBaseUrl: string } | { ok: false; reasonCode: string; reason: string } {
+  if (typeof args.probeBaseUrl === "string" && args.probeBaseUrl.trim().length > 0) {
+    return { ok: true, probeBaseUrl: args.probeBaseUrl.trim() };
+  }
+  if (typeof args.probeId === "string" && args.probeId.trim().length > 0) {
+    const probe = args.config.probeRegistry?.probesById.get(args.probeId.trim());
+    if (!probe) {
+      return {
+        ok: false,
+        reasonCode: "probe_id_unknown",
+        reason: `probeId '${args.probeId.trim()}' is not configured in active probe registry profile.`,
+      };
+    }
+    return { ok: true, probeBaseUrl: probe.baseUrl };
+  }
+  return { ok: true, probeBaseUrl: args.config.probeBaseUrl };
+}
+
 const TARGET_INFER_REASON_META_KEYS = [
   "failedStep",
   "classHint",
@@ -61,6 +83,7 @@ function runtimeUnavailableResponse(args: {
 export function registerTargetInferTool(server: McpServer, deps: TargetInferHandlerDeps): void {
   const selectLine = async (args: {
     probeKey?: string;
+    probeBaseUrl: string;
     startLine: number;
     endLine: number;
   }): Promise<{
@@ -74,13 +97,13 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
         lineSelectionStatus: "unresolved",
       };
     }
-    if (!deps.config.probeBaseUrl || !deps.config.probeStatusPath) {
+    if (!args.probeBaseUrl || !deps.config.probeStatusPath) {
       throw new RuntimeProbeUnreachableError(
         "Probe runtime config unavailable (missing probeBaseUrl/probeStatusPath).",
       );
     }
     return await selectRuntimeValidatedLine({
-      probeBaseUrl: deps.config.probeBaseUrl,
+      probeBaseUrl: args.probeBaseUrl,
       probeStatusPath: deps.config.probeStatusPath,
       probeKey: args.probeKey,
       startLine: args.startLine,
@@ -103,7 +126,31 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
         lineHint,
         maxCandidates,
         additionalSourceRoots,
+        probeId,
+        probeBaseUrl,
       } = input;
+      const probeResolve = resolveProbeBaseUrlForTargetInfer({
+        config: deps.config,
+        ...(typeof probeId === "string" ? { probeId } : {}),
+        ...(typeof probeBaseUrl === "string" ? { probeBaseUrl } : {}),
+      });
+      if (!probeResolve.ok) {
+        const structuredContent = {
+          resultType: "report",
+          status: "blocked_invalid",
+          reasonCode: probeResolve.reasonCode,
+          nextActionCode: deriveNextActionCode(probeResolve.reasonCode),
+          failedStep: "input_validation",
+          reason: probeResolve.reason,
+          nextAction:
+            "Provide a valid probeId from probe_registry_list or explicit probeBaseUrl and rerun probe_target_infer.",
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+          structuredContent,
+        };
+      }
+      const activeProbeBaseUrl = probeResolve.probeBaseUrl;
       const selectedDiscoveryMode = discoveryMode ?? "ranked_candidates";
       const validated = await validateProjectRootAbs(projectRootAbs);
       if (!validated.ok) {
@@ -286,6 +333,7 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
           for (const method of selected.methods) {
             const runtimeSelection = await selectLine({
               ...(method.probeKey ? { probeKey: method.probeKey } : {}),
+              probeBaseUrl: activeProbeBaseUrl,
               startLine: method.startLine,
               endLine: method.endLine,
             });
@@ -413,6 +461,7 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
         for (const candidate of inferred.candidates) {
           const runtimeSelection = await selectLine({
             ...(candidate.key ? { probeKey: candidate.key } : {}),
+            probeBaseUrl: activeProbeBaseUrl,
             startLine:
               typeof candidate.declarationLine === "number"
                 ? candidate.declarationLine

@@ -45,7 +45,7 @@ test("resolveProjectContextForRegression resolves auth.bearer from env key refer
           auth: {
             bearerTokenEnv: "AUTH_BEARER_TOKEN",
           },
-          runtimeContexts: [{ name: "terminal-cli", mode: "terminal" }],
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
         },
       ],
     });
@@ -62,7 +62,7 @@ test("resolveProjectContextForRegression resolves auth.bearer from env key refer
       assert.equal(out.contextPatch["auth.bearer"], "runtime-token-value");
       assert.equal(out.runtimeContextName, "terminal-cli");
       assert.equal(out.contextPatch["runtime.context.mode"], "terminal");
-      assert.equal(out.contextPatch["runtime.autoStart"], true);
+      assert.equal(out.contextPatch["runtime.autoStart"], false);
       assert.equal(out.contextPatch["runtime.autoStopOnFinish"], true);
     }
   } finally {
@@ -80,7 +80,7 @@ test("resolveProjectContextForRegression prefers terminal runtime context when n
           projectRoot: root,
           runtimeContexts: [
             { name: "docker-compose", mode: "docker", composeFile: "docker-compose.yml" },
-            { name: "terminal-cli", mode: "terminal" },
+            { name: "terminal-cli", mode: "terminal", autoStart: false },
           ],
         },
       ],
@@ -94,7 +94,7 @@ test("resolveProjectContextForRegression prefers terminal runtime context when n
     if (out.status === "ok") {
       assert.equal(out.runtimeContextName, "terminal-cli");
       assert.equal(out.contextPatch["runtime.context.mode"], "terminal");
-      assert.equal(out.contextPatch["runtime.autoStart"], true);
+      assert.equal(out.contextPatch["runtime.autoStart"], false);
       assert.equal(out.contextPatch["runtime.autoStopOnFinish"], true);
     }
   } finally {
@@ -116,6 +116,7 @@ test("resolveProjectContextForRegression honors explicit autoStopOnFinish=false"
               mode: "terminal",
               autoStart: true,
               autoStopOnFinish: false,
+              startups: [{ name: "customers-service", command: "java" }],
             },
           ],
         },
@@ -284,7 +285,14 @@ test("resolveProjectContextForRegression does not auto-start when health checks 
       workspaces: [
         {
           projectRoot: root,
-          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: true }],
+          runtimeContexts: [
+            {
+              name: "terminal-cli",
+              mode: "terminal",
+              autoStart: true,
+              startups: [{ name: "customers-service", command: "java" }],
+            },
+          ],
           externalSystems: [
             {
               name: "customers-api",
@@ -325,7 +333,14 @@ test("resolveProjectContextForRegression attempts auto-start when health checks 
       workspaces: [
         {
           projectRoot: root,
-          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: true }],
+          runtimeContexts: [
+            {
+              name: "terminal-cli",
+              mode: "terminal",
+              autoStart: true,
+              startups: [{ name: "customers-service", command: "java" }],
+            },
+          ],
           defaults: { retryMax: 1, requestTimeoutMs: 50 },
           externalSystems: [
             {

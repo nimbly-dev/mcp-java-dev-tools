@@ -1,11 +1,20 @@
 export type ProjectRuntimeMode = "terminal" | "docker";
 
+export type ProjectRuntimeStartupEntry = {
+  name: string;
+  command: string;
+  args?: string[];
+  appdir?: string;
+  env?: Record<string, string>;
+};
+
 export type ProjectRuntimeContext = {
   name: string;
   mode: ProjectRuntimeMode;
   composeFile?: string;
   autoStart?: boolean;
   autoStopOnFinish?: boolean;
+  startups?: ProjectRuntimeStartupEntry[];
 };
 
 export type ExternalHealthCheck =

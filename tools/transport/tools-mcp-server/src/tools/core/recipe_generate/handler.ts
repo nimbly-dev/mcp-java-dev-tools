@@ -10,12 +10,37 @@ import { enrichRuntimeCapture } from "@/utils/recipe_generate/runtime_capture_en
 import { resolveAdditionalSourceRoots } from "@/utils/source_roots_resolve.util";
 import { generateRecipe } from "@/tools/core/recipe_generate/domain";
 import { RECIPE_CREATE_TOOL } from "@/tools/core/recipe_generate/contract";
+import type { ProbeRegistry } from "@/config/probe-registry";
 
 export type RecipeGenerateHandlerDeps = {
   probeBaseUrl: string;
   probeStatusPath: string;
   workspaceRootAbs: string;
+  getProbeRegistry?: () => ProbeRegistry | undefined;
 };
+
+function resolveProbeBaseUrlForRecipe(args: {
+  defaultProbeBaseUrl: string;
+  probeId?: string;
+  probeBaseUrl?: string;
+  probeRegistry?: ProbeRegistry;
+}): { ok: true; probeBaseUrl: string } | { ok: false; reasonCode: string; reason: string } {
+  if (typeof args.probeBaseUrl === "string" && args.probeBaseUrl.trim().length > 0) {
+    return { ok: true, probeBaseUrl: args.probeBaseUrl.trim() };
+  }
+  if (typeof args.probeId === "string" && args.probeId.trim().length > 0) {
+    const probe = args.probeRegistry?.probesById.get(args.probeId.trim());
+    if (!probe) {
+      return {
+        ok: false,
+        reasonCode: "probe_id_unknown",
+        reason: `probeId '${args.probeId.trim()}' is not configured in active probe registry profile.`,
+      };
+    }
+    return { ok: true, probeBaseUrl: probe.baseUrl };
+  }
+  return { ok: true, probeBaseUrl: args.defaultProbeBaseUrl };
+}
 
 const RECIPE_REASON_META_KEYS = ["failedStep", "classHint", "methodHint", "lineHint", "selectedMode"] as const;
 
@@ -126,6 +151,8 @@ export function registerRecipeCreateTool(
             : undefined,
         actuationActuatorId:
           typeof input.actuationActuatorId === "string" ? input.actuationActuatorId : undefined,
+        probeId: typeof input.probeId === "string" ? input.probeId : undefined,
+        probeBaseUrl: typeof input.probeBaseUrl === "string" ? input.probeBaseUrl : undefined,
       };
       const {
         projectRootAbs,
@@ -144,7 +171,43 @@ export function registerRecipeCreateTool(
         actuationReturnBoolean,
         actuationActuatorId,
         outputTemplate,
+        probeId,
+        probeBaseUrl,
       } = input;
+      const probeResolveInput: Parameters<typeof resolveProbeBaseUrlForRecipe>[0] = {
+        defaultProbeBaseUrl: deps.probeBaseUrl,
+      };
+      if (typeof probeId === "string") probeResolveInput.probeId = probeId;
+      if (typeof probeBaseUrl === "string") probeResolveInput.probeBaseUrl = probeBaseUrl;
+      if (deps.getProbeRegistry) {
+        const registry = deps.getProbeRegistry();
+        if (registry) probeResolveInput.probeRegistry = registry;
+      }
+      const probeResolve = resolveProbeBaseUrlForRecipe(probeResolveInput);
+      if (!probeResolve.ok) {
+        const structuredContent = {
+          projectRoot: projectRootAbs,
+          hints: inputHints,
+          resultType: "report",
+          status: "blocked_invalid",
+          reasonCode: probeResolve.reasonCode,
+          nextActionCode: deriveNextActionCode(probeResolve.reasonCode),
+          failedStep: "input_validation",
+          reasonMeta: normalizeReasonMeta(
+            { failedStep: "input_validation", classHint, methodHint, lineHint },
+            RECIPE_REASON_META_KEYS,
+          ),
+          evidence: [probeResolve.reason],
+          attemptedStrategies: ["probe_selection_validation"],
+          reason: probeResolve.reason,
+          nextAction:
+            "Provide a valid probeId from probe_registry_list or explicit probeBaseUrl and rerun probe_recipe_create.",
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+          structuredContent,
+        };
+      }
 
       const validated = await validateProjectRootAbs(projectRootAbs);
       if (!validated.ok) {
@@ -279,7 +342,7 @@ export function registerRecipeCreateTool(
       const runtimeCapture = await enrichRuntimeCapture({
         ...(inferredKey ? { inferredKey } : {}),
         ...(typeof inferredLine === "number" ? { inferredLine } : {}),
-        probeBaseUrl: deps.probeBaseUrl,
+        probeBaseUrl: probeResolve.probeBaseUrl,
         probeStatusPath: deps.probeStatusPath,
       });
 

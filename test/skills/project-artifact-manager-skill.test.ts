@@ -24,6 +24,8 @@ test("project artifact manager skill enforces separation, prompt, and secret rul
   assert.match(text, /mode` is restricted to `terminal` and `docker`/);
   assert.match(text, /autoStart/);
   assert.match(text, /autoStopOnFinish/);
+  assert.match(text, /startups\[]/);
+  assert.match(text, /appdir/);
   assert.match(text, /external_healthcheck_failed/);
   assert.match(text, /references\/postgres\.md/);
   assert.match(text, /references\/dynamodb\.md/);
@@ -40,4 +42,6 @@ test("project artifact manager references are present", () => {
   assert.ok(fs.existsSync(path.join(base, "references", "postgres.md")));
   assert.ok(fs.existsSync(path.join(base, "references", "dynamodb.md")));
   assert.ok(fs.existsSync(path.join(base, "references", "keycloak.md")));
+  assert.ok(fs.existsSync(path.join(base, "references", "validation-rules.md")));
+  assert.ok(fs.existsSync(path.join(base, "templates", "projects.terminal.example.json")));
 });

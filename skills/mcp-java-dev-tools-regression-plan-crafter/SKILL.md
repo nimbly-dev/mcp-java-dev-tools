@@ -46,7 +46,7 @@ If user input conflicts with these rules, fail closed and request clarification.
 3. `steps[].protocol` must match a key under `steps[].transport` (for example `protocol=http` requires `transport.http`).
 4. No hardcoded secrets in `metadata.json`, `contract.json`, or `plan.md`.
 5. `targets[].selectors.fqcn` is mandatory for deterministic target identity.
-6. If runtime pinning is enabled (`verifyRuntime=true`, `pinStrictProbeKey=true`), each target must provide `runtimeVerification.strictProbeKey` in `FQCN#method:line` format.
+6. If runtime pinning is enabled (`probeVerification=true`, `pinStrictProbeKey=true`), each target must provide `runtimeVerification.strictProbeKey` in `FQCN#method:line` format.
 
 ## Plan Authoring Workflow
 

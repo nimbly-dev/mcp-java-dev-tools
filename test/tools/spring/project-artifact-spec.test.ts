@@ -25,7 +25,20 @@ test("validateProjectArtifact accepts minimal valid shape", () => {
           bearerTokenEnv: "AUTH_BEARER_TOKEN",
         },
         runtimeContexts: [
-          { name: "terminal-cli", mode: "terminal", autoStart: true, autoStopOnFinish: true },
+          {
+            name: "terminal-cli",
+            mode: "terminal",
+            autoStart: true,
+            autoStopOnFinish: true,
+            startups: [
+              {
+                name: "customers-service",
+                command: "java",
+                args: ["-jar", "target/app.jar"],
+                appdir: ".",
+              },
+            ],
+          },
           { name: "docker-compose", mode: "docker", composeFile: "docker-compose.yml" },
         ],
         externalSystems: [
@@ -87,6 +100,25 @@ test("validateProjectArtifact fails closed when runtime context mode is invalid"
   if (!result.ok) assert.equal(result.reasonCode, "runtime_context_unknown");
 });
 
+test("validateProjectArtifact fails closed when startups entry is provided without command", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        runtimeContexts: [
+          {
+            name: "terminal-cli",
+            mode: "terminal",
+            startups: [{ name: "customers-service", args: ["-jar", "app.jar"] }],
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reasonCode, "runtime_context_unknown");
+});
+
 test("write/read project artifact preserves deterministic shape", async () => {
   const root = createTestTempDir("project-artifact");
   try {
@@ -95,7 +127,7 @@ test("write/read project artifact preserves deterministic shape", async () => {
       workspaces: [
         {
           projectRoot: root,
-          runtimeContexts: [{ name: "terminal-cli", mode: "terminal" }],
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
           externalSystems: [{ name: "keycloak", kind: "auth-server", host: "localhost", port: 8081 }],
         },
       ],

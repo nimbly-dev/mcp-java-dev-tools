@@ -23,9 +23,10 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 4. Persist only env key names (for example `AUTH_BEARER_TOKEN`), never resolved token values.
 5. Runtime context `mode` is restricted to `terminal` and `docker`.
 6. Runtime context supports `autoStart` and `autoStopOnFinish` booleans (default true).
-7. External system checks may use only deterministic `tcp` or `http` checks in v1.
-8. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
-9. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator preflight health checks.
+7. For `mode=terminal`, provide `startups[]` entries per app/service with `command` (+ optional `args[]`, `appdir`, `env`) when auto-start is desired.
+8. External system checks may use only deterministic `tcp` or `http` checks in v1.
+9. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
+10. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator preflight health checks.
 
 ## Required Artifact Path
 
@@ -49,7 +50,15 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
           "name": "terminal-cli",
           "mode": "terminal",
           "autoStart": true,
-          "autoStopOnFinish": true
+          "autoStopOnFinish": true,
+          "startups": [
+            {
+              "name": "customers-service",
+              "command": "java",
+              "args": ["-jar", "target\\customers.jar"],
+              "appdir": "spring-petclinic-customers-service"
+            }
+          ]
         },
         {
           "name": "docker-compose",
@@ -87,9 +96,28 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 1. Resolve workspace root.
 2. Ask for project name when missing.
 3. Build artifact path `.mcpjvm/<project-name>/projects.json`.
-4. If file exists: read + validate + patch requested changes.
+4. If file exists: read + normalize legacy/misaligned fields + validate + patch requested changes.
 5. If file does not exist: create minimal valid structure and apply requested changes.
 6. Validate end-to-end and return deterministic summary.
+
+## Legacy/Misaligned Field Fix Rules
+
+1. Always run normalization before validation and write.
+2. Treat `templates/projects.terminal.example.json` as the canonical schema allowlist.
+3. Any field not present in the canonical template is misaligned and must be removed during normalization.
+4. For HTTP health checks, normalize to canonical `url` when `type=http`.
+5. If normalization cannot be done deterministically, fail closed with compact output and do not write partial state.
+
+## Validate Action (Keep It Lean)
+
+1. Run a dedicated `validate` pass before writing updates.
+2. Reuse rules in `references/validation-rules.md` to avoid duplicating logic in `SKILL.md`.
+3. Return compact fail-closed output:
+   1. `status`
+   2. `reasonCode`
+   3. `checks[]`
+   4. `nextAction`
+4. When creating a new project artifact, prefer starting from `templates/projects.terminal.example.json`.
 
 ## Runtime Health Defaults
 
@@ -105,6 +133,8 @@ This skill supports modular external-system discovery guidance in:
 2. `references/postgres.md`
 3. `references/dynamodb.md`
 4. `references/keycloak.md`
+5. `references/validation-rules.md`
+6. `templates/projects.terminal.example.json`
 
 When adding new systems, extend `references/` with one file per system family and keep rules deterministic.
 

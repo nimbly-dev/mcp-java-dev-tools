@@ -7,6 +7,7 @@ import type {
   ProjectArtifactValidationResult,
   ProjectExternalSystem,
   ProjectRuntimeContext,
+  ProjectRuntimeStartupEntry,
   ProjectWorkspaceEntry,
 } from "@tools-project-artifact-spec/models/project_artifact.model";
 
@@ -43,6 +44,64 @@ function normalizeRuntimeContext(
   if (mode === "docker" && !composeFile) {
     errors.push(`workspaces[].runtimeContexts[${index}].composeFile is required for docker mode`);
   }
+  if ("startup" in input) {
+    errors.push(`workspaces[].runtimeContexts[${index}].startup is unsupported; use startups[]`);
+  }
+  const startups: ProjectRuntimeStartupEntry[] = Array.isArray(input.startups)
+    ? input.startups
+        .map((entry, startupIndex) => {
+          if (!isRecord(entry)) {
+            errors.push(`workspaces[].runtimeContexts[${index}].startups[${startupIndex}] must be object`);
+            return null;
+          }
+          const startupName = asTrimmedString(entry.name);
+          const command = asTrimmedString(entry.command);
+          if (!startupName) {
+            errors.push(
+              `workspaces[].runtimeContexts[${index}].startups[${startupIndex}].name is required`,
+            );
+          }
+          if (!command) {
+            errors.push(
+              `workspaces[].runtimeContexts[${index}].startups[${startupIndex}].command is required`,
+            );
+          }
+          const args = Array.isArray(entry.args)
+            ? entry.args
+                .filter((arg) => typeof arg === "string")
+                .map((arg) => String(arg).trim())
+                .filter((arg) => arg.length > 0)
+            : undefined;
+          const appdir = asTrimmedString(entry.appdir) ?? undefined;
+          const env = isRecord(entry.env)
+            ? Object.fromEntries(
+                Object.entries(entry.env)
+                  .filter((row) => typeof row[0] === "string" && typeof row[1] === "string")
+                  .map((row) => [String(row[0] ?? "").trim(), String(row[1] ?? "").trim()])
+                  .filter((row) => {
+                    const key = row[0] ?? "";
+                    const value = row[1] ?? "";
+                    return key.length > 0 && value.length > 0;
+                  }),
+              )
+            : undefined;
+          if (!startupName || !command) return null;
+          return {
+            name: startupName,
+            command,
+            ...(args && args.length > 0 ? { args } : {}),
+            ...(appdir ? { appdir } : {}),
+            ...(env && Object.keys(env).length > 0 ? { env } : {}),
+          } satisfies ProjectRuntimeStartupEntry;
+        })
+        .filter((entry): entry is ProjectRuntimeStartupEntry => entry !== null)
+    : [];
+  if (mode === "terminal") {
+    const autoStart = typeof input.autoStart === "boolean" ? input.autoStart : true;
+    if (autoStart && startups.length === 0) {
+      errors.push(`workspaces[].runtimeContexts[${index}].startups[] is required for terminal autoStart`);
+    }
+  }
   if (!name || (mode !== "terminal" && mode !== "docker")) return null;
   return {
     name,
@@ -52,6 +111,7 @@ function normalizeRuntimeContext(
     ...(typeof input.autoStopOnFinish === "boolean"
       ? { autoStopOnFinish: input.autoStopOnFinish }
       : {}),
+    ...(startups.length > 0 ? { startups } : {}),
   };
 }
 

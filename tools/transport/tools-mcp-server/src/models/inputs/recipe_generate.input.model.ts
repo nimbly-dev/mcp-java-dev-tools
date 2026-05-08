@@ -69,4 +69,12 @@ export const RecipeGenerateInputSchema = {
     .describe(
       "Optional response template override. Placeholders include {{recipe.mode}}, {{recipe.mode_reason}}, {{recipe.steps}}, {{target.path}}, {{http.request}}, {{execution_hit}}, {{api_outcome}}, {{repro_status}}, {{auth.status}}, {{auth.strategy}}, {{auth.next_action}}, {{auth.headers}}, {{auth.missing}}, {{auth.source}}, {{auth.login.path}}, {{auth.login.body}}, {{probe.hit}}, {{http.code}}, {{http.response}}, {{run.duration}}, {{probe.key}}, {{run.notes}}.",
     ),
+  probeId: z
+    .string()
+    .optional()
+    .describe("Optional probe registry id to force runtime capture enrichment against a specific probe."),
+  probeBaseUrl: z
+    .string()
+    .optional()
+    .describe("Optional explicit probe base URL override for runtime capture enrichment."),
 } as const;

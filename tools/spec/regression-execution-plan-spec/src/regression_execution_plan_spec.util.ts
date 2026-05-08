@@ -430,7 +430,7 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
     };
   }
 
-  if (metadata.execution.verifyRuntime && metadata.execution.pinStrictProbeKey) {
+  if (metadata.execution.probeVerification && metadata.execution.pinStrictProbeKey) {
     for (const target of contract.targets) {
       const key = target.runtimeVerification?.strictProbeKey;
       if (!key || !isStrictProbeKey(key)) {

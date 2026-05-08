@@ -18,11 +18,11 @@ This file defines the normative rules used by the craft skill.
 
 - `specVersion`: string
 - `execution.intent`: must be `regression`
-- `execution.verifyRuntime`: boolean
+- `execution.probeVerification`: boolean
 - `execution.pinStrictProbeKey`: boolean
 - `execution.discoveryPolicy`: `disabled` | `allow_discoverable_prerequisites`
 
-When `verifyRuntime=true` and `pinStrictProbeKey=true`, every target must provide a strict probe key.
+When `probeVerification=true` and `pinStrictProbeKey=true`, every target must provide a strict probe key.
 
 ## contract.json (required)
 

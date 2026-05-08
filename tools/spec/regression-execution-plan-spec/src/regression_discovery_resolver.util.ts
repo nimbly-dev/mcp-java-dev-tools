@@ -397,7 +397,7 @@ export async function buildReplayPreflightWithDiscovery(
     }
   }
 
-  if (args.metadata.execution.verifyRuntime) {
+  if (args.metadata.execution.probeVerification) {
     const probeBaseUrl = resolveProbeBaseUrl({
       providedContext: mergedProvidedContext,
       contract: args.contract,
