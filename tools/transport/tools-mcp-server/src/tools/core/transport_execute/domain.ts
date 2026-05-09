@@ -14,6 +14,41 @@ function asNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function hasHeader(headers: Record<string, string>, key: string): boolean {
+  const target = key.toLowerCase();
+  return Object.keys(headers).some((entry) => entry.toLowerCase() === target);
+}
+
+function normalizeHttpBody(args: {
+  bodyRaw: unknown;
+  headers: Record<string, string>;
+}): { ok: true; body?: string } | { ok: false; reason: string } {
+  const { bodyRaw, headers } = args;
+  if (typeof bodyRaw === "undefined" || bodyRaw === null) {
+    return { ok: true };
+  }
+  const asText = asString(bodyRaw);
+  if (asText) {
+    return { ok: true, body: asText };
+  }
+  if (typeof bodyRaw === "object" && !Array.isArray(bodyRaw)) {
+    if (!hasHeader(headers, "content-type")) {
+      headers["content-type"] = "application/json";
+    }
+    return { ok: true, body: JSON.stringify(bodyRaw) };
+  }
+  if (Array.isArray(bodyRaw)) {
+    if (!hasHeader(headers, "content-type")) {
+      headers["content-type"] = "application/json";
+    }
+    return { ok: true, body: JSON.stringify(bodyRaw) };
+  }
+  return {
+    ok: false,
+    reason: "http transport request.body must be a non-empty string, object, array, null, or undefined.",
+  };
+}
+
 function elapsedMs(startEpochMs: number): number {
   const delta = Date.now() - startEpochMs;
   if (!Number.isFinite(delta) || delta <= 0) return 1;
@@ -102,11 +137,31 @@ export async function transportExecuteDomain(args: {
         if (value) headers[k] = value;
       }
     }
-    const body = asString(args.request.body);
+    const bodyNormalized = normalizeHttpBody({
+      bodyRaw: args.request.body,
+      headers,
+    });
+    if (!bodyNormalized.ok) {
+      const structuredContent = {
+        status: "blocked_invalid",
+        reasonCode: "http_payload_invalid",
+        nextActionCode: deriveNextActionCode("http_payload_invalid"),
+        reasonMeta: normalizeReasonMeta({
+          failedStep: "transport_execute_http_payload",
+        }),
+        errorMessage: bodyNormalized.reason,
+        durationMs: elapsedMs(startEpochMs),
+        protocol: "http",
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+        structuredContent,
+      };
+    }
     const response = await fetch(url, {
       method: method.toUpperCase(),
       headers,
-      ...(body ? { body } : {}),
+      ...(bodyNormalized.body ? { body: bodyNormalized.body } : {}),
       signal: ctrl.signal,
     });
     const text = await response.text();

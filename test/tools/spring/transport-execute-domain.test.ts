@@ -59,3 +59,41 @@ test("transport_execute returns fail_http for non-2xx", async () => {
   }
 });
 
+test("transport_execute serializes object body and sets json content-type when absent", async () => {
+  let capturedBody = "";
+  let capturedContentType = "";
+  const server = http.createServer((req: any, res: any) => {
+    capturedContentType = String(req.headers["content-type"] ?? "");
+    req.setEncoding("utf8");
+    req.on("data", (chunk: string) => {
+      capturedBody += chunk;
+    });
+    req.on("end", () => {
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end('{"ok":true}');
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  try {
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server address unavailable");
+    const url = `http://127.0.0.1:${address.port}/post`;
+    const out = await transportExecuteDomain({
+      protocol: "http",
+      request: {
+        method: "POST",
+        url,
+        body: { id: "test", structure: null },
+      },
+      wrappedOnly: true,
+      allowNonWrappedExecutable: false,
+    });
+    assert.equal(out.structuredContent.status, "pass");
+    assert.equal(capturedContentType.startsWith("application/json"), true);
+    assert.equal(capturedBody, JSON.stringify({ id: "test", structure: null }));
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
