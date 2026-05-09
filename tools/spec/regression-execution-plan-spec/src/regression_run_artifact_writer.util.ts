@@ -29,6 +29,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function stripRedundantResolvedContextFields(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  const next = { ...input };
+  delete next.scope;
+  return next;
+}
+
 function sanitizeByKey(
   value: unknown,
   explicitSecretPaths: Set<string>,
@@ -531,7 +539,7 @@ export async function writeRegressionRunArtifacts(
     {
       resolvedAt: now.toISOString(),
       ...(args.planRef ? { planRef: args.planRef } : {}),
-      ...args.resolvedContext,
+      ...stripRedundantResolvedContextFields(args.resolvedContext),
     },
     explicitSecretPaths,
   ) as Record<string, unknown>;

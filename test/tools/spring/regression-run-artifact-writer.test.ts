@@ -56,6 +56,7 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
         path: `.mcpjvm/${projectName}/plans/regression/gateway-course-review-aggregate-smoke`,
       },
       resolvedContext: {
+        scope: "service",
         tenantId: "tenant-social-001",
         "auth.bearer": "SHOULD_NOT_PERSIST",
         requestBody: {
@@ -160,6 +161,7 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
     );
     assert.equal(context.resolvedAt, "2026-04-19T08:01:26.000Z");
     assert.equal(context.tenantId, "tenant-social-001");
+    assert.equal(typeof context.scope, "undefined");
     assert.equal(typeof context["auth.bearer"], "undefined");
     assert.equal(typeof context.requestBody.token, "undefined");
     assert.equal(result.status, "pass");
