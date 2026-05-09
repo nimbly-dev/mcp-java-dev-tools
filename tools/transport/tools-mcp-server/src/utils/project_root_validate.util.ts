@@ -1,6 +1,5 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { MCP_ENV } from "@/config/env-vars";
 
 export type ProjectRootValidation =
   | {
@@ -29,13 +28,10 @@ export async function validateProjectRootAbs(
   }
 
   const trimmed = projectRootAbs.trim();
-  const workspaceRoot = process.env[MCP_ENV.WORKSPACE_ROOT]?.trim();
   const resolved =
     path.isAbsolute(trimmed)
       ? trimmed
-      : workspaceRoot && workspaceRoot.length > 0
-        ? path.resolve(workspaceRoot, trimmed)
-        : path.resolve(trimmed);
+      : path.resolve(trimmed);
 
   let stat;
   try {

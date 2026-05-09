@@ -81,7 +81,6 @@ test("mcp IT: probe registry auto-reload tracks live edits and fail-closed recov
       probeBaseUrl: "http://127.0.0.1:9193",
       extraEnv: {
         MCP_PROBE_CONFIG_FILE: configFileAbs,
-        MCP_PROBE_PROFILE: "dev",
       },
     });
 

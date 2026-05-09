@@ -9,7 +9,7 @@ export function probeUnreachableMessage(url: string, err: unknown): string {
   return (
     `Probe endpoint unreachable: ${url}\n` +
     `Error: ${raw}\n` +
-    `Check MCP_PROBE_BASE_URL (host + port) for the running service. ` +
+    `Check active probe mapping in .mcpjvm/probe-config.json for the running service. ` +
     `If the active probe port is unknown, ask the user for the mapped probe port (for example 9193).`
   );
 }

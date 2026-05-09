@@ -6,7 +6,7 @@ export const PROBE_REGISTRY_TOOLS = {
   },
   reload: {
     name: "probe_registry_reload",
-    description: "Reload probe registry configuration from MCP_PROBE_CONFIG_FILE.",
+    description: "Reload probe registry configuration from discovered .mcpjvm/probe-config.json.",
     inputSchema: {},
   },
 } as const;

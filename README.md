@@ -81,10 +81,7 @@ Default MCP registry env input can be skipped:
 ```
 
 MCP env input captures:
-- `MCP_PROBE_BASE_URL` (default `http://127.0.0.1:9193`)
-- `MCP_WORKSPACE_ROOT` (required)
-- `MCP_PROBE_CONFIG_FILE` (defaults to `<workspace>/.mcpjvm/probe-config.json`)
-- `MCP_PROBE_PROFILE` (default `dev`)
+- `MCP_JAVA_AGENT_JAR` (required; absolute path to built Java agent jar)
 
 ### Spring Integration Launcher
 
@@ -112,7 +109,7 @@ Add the following as a JVM argument when launching your application, replacing `
 -javaagent:C:\Users\{desktopName}\repository\mcp-java-dev-tools\java-agent\core\core-probe\target\mcp-java-dev-tools-agent-0.1.5.jar=host=0.0.0.0;port=9191;exclude=com.nimbly.mcpjavadevtools.agent.**,**.config.**,**Test
 ```
 
-> **Tip:** The `include` filter is optional. If omitted, the agent infers an include scope from startup command metadata (`sun.java.command`), usually the startup class package (for example `com.acme.app.**`). Set `include` explicitly when inference is ambiguous or too broad. `MCP_WORKSPACE_ROOT` does not control Java instrumentation scope.
+> **Tip:** The `include` filter is optional. If omitted, the agent infers an include scope from startup command metadata (`sun.java.command`), usually the startup class package (for example `com.acme.app.**`). Set `include` explicitly when inference is ambiguous or too broad.
 >
 > `include` supports comma-separated basepaths:
 > - package globs (for example `com.thirdparty.service.**`)
@@ -199,14 +196,12 @@ Default is `false`.
 
 | Variable | Purpose |
 |---|---|
-| `MCP_PROBE_BASE_URL` | URL of the running probe agent |
-| `MCP_PROBE_CONFIG_FILE` | Path to probe registry JSON for multi-probe mode |
+| `MCP_JAVA_AGENT_JAR` | Absolute path to the built Java agent jar used for probe-wired runtime startup |
 
 #### Optional
 
 | Variable | Default | Notes |
 |---|---|---|
-| `MCP_WORKSPACE_ROOT` | — | Project root hint for path resolution only (does not control Java instrumentation scope) |
 | `MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR` | — | |
 | `MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH` | — | |
 | `MCP_JAVA_BIN` | — | |
@@ -220,13 +215,7 @@ Default is `false`.
 
 | Setting | Consumed By | Affects |
 |---|---|---|
-| `MCP_WORKSPACE_ROOT` / `--workspace-root` | MCP server | Path resolution for project validation and synthesis search roots |
-| `MCP_PROBE_BASE_URL` / `--probe-base-url` | MCP server | Default probe endpoint for tool calls |
-| `MCP_PROBE_CONFIG_FILE` | MCP server | Multi-probe registry file with workspaces/profiles/probes |
-| `MCP_PROBE_PROFILE` | MCP server | Explicit profile override when registry mode is enabled |
-
-If `MCP_PROBE_CONFIG_FILE` is not set, MCP will auto-discover only:
-1. `.mcpjvm/probe-config.json`
+| `.mcpjvm/probe-config.json` | MCP server | Canonical multi-probe routing with workspaces/profiles/probes |
 | `include` / `exclude` in `-javaagent:...` (or `mcp.probe.include` / `MCP_PROBE_INCLUDE`) | Java agent | Which classes are instrumented at runtime |
 | `MCP_PROBE_INCLUDE_EXECUTION_PATHS` | MCP server | Whether `executionPaths` arrays are included in returned probe payloads |
 
@@ -282,7 +271,6 @@ Start there before opening a large pull request or changing public tool contract
 | `probe_registry_reload` | |
 
 Probe registry runtime behavior:
-- Registry config is loaded on startup.
-- When `MCP_PROBE_CONFIG_FILE` (or workspace `.mcpjvm/probe-config.json`) is active, file edits are auto-reloaded with debounce.
+- Registry config is loaded from discovered workspace `.mcpjvm/probe-config.json`.
+- File edits are auto-reloaded with debounce.
 - `probe_registry_reload` remains available as deterministic manual refresh/fallback.
-

@@ -32,8 +32,6 @@ async function main() {
   let lastReloadAt: string | undefined;
   let lastReloadStatus: "ok" | "error" | undefined;
   let lastReloadError: string | undefined;
-  const registryProfileOverride =
-    activeRegistry?.profileSource === "env" ? activeRegistry.activeProfile : undefined;
 
   const reloadRegistryInternal = (source: "manual" | "watch"): ProbeRegistrySummary | undefined => {
     if (!activeRegistry) return undefined;
@@ -45,7 +43,6 @@ async function main() {
       const nextRegistry = loadProbeRegistry({
         filePath: activeRegistry.configFileAbs,
         workspaceRootAbs: cfg.workspaceRootAbs,
-        ...(registryProfileOverride ? { profileOverride: registryProfileOverride } : {}),
       });
       activeRegistry = nextRegistry;
       lastRegistryContent = raw;

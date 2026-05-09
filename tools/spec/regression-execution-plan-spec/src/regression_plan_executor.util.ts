@@ -161,6 +161,7 @@ export async function executeRegressionPlanWorkflow(
 
   let resolvedContext = { ...resolvedContextInitial };
   const stepRows: RegressionRunStepResult[] = [];
+  let hardRuntimeBlocker = false;
   for (const step of [...contract.steps].sort((a, b) => a.order - b.order)) {
     const resolvedTransport = resolveStepTransport(step, resolvedContext);
     const payload =
@@ -199,12 +200,17 @@ export async function executeRegressionPlanWorkflow(
       reasonCode: transport.reasonCode,
     });
     resolvedContext = applyStepExtract(stepEnvelope, step.extract, resolvedContext);
+
+    if (transport.status === "blocked_runtime" || transport.status === "blocked_invalid") {
+      hardRuntimeBlocker = true;
+      break;
+    }
   }
 
   const ended = new Date();
   const runStatus = deriveRunStatusFromStepOutcomes({
     stepOutcomes: stepRows.map((row) => ({ status: row.status as any, required: true })),
-    hardRuntimeBlocker: false,
+    hardRuntimeBlocker,
   });
   const executionResult: RegressionRunExecutionResult = {
     status: runStatus,

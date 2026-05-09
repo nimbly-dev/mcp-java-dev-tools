@@ -11,7 +11,7 @@ This document walks you through how `mcp-java-dev-tools` operates in practice �
 Make sure these preconditions are met before running any workflow:
 
 - The Java agent is attached to your target service and probe endpoints are reachable
-- `MCP_PROBE_BASE_URL` points to the sidecar/probe endpoint
+- Probe endpoint routing resolves from workspace `.mcpjvm/probe-config.json`
 - If your endpoint requires credentials, include them in your prompt — they can't be inferred
 - Strict line probe runs use `Class#method:line` semantics
 - Runtime route synthesis only scans runtime sources (`src/main/java` + generated-main roots) — not `src/test/java`

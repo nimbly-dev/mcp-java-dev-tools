@@ -1,138 +1,66 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const test = require("node:test");
 
 const { CONFIG_DEFAULTS } = require("@/config/defaults");
 const { MCP_ENV } = require("@/config/env-vars");
 const { loadConfigFromEnvAndArgs } = require("@/config/server-config");
 
-const MANAGED_ENV_NAMES = [
-  MCP_ENV.PROBE_BASE_URL,
-  MCP_ENV.PROBE_CONFIG_FILE,
-  MCP_ENV.PROBE_PROFILE,
-  MCP_ENV.PROBE_LINE_SELECTION_MAX_SCAN_LINES,
-  MCP_ENV.PROBE_WAIT_UNREACHABLE_RETRY_ENABLED,
-  MCP_ENV.PROBE_WAIT_UNREACHABLE_MAX_RETRIES,
-] as const;
+const FIXTURE = path.resolve(__dirname, "fixtures", "probe-config.sample.json");
 
-function withEnv(
-  overrides: Partial<Record<(typeof MANAGED_ENV_NAMES)[number], string | undefined>>,
-  run: () => void,
-): void {
-  const before: Partial<Record<(typeof MANAGED_ENV_NAMES)[number], string | undefined>> = {};
-  for (const name of MANAGED_ENV_NAMES) before[name] = process.env[name];
-
-  for (const name of MANAGED_ENV_NAMES) {
-    const next = overrides[name];
-    if (typeof next === "undefined") {
-      delete process.env[name];
-    } else {
-      process.env[name] = next;
-    }
+function withEnv(overrides: Record<string, string | undefined>, run: () => void): void {
+  const keys = Object.keys(overrides);
+  const before: Record<string, string | undefined> = {};
+  for (const key of keys) before[key] = process.env[key];
+  for (const key of keys) {
+    const next = overrides[key];
+    if (typeof next === "undefined") delete process.env[key];
+    else process.env[key] = next;
   }
-
   try {
     run();
   } finally {
-    for (const name of MANAGED_ENV_NAMES) {
-      const prev = before[name];
-      if (typeof prev === "undefined") {
-        delete process.env[name];
-      } else {
-        process.env[name] = prev;
-      }
+    for (const key of keys) {
+      const prev = before[key];
+      if (typeof prev === "undefined") delete process.env[key];
+      else process.env[key] = prev;
     }
   }
 }
 
-test("loads with only base URL and applies fixed probe path defaults", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(cfg.probeStatusPath, CONFIG_DEFAULTS.PROBE_STATUS_PATH);
-      assert.equal(cfg.probeResetPath, CONFIG_DEFAULTS.PROBE_RESET_PATH);
-      assert.equal(cfg.probeCapturePath, CONFIG_DEFAULTS.PROBE_CAPTURE_PATH);
-      assert.equal(
-        cfg.probeLineSelectionMaxScanLines,
-        CONFIG_DEFAULTS.PROBE_LINE_SELECTION_MAX_SCAN_LINES,
-      );
-      assert.equal(
-        cfg.probeWaitUnreachableRetryEnabled,
-        CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_RETRY_ENABLED,
-      );
-      assert.equal(
-        cfg.probeWaitUnreachableMaxRetries,
-        CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES,
-      );
-    },
-  );
-});
-
-test("ignores legacy probe path env vars and CLI path flags", () => {
-  const legacyNames = [
-    "MCP_PROBE_STATUS_PATH",
-    "MCP_PROBE_RESET_PATH",
-    "MCP_PROBE_CAPTURE_PATH",
-  ] as const;
-  const before = {
-    MCP_PROBE_STATUS_PATH: process.env.MCP_PROBE_STATUS_PATH,
-    MCP_PROBE_RESET_PATH: process.env.MCP_PROBE_RESET_PATH,
-    MCP_PROBE_CAPTURE_PATH: process.env.MCP_PROBE_CAPTURE_PATH,
-  };
-
+test("loads from probe-config.json and applies fixed probe path defaults", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-"));
   try {
-    withEnv(
-      {
-        [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      },
-      () => {
-        process.env.MCP_PROBE_STATUS_PATH = "/legacy/status";
-        process.env.MCP_PROBE_RESET_PATH = "/legacy/reset";
-        process.env.MCP_PROBE_CAPTURE_PATH = "/legacy/capture";
-
-        const cfg = loadConfigFromEnvAndArgs([
-          "node",
-          "server",
-          "--probe-status-path",
-          "/cli/status",
-          "--probe-reset-path",
-          "/cli/reset",
-          "--probe-capture-path",
-          "/cli/capture",
-        ]);
-        assert.equal(cfg.probeStatusPath, CONFIG_DEFAULTS.PROBE_STATUS_PATH);
-        assert.equal(cfg.probeResetPath, CONFIG_DEFAULTS.PROBE_RESET_PATH);
-        assert.equal(cfg.probeCapturePath, CONFIG_DEFAULTS.PROBE_CAPTURE_PATH);
-      },
-    );
+    const workspaceRoot = path.join(tmpRoot, "workspace");
+    const mcpjvmDir = path.join(workspaceRoot, ".mcpjvm");
+    fs.mkdirSync(mcpjvmDir, { recursive: true });
+    fs.copyFileSync(FIXTURE, path.join(mcpjvmDir, "probe-config.json"));
+    const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", workspaceRoot]);
+    assert.equal(cfg.probeBaseUrl, "http://127.0.0.1:9190");
+    assert.equal(cfg.probeStatusPath, CONFIG_DEFAULTS.PROBE_STATUS_PATH);
+    assert.equal(cfg.probeResetPath, CONFIG_DEFAULTS.PROBE_RESET_PATH);
+    assert.equal(cfg.probeCapturePath, CONFIG_DEFAULTS.PROBE_CAPTURE_PATH);
   } finally {
-    for (const name of legacyNames) {
-      const prev = before[name];
-      if (typeof prev === "undefined") {
-        delete process.env[name];
-      } else {
-        process.env[name] = prev;
-      }
-    }
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
 });
 
-test("missing base URL error does not mention status/reset path env vars", () => {
+test("missing probe-config fails closed and does not rely on MCP_PROBE_BASE_URL", () => {
   withEnv(
     {
-      [MCP_ENV.PROBE_BASE_URL]: undefined,
+      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
+      [MCP_ENV.PROBE_CONFIG_FILE]: undefined,
+      [MCP_ENV.WORKSPACE_ROOT]: undefined,
     },
     () => {
       assert.throws(
         () => loadConfigFromEnvAndArgs(["node", "server"]),
         (err: any) => {
           assert.ok(err instanceof Error);
-          assert.match(err.message, /MCP_PROBE_BASE_URL/);
-          assert.doesNotMatch(err.message, /MCP_PROBE_STATUS_PATH/);
-          assert.doesNotMatch(err.message, /MCP_PROBE_RESET_PATH/);
-          assert.doesNotMatch(err.message, /MCP_PROBE_CAPTURE_PATH/);
+          assert.match(err.message, /probe-config\.json/i);
+          assert.doesNotMatch(err.message, /MCP_PROBE_BASE_URL/);
           return true;
         },
       );
@@ -140,95 +68,3 @@ test("missing base URL error does not mention status/reset path env vars", () =>
   );
 });
 
-test("parses probe wait unreachable retry settings from env", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_LINE_SELECTION_MAX_SCAN_LINES]: "240",
-      [MCP_ENV.PROBE_WAIT_UNREACHABLE_RETRY_ENABLED]: "true",
-      [MCP_ENV.PROBE_WAIT_UNREACHABLE_MAX_RETRIES]: "7",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(cfg.probeLineSelectionMaxScanLines, 240);
-      assert.equal(cfg.probeWaitUnreachableRetryEnabled, true);
-      assert.equal(cfg.probeWaitUnreachableMaxRetries, 7);
-    },
-  );
-});
-
-test("uses default line selection scan cap when env is invalid or missing", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_LINE_SELECTION_MAX_SCAN_LINES]: "not-a-number",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(
-        cfg.probeLineSelectionMaxScanLines,
-        CONFIG_DEFAULTS.PROBE_LINE_SELECTION_MAX_SCAN_LINES,
-      );
-    },
-  );
-});
-
-test("clamps line selection scan cap to configured bounds", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_LINE_SELECTION_MAX_SCAN_LINES]: "99999",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(
-        cfg.probeLineSelectionMaxScanLines,
-        CONFIG_DEFAULTS.PROBE_LINE_SELECTION_MAX_SCAN_LINES_MAX,
-      );
-    },
-  );
-
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_LINE_SELECTION_MAX_SCAN_LINES]: "1",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(
-        cfg.probeLineSelectionMaxScanLines,
-        CONFIG_DEFAULTS.PROBE_LINE_SELECTION_MAX_SCAN_LINES_MIN,
-      );
-    },
-  );
-});
-
-test("clamps probe wait unreachable max retries to configured bounds", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_WAIT_UNREACHABLE_MAX_RETRIES]: "999",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(
-        cfg.probeWaitUnreachableMaxRetries,
-        CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES_MAX,
-      );
-    },
-  );
-
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_WAIT_UNREACHABLE_MAX_RETRIES]: "-2",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(
-        cfg.probeWaitUnreachableMaxRetries,
-        CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES_MIN,
-      );
-    },
-  );
-});

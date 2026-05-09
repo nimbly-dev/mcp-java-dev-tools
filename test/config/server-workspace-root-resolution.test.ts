@@ -1,125 +1,91 @@
 const assert = require("node:assert/strict");
-const fs = require("node:fs/promises");
+const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { MCP_ENV } = require("@/config/env-vars");
 const { loadConfigFromEnvAndArgs } = require("@/config/server-config");
 
-const MANAGED_ENV = [
-  MCP_ENV.PROBE_BASE_URL,
-  MCP_ENV.WORKSPACE_ROOT,
-  "INIT_CWD",
-  "PWD",
-  "CODEX_WORKSPACE_ROOT",
-  "CODEX_CWD",
-] as const;
+const FIXTURE = path.resolve(__dirname, "fixtures", "probe-config.sample.json");
 
 function withEnv(overrides: Record<string, string | undefined>, run: () => void): void {
+  const keys = Object.keys(overrides);
   const before: Record<string, string | undefined> = {};
-  for (const key of MANAGED_ENV) before[key] = process.env[key];
-
-  for (const key of MANAGED_ENV) {
+  for (const key of keys) before[key] = process.env[key];
+  for (const key of keys) {
     const next = overrides[key];
-    if (typeof next === "undefined") {
-      delete process.env[key];
-    } else {
-      process.env[key] = next;
-    }
+    if (typeof next === "undefined") delete process.env[key];
+    else process.env[key] = next;
   }
-
   try {
     run();
   } finally {
-    for (const key of MANAGED_ENV) {
+    for (const key of keys) {
       const prev = before[key];
-      if (typeof prev === "undefined") {
-        delete process.env[key];
-      } else {
-        process.env[key] = prev;
-      }
+      if (typeof prev === "undefined") delete process.env[key];
+      else process.env[key] = prev;
     }
   }
 }
 
-test("workspace root resolution prefers --workspace-root over env/session/cwd", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9191",
-      [MCP_ENV.WORKSPACE_ROOT]: "C:\\repo\\env-workspace",
-      INIT_CWD: "C:\\repo\\session-workspace",
-      PWD: "C:\\repo\\pwd-workspace",
-      CODEX_WORKSPACE_ROOT: "C:\\repo\\codex-workspace",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs([
-        "node",
-        "server",
-        "--workspace-root",
-        "C:\\repo\\arg-workspace",
-      ]);
-      assert.equal(cfg.workspaceRootSource, "arg");
-      assert.equal(cfg.workspaceRootAbs, path.resolve("C:\\repo\\arg-workspace"));
-    },
-  );
-});
+function writeProbeConfig(root: string): void {
+  const dir = path.join(root, ".mcpjvm");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync(FIXTURE, path.join(dir, "probe-config.json"));
+}
 
-test("workspace root resolution uses MCP_WORKSPACE_ROOT when CLI arg is absent", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9191",
-      [MCP_ENV.WORKSPACE_ROOT]: "C:\\repo\\env-workspace",
-      INIT_CWD: "C:\\repo\\session-workspace",
-      PWD: "C:\\repo\\pwd-workspace",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(cfg.workspaceRootSource, "env");
-      assert.equal(cfg.workspaceRootAbs, path.resolve("C:\\repo\\env-workspace"));
-    },
-  );
-});
-
-test("workspace root resolution uses INIT_CWD then PWD when explicit config is absent", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9191",
-      [MCP_ENV.WORKSPACE_ROOT]: undefined,
-      INIT_CWD: "C:\\repo\\session-workspace",
-      PWD: "C:\\repo\\pwd-workspace",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(cfg.workspaceRootSource, "session");
-      assert.equal(cfg.workspaceRootAbs, path.resolve("C:\\repo\\session-workspace"));
-    },
-  );
-
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9191",
-      [MCP_ENV.WORKSPACE_ROOT]: undefined,
-      INIT_CWD: undefined,
-      PWD: "C:\\repo\\pwd-workspace",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(cfg.workspaceRootSource, "session");
-      assert.equal(cfg.workspaceRootAbs, path.resolve("C:\\repo\\pwd-workspace"));
-    },
-  );
-});
-
-test("workspace root resolution ignores CODEX_* and falls back to cwd", async () => {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "workspace-root-resolution-"));
-  const originalCwd = process.cwd();
+test("workspace root resolution prefers --workspace-root over session/cwd", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-arg-"));
   try {
+    const argRoot = path.join(tmp, "arg");
+    const sessionRoot = path.join(tmp, "session");
+    writeProbeConfig(argRoot);
+    writeProbeConfig(sessionRoot);
+    withEnv(
+      {
+        INIT_CWD: sessionRoot,
+        PWD: sessionRoot,
+      },
+      () => {
+        const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", argRoot]);
+        assert.equal(cfg.workspaceRootSource, "arg");
+        assert.equal(cfg.workspaceRootAbs, path.resolve(argRoot));
+      },
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("workspace root resolution uses INIT_CWD then PWD when CLI arg is absent", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-session-"));
+  try {
+    const sessionRoot = path.join(tmp, "session");
+    writeProbeConfig(sessionRoot);
+    withEnv(
+      {
+        INIT_CWD: sessionRoot,
+        PWD: undefined,
+      },
+      () => {
+        const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
+        assert.equal(cfg.workspaceRootSource, "session");
+        assert.equal(cfg.workspaceRootAbs, path.resolve(sessionRoot));
+      },
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("workspace root resolution falls back to cwd when session vars are absent", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-cwd-"));
+  const original = process.cwd();
+  try {
+    writeProbeConfig(tempRoot);
     process.chdir(tempRoot);
     withEnv(
       {
-        [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9191",
-        [MCP_ENV.WORKSPACE_ROOT]: undefined,
         INIT_CWD: undefined,
         PWD: undefined,
         CODEX_WORKSPACE_ROOT: "C:\\repo\\codex-workspace",
@@ -132,7 +98,8 @@ test("workspace root resolution ignores CODEX_* and falls back to cwd", async ()
       },
     );
   } finally {
-    process.chdir(originalCwd);
-    await fs.rm(tempRoot, { recursive: true, force: true });
+    process.chdir(original);
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
+

@@ -47,7 +47,8 @@ export function registerProbeRegistryTools(server: McpServer, deps: ProbeRegistr
             status: "not_configured",
             reasonCode: "probe_registry_not_configured",
             nextActionCode: "set_probe_registry_config",
-            nextAction: "Set MCP_PROBE_CONFIG_FILE and restart MCP server.",
+            nextAction:
+              "Place .mcpjvm/probe-config.json under the workspace (or a parent directory), then restart MCP server.",
           };
       return {
         content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
@@ -75,7 +76,8 @@ export function registerProbeRegistryTools(server: McpServer, deps: ProbeRegistr
             status: "not_configured",
             reasonCode: "probe_registry_not_configured",
             nextActionCode: "set_probe_registry_config",
-            nextAction: "Set MCP_PROBE_CONFIG_FILE and restart MCP server.",
+            nextAction:
+              "Place .mcpjvm/probe-config.json under the workspace (or a parent directory), then restart MCP server.",
           };
       return {
         content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],

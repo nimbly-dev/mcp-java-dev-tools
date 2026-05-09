@@ -29,34 +29,23 @@ export class ServerConfigLoader {
 
   load(): ServerConfig {
     const argWorkspaceRoot = this.args.get("--workspace-root");
-    const envWorkspaceRoot = this.env(MCP_ENV.WORKSPACE_ROOT);
     const sessionWorkspaceRoot = this.detectSessionWorkspaceRoot();
     const cwdWorkspaceRoot = process.cwd();
 
     const workspaceRoot =
-      argWorkspaceRoot ?? envWorkspaceRoot ?? sessionWorkspaceRoot ?? cwdWorkspaceRoot;
+      argWorkspaceRoot ?? sessionWorkspaceRoot ?? cwdWorkspaceRoot;
     const workspaceRootSource: ServerConfig["workspaceRootSource"] = argWorkspaceRoot
       ? "arg"
-      : envWorkspaceRoot
-        ? "env"
-        : sessionWorkspaceRoot
-          ? "session"
-          : "cwd";
+      : sessionWorkspaceRoot
+        ? "session"
+        : "cwd";
 
-    const probeBaseUrlArg = this.args.get("--probe-base-url") ?? this.env(MCP_ENV.PROBE_BASE_URL);
-    const probeConfigFile =
-      this.env(MCP_ENV.PROBE_CONFIG_FILE) ??
-      this.detectWorkspaceProbeConfigFile(path.resolve(workspaceRoot));
-    const probeProfileOverride = this.env(MCP_ENV.PROBE_PROFILE);
-
+    const probeConfigFile = this.detectWorkspaceProbeConfigFile(path.resolve(workspaceRoot));
     const probeRegistry =
       typeof probeConfigFile === "string" && probeConfigFile.trim().length > 0
         ? loadProbeRegistry({
             filePath: probeConfigFile.trim(),
             workspaceRootAbs: path.resolve(workspaceRoot),
-            ...(typeof probeProfileOverride === "string" && probeProfileOverride.trim().length > 0
-              ? { profileOverride: probeProfileOverride.trim() }
-              : {}),
           })
         : undefined;
 
@@ -87,23 +76,20 @@ export class ServerConfigLoader {
       CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES_MAX,
     );
 
-    const probeBaseUrl = probeBaseUrlArg ?? this.registryDefaultBaseUrl(probeRegistry);
-    const missing: string[] = [];
-    if (!probeBaseUrl) missing.push(`${MCP_ENV.PROBE_BASE_URL} or ${MCP_ENV.PROBE_CONFIG_FILE}`);
-    if (missing.length > 0) {
+    const probeBaseUrl = this.registryDefaultBaseUrl(probeRegistry);
+    if (!probeBaseUrl) {
       throw new Error(
-        `Missing required MCP config: ${missing.join(", ")}. ` +
-          "Set required probe env vars when adding mcp-java-dev-tools.",
+        "Missing required probe registry configuration. " +
+          "Create .mcpjvm/probe-config.json under the workspace (or a parent directory).",
       );
     }
 
-    const probeBaseUrlRequired = probeBaseUrl!;
-    this.validateProbeBaseUrl(probeBaseUrlRequired);
+    this.validateProbeBaseUrl(probeBaseUrl);
 
     return {
       workspaceRootAbs: path.resolve(workspaceRoot),
       workspaceRootSource,
-      probeBaseUrl: probeBaseUrlRequired,
+      probeBaseUrl,
       probeStatusPath,
       probeResetPath,
       probeCapturePath,
@@ -177,8 +163,14 @@ export class ServerConfigLoader {
   }
 
   private detectWorkspaceProbeConfigFile(workspaceRootAbs: string): string | undefined {
-    const candidate = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
-    if (fs.existsSync(candidate)) return candidate;
+    let cursor = workspaceRootAbs;
+    while (true) {
+      const candidate = path.join(cursor, ".mcpjvm", "probe-config.json");
+      if (fs.existsSync(candidate)) return candidate;
+      const parent = path.dirname(cursor);
+      if (parent === cursor) break;
+      cursor = parent;
+    }
     return undefined;
   }
 }

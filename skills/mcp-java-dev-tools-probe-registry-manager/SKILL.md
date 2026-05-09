@@ -66,8 +66,7 @@ Notes:
 
 ## Workflow
 
-1. Locate the active config path (`MCP_PROBE_CONFIG_FILE`).
-   - if unset, use workspace-local `.mcpjvm/probe-config.json`
+1. Locate workspace-local `.mcpjvm/probe-config.json` via project root discovery.
 2. Read and validate JSON structure.
 3. Apply requested mutation (add/update/remove workspace/profile/probe).
 4. Re-validate the entire file.
@@ -110,9 +109,7 @@ When setting `include[]`:
       "command": "node",
       "args": ["C:\\path\\to\\mcp-jvm-debugger\\dist\\server.js"],
       "env": {
-        "MCP_WORKSPACE_ROOT": "C:\\workspace\\example",
-        "MCP_PROBE_CONFIG_FILE": "C:\\workspace\\probe-config.json",
-        "MCP_PROBE_PROFILE": "dev"
+        "MCP_JAVA_AGENT_JAR": "C:\\path\\to\\mcp-java-dev-tools-agent-0.1.5-all.jar"
       }
     }
   }

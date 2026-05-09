@@ -27,10 +27,6 @@ RUN_BUILD_JAVA=1
 CONFIGURE_MCP_ENV=1
 APPLY_MCP_ENV=1
 MCP_SERVER_NAME="mcp-java-dev-tools"
-MCP_WORKSPACE_ROOT_INPUT=""
-MCP_PROBE_CONFIG_FILE_INPUT=""
-MCP_PROBE_PROFILE_INPUT="dev"
-MCP_PROBE_BASE_URL_INPUT="http://127.0.0.1:9193"
 MCP_JAVA_AGENT_JAR_INPUT=""
 
 usage_common() {
@@ -46,10 +42,6 @@ Options:
   --no-configure-mcp-env      Skip MCP env input/output block generation
   --no-apply-mcp-env          Do not auto-write MCP env block to local config; print snippet only
   --mcp-server-name <name>    MCP server entry name for generated config block (default: mcp-java-dev-tools)
-  --workspace-root <path>     Workspace root for MCP_WORKSPACE_ROOT (used with --configure-mcp-env)
-  --probe-config-file <path>  Probe config path for MCP_PROBE_CONFIG_FILE (used with --configure-mcp-env)
-  --probe-profile <name>      Probe profile for MCP_PROBE_PROFILE (default: dev)
-  --probe-base-url <url>      Default probe base URL for MCP_PROBE_BASE_URL (default: http://127.0.0.1:9193)
   --java-agent-jar <path>     Java agent jar path for MCP_JAVA_AGENT_JAR (required with --configure-mcp-env)
   --help                      Show help
 EOF
@@ -117,10 +109,6 @@ parse_common_args() {
       --no-configure-mcp-env) CONFIGURE_MCP_ENV=0; shift ;;
       --no-apply-mcp-env) APPLY_MCP_ENV=0; shift ;;
       --mcp-server-name) MCP_SERVER_NAME="${2:-}"; shift 2 ;;
-      --workspace-root) MCP_WORKSPACE_ROOT_INPUT="$(expand_home "${2:-}")"; shift 2 ;;
-      --probe-config-file) MCP_PROBE_CONFIG_FILE_INPUT="$(expand_home "${2:-}")"; shift 2 ;;
-      --probe-profile) MCP_PROBE_PROFILE_INPUT="${2:-}"; shift 2 ;;
-      --probe-base-url) MCP_PROBE_BASE_URL_INPUT="${2:-}"; shift 2 ;;
       --java-agent-jar) MCP_JAVA_AGENT_JAR_INPUT="$(expand_home "${2:-}")"; shift 2 ;;
       --help|-h) return 99 ;;
       *)
@@ -152,10 +140,6 @@ validate_common_config() {
   if [[ "$CONFIGURE_MCP_ENV" -eq 1 ]]; then
     if [[ -z "$MCP_SERVER_NAME" ]]; then
       echo "--mcp-server-name must be non-empty when --configure-mcp-env is enabled." >&2
-      exit 1
-    fi
-    if [[ -z "$MCP_PROBE_BASE_URL_INPUT" ]]; then
-      echo "--probe-base-url must be non-empty when --configure-mcp-env is enabled." >&2
       exit 1
     fi
     if [[ -z "$MCP_JAVA_AGENT_JAR_INPUT" ]]; then
@@ -360,46 +344,6 @@ prompt_yes_no_default_no() {
 prompt_mcp_env_if_missing() {
   local input=""
 
-  if [[ -z "$MCP_WORKSPACE_ROOT_INPUT" ]]; then
-    read -r -p "MCP workspace root: " input
-    MCP_WORKSPACE_ROOT_INPUT="$(expand_home "$input")"
-  fi
-  if [[ -z "$MCP_WORKSPACE_ROOT_INPUT" ]]; then
-    echo "MCP workspace root is required when --configure-mcp-env is enabled." >&2
-    exit 1
-  fi
-
-  if [[ -z "$MCP_PROBE_CONFIG_FILE_INPUT" ]]; then
-    local default_probe_cfg="$MCP_WORKSPACE_ROOT_INPUT/.mcpjvm/probe-config.json"
-    read -r -p "MCP probe config file [${default_probe_cfg}]: " input
-    if [[ -z "$input" ]]; then
-      MCP_PROBE_CONFIG_FILE_INPUT="$default_probe_cfg"
-    else
-      MCP_PROBE_CONFIG_FILE_INPUT="$(expand_home "$input")"
-    fi
-  fi
-  if [[ -z "$MCP_PROBE_CONFIG_FILE_INPUT" ]]; then
-    echo "MCP probe config file is required when --configure-mcp-env is enabled." >&2
-    exit 1
-  fi
-
-  if [[ -z "$MCP_PROBE_PROFILE_INPUT" ]]; then
-    read -r -p "MCP probe profile [dev]: " input
-    if [[ -z "$input" ]]; then
-      MCP_PROBE_PROFILE_INPUT="dev"
-    else
-      MCP_PROBE_PROFILE_INPUT="$input"
-    fi
-  fi
-
-  if [[ -z "$MCP_PROBE_BASE_URL_INPUT" ]]; then
-    read -r -p "MCP probe base URL [http://127.0.0.1:9193]: " input
-    if [[ -z "$input" ]]; then
-      MCP_PROBE_BASE_URL_INPUT="http://127.0.0.1:9193"
-    else
-      MCP_PROBE_BASE_URL_INPUT="$input"
-    fi
-  fi
 
   if [[ -z "$MCP_JAVA_AGENT_JAR_INPUT" ]]; then
     local default_agent_jar
@@ -455,20 +399,12 @@ apply_codex_mcp_env_block() {
 
   mv "$tmp" "$cfg"
 
-  local toml_base_url toml_workspace toml_cfg toml_profile toml_agent_jar
-  toml_base_url="$(escape_toml_basic_string "$MCP_PROBE_BASE_URL_INPUT")"
-  toml_workspace="$(escape_toml_basic_string "$MCP_WORKSPACE_ROOT_INPUT")"
-  toml_cfg="$(escape_toml_basic_string "$MCP_PROBE_CONFIG_FILE_INPUT")"
-  toml_profile="$(escape_toml_basic_string "$MCP_PROBE_PROFILE_INPUT")"
+  local toml_agent_jar
   toml_agent_jar="$(escape_toml_basic_string "$MCP_JAVA_AGENT_JAR_INPUT")"
 
   cat >> "$cfg" <<EOF
 
 [mcp_servers.${MCP_SERVER_NAME}.env]
-MCP_PROBE_BASE_URL = "${toml_base_url}"
-MCP_WORKSPACE_ROOT = "${toml_workspace}"
-MCP_PROBE_CONFIG_FILE = "${toml_cfg}"
-MCP_PROBE_PROFILE = "${toml_profile}"
 MCP_JAVA_AGENT_JAR = "${toml_agent_jar}"
 EOF
 
@@ -476,19 +412,11 @@ EOF
 }
 
 print_mcp_env_block() {
-  local toml_base_url toml_workspace toml_cfg toml_profile toml_agent_jar
-  local json_base_url json_workspace json_cfg json_profile json_agent_jar
+  local toml_agent_jar
+  local json_agent_jar
 
-  toml_base_url="$(escape_toml_basic_string "$MCP_PROBE_BASE_URL_INPUT")"
-  toml_workspace="$(escape_toml_basic_string "$MCP_WORKSPACE_ROOT_INPUT")"
-  toml_cfg="$(escape_toml_basic_string "$MCP_PROBE_CONFIG_FILE_INPUT")"
-  toml_profile="$(escape_toml_basic_string "$MCP_PROBE_PROFILE_INPUT")"
   toml_agent_jar="$(escape_toml_basic_string "$MCP_JAVA_AGENT_JAR_INPUT")"
 
-  json_base_url="$(escape_json_string "$MCP_PROBE_BASE_URL_INPUT")"
-  json_workspace="$(escape_json_string "$MCP_WORKSPACE_ROOT_INPUT")"
-  json_cfg="$(escape_json_string "$MCP_PROBE_CONFIG_FILE_INPUT")"
-  json_profile="$(escape_json_string "$MCP_PROBE_PROFILE_INPUT")"
   json_agent_jar="$(escape_json_string "$MCP_JAVA_AGENT_JAR_INPUT")"
 
   if [[ "$CLIENT" == "codex" ]]; then
@@ -499,10 +427,6 @@ Codex MCP env block applied to ~/.codex/config.toml (unless --no-apply-mcp-env w
 Reference block:
 
 [mcp_servers.${MCP_SERVER_NAME}.env]
-MCP_PROBE_BASE_URL = "${toml_base_url}"
-MCP_WORKSPACE_ROOT = "${toml_workspace}"
-MCP_PROBE_CONFIG_FILE = "${toml_cfg}"
-MCP_PROBE_PROFILE = "${toml_profile}"
 MCP_JAVA_AGENT_JAR = "${toml_agent_jar}"
 
 Then restart Codex/MCP session and run:
@@ -523,10 +447,6 @@ Add or merge this block into your Kiro MCP settings:
       "command": "node",
       "args": ["C:\\\\path\\\\to\\\\mcp-jvm-debugger\\\\dist\\\\server.js"],
       "env": {
-        "MCP_PROBE_BASE_URL": "${json_base_url}",
-        "MCP_WORKSPACE_ROOT": "${json_workspace}",
-        "MCP_PROBE_CONFIG_FILE": "${json_cfg}",
-        "MCP_PROBE_PROFILE": "${json_profile}",
         "MCP_JAVA_AGENT_JAR": "${json_agent_jar}"
       }
     }
