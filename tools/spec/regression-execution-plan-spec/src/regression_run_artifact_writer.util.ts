@@ -20,7 +20,8 @@ export type {
   WriteRegressionRunArtifactsInput,
 } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
 
-const RUN_ID_PATTERN = /^(?:\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_\d{2}|\d{10,})$/;
+const RUN_ID_PATTERN =
+  /^(?:\d{2}-\d{2}-\d{4}-\d{2}-\d{2}-\d{2}(?:AM|PM)|\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_\d{2}|\d{10,})$/;
 const SECRET_KEY_PATTERN = /(?:token|secret|password|authorization|api[-_]?key|bearer)/i;
 const SECRET_VALUE_PATTERN =
   /(?:\bbearer\s+[a-z0-9\-._~+/]+=*|\bghp_[a-z0-9]+|\bsk-[a-z0-9]{12,}|\bapi[_-]?key\b|\bpassword\b)/i;

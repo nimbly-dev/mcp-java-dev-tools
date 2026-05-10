@@ -72,6 +72,11 @@ Use these references/templates:
 3. `execution.result.json` step entries MUST include `durationMs`.
 4. Correlation uses canonical `correlationPolicy` + `correlationEvents`.
 5. Do not author `correlation.json` directly; use canonical artifact writer flow.
+6. `run_id` MUST be canonical:
+   - `MM-DD-YYYY-hh-mm-ssAM`
+   - example: `05-09-2026-08-33-41PM`
+7. Never invent ad-hoc run IDs (for example `20260509T134827387Z-customers`).
+8. If run_id is non-canonical, fail closed before artifact write.
 
 ## MCP-First and Wrapped Transport
 

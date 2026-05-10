@@ -13,6 +13,7 @@ import type {
 import { buildReplayPreflightWithDiscovery } from "@tools-regression-execution-plan-spec/regression_discovery_resolver.util";
 import {
   applyStepExtract,
+  buildTimestampRunId,
   resolvePrerequisiteContext,
   resolveStepTransport,
 } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
@@ -148,7 +149,7 @@ export async function executeRegressionPlanWorkflow(
   }
 
   const now = new Date();
-  const runId = String(now.getTime());
+  const runId = buildTimestampRunId(now, 1);
   const startedAt = now.toISOString();
 
   const resolvedContextInitial = resolvePrerequisiteContext(
