@@ -441,8 +441,8 @@ test("applyStepExtract writes extracted values into next-step context", () => {
 });
 
 test("buildTimestampRunId produces sortable timestamp-based run id", () => {
-  const runId = buildTimestampRunId(new Date("2026-04-17T09:42:11.987Z"), 1);
-  assert.equal(runId, "2026-04-17T09-42-11Z_01");
+  const runId = buildTimestampRunId(new Date(2026, 3, 17, 21, 42, 11), 1);
+  assert.equal(runId, "04-17-2026-09-42-11PM");
 });
 
 test("preflight blocks when project context resolver reports missing env key", () => {

@@ -10,6 +10,15 @@ Persist per run under:
 4. `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/correlation.json` (required when correlation evidence exists)
 5. `.mcpjvm/correlation-index.json` (required when correlation artifact is produced)
 
+## Run ID Contract
+
+1. Canonical run ID format is mandatory:
+   - `MM-DD-YYYY-hh-mm-ssAM`
+2. Example:
+   - `05-09-2026-08-33-41PM`
+3. Non-canonical run IDs MUST fail closed before artifact persistence.
+4. Ad-hoc IDs are forbidden (for example `20260509T134827387Z-customers`).
+
 ## Deterministic Fields
 
 `execution.result.json` step rows MUST include:

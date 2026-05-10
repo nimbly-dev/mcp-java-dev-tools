@@ -15,7 +15,8 @@ export type {
   ReplayUserMessage,
 } from "@tools-regression-execution-plan-spec/models/regression_replay_invocation.model";
 
-const RUN_ID_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_\d{2}$/;
+const RUN_ID_PATTERN =
+  /^(?:\d{2}-\d{2}-\d{4}-\d{2}-\d{2}-\d{2}(?:AM|PM)|\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_\d{2}|\d{10,})$/;
 const PLAN_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 function isNonBlank(value: string | undefined): value is string {
@@ -34,7 +35,9 @@ export function resolveReplayInvocation(input: ReplayInvocationInput): ReplayInv
       reasonCode: "invalid_run_id",
       selected: null,
       ignored: [],
-      requiredUserAction: ["Provide runId in timestamp format: YYYY-MM-DDTHH-mm-ssZ_XX."],
+      requiredUserAction: [
+        "Provide runId in timestamp format: MM-DD-YYYY-hh-mm-ssAM (or legacy YYYY-MM-DDTHH-mm-ssZ_XX).",
+      ],
     };
   }
   if (isNonBlank(planPath) && planPath.length < 3) {

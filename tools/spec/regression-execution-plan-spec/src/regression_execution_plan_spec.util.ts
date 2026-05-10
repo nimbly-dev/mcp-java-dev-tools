@@ -582,8 +582,16 @@ export function applyStepExtract(
   return next;
 }
 
-export function buildTimestampRunId(now: Date, seq: number): string {
-  const iso = now.toISOString().replace(/:/g, "-").replace(/\.\d{3}Z$/, "Z");
-  return `${iso}_${String(seq).padStart(2, "0")}`;
+export function buildTimestampRunId(now: Date, _seq: number): string {
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const year = String(now.getFullYear());
+  const hour24 = now.getHours();
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  const minute = String(now.getMinutes()).padStart(2, "0");
+  const second = String(now.getSeconds()).padStart(2, "0");
+  const suffix = hour24 >= 12 ? "PM" : "AM";
+  const timePart = `${String(hour12).padStart(2, "0")}-${minute}-${second}${suffix}`;
+  return `${month}-${day}-${year}-${timePart}`;
 }
 
