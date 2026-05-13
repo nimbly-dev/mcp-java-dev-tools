@@ -199,3 +199,78 @@ test("executeRegressionPlanWorkflow stops step iteration on runtime block", asyn
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("executeRegressionPlanWorkflow routes strict probe verification per target probeId", async () => {
+  const root = createTestTempDir("plan-executor-probe-route");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "multi-service-endpoints";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: true, pinStrictProbeKey: true, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [
+        {
+          type: "class_method",
+          selectors: { fqcn: "org.example.CourseController", method: "list", sourceRoot: "src/main/java" },
+          runtimeVerification: { strictProbeKey: "org.example.CourseController#list:10", probeId: "course-service" },
+        },
+        {
+          type: "class_method",
+          selectors: { fqcn: "org.example.ReviewController", method: "list", sourceRoot: "src/main/java" },
+          runtimeVerification: { strictProbeKey: "org.example.ReviewController#list:20", probeId: "review-service" },
+        },
+      ],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8080" }],
+      steps: [
+        {
+          order: 1,
+          id: "course_step",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/courses" } },
+          expect: [{ id: "outcome_ok_1", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+        {
+          order: 2,
+          id: "review_step",
+          targetRef: 1,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/reviews" } },
+          expect: [{ id: "outcome_ok_2", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    const probeWaitCalls: Array<Record<string, unknown>> = [];
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          return { structuredContent: { status: "pass", statusCode: 200, durationMs: 8, bodyPreview: "[]" } };
+        }
+        if (toolName === "probe_reset") {
+          return { structuredContent: { ok: true } };
+        }
+        if (toolName === "probe_wait_for_hit") {
+          probeWaitCalls.push(input);
+          return { structuredContent: { result: { hit: true } } };
+        }
+        throw new Error(`unexpected tool: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    assert.equal(probeWaitCalls.length, 2);
+    assert.equal(probeWaitCalls[0]!.probeId, "course-service");
+    assert.equal(probeWaitCalls[1]!.probeId, "review-service");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

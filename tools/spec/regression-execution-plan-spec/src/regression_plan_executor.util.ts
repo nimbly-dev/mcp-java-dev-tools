@@ -36,6 +36,12 @@ type McpToolInvoker = (args: {
   structuredContent?: Record<string, unknown>;
 }>;
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 export type ExecuteRegressionPlanWorkflowArgs = {
   workspaceRootAbs: string;
   planName: string;
@@ -164,6 +170,39 @@ export async function executeRegressionPlanWorkflow(
   const stepRows: RegressionRunStepResult[] = [];
   let hardRuntimeBlocker = false;
   for (const step of [...contract.steps].sort((a, b) => a.order - b.order)) {
+    const target = contract.targets[step.targetRef];
+    const strictProbeKey = target?.runtimeVerification?.strictProbeKey;
+    const targetProbeId = target?.runtimeVerification?.probeId;
+    const strictProbeEnabled =
+      metadata.execution.probeVerification === true &&
+      typeof strictProbeKey === "string" &&
+      strictProbeKey.trim().length > 0;
+
+    if (strictProbeEnabled) {
+      const resetIn: Record<string, unknown> = { key: strictProbeKey as string };
+      if (typeof targetProbeId === "string" && targetProbeId.trim().length > 0) {
+        resetIn.probeId = targetProbeId.trim();
+      }
+      const resetOut = await args.mcpInvoke({
+        toolName: "probe_reset",
+        input: resetIn,
+      });
+      const resetStructured = asRecord(resetOut.structuredContent);
+      if (!resetStructured || "error" in resetStructured) {
+        hardRuntimeBlocker = true;
+        stepRows.push({
+          order: step.order,
+          id: step.id,
+          status: "blocked_runtime",
+          durationMs: 1,
+          statusCode: 0,
+          assertions: [],
+          reasonCode: "probe_reset_failed",
+        });
+        break;
+      }
+    }
+
     const resolvedTransport = resolveStepTransport(step, resolvedContext);
     const payload =
       step.protocol === "http"
@@ -185,6 +224,30 @@ export async function executeRegressionPlanWorkflow(
         reasonCode: transport.reasonCode ?? null,
       },
     };
+
+    if (strictProbeEnabled && transport.status === "pass") {
+      const waitIn: Record<string, unknown> = {
+        key: strictProbeKey as string,
+        maxRetries: 5,
+        pollIntervalMs: 300,
+      };
+      if (typeof targetProbeId === "string" && targetProbeId.trim().length > 0) {
+        waitIn.probeId = targetProbeId.trim();
+      }
+      const waitOut = await args.mcpInvoke({
+        toolName: "probe_wait_for_hit",
+        input: waitIn,
+      });
+      const waitStructured = asRecord(waitOut.structuredContent);
+      const waitResult = waitStructured ? asRecord(waitStructured.result) : null;
+      const hit = waitResult?.hit === true;
+      stepEnvelope.probe = {
+        hit,
+        key: strictProbeKey,
+        ...(typeof targetProbeId === "string" ? { probeId: targetProbeId } : {}),
+        coverage: hit ? "verified_line_hit" : "http_only_unverified_line",
+      };
+    }
     const evalResult = evaluateStepExpectations({
       stepResult: stepEnvelope,
       expectations: step.expect,

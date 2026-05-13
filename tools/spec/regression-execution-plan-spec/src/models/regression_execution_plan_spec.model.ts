@@ -104,6 +104,7 @@ export type PlanTarget = {
   };
   runtimeVerification?: {
     strictProbeKey: string;
+    probeId?: string;
   };
 };
 
