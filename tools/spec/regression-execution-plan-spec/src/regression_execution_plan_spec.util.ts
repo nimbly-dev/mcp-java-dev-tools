@@ -1,6 +1,8 @@
 import type {
   BuildPreflightArgs,
   PlanCorrelationPolicy,
+  PlanStepCondition,
+  PlanStepConditionPredicate,
   PlanStepExpectation,
   PlanPrerequisite,
   PrerequisiteResolution,
@@ -142,6 +144,178 @@ function validateStepExpectations(
     }
   }
 
+  return { ok: true };
+}
+
+function isConditionObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isConditionPath(value: string): boolean {
+  return /^context\.[A-Za-z0-9_.-]+$/.test(value) || /^step\[\d+\]\.[A-Za-z0-9_.-]+$/.test(value);
+}
+
+function validateStepConditionNode(args: {
+  node: PlanStepCondition;
+  currentOrder: number;
+}):
+  | { ok: true }
+  | {
+      ok: false;
+      reasonCode:
+        | "step_condition_malformed"
+        | "step_condition_operator_invalid"
+        | "step_condition_forward_reference"
+        | "step_condition_path_missing"
+        | "step_condition_type_mismatch";
+      requiredUserAction: string[];
+    } {
+  const node = args.node as unknown;
+  if (!isConditionObject(node)) {
+    return {
+      ok: false,
+      reasonCode: "step_condition_malformed",
+      requiredUserAction: ["Set steps[].when to a condition object."],
+    };
+  }
+
+  if ("all" in node) {
+    const items = (node as { all: unknown }).all;
+    if (!Array.isArray(items) || items.length === 0) {
+      return {
+        ok: false,
+        reasonCode: "step_condition_type_mismatch",
+        requiredUserAction: ["Set steps[].when.all to a non-empty array."],
+      };
+    }
+    for (const child of items) {
+      const childResult = validateStepConditionNode({
+        node: child as PlanStepCondition,
+        currentOrder: args.currentOrder,
+      });
+      if (!childResult.ok) return childResult;
+    }
+    return { ok: true };
+  }
+
+  if ("any" in node) {
+    const items = (node as { any: unknown }).any;
+    if (!Array.isArray(items) || items.length === 0) {
+      return {
+        ok: false,
+        reasonCode: "step_condition_type_mismatch",
+        requiredUserAction: ["Set steps[].when.any to a non-empty array."],
+      };
+    }
+    for (const child of items) {
+      const childResult = validateStepConditionNode({
+        node: child as PlanStepCondition,
+        currentOrder: args.currentOrder,
+      });
+      if (!childResult.ok) return childResult;
+    }
+    return { ok: true };
+  }
+
+  if ("not" in node) {
+    const child = (node as { not: unknown }).not;
+    if (!isConditionObject(child)) {
+      return {
+        ok: false,
+        reasonCode: "step_condition_type_mismatch",
+        requiredUserAction: ["Set steps[].when.not to a condition object."],
+      };
+    }
+    return validateStepConditionNode({
+      node: child as PlanStepCondition,
+      currentOrder: args.currentOrder,
+    });
+  }
+
+  const predicate = node as PlanStepConditionPredicate;
+  if (!hasNonBlank(predicate.left)) {
+    return {
+      ok: false,
+      reasonCode: "step_condition_path_missing",
+      requiredUserAction: ["Set steps[].when.left to a non-empty path."],
+    };
+  }
+  if (!isConditionPath(predicate.left)) {
+    return {
+      ok: false,
+      reasonCode: "step_condition_path_missing",
+      requiredUserAction: ["Use steps[].when.left path under context.* or step[n].*."],
+    };
+  }
+  if (predicate.left.startsWith("step[")) {
+    const indexEnd = predicate.left.indexOf("]");
+    const raw = predicate.left.slice(5, indexEnd);
+    const refOrder = Number(raw);
+    if (!Number.isFinite(refOrder) || refOrder < 1 || refOrder >= args.currentOrder) {
+      return {
+        ok: false,
+        reasonCode: "step_condition_forward_reference",
+        requiredUserAction: ["Reference only prior steps in steps[].when (step[n], n < current order)."],
+      };
+    }
+  }
+  if (
+    predicate.op !== "equals" &&
+    predicate.op !== "not_equals" &&
+    predicate.op !== "in" &&
+    predicate.op !== "exists"
+  ) {
+    return {
+      ok: false,
+      reasonCode: "step_condition_operator_invalid",
+      requiredUserAction: ["Use steps[].when.op in equals|not_equals|in|exists."],
+    };
+  }
+  if ((predicate.op === "equals" || predicate.op === "not_equals" || predicate.op === "in") && typeof predicate.right === "undefined") {
+    return {
+      ok: false,
+      reasonCode: "step_condition_type_mismatch",
+      requiredUserAction: [`Set steps[].when.right for operator '${predicate.op}'.`],
+    };
+  }
+  if (predicate.op === "in" && !Array.isArray(predicate.right)) {
+    return {
+      ok: false,
+      reasonCode: "step_condition_type_mismatch",
+      requiredUserAction: ["Set steps[].when.right to an array for operator 'in'."],
+    };
+  }
+  return { ok: true };
+}
+
+function validateStepConditions(
+  steps: PlanStep[],
+):
+  | { ok: true }
+  | {
+      ok: false;
+      reasonCode:
+        | "step_condition_malformed"
+        | "step_condition_operator_invalid"
+        | "step_condition_forward_reference"
+        | "step_condition_path_missing"
+        | "step_condition_type_mismatch";
+      requiredUserAction: string[];
+    } {
+  for (const step of steps) {
+    if (typeof step.when === "undefined") continue;
+    const result = validateStepConditionNode({
+      node: step.when,
+      currentOrder: step.order,
+    });
+    if (!result.ok) {
+      return {
+        ok: false,
+        reasonCode: result.reasonCode,
+        requiredUserAction: [`Fix condition on step '${step.id}'.`, ...result.requiredUserAction],
+      };
+    }
+  }
   return { ok: true };
 }
 
@@ -409,6 +583,15 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
       reasonCode: stepExpectValidation.reasonCode,
       ...emptyPreflightDetails(),
       requiredUserAction: stepExpectValidation.requiredUserAction,
+    };
+  }
+  const stepConditionValidation = validateStepConditions(contract.steps);
+  if (!stepConditionValidation.ok) {
+    return {
+      status: "blocked_invalid",
+      reasonCode: stepConditionValidation.reasonCode,
+      ...emptyPreflightDetails(),
+      requiredUserAction: stepConditionValidation.requiredUserAction,
     };
   }
   const correlationValidation = validateCorrelationPolicy(contract.correlation);

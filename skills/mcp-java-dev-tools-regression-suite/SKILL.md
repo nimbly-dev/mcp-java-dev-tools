@@ -20,6 +20,11 @@ Single-call execution skill for regression plans.
    - `phase_4_step_execution`
    - `phase_5_artifact_persist_and_summary`
 3. No phase skipping. Fail closed with deterministic reason and nextAction.
+4. In `phase_4_step_execution`, evaluate `steps[].when` before transport execution.
+5. Condition outcomes are deterministic:
+   - `true` => execute step
+   - `false` => mark `skipped_condition_false` and continue
+   - invalid/ambiguous => fail closed (`blocked_invalid`)
 
 ## FSM Router
 
@@ -97,6 +102,12 @@ Use these references/templates:
    - if runtime is not already compliant, fail closed
 3. If `metadata.execution.probeVerification=true`, strict probe gate is mandatory.
 4. Ad-hoc direct `java -jar` fallback is non-compliant when `projects.json` runtime context exists.
+5. Runtime context selection policy:
+   - if `runtimeContextName` is provided, use it exactly or fail closed when unknown
+   - if `runtimeContextName` is not provided and `terminal-cli` exists, select `terminal-cli`
+   - otherwise if any terminal context exists, select terminal context
+   - if multiple non-terminal contexts exist and no explicit selection is provided, fail closed and require `runtimeContextName`
+6. Never attempt Docker convergence unless selected runtime context `mode=docker`.
 
 ## Discovery-First Orchestration
 
@@ -116,5 +127,10 @@ Use these references/templates:
 1. `external_healthcheck_failed`
 2. `runtime_auto_replace_required` (intermediate converge signal; must auto-replace in same run when `autoStart=true`)
 3. `probe_gate_failed`
+4. `step_condition_malformed`
+5. `step_condition_operator_invalid`
+6. `step_condition_forward_reference`
+7. `step_condition_path_missing`
+8. `step_condition_type_mismatch`
 
 

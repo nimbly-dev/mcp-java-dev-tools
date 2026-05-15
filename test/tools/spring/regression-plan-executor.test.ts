@@ -274,3 +274,124 @@ test("executeRegressionPlanWorkflow routes strict probe verification per target 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("executeRegressionPlanWorkflow skips step when condition evaluates false", async () => {
+  const root = createTestTempDir("plan-executor-condition-skip");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "conditional-skip";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.VisitsController", method: "read", sourceRoot: "src/main/java" } }],
+      prerequisites: [
+        { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" },
+        { key: "verifyEnabled", required: false, secret: false, provisioning: "user_input", default: false },
+      ],
+      steps: [
+        {
+          order: 1,
+          id: "step_1",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/visits/1" } },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+        {
+          order: 2,
+          id: "step_2",
+          targetRef: 0,
+          protocol: "http",
+          when: {
+            all: [
+              { left: "step[1].status", op: "equals", right: "pass" },
+              { left: "context.verifyEnabled", op: "equals", right: true },
+            ],
+          },
+          transport: { http: { method: "GET", pathTemplate: "/visits/2" } },
+          expect: [{ id: "outcome_ok_2", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    let calls = 0;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        calls += 1;
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 7,
+            bodyPreview: "{}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(calls, 1);
+      assert.equal(out.executionResult.steps[1].status, "skipped_condition_false");
+      assert.equal(out.executionResult.steps[1].conditionEvaluation.status, false);
+      assert.equal(out.runStatus, "pass");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow blocks when condition path is invalid at runtime", async () => {
+  const root = createTestTempDir("plan-executor-condition-block");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "conditional-block";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.VisitsController", method: "read", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "step_1",
+          targetRef: 0,
+          protocol: "http",
+          when: { left: "step[0].status", op: "equals", right: "pass" },
+          transport: { http: { method: "GET", pathTemplate: "/visits/1" } },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async () => {
+        throw new Error("transport should not execute");
+      },
+    });
+
+    assert.equal(out.status, "blocked");
+    if (out.status === "blocked") {
+      assert.equal(out.preflight.reasonCode, "step_condition_forward_reference");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

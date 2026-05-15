@@ -47,6 +47,8 @@ If user input conflicts with these rules, fail closed and request clarification.
 4. No hardcoded secrets in `metadata.json`, `contract.json`, or `plan.md`.
 5. `targets[].selectors.fqcn` is mandatory for deterministic target identity.
 6. If runtime pinning is enabled (`probeVerification=true`, `pinStrictProbeKey=true`), each target must provide `runtimeVerification.strictProbeKey` in `FQCN#method:line` format.
+7. `steps[].when` is optional and supports deterministic condition nodes only (`all`, `any`, `not`) and predicates (`equals`, `not_equals`, `in`, `exists`).
+8. `steps[].when.left` must reference only `context.*` or prior `step[n].*` (where `n < current step order`).
 
 ## Plan Authoring Workflow
 
@@ -103,6 +105,7 @@ For every executable step:
 4. set `protocol`
 5. define `transport.<protocol>` details
 6. optionally add `extract` mappings for cross-step context
+7. optionally add `when` for deterministic conditional execution
 
 Keep steps natural and dependency-aware (for example create before update/delete).
 
@@ -192,6 +195,8 @@ Stop and return deterministic blocked guidance when:
 6. user asks to persist secrets as defaults
 7. base path/prefix is not proven but required to produce executable route steps
 8. discoverable prerequisite is missing `discoverySource`
+9. `steps[].when` is malformed, uses unsupported operators, or references non-deterministic paths
+10. `steps[].when` references the same or a future step
 
 ## Base Path Policy (No Assumptions)
 

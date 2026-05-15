@@ -52,6 +52,14 @@ When `probeVerification=true` and `pinStrictProbeKey=true`, every target must pr
 - `protocol`: required
 - `transport`: required; must contain key that exactly matches `protocol`
 - `extract`: optional
+- `when`: optional deterministic condition (`all`/`any`/`not` + predicate ops)
+
+`when` constraints:
+
+- predicate `left` must use `context.*` or prior `step[n].*`
+- predicate `op` must be one of `equals`, `not_equals`, `in`, `exists`
+- `right` is required for `equals`, `not_equals`, and `in`
+- forward/self step references are invalid and fail closed
 
 ### steps[].expect[]
 

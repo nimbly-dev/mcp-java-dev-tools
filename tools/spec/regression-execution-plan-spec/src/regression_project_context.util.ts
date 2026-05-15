@@ -522,10 +522,25 @@ function selectRuntimeContext(args: {
     }
     return { selected: match };
   }
+  const terminalNamed = runtimeContexts.find(
+    (entry) => entry.mode === "terminal" && entry.name === "terminal-cli",
+  );
+  if (terminalNamed) return { selected: terminalNamed };
+
   const terminal = runtimeContexts.find((entry) => entry.mode === "terminal");
-  const selected = terminal ?? runtimeContexts[0];
-  if (!selected) return {};
-  return { selected };
+  if (terminal) return { selected: terminal };
+
+  if (runtimeContexts.length > 1) {
+    return {
+      reasonCode: "runtime_context_unknown",
+      nextAction: "Provide runtimeContextName explicitly when multiple non-terminal runtime contexts exist.",
+      requiredUserAction: ["Select runtimeContextName explicitly (for example docker-compose)."],
+    };
+  }
+
+  const only = runtimeContexts[0];
+  if (!only) return {};
+  return { selected: only };
 }
 
 export async function resolveProjectContextForRegression(

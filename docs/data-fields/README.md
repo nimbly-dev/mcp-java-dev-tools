@@ -316,6 +316,14 @@ These fields are emitted by orchestration summaries in skill-guided runs when pr
 | `nextAction` | Action required from the user to proceed after pushback. | `mcp-java-dev-tools-line-probe-run (summary), mcp-java-dev-tools-regression-suite (summary)` | true | `"Provide a unique runtime/service selector or stop conflicting services."` |
 | `reproSteps` | Ordered executable reproduction steps emitted for both success and pushback outputs. | `mcp-java-dev-tools-line-probe-run (summary), mcp-java-dev-tools-regression-suite (summary)` | true | `["1. Validate projectRootAbs", "2. Call probe_recipe_create", "3. Resolve runtime route"]` |
 
+## Regression Conditional Execution (`mcp-java-dev-tools-regression-suite`)
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `executionResult.steps[].status` | Step outcome status including conditional skip (`skipped_condition_false`). | `mcp-java-dev-tools-regression-suite` | true | `"skipped_condition_false"` |
+| `executionResult.steps[].conditionEvaluation.status` | Deterministic condition evaluation result (`true`, `false`, `blocked_invalid`). | `mcp-java-dev-tools-regression-suite` | false | `false` |
+| `executionResult.steps[].conditionEvaluation.reasonCode` | Deterministic reason when condition evaluation is blocked. | `mcp-java-dev-tools-regression-suite` | false | `"step_condition_forward_reference"` |
+
 ## probe_registry_list
 
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |

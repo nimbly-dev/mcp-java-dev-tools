@@ -42,7 +42,12 @@ export type PreflightReasonCode =
   | "env_key_missing"
   | "runtime_context_unknown"
   | "external_system_invalid"
-  | "external_healthcheck_failed";
+  | "external_healthcheck_failed"
+  | "step_condition_malformed"
+  | "step_condition_operator_invalid"
+  | "step_condition_forward_reference"
+  | "step_condition_path_missing"
+  | "step_condition_type_mismatch";
 
 export type PrerequisiteProvisioning = "user_input" | "discoverable";
 
@@ -115,8 +120,29 @@ export type PlanStep = {
   protocol: string;
   transport: Record<string, unknown>;
   extract?: Array<{ from: string; as: string }>;
+  when?: PlanStepCondition;
   expect: PlanStepExpectation[];
 };
+
+export type PlanStepConditionPredicateOperator = "equals" | "not_equals" | "in" | "exists";
+
+export type PlanStepConditionPredicate = {
+  left: string;
+  op: PlanStepConditionPredicateOperator;
+  right?: unknown;
+};
+
+export type PlanStepCondition =
+  | PlanStepConditionPredicate
+  | {
+      all: PlanStepCondition[];
+    }
+  | {
+      any: PlanStepCondition[];
+    }
+  | {
+      not: PlanStepCondition;
+    };
 
 export type PlanStepExpectationOperator =
   | "field_equals"

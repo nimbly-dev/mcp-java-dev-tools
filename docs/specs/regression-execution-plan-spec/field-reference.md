@@ -90,16 +90,31 @@ Discovery governance rules:
 - `protocol` (string): protocol classification (`http`, `grpc`, `kafka`, `custom`, etc.)
 - `transport` (object, required): protocol-specific execution details under `transport.<protocol>`
 - `extract` (array, optional): extraction mapping from output into run context
+- `when` (object, optional): deterministic condition gate for step execution
 
 Validation rule:
 
 - `protocol` must map to exactly one key in `transport` with the same value (for example `protocol=http` requires `transport.http`).
 - mismatched or missing transport key fails closed.
+- invalid `when` shape/operator/path fails closed.
 
 `extract` semantics:
 
 - `extract[].from`: output path to read from current step result
 - `extract[].as`: context key to store for subsequent steps
+
+`when` semantics:
+
+- `all`: all child conditions must be true
+- `any`: at least one child condition must be true
+- `not`: negates one child condition
+- predicate fields:
+  - `left`: `context.*` or `step[n].*`
+  - `op`: `equals` | `not_equals` | `in` | `exists`
+  - `right`: required for `equals`/`not_equals`/`in`
+- `step[n]` references must be prior steps only (`n < current order`)
+- false condition result skips step (`skipped_condition_false`)
+- invalid condition result fails closed with deterministic reason code
 
 ### `steps[].expect[]`
 

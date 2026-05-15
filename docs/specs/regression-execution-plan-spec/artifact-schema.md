@@ -88,6 +88,15 @@ Rules:
 - replay execution MUST NOT start unless `preflight.status = ready`
 - blocked runs MUST set `startedAt = null` and `endedAt = null`
 - `steps` MUST be an array (empty when blocked before execution)
+- per-step `status` MAY be `skipped_condition_false` when step-level condition evaluates false
+- per-step `conditionEvaluation` MAY be present with:
+  - `status`: `true` | `false` | `blocked_invalid`
+  - `reasonCode` when blocked:
+    - `step_condition_malformed`
+    - `step_condition_operator_invalid`
+    - `step_condition_forward_reference`
+    - `step_condition_path_missing`
+    - `step_condition_type_mismatch`
 
 ## evidence.json
 

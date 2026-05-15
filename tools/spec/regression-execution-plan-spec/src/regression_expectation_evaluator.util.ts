@@ -11,7 +11,8 @@ export type StepExecutionOutcomeStatus =
   | "fail_assertion"
   | "fail_http"
   | "blocked_dependency"
-  | "blocked_runtime";
+  | "blocked_runtime"
+  | "skipped_condition_false";
 
 export type AssertionEvaluationStatus = "pass" | "fail" | "blocked_invalid";
 

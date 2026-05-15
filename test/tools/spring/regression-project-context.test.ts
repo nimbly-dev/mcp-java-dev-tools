@@ -509,3 +509,68 @@ test("resolveProjectContextForRegression derives strict probe targets from start
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("resolveProjectContextForRegression prefers terminal-cli by name when multiple terminal contexts exist", async () => {
+  const root = createTestTempDir("project-context-terminal-name");
+  try {
+    const projectName = "petclinic-regression";
+    const projectsFile = path.join(root, ".mcpjvm", projectName, "projects.json");
+    writeJson(projectsFile, {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [
+            { name: "terminal-alt", mode: "terminal", autoStart: false },
+            { name: "terminal-cli", mode: "terminal", autoStart: false },
+          ],
+        },
+      ],
+    });
+
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projectsFile,
+      healthChecksEnabled: false,
+    });
+
+    assert.equal(out.status, "ok");
+    if (out.status === "ok") {
+      assert.equal(out.runtimeContextName, "terminal-cli");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectContextForRegression fails closed when multiple non-terminal runtime contexts exist and none is selected", async () => {
+  const root = createTestTempDir("project-context-ambiguous-nonterminal");
+  try {
+    const projectName = "petclinic-regression";
+    const projectsFile = path.join(root, ".mcpjvm", projectName, "projects.json");
+    writeJson(projectsFile, {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [
+            { name: "docker-compose", mode: "docker", composeFile: "docker-compose.yml", autoStart: false },
+            { name: "docker-compose-alt", mode: "docker", composeFile: "docker-compose.alt.yml", autoStart: false },
+          ],
+        },
+      ],
+    });
+
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projectsFile,
+      healthChecksEnabled: false,
+    });
+
+    assert.equal(out.status, "blocked");
+    if (out.status === "blocked") {
+      assert.equal(out.reasonCode, "runtime_context_unknown");
+      assert.match(out.nextAction ?? "", /Provide runtimeContextName explicitly/);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

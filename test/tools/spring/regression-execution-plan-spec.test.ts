@@ -465,3 +465,34 @@ test("preflight blocks when project context resolver reports missing env key", (
   assert.deepEqual(result.requiredUserAction, ["Set env key AUTH_BEARER_TOKEN before regression."]);
 });
 
+test("preflight blocks when step condition uses forward step reference", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        when: {
+          all: [{ left: "step[1].status", op: "equals", right: "pass" }],
+        },
+        transport: {
+          http: {
+            method: "POST",
+            pathTemplate: "/api/v1/posts",
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "step_condition_forward_reference");
+});
+

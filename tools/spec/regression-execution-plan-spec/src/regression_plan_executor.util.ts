@@ -1,9 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import type {
   PlanContract,
   PlanMetadata,
+  PlanStepCondition,
+  PlanStepConditionPredicate,
   PlanStep,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import type {
@@ -28,6 +31,13 @@ import {
 } from "@tools-regression-execution-plan-spec/regression_transport_executor.util";
 import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 import { writeRegressionRunArtifacts } from "@tools-regression-execution-plan-spec/regression_run_artifact_writer.util";
+
+type ConditionReasonCode =
+  | "step_condition_malformed"
+  | "step_condition_operator_invalid"
+  | "step_condition_forward_reference"
+  | "step_condition_path_missing"
+  | "step_condition_type_mismatch";
 
 type McpToolInvoker = (args: {
   toolName: string;
@@ -65,6 +75,152 @@ export type ExecuteRegressionPlanWorkflowResult =
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function readByPath(input: Record<string, unknown>, pathKey: string): unknown {
+  const segments = pathKey.split(".");
+  let cursor: unknown = input;
+  for (const segment of segments) {
+    if (!cursor || typeof cursor !== "object" || Array.isArray(cursor)) return undefined;
+    cursor = (cursor as Record<string, unknown>)[segment];
+  }
+  return cursor;
+}
+
+function resolveConditionLeftValue(args: {
+  left: string;
+  context: Record<string, unknown>;
+  stepOutputsByOrder: Record<number, Record<string, unknown>>;
+  currentOrder: number;
+}):
+  | { ok: true; actual: unknown }
+  | {
+      ok: false;
+      reasonCode: ConditionReasonCode;
+    } {
+  if (args.left.startsWith("context.")) {
+    return {
+      ok: true,
+      actual: readByPath(args.context, args.left.slice("context.".length)),
+    };
+  }
+  const stepMatch = args.left.match(/^step\[(\d+)\]\.(.+)$/);
+  if (!stepMatch) {
+    return { ok: false, reasonCode: "step_condition_path_missing" };
+  }
+  const stepOrder = Number(stepMatch[1]);
+  const pathAfter = stepMatch[2];
+  if (typeof pathAfter !== "string" || pathAfter.length === 0) {
+    return { ok: false, reasonCode: "step_condition_path_missing" };
+  }
+  if (!Number.isFinite(stepOrder) || stepOrder < 1) {
+    return { ok: false, reasonCode: "step_condition_type_mismatch" };
+  }
+  if (stepOrder >= args.currentOrder) {
+    return { ok: false, reasonCode: "step_condition_forward_reference" };
+  }
+  const stepOutput = args.stepOutputsByOrder[stepOrder];
+  if (!stepOutput) {
+    return { ok: false, reasonCode: "step_condition_path_missing" };
+  }
+  return {
+    ok: true,
+    actual: readByPath(stepOutput, pathAfter),
+  };
+}
+
+function evaluatePredicate(args: {
+  condition: PlanStepConditionPredicate;
+  context: Record<string, unknown>;
+  stepOutputsByOrder: Record<number, Record<string, unknown>>;
+  currentOrder: number;
+}): { status: true | false | "blocked_invalid"; reasonCode?: ConditionReasonCode } {
+  const left = resolveConditionLeftValue({
+    left: args.condition.left,
+    context: args.context,
+    stepOutputsByOrder: args.stepOutputsByOrder,
+    currentOrder: args.currentOrder,
+  });
+  if (!left.ok) {
+    return { status: "blocked_invalid", reasonCode: left.reasonCode };
+  }
+  if (args.condition.op === "exists") {
+    return { status: typeof left.actual !== "undefined" };
+  }
+  if (args.condition.op === "equals") {
+    return { status: isDeepStrictEqual(left.actual, args.condition.right) };
+  }
+  if (args.condition.op === "not_equals") {
+    return { status: !isDeepStrictEqual(left.actual, args.condition.right) };
+  }
+  if (args.condition.op === "in") {
+    if (!Array.isArray(args.condition.right)) {
+      return { status: "blocked_invalid", reasonCode: "step_condition_type_mismatch" };
+    }
+    return {
+      status: args.condition.right.some((item) => isDeepStrictEqual(item, left.actual)),
+    };
+  }
+  return { status: "blocked_invalid", reasonCode: "step_condition_operator_invalid" };
+}
+
+function evaluateStepCondition(args: {
+  when: PlanStepCondition;
+  context: Record<string, unknown>;
+  stepOutputsByOrder: Record<number, Record<string, unknown>>;
+  currentOrder: number;
+}): { status: true | false | "blocked_invalid"; reasonCode?: ConditionReasonCode } {
+  const node = args.when as unknown as Record<string, unknown>;
+  if ("all" in node) {
+    if (!Array.isArray(node.all) || node.all.length === 0) {
+      return { status: "blocked_invalid", reasonCode: "step_condition_malformed" };
+    }
+    for (const child of node.all as PlanStepCondition[]) {
+      const evalChild = evaluateStepCondition({
+        when: child,
+        context: args.context,
+        stepOutputsByOrder: args.stepOutputsByOrder,
+        currentOrder: args.currentOrder,
+      });
+      if (evalChild.status === "blocked_invalid") return evalChild;
+      if (evalChild.status === false) return { status: false };
+    }
+    return { status: true };
+  }
+  if ("any" in node) {
+    if (!Array.isArray(node.any) || node.any.length === 0) {
+      return { status: "blocked_invalid", reasonCode: "step_condition_malformed" };
+    }
+    let hasTrue = false;
+    for (const child of node.any as PlanStepCondition[]) {
+      const evalChild = evaluateStepCondition({
+        when: child,
+        context: args.context,
+        stepOutputsByOrder: args.stepOutputsByOrder,
+        currentOrder: args.currentOrder,
+      });
+      if (evalChild.status === "blocked_invalid") return evalChild;
+      if (evalChild.status === true) hasTrue = true;
+    }
+    return { status: hasTrue };
+  }
+  if ("not" in node) {
+    const notCondition = node.not as PlanStepCondition;
+    const evalNot = evaluateStepCondition({
+      when: notCondition,
+      context: args.context,
+      stepOutputsByOrder: args.stepOutputsByOrder,
+      currentOrder: args.currentOrder,
+    });
+    if (evalNot.status === "blocked_invalid") return evalNot;
+    return { status: !evalNot.status };
+  }
+  return evaluatePredicate({
+    condition: node as unknown as PlanStepConditionPredicate,
+    context: args.context,
+    stepOutputsByOrder: args.stepOutputsByOrder,
+    currentOrder: args.currentOrder,
+  });
 }
 
 function resolveBlockedShape(preflight: {
@@ -168,8 +324,49 @@ export async function executeRegressionPlanWorkflow(
 
   let resolvedContext = { ...resolvedContextInitial };
   const stepRows: RegressionRunStepResult[] = [];
+  const stepOutputsByOrder: Record<number, Record<string, unknown>> = {};
   let hardRuntimeBlocker = false;
   for (const step of [...contract.steps].sort((a, b) => a.order - b.order)) {
+    if (typeof step.when !== "undefined") {
+      const conditionResult = evaluateStepCondition({
+        when: step.when,
+        context: resolvedContext,
+        stepOutputsByOrder,
+        currentOrder: step.order,
+      });
+      if (conditionResult.status === "blocked_invalid") {
+        hardRuntimeBlocker = true;
+        stepRows.push({
+          order: step.order,
+          id: step.id,
+          status: "blocked_runtime",
+          durationMs: 1,
+          statusCode: 0,
+          assertions: [],
+          reasonCode: conditionResult.reasonCode ?? "step_condition_malformed",
+          conditionEvaluation: {
+            status: "blocked_invalid",
+            reasonCode: conditionResult.reasonCode ?? "step_condition_malformed",
+          },
+        });
+        break;
+      }
+      if (conditionResult.status === false) {
+        stepRows.push({
+          order: step.order,
+          id: step.id,
+          status: "skipped_condition_false",
+          durationMs: 1,
+          statusCode: 0,
+          assertions: [],
+          conditionEvaluation: {
+            status: false,
+          },
+        });
+        continue;
+      }
+    }
+
     const target = contract.targets[step.targetRef];
     const strictProbeKey = target?.runtimeVerification?.strictProbeKey;
     const targetProbeId = target?.runtimeVerification?.probeId;
@@ -262,7 +459,15 @@ export async function executeRegressionPlanWorkflow(
       statusCode: transport.statusCode ?? 0,
       assertions: evalResult.assertions,
       reasonCode: transport.reasonCode,
+      ...(typeof step.when === "undefined"
+        ? {}
+        : {
+            conditionEvaluation: {
+              status: true as const,
+            },
+          }),
     });
+    stepOutputsByOrder[step.order] = stepEnvelope;
     resolvedContext = applyStepExtract(stepEnvelope, step.extract, resolvedContext);
 
     if (transport.status === "blocked_runtime" || transport.status === "blocked_invalid") {

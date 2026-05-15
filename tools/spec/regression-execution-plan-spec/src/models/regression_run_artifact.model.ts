@@ -20,7 +20,20 @@ export type RegressionRunStepResultStatus =
   | "fail_assertion"
   | "fail_http"
   | "blocked_dependency"
-  | "blocked_runtime";
+  | "blocked_runtime"
+  | "skipped_condition_false";
+
+export type RegressionConditionEvaluationStatus = true | false | "blocked_invalid";
+
+export type RegressionConditionEvaluation = {
+  status: RegressionConditionEvaluationStatus;
+  reasonCode?:
+    | "step_condition_malformed"
+    | "step_condition_operator_invalid"
+    | "step_condition_forward_reference"
+    | "step_condition_path_missing"
+    | "step_condition_type_mismatch";
+};
 
 export type RegressionRunAssertionStatus = "pass" | "fail" | "blocked_invalid";
 
@@ -41,6 +54,7 @@ export type RegressionRunStepResult = Record<string, unknown> & {
   id: string;
   status: RegressionRunStepResultStatus;
   assertions?: RegressionRunAssertionResult[];
+  conditionEvaluation?: RegressionConditionEvaluation;
 };
 
 export type DiscoveryEvidenceOutcome = {
