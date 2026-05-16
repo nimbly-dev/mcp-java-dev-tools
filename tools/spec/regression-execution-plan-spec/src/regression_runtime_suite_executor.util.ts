@@ -1,4 +1,5 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 import type {
   RuntimeSuiteManifest,
@@ -7,6 +8,7 @@ import type {
 } from "@tools-regression-execution-plan-spec/models/regression_runtime_suite.model";
 import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import { writeRunSessionExport } from "@tools-regression-execution-plan-spec/regression_run_session_export_writer.util";
 import {
   executeRegressionPlanWorkflow,
   type ExecuteRegressionPlanWorkflowArgs,
@@ -164,6 +166,8 @@ export type ExecuteRegressionRuntimeSuiteArgs = {
 export async function executeRegressionRuntimeSuite(
   args: ExecuteRegressionRuntimeSuiteArgs,
 ): Promise<RuntimeSuiteRunResult | { status: "blocked"; reasonCode: string; requiredUserAction: string[] }> {
+  const sessionStartedAt = new Date();
+  const sessionId = randomUUID();
   const suite = await readSuiteManifest({
     workspaceRootAbs: args.workspaceRootAbs,
     executionProfile: args.executionProfile,
@@ -248,10 +252,40 @@ export async function executeRegressionRuntimeSuite(
     status = "fail";
   }
 
-  return {
+  const result: RuntimeSuiteRunResult = {
     executionProfile: manifest.executionProfile,
     executionPolicy: manifest.executionPolicy,
     status,
     planRuns,
   };
+  const sessionEndedAt = new Date();
+  try {
+    const written = await writeRunSessionExport({
+      workspaceRootAbs: args.workspaceRootAbs,
+      sessionId,
+      generatedAt: sessionEndedAt,
+      startedAt: sessionStartedAt,
+      endedAt: sessionEndedAt,
+      executionProfile: manifest.executionProfile,
+      executionPolicy: manifest.executionPolicy,
+      runStatus: status,
+      ...(manifest.runtimeContextName ? { runtimeContextName: manifest.runtimeContextName } : {}),
+      ...(manifest.runtimeConfig ? { runtimeConfig: manifest.runtimeConfig } : {}),
+      planRuns,
+    });
+    result.sessionExport = {
+      status: "written",
+      sessionId: written.sessionId,
+      sessionDirAbs: written.sessionDirAbs,
+      manifestPathAbs: written.manifestPathAbs,
+    };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "session_export_write_failed";
+    result.sessionExport = {
+      status: "blocked",
+      reasonCode: "session_export_write_failed",
+      requiredUserAction: [`Verify export destination is writable. detail=${detail}`],
+    };
+  }
+  return result;
 }

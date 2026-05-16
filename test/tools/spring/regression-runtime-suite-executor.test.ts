@@ -89,6 +89,15 @@ test("executeRegressionRuntimeSuite enforces stop_on_fail and skips remaining pl
     assert.equal(out.planRuns[0].status, "executed");
     assert.equal(out.planRuns[1].status, "executed");
     assert.equal(out.planRuns[2].status, "skipped");
+    assert.equal(out.sessionExport?.status, "written");
+    if (out.sessionExport?.status === "written") {
+      assert.match(out.sessionExport.sessionDirAbs.replaceAll("\\", "/"), /\/exports\/session-runs-exports\/[^/]+$/);
+      const manifestRaw = fs.readFileSync(out.sessionExport.manifestPathAbs, "utf8");
+      const manifest = JSON.parse(manifestRaw);
+      assert.equal(manifest.executionProfile, "core-smoke");
+      assert.equal(Array.isArray(manifest.planRuns), true);
+      assert.equal(manifest.planRuns.length, 3);
+    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
