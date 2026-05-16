@@ -7,6 +7,8 @@ import type {
   ProjectArtifactValidationResult,
   ProjectExternalSystem,
   RunPrerequisite,
+  ExecutionProfileEntry,
+  ExecutionProfilePlanEntry,
   ProjectRuntimeContext,
   ProjectRuntimeStartupEntry,
   ProjectWorkspaceEntry,
@@ -300,6 +302,85 @@ function normalizeRunPrerequisite(input: unknown, index: number, errors: string[
   };
 }
 
+function normalizeExecutionProfilePlan(input: unknown, index: number, errors: string[]): ExecutionProfilePlanEntry | null {
+  if (!isRecord(input)) {
+    errors.push(`workspaces[].executionProfiles[].plans[${index}] must be object`);
+    return null;
+  }
+  if (typeof input.order !== "number" || !Number.isInteger(input.order) || input.order <= 0) {
+    errors.push(`workspaces[].executionProfiles[].plans[${index}].order must be positive integer`);
+    return null;
+  }
+  const planName = asTrimmedString(input.planName);
+  if (!planName) {
+    errors.push(`workspaces[].executionProfiles[].plans[${index}].planName is required`);
+    return null;
+  }
+  const onFail = asTrimmedString(input.onFail);
+  if (onFail && onFail !== "inherit" && onFail !== "stop" && onFail !== "continue") {
+    errors.push(`workspaces[].executionProfiles[].plans[${index}].onFail must be inherit|stop|continue`);
+    return null;
+  }
+  const runtimeContextName = asTrimmedString(input.runtimeContextName) ?? undefined;
+  return {
+    order: input.order,
+    planName,
+    ...(onFail ? { onFail: onFail as "inherit" | "stop" | "continue" } : {}),
+    ...(runtimeContextName ? { runtimeContextName } : {}),
+    ...(isRecord(input.providedContext) ? { providedContext: input.providedContext } : {}),
+  };
+}
+
+function normalizeExecutionProfile(input: unknown, index: number, errors: string[]): ExecutionProfileEntry | null {
+  if (!isRecord(input)) {
+    errors.push(`workspaces[].executionProfiles[${index}] must be object`);
+    return null;
+  }
+  const executionProfile = asTrimmedString(input.executionProfile);
+  if (!executionProfile) {
+    errors.push(`workspaces[].executionProfiles[${index}].executionProfile is required`);
+    return null;
+  }
+  const executionPolicy = asTrimmedString(input.executionPolicy);
+  if (executionPolicy !== "stop_on_fail" && executionPolicy !== "continue_on_fail") {
+    errors.push(`workspaces[].executionProfiles[${index}].executionPolicy must be stop_on_fail|continue_on_fail`);
+    return null;
+  }
+  if (!Array.isArray(input.plans) || input.plans.length === 0) {
+    errors.push(`workspaces[].executionProfiles[${index}].plans[] is required`);
+    return null;
+  }
+  const plans = input.plans
+    .map((entry, i) => normalizeExecutionProfilePlan(entry, i, errors))
+    .filter((entry): entry is ExecutionProfilePlanEntry => entry !== null);
+  const orders = plans.map((entry) => entry.order).sort((a, b) => a - b);
+  for (let i = 0; i < orders.length; i += 1) {
+    if (orders[i] !== i + 1) {
+      errors.push(`workspaces[].executionProfiles[${index}].plans[].order must be sequential from 1..N`);
+      break;
+    }
+  }
+  const runtimeConfig = isRecord(input.runtimeConfig)
+    ? {
+        ...(typeof input.runtimeConfig.requestTimeoutMs === "number"
+          ? { requestTimeoutMs: input.runtimeConfig.requestTimeoutMs }
+          : {}),
+        ...(typeof input.runtimeConfig.retryMax === "number"
+          ? { retryMax: input.runtimeConfig.retryMax }
+          : {}),
+      }
+    : undefined;
+  const runtimeContextName =
+    asTrimmedString(input.runtimeContextName) ?? asTrimmedString(input.runtimeContext) ?? undefined;
+  return {
+    executionProfile,
+    ...(runtimeContextName ? { runtimeContextName } : {}),
+    executionPolicy,
+    ...(runtimeConfig ? { runtimeConfig } : {}),
+    plans,
+  };
+}
+
 function normalizeWorkspace(input: unknown, index: number, errors: string[]): ProjectWorkspaceEntry | null {
   if (!isRecord(input)) {
     errors.push(`workspaces[${index}] must be object`);
@@ -331,6 +412,11 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
         .map((entry, i) => normalizeRuntimeContext(entry, i, errors))
         .filter((entry): entry is ProjectRuntimeContext => entry !== null)
     : [];
+  const executionProfiles = Array.isArray(input.executionProfiles)
+    ? input.executionProfiles
+        .map((entry, i) => normalizeExecutionProfile(entry, i, errors))
+        .filter((entry): entry is ExecutionProfileEntry => entry !== null)
+    : [];
   const runPrerequisites = Array.isArray(input.runPrerequisites)
     ? input.runPrerequisites
         .map((entry, i) => normalizeRunPrerequisite(entry, i, errors))
@@ -344,6 +430,24 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
         break;
       }
     }
+  }
+  if (runtimeContexts.length > 0 && executionProfiles.length > 0) {
+    const runtimeContextNames = new Set(runtimeContexts.map((entry) => entry.name));
+    executionProfiles.forEach((profile, i) => {
+      if (profile.runtimeContextName && !runtimeContextNames.has(profile.runtimeContextName)) {
+        errors.push(
+          `workspaces[].executionProfiles[${i}].runtimeContextName must match a workspaces[].runtimeContexts[].name`,
+        );
+      }
+      if (!Array.isArray(profile.plans)) return;
+      profile.plans.forEach((plan, j) => {
+        if (plan.runtimeContextName && !runtimeContextNames.has(plan.runtimeContextName)) {
+          errors.push(
+            `workspaces[].executionProfiles[${i}].plans[${j}].runtimeContextName must match a workspaces[].runtimeContexts[].name`,
+          );
+        }
+      });
+    });
   }
   const externalSystems = Array.isArray(input.externalSystems)
     ? input.externalSystems
@@ -364,6 +468,7 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
     ...(envFile ? { envFile } : {}),
     ...(variables ? { variables } : {}),
     ...(runtimeContexts.length > 0 ? { runtimeContexts } : {}),
+    ...(executionProfiles.length > 0 ? { executionProfiles } : {}),
     ...(runPrerequisites.length > 0 ? { runPrerequisites } : {}),
     ...(externalSystems.length > 0 ? { externalSystems } : {}),
     ...(defaults ? { defaults } : {}),

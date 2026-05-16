@@ -38,6 +38,27 @@ export type RunPrerequisite = {
   script?: RunPrerequisiteScript;
 };
 
+export type ExecutionProfilePolicy = "stop_on_fail" | "continue_on_fail";
+export type ExecutionProfilePlanOnFail = "inherit" | "stop" | "continue";
+export type ExecutionProfileRuntimeConfig = {
+  requestTimeoutMs?: number;
+  retryMax?: number;
+};
+export type ExecutionProfilePlanEntry = {
+  order: number;
+  planName: string;
+  onFail?: ExecutionProfilePlanOnFail;
+  runtimeContextName?: string;
+  providedContext?: Record<string, unknown>;
+};
+export type ExecutionProfileEntry = {
+  executionProfile: string;
+  runtimeContextName?: string;
+  executionPolicy: ExecutionProfilePolicy;
+  runtimeConfig?: ExecutionProfileRuntimeConfig;
+  plans: ExecutionProfilePlanEntry[];
+};
+
 export type ProjectRuntimeStartupEntry = {
   name: string;
   command: string;
@@ -90,6 +111,7 @@ export type ProjectWorkspaceEntry = {
     bearerTokenEnv?: string;
   };
   runtimeContexts?: ProjectRuntimeContext[];
+  executionProfiles?: ExecutionProfileEntry[];
   runPrerequisites?: RunPrerequisite[];
   externalSystems?: ProjectExternalSystem[];
   defaults?: {

@@ -205,3 +205,26 @@ test("validateProjectArtifact fails closed for non-sequential runPrerequisites o
   });
   assert.equal(result.ok, false);
 });
+
+test("validateProjectArtifact accepts executionProfile runtimeContext alias and normalizes to runtimeContextName", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        executionProfiles: [
+          {
+            executionProfile: "regression-test-run",
+            runtimeContext: "terminal-cli",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName: "owners-list" }],
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.artifact.workspaces[0].executionProfiles?.[0].runtimeContextName, "terminal-cli");
+  }
+});

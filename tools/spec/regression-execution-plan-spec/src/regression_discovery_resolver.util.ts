@@ -105,6 +105,10 @@ export type BuildReplayPreflightWithDiscoveryArgs = BuildPreflightArgs & {
     projectsFileAbs: string;
     env?: Record<string, string | undefined>;
     runtimeContextName?: string;
+    defaultsOverride?: {
+      requestTimeoutMs?: number;
+      retryMax?: number;
+    };
     healthChecksEnabled?: boolean;
   };
 };

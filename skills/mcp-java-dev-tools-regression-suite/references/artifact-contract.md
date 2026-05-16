@@ -10,6 +10,16 @@ Persist per run under:
 4. `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/correlation.json` (required when correlation evidence exists)
 5. `.mcpjvm/correlation-index.json` (required when correlation artifact is produced)
 
+Runtime suite manifest path:
+
+1. `.mcpjvm/<project_name>/projects.json`
+2. Suite manifest MUST include:
+   - `executionProfile`
+   - `executionPolicy`
+   - ordered `plans[]`
+3. Suite manifest is stored under the matching workspace entry:
+   - `workspaces[].executionProfiles[]`
+
 ## Run ID Contract
 
 1. Canonical run ID format is mandatory:
@@ -32,6 +42,16 @@ Persist per run under:
 
 1. `correlationPolicy`
 2. `correlationEvents[]`
+
+Runtime suite summary SHOULD include:
+
+1. `executionProfile`
+2. `executionPolicy`
+3. ordered `planRuns[]` entries:
+   - `order`
+   - `planName`
+   - `status` (`executed` | `blocked` | `skipped`)
+   - `runStatus` when executed
 
 ## Correlation Rules
 

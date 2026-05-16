@@ -11,7 +11,9 @@ Single-call execution skill for regression plans.
 
 1. Required input:
    - `project_name`
-   - `plan_name`
+   - exactly one of:
+     - `plan_name` (single-plan branch)
+     - `execution_profile` (ordered runtime-suite branch)
 2. Authoritative phase order:
    - `phase_0_load_plan`
    - `phase_1_project_context`
@@ -25,6 +27,17 @@ Single-call execution skill for regression plans.
    - `true` => execute step
    - `false` => mark `skipped_condition_false` and continue
    - invalid/ambiguous => fail closed (`blocked_invalid`)
+
+## Branch Router
+
+1. `execution_profile` present => `runtime_suite_branch`:
+   - load `projects.json` workspace `executionProfiles[]` entry by `executionProfile`
+   - validate ordered `plans[]` and execution policy
+   - execute plans in order using suite policy
+2. `plan_name` present => `single_plan_branch`:
+   - execute one regression plan using phase pipeline below
+3. both `execution_profile` and `plan_name` present => fail closed (`execution_input_conflict`)
+4. neither present => fail closed (`execution_input_required`)
 
 ## FSM Router
 
@@ -49,6 +62,21 @@ This `SKILL.md` is a thin router. Execute phases in order and load only the need
    - reference: `references/output-contract.md`
    - script: `scripts/summarize-run.js`
    - script: `scripts/cleanup-runtime.js`
+
+Runtime suite branch (`execution_profile`) rules:
+
+1. Execute `plans[]` strictly by `order`.
+2. Respect suite `executionPolicy`:
+   - `stop_on_fail`
+   - `continue_on_fail`
+3. Respect per-plan `onFail` override:
+   - `inherit`
+   - `stop`
+   - `continue`
+4. Allow suite `runtimeConfig` overrides only for:
+   - `requestTimeoutMs`
+   - `retryMax`
+5. Do not accept unrecognized `runtimeConfig` keys.
 
 ## Source of Truth
 
@@ -82,6 +110,8 @@ Use these references/templates:
    - example: `05-09-2026-08-33-41PM`
 7. Never invent ad-hoc run IDs (for example `20260509T134827387Z-customers`).
 8. If run_id is non-canonical, fail closed before artifact write.
+9. Runtime suite branch additionally requires runtime manifest path:
+   - `.mcpjvm/<project_name>/projects.json` with matching workspace `executionProfiles[]`
 
 ## MCP-First and Wrapped Transport
 

@@ -40,6 +40,10 @@ type ResolveProjectContextArgs = {
   projectsFileAbs: string;
   env?: Record<string, string | undefined>;
   runtimeContextName?: string;
+  defaultsOverride?: {
+    requestTimeoutMs?: number;
+    retryMax?: number;
+  };
   healthChecksEnabled?: boolean;
   strictProbeVerification?: boolean;
   strictProbeBaseUrls?: string[];
@@ -803,7 +807,15 @@ export async function resolveProjectContextForRegression(
     };
   }
 
-  const runtimeContexts = workspace.runtimeContexts ?? [];
+  const effectiveWorkspace: ProjectWorkspaceEntry = {
+    ...workspace,
+    defaults: {
+      ...(workspace.defaults ?? {}),
+      ...(args.defaultsOverride ?? {}),
+    },
+  };
+
+  const runtimeContexts = effectiveWorkspace.runtimeContexts ?? [];
   let selectedRuntimeContextName: string | undefined;
   let selectedRuntimeContext: ProjectRuntimeContext | undefined;
   if (runtimeContexts.length > 0) {
@@ -829,7 +841,7 @@ export async function resolveProjectContextForRegression(
 
   const env = args.env ?? process.env;
   const contextPatch: Record<string, unknown> = {};
-  const bearerKey = workspace.variables?.bearerTokenEnv;
+  const bearerKey = effectiveWorkspace.variables?.bearerTokenEnv;
   if (bearerKey) {
     const bearer = env[bearerKey];
     if (!bearer || bearer.trim().length === 0) {
@@ -862,7 +874,7 @@ export async function resolveProjectContextForRegression(
 
   if (args.healthChecksEnabled !== false) {
     const prereqResult = await executeRunPrerequisites({
-      workspace,
+      workspace: effectiveWorkspace,
       workspaceRootAbs: args.workspaceRootAbs,
       env,
       contextPatch,
@@ -878,7 +890,7 @@ export async function resolveProjectContextForRegression(
     }
     const prereqChecks = prereqResult.checks;
     let health = await runRequiredHealthChecksWithDedupe({
-      workspace,
+      workspace: effectiveWorkspace,
       skipKeys: prereqResult.dedupeKeys,
     });
     let autoStartDetail: string | undefined;
@@ -899,7 +911,7 @@ export async function resolveProjectContextForRegression(
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
       health = await runRequiredHealthChecksWithDedupe({
-        workspace,
+        workspace: effectiveWorkspace,
         skipKeys: prereqResult.dedupeKeys,
       });
     }
@@ -933,8 +945,8 @@ export async function resolveProjectContextForRegression(
     }
     if (health.ok && strictProbeBases.length > 0) {
       const timeoutMs =
-        typeof workspace.defaults?.requestTimeoutMs === "number" && Number.isFinite(workspace.defaults.requestTimeoutMs) && workspace.defaults.requestTimeoutMs > 0
-          ? Math.floor(workspace.defaults.requestTimeoutMs)
+        typeof effectiveWorkspace.defaults?.requestTimeoutMs === "number" && Number.isFinite(effectiveWorkspace.defaults.requestTimeoutMs) && effectiveWorkspace.defaults.requestTimeoutMs > 0
+          ? Math.floor(effectiveWorkspace.defaults.requestTimeoutMs)
           : 3000;
       let unreachableBases: string[] = [];
       for (const probeBase of strictProbeBases) {
