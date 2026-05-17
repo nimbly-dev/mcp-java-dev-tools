@@ -34,6 +34,9 @@ Required input:
 Optional:
 
 1. `includeResolvedSecrets` (`false` default)
+2. `includeRuntimeStartup` (`true` default; may be overridden by projects.json sessionExport defaults)
+3. `includeHealthcheckGate` (`true` default; may be overridden by projects.json sessionExport defaults)
+4. `includeResolvedSecrets` is runtime input only and MUST NOT be persisted under `projects.json.sessionExport`.
 
 ## Source of Truth
 

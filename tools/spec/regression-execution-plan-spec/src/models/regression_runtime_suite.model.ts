@@ -33,23 +33,9 @@ export type RuntimeSuitePlanRunResult = {
 
 export type RuntimeSuiteRunStatus = "pass" | "fail" | "blocked" | "partial_fail";
 
-export type RuntimeSuiteSessionExportResult =
-  | {
-      status: "written";
-      sessionId: string;
-      sessionDirAbs: string;
-      manifestPathAbs: string;
-    }
-  | {
-      status: "blocked";
-      reasonCode: "session_export_write_failed";
-      requiredUserAction: string[];
-    };
-
 export type RuntimeSuiteRunResult = {
   executionProfile: string;
   status: RuntimeSuiteRunStatus;
   executionPolicy: RuntimeSuiteExecutionPolicy;
   planRuns: RuntimeSuitePlanRunResult[];
-  sessionExport?: RuntimeSuiteSessionExportResult;
 };

@@ -89,15 +89,17 @@ test("executeRegressionRuntimeSuite enforces stop_on_fail and skips remaining pl
     assert.equal(out.planRuns[0].status, "executed");
     assert.equal(out.planRuns[1].status, "executed");
     assert.equal(out.planRuns[2].status, "skipped");
-    assert.equal(out.sessionExport?.status, "written");
-    if (out.sessionExport?.status === "written") {
-      assert.match(out.sessionExport.sessionDirAbs.replaceAll("\\", "/"), /\/exports\/session-runs-exports\/[^/]+$/);
-      const manifestRaw = fs.readFileSync(out.sessionExport.manifestPathAbs, "utf8");
-      const manifest = JSON.parse(manifestRaw);
-      assert.equal(manifest.executionProfile, "core-smoke");
-      assert.equal(Array.isArray(manifest.planRuns), true);
-      assert.equal(manifest.planRuns.length, 3);
-    }
+    const exportsRoot = path.join(root, ".mcpjvm", projectName, "exports", "session-runs-exports");
+    const sessions = fs
+      .readdirSync(exportsRoot, { withFileTypes: true })
+      .filter((entry: { isDirectory: () => boolean }) => entry.isDirectory());
+    assert.equal(sessions.length, 1);
+    const manifestPath = path.join(exportsRoot, sessions[0].name, "session-manifest.json");
+    const manifestRaw = fs.readFileSync(manifestPath, "utf8");
+    const manifest = JSON.parse(manifestRaw);
+    assert.equal(manifest.executionProfile, "core-smoke");
+    assert.equal(Array.isArray(manifest.planRuns), true);
+    assert.equal(manifest.planRuns.length, 3);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -250,6 +252,49 @@ test("executeRegressionRuntimeSuite applies profile runtimeContextName when plan
     assert.equal("reasonCode" in out, true);
     if ("reasonCode" in out) {
       assert.equal(out.reasonCode, "runtime_suite_missing");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionRuntimeSuite blocks replay/export script paths in execution profile plans", async () => {
+  const root = createTestTempDir("runtime-suite-replay-script-guard");
+  try {
+    const projectName = "petclinic-regression";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "core-smoke",
+              executionPolicy: "stop_on_fail",
+              plans: [
+                {
+                  order: 1,
+                  planName:
+                    ".mcpjvm/test-project/exports/session-runs-exports/20260503-125014-regression-test-run/ps1/run-session-export.ps1",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-smoke",
+      mcpInvoke: async () => {
+        throw new Error("mcpInvoke should not be called for replay script path");
+      },
+    });
+
+    assert.equal(out.status, "blocked");
+    if ("reasonCode" in out) {
+      assert.equal(out.reasonCode, "invalid_execution_path_replay_script");
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

@@ -9,6 +9,7 @@ DEFAULT_SKILLS=(
   "mcp-java-dev-tools-issue-report"
   "mcp-java-dev-tools-probe-registry-manager"
   "mcp-java-dev-tools-project-artifact-manager"
+  "mcp-java-dev-tools-run-session-export"
 )
 RETIRED_SKILL_NAME="mcp-java-dev-tools-repro-orchestration"
 MANAGED_SKILL_PREFIX="mcp-java-dev-tools-"

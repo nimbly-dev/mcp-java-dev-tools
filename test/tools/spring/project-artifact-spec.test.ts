@@ -228,3 +228,18 @@ test("validateProjectArtifact accepts executionProfile runtimeContext alias and 
     assert.equal(result.artifact.workspaces[0].executionProfiles?.[0].runtimeContextName, "terminal-cli");
   }
 });
+
+test("validateProjectArtifact accepts sessionExport runtime defaults", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        sessionExport: {
+          includeRuntimeStartup: true,
+          includeHealthcheckGate: false,
+        },
+      },
+    ],
+  });
+  assert.equal(result.ok, true);
+});

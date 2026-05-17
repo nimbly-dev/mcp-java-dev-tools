@@ -462,6 +462,19 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
         ...(typeof input.defaults.retryMax === "number" ? { retryMax: input.defaults.retryMax } : {}),
       }
     : undefined;
+  const sessionExport = isRecord(input.sessionExport)
+    ? (() => {
+        const normalized = {
+          ...(typeof input.sessionExport.includeRuntimeStartup === "boolean"
+            ? { includeRuntimeStartup: input.sessionExport.includeRuntimeStartup }
+            : {}),
+          ...(typeof input.sessionExport.includeHealthcheckGate === "boolean"
+            ? { includeHealthcheckGate: input.sessionExport.includeHealthcheckGate }
+            : {}),
+        };
+        return Object.keys(normalized).length > 0 ? normalized : undefined;
+      })()
+    : undefined;
 
   return {
     projectRoot,
@@ -471,6 +484,7 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
     ...(executionProfiles.length > 0 ? { executionProfiles } : {}),
     ...(runPrerequisites.length > 0 ? { runPrerequisites } : {}),
     ...(externalSystems.length > 0 ? { externalSystems } : {}),
+    ...(sessionExport ? { sessionExport } : {}),
     ...(defaults ? { defaults } : {}),
   };
 }

@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "npm run build:compile && npm run test:all",
-    "build:compile": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
+    "build:compile": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json && tsc-alias -p tsconfig.json && node -e \"const fs=require('fs');const path=require('path');const src=path.join('tools','export','run-session','templates');const dst=path.join('dist','tools','export','run-session','templates');if(fs.existsSync(src)){fs.mkdirSync(path.dirname(dst),{recursive:true});fs.cpSync(src,dst,{recursive:true});}\"",
     "build:java": "mvn -f java-agent\\pom.xml package",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/server.js",
@@ -38,6 +38,7 @@
   "homepage": "https://github.com/nimbly-dev/mcp-java-dev-tools#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "eta": "^4.6.0",
     "zod": "^4.3.6"
   },
   "overrides": {
@@ -45,16 +46,16 @@
     "hono": "^4.12.5"
   },
   "devDependencies": {
+    "@types/node": "^25.2.3",
     "@typescript-eslint/eslint-plugin": "^8.46.0",
     "@typescript-eslint/parser": "^8.46.0",
-    "@types/node": "^25.2.3",
     "eslint": "^9.38.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
+    "ts-prune": "^0.10.3",
     "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
-    "ts-prune": "^0.10.3",
     "typescript": "^5.9.3"
   },
   "bin": {
@@ -68,4 +69,3 @@
     "README.md"
   ]
 }
-

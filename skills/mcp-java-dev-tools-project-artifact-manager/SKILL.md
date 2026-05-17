@@ -27,6 +27,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 8. External system checks may use only deterministic `tcp` or `http` checks in v1.
 9. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
 10. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator preflight health checks.
+11. `sessionExport` uses flat defaults (`includeRuntimeStartup`, `includeHealthcheckGate`) for run-session export behavior.
 
 ## Required Artifact Path
 
@@ -85,6 +86,10 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
       "defaults": {
         "requestTimeoutMs": 10000,
         "retryMax": 1
+      },
+      "sessionExport": {
+        "includeRuntimeStartup": true,
+        "includeHealthcheckGate": true
       }
     }
   ]

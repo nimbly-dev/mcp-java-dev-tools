@@ -18,6 +18,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isReplayScriptPath(value: string): boolean {
+  const normalized = value.replaceAll("\\", "/").toLowerCase();
+  if (normalized.includes("/exports/session-runs-exports/")) {
+    return true;
+  }
+  if (normalized.endsWith(".ps1") || normalized.endsWith(".sh")) {
+    return true;
+  }
+  return false;
+}
+
 function validateSuiteManifest(input: unknown):
   | { ok: true; manifest: RuntimeSuiteManifest }
   | { ok: false; reasonCode: string; requiredUserAction: string[] } {
@@ -62,6 +73,15 @@ function validateSuiteManifest(input: unknown):
         ok: false,
         reasonCode: "runtime_suite_invalid",
         requiredUserAction: ["Set non-empty plans[].planName."],
+      };
+    }
+    if (isReplayScriptPath(raw.planName.trim())) {
+      return {
+        ok: false,
+        reasonCode: "invalid_execution_path_replay_script",
+        requiredUserAction: [
+          "Use regression plan names only in executionProfiles[].plans[].planName; replay/export script paths are not allowed.",
+        ],
       };
     }
     if (
@@ -260,7 +280,7 @@ export async function executeRegressionRuntimeSuite(
   };
   const sessionEndedAt = new Date();
   try {
-    const written = await writeRunSessionExport({
+    await writeRunSessionExport({
       workspaceRootAbs: args.workspaceRootAbs,
       sessionId,
       generatedAt: sessionEndedAt,
@@ -273,19 +293,9 @@ export async function executeRegressionRuntimeSuite(
       ...(manifest.runtimeConfig ? { runtimeConfig: manifest.runtimeConfig } : {}),
       planRuns,
     });
-    result.sessionExport = {
-      status: "written",
-      sessionId: written.sessionId,
-      sessionDirAbs: written.sessionDirAbs,
-      manifestPathAbs: written.manifestPathAbs,
-    };
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : "session_export_write_failed";
-    result.sessionExport = {
-      status: "blocked",
-      reasonCode: "session_export_write_failed",
-      requiredUserAction: [`Verify export destination is writable. detail=${detail}`],
-    };
+  } catch {
+    // Session export persistence is a side effect and intentionally omitted from suite output
+    // to keep regression execution responses scoped to requested suite results.
   }
   return result;
 }

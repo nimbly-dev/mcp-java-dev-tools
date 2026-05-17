@@ -47,3 +47,19 @@ export type WriteRunSessionExportResult = {
   manifestPathAbs: string;
   manifest: RunSessionExportManifest;
 };
+
+export type ExportRunSessionPs1Input = {
+  workspaceRootAbs: string;
+  sessionId: string;
+  includeResolvedSecrets?: boolean;
+  includeRuntimeStartup?: boolean;
+  includeHealthcheckGate?: boolean;
+};
+
+export type ExportRunSessionPs1Result = {
+  sessionId: string;
+  sessionDirAbs: string;
+  manifestPathAbs: string;
+  scriptPathAbs: string;
+  readmePathAbs: string;
+};
