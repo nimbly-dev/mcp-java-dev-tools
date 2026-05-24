@@ -7,6 +7,13 @@ description: "Run MCP-first HTTP regression suites across controller, service, o
 
 Single-call execution skill for regression plans.
 
+## Intent Router
+
+1. Prompts like `run regression suite`, `execute regression suite`, or `using executionProfile <name>` MUST route here.
+2. For `execution_profile` intent, execute the runtime suite branch directly; do not route to execution-profile export.
+3. Replay/export scripts are artifacts only and are not the suite executor.
+4. If an upstream flow attempts to use replay export for suite execution, fail closed with `reasonCode=execution_route_invalid`.
+
 ## Single-Call Execution Contract
 
 1. Required input:

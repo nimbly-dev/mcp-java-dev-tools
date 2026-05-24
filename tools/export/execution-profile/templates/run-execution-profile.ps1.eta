@@ -1,0 +1,73 @@
+$ErrorActionPreference = 'Stop'
+# ============================================
+# EXECUTION PROFILE EXPORT
+# ============================================
+# exportId: <%= it.manifest.exportId %>
+# ExecutionProfile: <%= it.manifest.executionProfile %>
+# ExecutionPolicy: <%= it.manifest.executionPolicy %>
+# RunStatus: <%= it.manifest.runStatus %>
+<% if (it.includeResolvedSecrets) { %>
+Write-Warning 'SENSITIVE EXPORT: includeResolvedSecrets=true'
+<% } %>
+
+$script:McpJvmExportScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$script:McpJvmProjectEnv = Join-Path $script:McpJvmExportScriptDir 'project.env'
+$script:McpJvmWorkspaceRoot = $script:McpJvmExportScriptDir
+while ($script:McpJvmWorkspaceRoot -and -not (Test-Path -LiteralPath (Join-Path $script:McpJvmWorkspaceRoot '.mcpjvm') -PathType Container)) {
+  $parent = Split-Path -Parent $script:McpJvmWorkspaceRoot
+  if ($parent -eq $script:McpJvmWorkspaceRoot) { break }
+  $script:McpJvmWorkspaceRoot = $parent
+}
+if (-not (Test-Path -LiteralPath (Join-Path $script:McpJvmWorkspaceRoot '.mcpjvm') -PathType Container)) {
+  throw 'workspace_root_unresolved: place export under project workspace containing .mcpjvm'
+}
+
+# ============================================
+# SECTION A: PREREQUISITES
+# ============================================
+<%= it.prerequisitesSection %>
+
+# ============================================
+# SECTION A2: PRE_RUNTIME_SCRIPTS
+# ============================================
+<%= it.preRuntimeScriptSection %>
+
+# ============================================
+# SECTION B: RUNTIME_STARTUP
+# ============================================
+<%= it.runtimeStartupSection %>
+
+# ============================================
+# SECTION B2: POST_RUNTIME_SCRIPTS
+# ============================================
+<%= it.postRuntimeScriptSection %>
+
+# ============================================
+# SECTION C: HEALTHCHECK_GATE
+# ============================================
+<%= it.healthcheckGateSection %>
+
+# ============================================
+# SECTION C1: POST_HEALTHCHECK_SCRIPTS
+# ============================================
+<%= it.postHealthcheckScriptSection %>
+
+# ============================================
+# SECTION C2: AUTH_BOOTSTRAP
+# ============================================
+<%= it.postStartupAuthSection %>
+
+# ============================================
+# SECTION C3: PRE_PLAN_SCRIPTS
+# ============================================
+<%= it.prePlanScriptSection %>
+
+# ============================================
+# SECTION D: PLAN_EXECUTION
+# ============================================
+<%= it.planExecutionSection %>
+
+# ============================================
+# SECTION E: SUMMARY
+# ============================================
+Write-Host 'Replay script completed.' -ForegroundColor Green

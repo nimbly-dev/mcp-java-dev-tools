@@ -6,7 +6,7 @@ Use these checks during `validate` to keep `SKILL.md` concise and deterministic.
 
 1. `workspaces[]` must exist and contain at least one entry.
 2. Each workspace must define `projectRoot`.
-3. `runtimeContexts[]` must exist and contain at least one entry.
+3. `runtimeContexts[]` should exist when the project artifact manages runtime startup.
 4. Runtime `mode` must be `terminal` or `docker`.
 5. `templates/projects.terminal.example.json` is the canonical shape reference.
 6. Any field not represented by the canonical shape is misaligned and must be removed before validation.
@@ -17,7 +17,17 @@ Use these checks during `validate` to keep `SKILL.md` concise and deterministic.
 2. Each `startups[]` entry must include `name` and `command`.
 3. `startups[].appdir` should resolve under `projectRoot` (fail closed when unresolved).
 4. Fail closed when terminal startup obviously depends on Docker commands unless `mode=docker` is selected for that context.
-5. `runtimeContexts[].startup` and `startup.workdir` are legacy and must not remain after normalization.
+5. `runtimeContexts[].startup` and `startup.workdir` are unsupported and must not remain after normalization.
+
+## Shared Script Rules
+
+1. Workspace-level `scripts[]` is the canonical location for token refresh, seed, validation, env generation, and other run preparation.
+2. `runtimeContexts[].startups[]` must be reserved for application/service lifecycle startup.
+3. Each `scripts[]` entry must include `name` and `command`.
+4. `scripts[].phase` may be `preRuntime`, `postRuntime`, `postHealthcheck`, or `prePlan`.
+5. `executionProfiles[].scriptRefs[]` may contain script names or `{ "name": "...", "phase": "..." }` objects.
+6. Each `executionProfiles[].scriptRefs[].name` must match a `scripts[].name`.
+7. Use `scripts[].envFileArg` when a script accepts an env-file parameter that export runners should point to export-local `project.env`.
 
 ## Docker Runtime Rules
 

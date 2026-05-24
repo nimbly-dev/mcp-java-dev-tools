@@ -44,6 +44,42 @@ function writePlan(root: string, projectName: string, planName: string, routePat
   });
 }
 
+function writeAuthPlan(root: string, projectName: string, planName: string, routePath: string): void {
+  const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+  writeJson(path.join(planRoot, "metadata.json"), {
+    specVersion: "1.0.0",
+    execution: {
+      intent: "regression",
+      probeVerification: false,
+      pinStrictProbeKey: false,
+      discoveryPolicy: "allow_discoverable_prerequisites",
+    },
+  });
+  writeJson(path.join(planRoot, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" } }],
+    prerequisites: [
+      { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" },
+      { key: "auth.bearer", required: true, secret: true, provisioning: "user_input" },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "step_1",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "GET",
+            pathTemplate: routePath,
+            headers: { Authorization: "Bearer ${auth.bearer}" },
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+}
+
 test("executeRegressionRuntimeSuite enforces stop_on_fail and skips remaining plans", async () => {
   const root = createTestTempDir("runtime-suite-stop");
   try {
@@ -89,17 +125,6 @@ test("executeRegressionRuntimeSuite enforces stop_on_fail and skips remaining pl
     assert.equal(out.planRuns[0].status, "executed");
     assert.equal(out.planRuns[1].status, "executed");
     assert.equal(out.planRuns[2].status, "skipped");
-    const exportsRoot = path.join(root, ".mcpjvm", projectName, "exports", "session-runs-exports");
-    const sessions = fs
-      .readdirSync(exportsRoot, { withFileTypes: true })
-      .filter((entry: { isDirectory: () => boolean }) => entry.isDirectory());
-    assert.equal(sessions.length, 1);
-    const manifestPath = path.join(exportsRoot, sessions[0].name, "session-manifest.json");
-    const manifestRaw = fs.readFileSync(manifestPath, "utf8");
-    const manifest = JSON.parse(manifestRaw);
-    assert.equal(manifest.executionProfile, "core-smoke");
-    assert.equal(Array.isArray(manifest.planRuns), true);
-    assert.equal(manifest.planRuns.length, 3);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -215,6 +240,75 @@ test("executeRegressionRuntimeSuite applies runtimeConfig retryMax override", as
   }
 });
 
+test("executeRegressionRuntimeSuite runs shared scriptRefs and reloads env before plan execution", async () => {
+  const root = createTestTempDir("runtime-suite-scriptrefs");
+  try {
+    const projectName = "petclinic-regression";
+    const envFile = path.join(root, ".mcpjvm", projectName, ".env");
+    fs.mkdirSync(path.dirname(envFile), { recursive: true });
+    fs.writeFileSync(envFile, "AUTH_BEARER_TOKEN=\n", "utf8");
+    const scriptFile = path.join(root, "scripts", "write-token.js");
+    fs.mkdirSync(path.dirname(scriptFile), { recursive: true });
+    fs.writeFileSync(
+      scriptFile,
+      [
+        "const fs = require('node:fs');",
+        "const idx = process.argv.indexOf('--env-file');",
+        "if (idx < 0 || !process.argv[idx + 1]) process.exit(2);",
+        "fs.writeFileSync(process.argv[idx + 1], 'AUTH_BEARER_TOKEN=generated-token\\n', 'utf8');",
+      ].join("\n"),
+      "utf8",
+    );
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          scripts: [
+            {
+              name: "token-bootstrap",
+              phase: "postHealthcheck",
+              command: "node",
+              args: ["scripts/write-token.js"],
+              appdir: ".",
+              envFileArg: "--env-file",
+            },
+          ],
+          executionProfiles: [
+            {
+              executionProfile: "core-scriptrefs",
+              executionPolicy: "stop_on_fail",
+              scriptRefs: ["token-bootstrap"],
+              plans: [{ order: 1, planName: "plan-auth" }],
+            },
+          ],
+        },
+      ],
+    });
+    writeAuthPlan(root, projectName, "plan-auth", "/auth");
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-scriptrefs",
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const req = input.request as Record<string, unknown>;
+        const headers = req.headers as Record<string, unknown>;
+        assert.equal(headers.Authorization, "Bearer generated-token");
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 7, bodyPreview: "{}" } };
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    assert.equal(out.planRuns[0].status, "executed");
+    assert.match(fs.readFileSync(envFile, "utf8"), /AUTH_BEARER_TOKEN=generated-token/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite applies profile runtimeContextName when plan override is absent", async () => {
   const root = createTestTempDir("runtime-suite-profile-runtime-context");
   try {
@@ -275,7 +369,7 @@ test("executeRegressionRuntimeSuite blocks replay/export script paths in executi
                 {
                   order: 1,
                   planName:
-                    ".mcpjvm/test-project/exports/session-runs-exports/20260503-125014-regression-test-run/ps1/run-session-export.ps1",
+                    ".mcpjvm/test-project/exports/2026-05-23-12345678-1234-1234-1234-123456789abc/run-execution-profile.ps1",
                 },
               ],
             },

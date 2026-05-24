@@ -58,6 +58,7 @@ export type ExecuteRegressionPlanWorkflowArgs = {
   mcpInvoke: McpToolInvoker;
   providedContext?: Record<string, unknown>;
   runtimeContextName?: string;
+  executionProfileName?: string;
   runtimeConfigOverride?: {
     requestTimeoutMs?: number;
     retryMax?: number;
@@ -304,6 +305,7 @@ export async function executeRegressionPlanWorkflow(
       projectsFileAbs,
       env: process.env,
       ...(typeof args.runtimeContextName === "string" ? { runtimeContextName: args.runtimeContextName } : {}),
+      ...(typeof args.executionProfileName === "string" ? { executionProfileName: args.executionProfileName } : {}),
       ...(args.runtimeConfigOverride ? { defaultsOverride: args.runtimeConfigOverride } : {}),
     },
   });

@@ -5,7 +5,10 @@ import path from "node:path";
 import { URL } from "node:url";
 
 import type {
+  ExecutionProfileEntry,
   ProjectRuntimeContext,
+  ProjectScriptEntry,
+  ProjectScriptPhase,
   ProjectWorkspaceEntry,
   RunPrerequisite,
 } from "@tools-project-artifact-spec/models/project_artifact.model";
@@ -40,6 +43,7 @@ type ResolveProjectContextArgs = {
   projectsFileAbs: string;
   env?: Record<string, string | undefined>;
   runtimeContextName?: string;
+  executionProfileName?: string;
   defaultsOverride?: {
     requestTimeoutMs?: number;
     retryMax?: number;
@@ -48,6 +52,11 @@ type ResolveProjectContextArgs = {
   strictProbeVerification?: boolean;
   strictProbeBaseUrls?: string[];
   runtimeStarter?: RuntimeStarter;
+};
+
+type ResolvedProfileScript = {
+  script: ProjectScriptEntry;
+  phase: ProjectScriptPhase;
 };
 
 type RuntimeStartResult = {
@@ -94,6 +103,49 @@ function extractProbePort(baseUrl: string): number | null {
 
 function stripBom(input: string): string {
   return input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
+}
+
+function parseDotEnvText(input: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const rawLine of input.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n")) {
+    const line = rawLine.trim();
+    if (line.length === 0 || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    let value = line.slice(eq + 1);
+    if (value.length >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+      value = value.slice(1, -1);
+    }
+    env[key] = value;
+  }
+  return env;
+}
+
+async function readWorkspaceEnvFile(args: {
+  workspace: ProjectWorkspaceEntry;
+  workspaceRootAbs: string;
+}): Promise<Record<string, string>> {
+  if (!args.workspace.envFile) return {};
+  const envFileAbs = path.isAbsolute(args.workspace.envFile)
+    ? args.workspace.envFile
+    : path.resolve(args.workspaceRootAbs, args.workspace.envFile);
+  try {
+    return parseDotEnvText(await fs.readFile(envFileAbs, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function resolveWorkspaceEnvFileAbs(args: {
+  workspace: ProjectWorkspaceEntry;
+  workspaceRootAbs: string;
+}): string | null {
+  if (!args.workspace.envFile) return null;
+  return path.isAbsolute(args.workspace.envFile)
+    ? args.workspace.envFile
+    : path.resolve(args.workspaceRootAbs, args.workspace.envFile);
 }
 
 async function readProbeRegistryFromWorkspace(workspaceRootAbs: string): Promise<{
@@ -303,10 +355,133 @@ function selectWorkspace(
   workspaces: ProjectWorkspaceEntry[],
   workspaceRootAbs: string,
 ): ProjectWorkspaceEntry | null {
+  const requestedRoot = path.resolve(workspaceRootAbs);
   for (const workspace of workspaces) {
-    if (workspace.projectRoot === workspaceRootAbs) return workspace;
+    if (path.resolve(workspace.projectRoot) === requestedRoot) return workspace;
   }
   return null;
+}
+
+function resolveProfileScripts(args: {
+  workspace: ProjectWorkspaceEntry;
+  executionProfileName?: string;
+}): ResolvedProfileScript[] {
+  if (!args.executionProfileName) return [];
+  const profile = args.workspace.executionProfiles?.find(
+    (entry) => entry.executionProfile === args.executionProfileName,
+  );
+  if (!profile || !Array.isArray(profile.scriptRefs) || profile.scriptRefs.length === 0) {
+    return [];
+  }
+  const scripts = new Map((args.workspace.scripts ?? []).map((entry) => [entry.name, entry]));
+  const resolved: ResolvedProfileScript[] = [];
+  for (const scriptRef of profile.scriptRefs) {
+    const script = scripts.get(scriptRef.name);
+    if (!script) continue;
+    resolved.push({
+      script,
+      phase: scriptRef.phase ?? script.phase ?? "prePlan",
+    });
+  }
+  return resolved;
+}
+
+function resolveScriptCommandArgs(args: {
+  script: ProjectScriptEntry;
+  workspaceRootAbs: string;
+  envFileAbs: string | null;
+}): string[] {
+  const renderedArgs = [...(args.script.args ?? [])];
+  const fileArgIndex = renderedArgs.findIndex((entry) => entry === "-File");
+  if (fileArgIndex >= 0 && fileArgIndex + 1 < renderedArgs.length) {
+    const scriptPath = renderedArgs[fileArgIndex + 1];
+    if (typeof scriptPath === "string" && scriptPath.trim().length > 0 && !path.isAbsolute(scriptPath)) {
+      renderedArgs[fileArgIndex + 1] = path.resolve(args.workspaceRootAbs, scriptPath);
+    }
+  } else {
+    for (let i = 0; i < renderedArgs.length; i += 1) {
+      const value = renderedArgs[i];
+      if (typeof value === "string" && (value.includes("/") || value.includes("\\")) && !path.isAbsolute(value)) {
+        renderedArgs[i] = path.resolve(args.workspaceRootAbs, value);
+      }
+    }
+  }
+  if (args.script.envFileArg && args.envFileAbs && !renderedArgs.includes(args.script.envFileArg)) {
+    renderedArgs.push(args.script.envFileArg, args.envFileAbs);
+  }
+  return renderedArgs;
+}
+
+async function executeSharedScriptsForPhase(args: {
+  scripts: ResolvedProfileScript[];
+  phase: ProjectScriptPhase;
+  workspace: ProjectWorkspaceEntry;
+  workspaceRootAbs: string;
+  env: Record<string, string | undefined>;
+}): Promise<
+  | { status: "ok"; checks: string[]; env: Record<string, string | undefined> }
+  | {
+      status: "blocked";
+      reasonCode: ProjectContextBlockedReason;
+      checks: string[];
+      nextAction: string;
+      requiredUserAction: string[];
+    }
+> {
+  const selected = args.scripts.filter((entry) => entry.phase === args.phase);
+  if (selected.length === 0) {
+    return { status: "ok", checks: [], env: args.env };
+  }
+  const checks: string[] = [];
+  const envFileAbs = resolveWorkspaceEnvFileAbs({
+    workspace: args.workspace,
+    workspaceRootAbs: args.workspaceRootAbs,
+  });
+  let currentEnv = { ...args.env };
+  for (const entry of selected) {
+    const script = entry.script;
+    const cwd = script.appdir
+      ? (path.isAbsolute(script.appdir) ? script.appdir : path.resolve(args.workspaceRootAbs, script.appdir))
+      : args.workspaceRootAbs;
+    const scriptArgs = resolveScriptCommandArgs({
+      script,
+      workspaceRootAbs: args.workspaceRootAbs,
+      envFileAbs,
+    });
+    const result = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
+      const child = spawn(script.command, scriptArgs, {
+        cwd,
+        env: { ...process.env, ...currentEnv, ...(script.env ?? {}) },
+        windowsHide: true,
+      });
+      let stderr = "";
+      child.stderr.on("data", (buf) => {
+        stderr += String(buf ?? "");
+      });
+      child.on("close", (code) => {
+        resolve({
+          ok: code === 0,
+          detail: code === 0 ? "ok" : (stderr.trim() || `exit_code=${String(code ?? 1)}`),
+        });
+      });
+      child.on("error", (err) => resolve({ ok: false, detail: String(err.message ?? err) }));
+    });
+    checks.push(`profile_script:${args.phase}:${script.name}=${result.ok ? "pass" : `fail(${result.detail})`}`);
+    if (!result.ok) {
+      return {
+        status: "blocked",
+        reasonCode: "external_healthcheck_failed",
+        checks,
+        nextAction: `Fix profile script '${script.name}' and retry.`,
+        requiredUserAction: [`Profile script '${script.name}' failed: ${result.detail}`],
+      };
+    }
+    currentEnv = {
+      ...currentEnv,
+      ...(await readWorkspaceEnvFile({ workspace: args.workspace, workspaceRootAbs: args.workspaceRootAbs })),
+    };
+  }
+  return { status: "ok", checks, env: currentEnv };
 }
 
 async function runRequiredHealthChecks(workspace: ProjectWorkspaceEntry): Promise<{
@@ -814,6 +989,16 @@ export async function resolveProjectContextForRegression(
       ...(args.defaultsOverride ?? {}),
     },
   };
+  const profileScripts = resolveProfileScripts({
+    workspace: effectiveWorkspace,
+    ...(args.executionProfileName ? { executionProfileName: args.executionProfileName } : {}),
+  });
+  let profileScriptChecks: string[] = [];
+  let effectiveEnv: Record<string, string | undefined> = {
+    ...process.env,
+    ...(await readWorkspaceEnvFile({ workspace: effectiveWorkspace, workspaceRootAbs: args.workspaceRootAbs })),
+    ...(args.env ?? {}),
+  };
 
   const runtimeContexts = effectiveWorkspace.runtimeContexts ?? [];
   let selectedRuntimeContextName: string | undefined;
@@ -839,23 +1024,7 @@ export async function resolveProjectContextForRegression(
     selectedRuntimeContextName = runtimeSelection.selected?.name;
   }
 
-  const env = args.env ?? process.env;
   const contextPatch: Record<string, unknown> = {};
-  const bearerKey = effectiveWorkspace.variables?.bearerTokenEnv;
-  if (bearerKey) {
-    const bearer = env[bearerKey];
-    if (!bearer || bearer.trim().length === 0) {
-      return {
-        status: "blocked",
-        reasonCode: "env_key_missing",
-        missing: [bearerKey],
-        checks: [],
-        nextAction: `Set ${bearerKey} in .env or environment and retry.`,
-        requiredUserAction: [`Set env key '${bearerKey}' before running regression.`],
-      };
-    }
-    contextPatch["auth.bearer"] = bearer;
-  }
 
   if (selectedRuntimeContext) {
     contextPatch["runtime.context.name"] = selectedRuntimeContext.name;
@@ -872,18 +1041,37 @@ export async function resolveProjectContextForRegression(
     contextPatch["runtime.autoStopOnFinish"] = autoStopOnFinish;
   }
 
+  const preRuntimeScripts = await executeSharedScriptsForPhase({
+    scripts: profileScripts,
+    phase: "preRuntime",
+    workspace: effectiveWorkspace,
+    workspaceRootAbs: args.workspaceRootAbs,
+    env: effectiveEnv,
+  });
+  if (preRuntimeScripts.status === "blocked") {
+    return {
+      status: "blocked",
+      reasonCode: preRuntimeScripts.reasonCode,
+      checks: preRuntimeScripts.checks,
+      nextAction: preRuntimeScripts.nextAction,
+      requiredUserAction: preRuntimeScripts.requiredUserAction,
+    };
+  }
+  effectiveEnv = preRuntimeScripts.env;
+  profileScriptChecks = [...profileScriptChecks, ...preRuntimeScripts.checks];
+
   if (args.healthChecksEnabled !== false) {
     const prereqResult = await executeRunPrerequisites({
       workspace: effectiveWorkspace,
       workspaceRootAbs: args.workspaceRootAbs,
-      env,
+      env: effectiveEnv,
       contextPatch,
     });
     if (prereqResult.status === "blocked") {
       return {
         status: "blocked",
         reasonCode: prereqResult.reasonCode,
-        checks: prereqResult.checks,
+        checks: [...profileScriptChecks, ...prereqResult.checks],
         nextAction: prereqResult.nextAction,
         requiredUserAction: prereqResult.requiredUserAction,
       };
@@ -910,6 +1098,24 @@ export async function resolveProjectContextForRegression(
       if (autoStarted) {
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
+      const postRuntimeScripts = await executeSharedScriptsForPhase({
+        scripts: profileScripts,
+        phase: "postRuntime",
+        workspace: effectiveWorkspace,
+        workspaceRootAbs: args.workspaceRootAbs,
+        env: effectiveEnv,
+      });
+      if (postRuntimeScripts.status === "blocked") {
+        return {
+          status: "blocked",
+          reasonCode: postRuntimeScripts.reasonCode,
+          checks: [...profileScriptChecks, ...prereqChecks, ...postRuntimeScripts.checks],
+          nextAction: postRuntimeScripts.nextAction,
+          requiredUserAction: postRuntimeScripts.requiredUserAction,
+        };
+      }
+      effectiveEnv = postRuntimeScripts.env;
+      profileScriptChecks = [...profileScriptChecks, ...postRuntimeScripts.checks];
       health = await runRequiredHealthChecksWithDedupe({
         workspace: effectiveWorkspace,
         skipKeys: prereqResult.dedupeKeys,
@@ -973,6 +1179,7 @@ export async function resolveProjectContextForRegression(
       }
       if (unreachableBases.length > 0) {
         const checks = [
+          ...profileScriptChecks,
           ...prereqChecks,
           ...strictProbeBases.map((probeBase) =>
           `probe:${probeBase}=${unreachableBases.includes(probeBase) ? "unreachable" : "ready"}`,
@@ -996,7 +1203,7 @@ export async function resolveProjectContextForRegression(
       }
     }
     if (!health.ok) {
-      const checks = [...prereqChecks, ...health.checks];
+      const checks = [...profileScriptChecks, ...prereqChecks, ...health.checks];
       if (autoStartAttempted) {
         checks.push(`runtime:auto_start=${autoStarted ? "ok" : "failed"}`);
       }
@@ -1016,6 +1223,82 @@ export async function resolveProjectContextForRegression(
       contextPatch["runtime.autoStarted"] = autoStarted;
       if (autoStartDetail) contextPatch["runtime.autoStartDetail"] = autoStartDetail;
     }
+    const postHealthcheckScripts = await executeSharedScriptsForPhase({
+      scripts: profileScripts,
+      phase: "postHealthcheck",
+      workspace: effectiveWorkspace,
+      workspaceRootAbs: args.workspaceRootAbs,
+      env: effectiveEnv,
+    });
+    if (postHealthcheckScripts.status === "blocked") {
+      return {
+        status: "blocked",
+        reasonCode: postHealthcheckScripts.reasonCode,
+        checks: [...profileScriptChecks, ...prereqChecks, ...health.checks, ...postHealthcheckScripts.checks],
+        nextAction: postHealthcheckScripts.nextAction,
+        requiredUserAction: postHealthcheckScripts.requiredUserAction,
+      };
+    }
+    effectiveEnv = postHealthcheckScripts.env;
+    profileScriptChecks = [...profileScriptChecks, ...postHealthcheckScripts.checks];
+  }
+
+  if (args.healthChecksEnabled === false) {
+    for (const phase of ["postRuntime", "postHealthcheck"] as const) {
+      const scriptResult = await executeSharedScriptsForPhase({
+        scripts: profileScripts,
+        phase,
+        workspace: effectiveWorkspace,
+        workspaceRootAbs: args.workspaceRootAbs,
+        env: effectiveEnv,
+      });
+      if (scriptResult.status === "blocked") {
+        return {
+          status: "blocked",
+          reasonCode: scriptResult.reasonCode,
+          checks: [...profileScriptChecks, ...scriptResult.checks],
+          nextAction: scriptResult.nextAction,
+          requiredUserAction: scriptResult.requiredUserAction,
+        };
+      }
+      effectiveEnv = scriptResult.env;
+      profileScriptChecks = [...profileScriptChecks, ...scriptResult.checks];
+    }
+  }
+
+  const prePlanScripts = await executeSharedScriptsForPhase({
+    scripts: profileScripts,
+    phase: "prePlan",
+    workspace: effectiveWorkspace,
+    workspaceRootAbs: args.workspaceRootAbs,
+    env: effectiveEnv,
+  });
+  if (prePlanScripts.status === "blocked") {
+    return {
+      status: "blocked",
+      reasonCode: prePlanScripts.reasonCode,
+      checks: [...profileScriptChecks, ...prePlanScripts.checks],
+      nextAction: prePlanScripts.nextAction,
+      requiredUserAction: prePlanScripts.requiredUserAction,
+    };
+  }
+  effectiveEnv = prePlanScripts.env;
+  profileScriptChecks = [...profileScriptChecks, ...prePlanScripts.checks];
+
+  const bearerKey = effectiveWorkspace.variables?.bearerTokenEnv;
+  if (bearerKey) {
+    const bearer = effectiveEnv[bearerKey];
+    if (!bearer || bearer.trim().length === 0) {
+      return {
+        status: "blocked",
+        reasonCode: "env_key_missing",
+        missing: [bearerKey],
+        checks: profileScriptChecks,
+        nextAction: `Set ${bearerKey} in .env or environment and retry.`,
+        requiredUserAction: [`Set env key '${bearerKey}' before running regression.`],
+      };
+    }
+    contextPatch["auth.bearer"] = bearer;
   }
 
   return {

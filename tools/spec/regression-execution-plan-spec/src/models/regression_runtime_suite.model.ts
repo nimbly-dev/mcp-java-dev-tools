@@ -6,6 +6,13 @@ export type RuntimeSuiteRuntimeConfig = {
   retryMax?: number;
 };
 
+export type RuntimeSuiteScriptPhase = "preRuntime" | "postRuntime" | "postHealthcheck" | "prePlan";
+
+export type RuntimeSuiteScriptRef = {
+  name: string;
+  phase?: RuntimeSuiteScriptPhase;
+};
+
 export type RuntimeSuitePlanEntry = {
   order: number;
   planName: string;
@@ -19,6 +26,7 @@ export type RuntimeSuiteManifest = {
   runtimeContextName?: string;
   executionPolicy: RuntimeSuiteExecutionPolicy;
   runtimeConfig?: RuntimeSuiteRuntimeConfig;
+  scriptRefs?: RuntimeSuiteScriptRef[];
   plans: RuntimeSuitePlanEntry[];
 };
 

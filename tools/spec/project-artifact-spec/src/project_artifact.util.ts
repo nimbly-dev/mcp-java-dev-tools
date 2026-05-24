@@ -9,8 +9,12 @@ import type {
   RunPrerequisite,
   ExecutionProfileEntry,
   ExecutionProfilePlanEntry,
+  ExecutionProfileScriptRef,
+  ProjectCommandEntry,
   ProjectRuntimeContext,
   ProjectRuntimeStartupEntry,
+  ProjectScriptEntry,
+  ProjectScriptPhase,
   ProjectWorkspaceEntry,
 } from "@tools-project-artifact-spec/models/project_artifact.model";
 
@@ -26,6 +30,70 @@ function asTrimmedString(value: unknown): string | null {
 
 function isPositivePort(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 65535;
+}
+
+function normalizeProjectScriptPhase(value: unknown, fieldPath: string, errors: string[]): ProjectScriptPhase | undefined {
+  const phase = asTrimmedString(value);
+  if (!phase) return undefined;
+  if (phase !== "preRuntime" && phase !== "postRuntime" && phase !== "postHealthcheck" && phase !== "prePlan") {
+    errors.push(`${fieldPath} must be preRuntime|postRuntime|postHealthcheck|prePlan`);
+    return undefined;
+  }
+  return phase;
+}
+
+function normalizeCommandEntry(input: unknown, fieldPath: string, errors: string[]): ProjectCommandEntry | null {
+  if (!isRecord(input)) {
+    errors.push(`${fieldPath} must be object`);
+    return null;
+  }
+  const name = asTrimmedString(input.name);
+  const command = asTrimmedString(input.command);
+  if (!name) {
+    errors.push(`${fieldPath}.name is required`);
+  }
+  if (!command) {
+    errors.push(`${fieldPath}.command is required`);
+  }
+  const args = Array.isArray(input.args)
+    ? input.args
+        .filter((arg) => typeof arg === "string")
+        .map((arg) => String(arg).trim())
+        .filter((arg) => arg.length > 0)
+    : undefined;
+  const appdir = asTrimmedString(input.appdir) ?? undefined;
+  const env = isRecord(input.env)
+    ? Object.fromEntries(
+        Object.entries(input.env)
+          .filter((row) => typeof row[0] === "string" && typeof row[1] === "string")
+          .map((row) => [String(row[0] ?? "").trim(), String(row[1] ?? "").trim()])
+          .filter((row) => {
+            const key = row[0] ?? "";
+            const value = row[1] ?? "";
+            return key.length > 0 && value.length > 0;
+          }),
+      )
+    : undefined;
+  const envFileArg = asTrimmedString(input.envFileArg) ?? undefined;
+  if (!name || !command) return null;
+  return {
+    name,
+    command,
+    ...(args && args.length > 0 ? { args } : {}),
+    ...(appdir ? { appdir } : {}),
+    ...(env && Object.keys(env).length > 0 ? { env } : {}),
+    ...(envFileArg ? { envFileArg } : {}),
+  };
+}
+
+function normalizeProjectScript(input: unknown, index: number, errors: string[]): ProjectScriptEntry | null {
+  const commandEntry = normalizeCommandEntry(input, `workspaces[].scripts[${index}]`, errors);
+  if (!commandEntry || !isRecord(input)) return null;
+  const phase = normalizeProjectScriptPhase(input.phase, `workspaces[].scripts[${index}].phase`, errors);
+  return {
+    ...commandEntry,
+    ...(phase ? { phase } : {}),
+  };
 }
 
 function normalizeRuntimeContext(
@@ -53,49 +121,11 @@ function normalizeRuntimeContext(
   const startups: ProjectRuntimeStartupEntry[] = Array.isArray(input.startups)
     ? input.startups
         .map((entry, startupIndex) => {
-          if (!isRecord(entry)) {
-            errors.push(`workspaces[].runtimeContexts[${index}].startups[${startupIndex}] must be object`);
-            return null;
-          }
-          const startupName = asTrimmedString(entry.name);
-          const command = asTrimmedString(entry.command);
-          if (!startupName) {
-            errors.push(
-              `workspaces[].runtimeContexts[${index}].startups[${startupIndex}].name is required`,
-            );
-          }
-          if (!command) {
-            errors.push(
-              `workspaces[].runtimeContexts[${index}].startups[${startupIndex}].command is required`,
-            );
-          }
-          const args = Array.isArray(entry.args)
-            ? entry.args
-                .filter((arg) => typeof arg === "string")
-                .map((arg) => String(arg).trim())
-                .filter((arg) => arg.length > 0)
-            : undefined;
-          const appdir = asTrimmedString(entry.appdir) ?? undefined;
-          const env = isRecord(entry.env)
-            ? Object.fromEntries(
-                Object.entries(entry.env)
-                  .filter((row) => typeof row[0] === "string" && typeof row[1] === "string")
-                  .map((row) => [String(row[0] ?? "").trim(), String(row[1] ?? "").trim()])
-                  .filter((row) => {
-                    const key = row[0] ?? "";
-                    const value = row[1] ?? "";
-                    return key.length > 0 && value.length > 0;
-                  }),
-              )
-            : undefined;
-          if (!startupName || !command) return null;
-          return {
-            name: startupName,
-            command,
-            ...(args && args.length > 0 ? { args } : {}),
-            ...(appdir ? { appdir } : {}),
-            ...(env && Object.keys(env).length > 0 ? { env } : {}),
-          } satisfies ProjectRuntimeStartupEntry;
+          return normalizeCommandEntry(
+            entry,
+            `workspaces[].runtimeContexts[${index}].startups[${startupIndex}]`,
+            errors,
+          ) as ProjectRuntimeStartupEntry | null;
         })
         .filter((entry): entry is ProjectRuntimeStartupEntry => entry !== null)
     : [];
@@ -115,6 +145,39 @@ function normalizeRuntimeContext(
       ? { autoStopOnFinish: input.autoStopOnFinish }
       : {}),
     ...(startups.length > 0 ? { startups } : {}),
+  };
+}
+
+function normalizeExecutionProfileScriptRef(
+  input: unknown,
+  index: number,
+  errors: string[],
+): ExecutionProfileScriptRef | null {
+  if (typeof input === "string") {
+    const name = asTrimmedString(input);
+    if (!name) {
+      errors.push(`workspaces[].executionProfiles[].scriptRefs[${index}] is required`);
+      return null;
+    }
+    return { name };
+  }
+  if (!isRecord(input)) {
+    errors.push(`workspaces[].executionProfiles[].scriptRefs[${index}] must be string|object`);
+    return null;
+  }
+  const name = asTrimmedString(input.name);
+  if (!name) {
+    errors.push(`workspaces[].executionProfiles[].scriptRefs[${index}].name is required`);
+    return null;
+  }
+  const phase = normalizeProjectScriptPhase(
+    input.phase,
+    `workspaces[].executionProfiles[].scriptRefs[${index}].phase`,
+    errors,
+  );
+  return {
+    name,
+    ...(phase ? { phase } : {}),
   };
 }
 
@@ -372,11 +435,17 @@ function normalizeExecutionProfile(input: unknown, index: number, errors: string
     : undefined;
   const runtimeContextName =
     asTrimmedString(input.runtimeContextName) ?? asTrimmedString(input.runtimeContext) ?? undefined;
+  const scriptRefs = Array.isArray(input.scriptRefs)
+    ? input.scriptRefs
+        .map((entry, i) => normalizeExecutionProfileScriptRef(entry, i, errors))
+        .filter((entry): entry is ExecutionProfileScriptRef => entry !== null)
+    : [];
   return {
     executionProfile,
     ...(runtimeContextName ? { runtimeContextName } : {}),
     executionPolicy,
     ...(runtimeConfig ? { runtimeConfig } : {}),
+    ...(scriptRefs.length > 0 ? { scriptRefs } : {}),
     plans,
   };
 }
@@ -397,20 +466,38 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
   }
   let variables: ProjectWorkspaceEntry["variables"] | undefined;
   if (isRecord(input.variables)) {
-    const bearerTokenEnv = asTrimmedString(input.variables.bearerTokenEnv) ?? undefined;
-    if (bearerTokenEnv && !/^[A-Z_][A-Z0-9_]*$/.test(bearerTokenEnv)) {
-      errors.push(`workspaces[${index}].variables.bearerTokenEnv must be ENV_KEY format`);
+    const envFields = [
+      "bearerTokenEnv",
+      "keycloakClientIdEnv",
+      "keycloakClientSecretEnv",
+      "keycloakUsernameEnv",
+      "keycloakPasswordEnv",
+    ] as const;
+    const normalizedVariables: NonNullable<ProjectWorkspaceEntry["variables"]> = {};
+    for (const field of envFields) {
+      const envKey = asTrimmedString(input.variables[field]) ?? undefined;
+      if (envKey && !/^[A-Z_][A-Z0-9_]*$/.test(envKey)) {
+        errors.push(`workspaces[${index}].variables.${field} must be ENV_KEY format`);
+      }
+      if (envKey) {
+        normalizedVariables[field] = envKey;
+      }
     }
     if ("bearerToken" in input.variables) {
       errors.push(`workspaces[${index}].variables.bearerToken is forbidden; use bearerTokenEnv`);
     }
-    variables = bearerTokenEnv ? { bearerTokenEnv } : undefined;
+    variables = Object.keys(normalizedVariables).length > 0 ? normalizedVariables : undefined;
   }
 
   const runtimeContexts = Array.isArray(input.runtimeContexts)
     ? input.runtimeContexts
         .map((entry, i) => normalizeRuntimeContext(entry, i, errors))
         .filter((entry): entry is ProjectRuntimeContext => entry !== null)
+    : [];
+  const scripts = Array.isArray(input.scripts)
+    ? input.scripts
+        .map((entry, i) => normalizeProjectScript(entry, i, errors))
+        .filter((entry): entry is ProjectScriptEntry => entry !== null)
     : [];
   const executionProfiles = Array.isArray(input.executionProfiles)
     ? input.executionProfiles
@@ -449,6 +536,18 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
       });
     });
   }
+  if (scripts.length > 0 && executionProfiles.length > 0) {
+    const scriptNames = new Set(scripts.map((entry) => entry.name));
+    executionProfiles.forEach((profile, i) => {
+      profile.scriptRefs?.forEach((scriptRef, j) => {
+        if (!scriptNames.has(scriptRef.name)) {
+          errors.push(
+            `workspaces[].executionProfiles[${i}].scriptRefs[${j}].name must match a workspaces[].scripts[].name`,
+          );
+        }
+      });
+    });
+  }
   const externalSystems = Array.isArray(input.externalSystems)
     ? input.externalSystems
         .map((entry, i) => normalizeExternalSystem(entry, i, errors))
@@ -471,6 +570,9 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
           ...(typeof input.sessionExport.includeHealthcheckGate === "boolean"
             ? { includeHealthcheckGate: input.sessionExport.includeHealthcheckGate }
             : {}),
+          ...(typeof input.sessionExport.includeResolvedSecrets === "boolean"
+            ? { includeResolvedSecrets: input.sessionExport.includeResolvedSecrets }
+            : {}),
         };
         return Object.keys(normalized).length > 0 ? normalized : undefined;
       })()
@@ -481,6 +583,7 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
     ...(envFile ? { envFile } : {}),
     ...(variables ? { variables } : {}),
     ...(runtimeContexts.length > 0 ? { runtimeContexts } : {}),
+    ...(scripts.length > 0 ? { scripts } : {}),
     ...(executionProfiles.length > 0 ? { executionProfiles } : {}),
     ...(runPrerequisites.length > 0 ? { runPrerequisites } : {}),
     ...(externalSystems.length > 0 ? { externalSystems } : {}),
@@ -520,7 +623,7 @@ export function validateProjectArtifact(input: unknown): ProjectArtifactValidati
 }
 
 export async function readProjectArtifact(projectsFileAbs: string): Promise<ProjectArtifactValidationResult> {
-  const text = await fs.readFile(projectsFileAbs, "utf8");
+  const text = (await fs.readFile(projectsFileAbs, "utf8")).replace(/^\uFEFF/, "");
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);

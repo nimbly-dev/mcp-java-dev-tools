@@ -17,7 +17,7 @@ import {
   registerProbeRegistryTools,
   type ProbeRegistrySummary,
 } from "@/tools/core/probe_registry/handler";
-import { registerRunSessionExportTool } from "@/tools/core/run_session_export/handler";
+import { registerExecutionProfileExportTool } from "@/tools/core/execution_profile_export/handler";
 
 async function main() {
   const cfg = loadConfigFromEnvAndArgs(process.argv);
@@ -222,7 +222,7 @@ async function main() {
   registerTransportExecuteTool(server, {
     allowNonWrappedExecutable: () => activeRegistry?.allowNonWrappedExecutable ?? false,
   });
-  registerRunSessionExportTool(server, {
+  registerExecutionProfileExportTool(server, {
     workspaceRootAbs: cfg.workspaceRootAbs,
   });
 

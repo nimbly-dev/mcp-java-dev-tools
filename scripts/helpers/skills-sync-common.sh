@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_SKILLS=(
-  "mcp-java-dev-tools-line-probe-run"
-  "mcp-java-dev-tools-regression-suite"
-  "mcp-java-dev-tools-regression-plan-crafter"
-  "mcp-java-dev-tools-regression-result"
-  "mcp-java-dev-tools-issue-report"
-  "mcp-java-dev-tools-probe-registry-manager"
-  "mcp-java-dev-tools-project-artifact-manager"
-  "mcp-java-dev-tools-run-session-export"
-)
 RETIRED_SKILL_NAME="mcp-java-dev-tools-repro-orchestration"
 MANAGED_SKILL_PREFIX="mcp-java-dev-tools-"
 
@@ -21,7 +11,7 @@ CLIENT="codex"
 CLIENT_FROM_ARG=0
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 KIRO_SKILLS_DIR=""
-SKILL_NAMES=("${DEFAULT_SKILLS[@]}")
+SKILL_NAMES=()
 SKILL_NAME_OVERRIDE=0
 RUN_BUILD_COMPILE=1
 RUN_BUILD_JAVA=1
@@ -121,6 +111,31 @@ parse_common_args() {
   return 0
 }
 
+load_default_skills_from_repo() {
+  local skills_root="$REPO_ROOT/skills"
+  local -a discovered=()
+  local entry
+  if [[ ! -d "$skills_root" ]]; then
+    echo "Skills root not found: $skills_root" >&2
+    exit 1
+  fi
+
+  while IFS= read -r entry; do
+    discovered+=("$entry")
+  done < <(
+    find "$skills_root" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
+      | grep "^${MANAGED_SKILL_PREFIX}" \
+      | sort
+  )
+
+  if [[ "${#discovered[@]}" -eq 0 ]]; then
+    echo "No managed skills found in $skills_root" >&2
+    exit 1
+  fi
+
+  SKILL_NAMES=("${discovered[@]}")
+}
+
 validate_common_config() {
   if [[ "$CLIENT" != "codex" && "$CLIENT" != "kiro" ]]; then
     echo "Invalid --client: $CLIENT" >&2
@@ -132,6 +147,9 @@ validate_common_config() {
     KIRO_SKILLS_DIR="$(expand_home "$KIRO_SKILLS_DIR")"
   fi
 
+  if [[ "$SKILL_NAME_OVERRIDE" -eq 0 ]]; then
+    load_default_skills_from_repo
+  fi
   dedupe_skill_names
   if [[ "${#SKILL_NAMES[@]}" -eq 0 ]]; then
     echo "No skills selected. Provide --skill-name <name> or omit --skill-name for defaults." >&2
