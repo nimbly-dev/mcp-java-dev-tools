@@ -1,14 +1,14 @@
 import path from "node:path";
-import { randomUUID } from "node:crypto";
 
 import type {
   RuntimeSuiteManifest,
   RuntimeSuitePlanEntry,
   RuntimeSuiteRunResult,
+  RuntimeSuiteScriptPhase,
+  RuntimeSuiteScriptRef,
 } from "@tools-regression-execution-plan-spec/models/regression_runtime_suite.model";
 import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
-import { writeRunSessionExport } from "@tools-regression-execution-plan-spec/regression_run_session_export_writer.util";
 import {
   executeRegressionPlanWorkflow,
   type ExecuteRegressionPlanWorkflowArgs,
@@ -18,11 +18,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isRuntimeSuiteScriptPhase(value: string): value is RuntimeSuiteScriptPhase {
+  return value === "preRuntime" || value === "postRuntime" || value === "postHealthcheck" || value === "prePlan";
+}
+
 function isReplayScriptPath(value: string): boolean {
   const normalized = value.replaceAll("\\", "/").toLowerCase();
-  if (normalized.includes("/exports/session-runs-exports/")) {
-    return true;
-  }
   if (normalized.endsWith(".ps1") || normalized.endsWith(".sh")) {
     return true;
   }
@@ -124,6 +125,33 @@ function validateSuiteManifest(input: unknown):
         ...(typeof input.runtimeConfig.retryMax === "number" ? { retryMax: input.runtimeConfig.retryMax } : {}),
       }
     : undefined;
+  const scriptRefs = Array.isArray(input.scriptRefs)
+    ? input.scriptRefs
+        .map((entry): RuntimeSuiteScriptRef | null => {
+          if (typeof entry === "string" && entry.trim().length > 0) {
+            return { name: entry.trim() };
+          }
+          if (!isRecord(entry)) {
+            return null;
+          }
+          if (typeof entry.name !== "string" || entry.name.trim().length === 0) {
+            return null;
+          }
+          const phase = typeof entry.phase === "string" ? entry.phase.trim() : "";
+          const phaseValue = isRuntimeSuiteScriptPhase(phase) ? phase : undefined;
+          if (phase.length > 0 && !phaseValue) {
+            return null;
+          }
+          if (phaseValue) {
+            return {
+              name: entry.name.trim(),
+              phase: phaseValue,
+            };
+          }
+          return { name: entry.name.trim() };
+        })
+        .filter((entry): entry is RuntimeSuiteScriptRef => entry !== null)
+    : [];
   return {
     ok: true,
     manifest: {
@@ -133,6 +161,7 @@ function validateSuiteManifest(input: unknown):
         : {}),
       executionPolicy: input.executionPolicy,
       ...(runtimeConfig ? { runtimeConfig } : {}),
+      ...(scriptRefs.length > 0 ? { scriptRefs } : {}),
       plans,
     },
   };
@@ -186,8 +215,6 @@ export type ExecuteRegressionRuntimeSuiteArgs = {
 export async function executeRegressionRuntimeSuite(
   args: ExecuteRegressionRuntimeSuiteArgs,
 ): Promise<RuntimeSuiteRunResult | { status: "blocked"; reasonCode: string; requiredUserAction: string[] }> {
-  const sessionStartedAt = new Date();
-  const sessionId = randomUUID();
   const suite = await readSuiteManifest({
     workspaceRootAbs: args.workspaceRootAbs,
     executionProfile: args.executionProfile,
@@ -222,6 +249,7 @@ export async function executeRegressionRuntimeSuite(
       ...(plan.runtimeContextName || manifest.runtimeContextName
         ? { runtimeContextName: plan.runtimeContextName ?? manifest.runtimeContextName }
         : {}),
+      executionProfileName: manifest.executionProfile,
       ...(plan.providedContext ? { providedContext: plan.providedContext } : {}),
     });
     if (run.status === "blocked") {
@@ -278,24 +306,5 @@ export async function executeRegressionRuntimeSuite(
     status,
     planRuns,
   };
-  const sessionEndedAt = new Date();
-  try {
-    await writeRunSessionExport({
-      workspaceRootAbs: args.workspaceRootAbs,
-      sessionId,
-      generatedAt: sessionEndedAt,
-      startedAt: sessionStartedAt,
-      endedAt: sessionEndedAt,
-      executionProfile: manifest.executionProfile,
-      executionPolicy: manifest.executionPolicy,
-      runStatus: status,
-      ...(manifest.runtimeContextName ? { runtimeContextName: manifest.runtimeContextName } : {}),
-      ...(manifest.runtimeConfig ? { runtimeConfig: manifest.runtimeConfig } : {}),
-      planRuns,
-    });
-  } catch {
-    // Session export persistence is a side effect and intentionally omitted from suite output
-    // to keep regression execution responses scoped to requested suite results.
-  }
   return result;
 }

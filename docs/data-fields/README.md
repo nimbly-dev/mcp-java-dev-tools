@@ -304,6 +304,22 @@ examples:
 | `result.reasonMeta` | Optional compact typed context for diagnostics rendering. | `probe_wait_for_hit` | false | `{"failedStep":"wait_poll","waitedMs":4000}` |
 | `result.lastStatus` | Last observed probe status payload. | `probe_wait_for_hit` | false | `{"hitCount":0}` |
 
+## execution_profile_export
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `resultType` | Output shape discriminator for execution-profile export. | `execution_profile_export` | true | `"execution_profile_export"` |
+| `status` | Export status (`ok`) or fail-closed report status. | `execution_profile_export` | true | `"ok"` |
+| `mode` | Selected export mode. | `execution_profile_export` | true | `"sh"` |
+| `exportId` | Deterministic export label resolved from selector input. | `execution_profile_export` | true | `"20260520-153152-regression-test-run"` |
+| `executionProfile` | Execution profile selector echoed when supplied by the caller. | `execution_profile_export` | false | `"regression-test-run"` |
+| `exportDirAbs` | Fresh one-off export directory containing generated artifacts. | `execution_profile_export` | true | `"C:\\repo\\.mcpjvm\\test-project\\exports\\2026-05-21-..."` |
+| `output.scriptPathAbs` | Absolute path to the generated executable replay script. | `execution_profile_export` | true | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\run-execution-profile.sh"` |
+| `output.readmePathAbs` | Absolute path to generated export usage notes when the selected mode emits a README artifact. SH mode does not emit this file. | `execution_profile_export` | false | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\README.ps1.md"` |
+| `reasonCode` | Deterministic failure code for fail-closed report outputs. | `execution_profile_export` | false | `"unsupported_mode"` |
+| `nextActionCode` | Verb-style deterministic follow-up action key for fail-closed outputs. | `execution_profile_export` | false | `"choose_supported_mode"` |
+| `reasonMeta` | Optional compact typed context for diagnostics rendering. | `execution_profile_export` | false | `{"mode":"postman","supportedModes":["ps1","sh"]}` |
+
 ## Skill-Orchestrated Route Pushback (`mcp-java-dev-tools-line-probe-run`, `mcp-java-dev-tools-regression-suite`)
 
 These fields are emitted by orchestration summaries in skill-guided runs when probe route resolution cannot be proven uniquely.
@@ -351,6 +367,5 @@ These fields are emitted by orchestration summaries in skill-guided runs when pr
 | `lastReloadAt` | ISO timestamp of the reload attempt. | `probe_registry_reload` | false | `"2026-05-01T14:20:55.000Z"` |
 | `lastReloadStatus` | Reload outcome (`ok` or `error`). | `probe_registry_reload` | false | `"ok"` |
 | `lastReloadError` | Reload error message when status is `error`. | `probe_registry_reload` | false | `"Unexpected token..."` |
-
 
 

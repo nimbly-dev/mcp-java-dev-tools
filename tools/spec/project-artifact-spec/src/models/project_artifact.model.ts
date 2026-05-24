@@ -40,9 +40,14 @@ export type RunPrerequisite = {
 
 export type ExecutionProfilePolicy = "stop_on_fail" | "continue_on_fail";
 export type ExecutionProfilePlanOnFail = "inherit" | "stop" | "continue";
+export type ProjectScriptPhase = "preRuntime" | "postRuntime" | "postHealthcheck" | "prePlan";
 export type ExecutionProfileRuntimeConfig = {
   requestTimeoutMs?: number;
   retryMax?: number;
+};
+export type ExecutionProfileScriptRef = {
+  name: string;
+  phase?: ProjectScriptPhase;
 };
 export type ExecutionProfilePlanEntry = {
   order: number;
@@ -56,16 +61,24 @@ export type ExecutionProfileEntry = {
   runtimeContextName?: string;
   executionPolicy: ExecutionProfilePolicy;
   runtimeConfig?: ExecutionProfileRuntimeConfig;
+  scriptRefs?: ExecutionProfileScriptRef[];
   plans: ExecutionProfilePlanEntry[];
 };
 
-export type ProjectRuntimeStartupEntry = {
+export type ProjectCommandEntry = {
   name: string;
   command: string;
   args?: string[];
   appdir?: string;
   env?: Record<string, string>;
+  envFileArg?: string;
 };
+
+export type ProjectScriptEntry = ProjectCommandEntry & {
+  phase?: ProjectScriptPhase;
+};
+
+export type ProjectRuntimeStartupEntry = ProjectCommandEntry;
 
 export type ProjectRuntimeContext = {
   name: string;
@@ -109,14 +122,20 @@ export type ProjectWorkspaceEntry = {
   envFile?: string;
   variables?: {
     bearerTokenEnv?: string;
+    keycloakClientIdEnv?: string;
+    keycloakClientSecretEnv?: string;
+    keycloakUsernameEnv?: string;
+    keycloakPasswordEnv?: string;
   };
   runtimeContexts?: ProjectRuntimeContext[];
+  scripts?: ProjectScriptEntry[];
   executionProfiles?: ExecutionProfileEntry[];
   runPrerequisites?: RunPrerequisite[];
   externalSystems?: ProjectExternalSystem[];
   sessionExport?: {
     includeRuntimeStartup?: boolean;
     includeHealthcheckGate?: boolean;
+    includeResolvedSecrets?: boolean;
   };
   defaults?: {
     requestTimeoutMs?: number;

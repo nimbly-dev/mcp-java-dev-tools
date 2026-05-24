@@ -4,7 +4,11 @@
       "projectRoot": "C:\\workspace\\spring-petclinic-microservices",
       "envFile": ".env",
       "variables": {
-        "bearerTokenEnv": "AUTH_BEARER_TOKEN"
+        "bearerTokenEnv": "AUTH_BEARER_TOKEN",
+        "keycloakClientIdEnv": "KEYCLOAK_CLIENT_ID",
+        "keycloakClientSecretEnv": "KEYCLOAK_CLIENT_SECRET",
+        "keycloakUsernameEnv": "KEYCLOAK_USERNAME",
+        "keycloakPasswordEnv": "KEYCLOAK_PASSWORD"
       },
       "runtimeContexts": [
         {
@@ -41,6 +45,38 @@
           "composeFile": "docker\\docker-compose-infra.yml",
           "autoStart": false,
           "autoStopOnFinish": false
+        }
+      ],
+      "scripts": [
+        {
+          "name": "keycloak-token-bootstrap",
+          "phase": "postHealthcheck",
+          "command": "powershell",
+          "args": [
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            ".mcpjvm\\my-project\\scripts\\refresh-keycloak-token.ps1"
+          ],
+          "appdir": ".",
+          "envFileArg": "-EnvFile"
+        }
+      ],
+      "executionProfiles": [
+        {
+          "executionProfile": "regression-test-run",
+          "runtimeContextName": "docker-compose-infra",
+          "executionPolicy": "stop_on_fail",
+          "scriptRefs": [
+            "keycloak-token-bootstrap"
+          ],
+          "plans": [
+            {
+              "order": 1,
+              "planName": "owners-regression"
+            }
+          ]
         }
       ],
       "externalSystems": [

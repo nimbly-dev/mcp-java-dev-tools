@@ -144,6 +144,27 @@ test("write/read project artifact preserves deterministic shape", async () => {
   }
 });
 
+test("readProjectArtifact accepts UTF-8 BOM prefixed JSON", async () => {
+  const root = createTestTempDir("project-artifact-bom");
+  try {
+    const out = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(
+      out,
+      `\uFEFF${JSON.stringify({ workspaces: [{ projectRoot: root }] }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const read = await readProjectArtifact(out);
+    assert.equal(read.ok, true);
+    if (read.ok) {
+      assert.equal(read.artifact.workspaces[0].projectRoot, root);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("validateProjectArtifact accepts runPrerequisites with enum-constrained script/assert", () => {
   const result = validateProjectArtifact({
     workspaces: [
@@ -229,6 +250,80 @@ test("validateProjectArtifact accepts executionProfile runtimeContext alias and 
   }
 });
 
+test("validateProjectArtifact accepts shared scripts and execution profile scriptRefs", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        envFile: ".mcpjvm/test-project/.env",
+        variables: {
+          bearerTokenEnv: "AUTH_BEARER_TOKEN",
+          keycloakClientIdEnv: "KEYCLOAK_CLIENT_ID",
+          keycloakClientSecretEnv: "KEYCLOAK_CLIENT_SECRET",
+          keycloakUsernameEnv: "KEYCLOAK_USERNAME",
+          keycloakPasswordEnv: "KEYCLOAK_PASSWORD",
+        },
+        runtimeContexts: [{ name: "docker-compose-all", mode: "docker", composeFile: "docker/docker-compose-all.yml" }],
+        scripts: [
+          {
+            name: "keycloak-token-bootstrap",
+            phase: "postHealthcheck",
+            command: "powershell",
+            args: [
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              ".mcpjvm/test-project/scripts/refresh-keycloak-token.ps1",
+            ],
+            appdir: ".",
+            envFileArg: "-EnvFile",
+          },
+        ],
+        executionProfiles: [
+          {
+            executionProfile: "regression-test-run",
+            runtimeContextName: "docker-compose-all",
+            executionPolicy: "stop_on_fail",
+            scriptRefs: ["keycloak-token-bootstrap"],
+            plans: [{ order: 1, planName: "course-service-regression-spec" }],
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    const workspace = result.artifact.workspaces[0];
+    assert.equal(workspace.variables?.keycloakClientIdEnv, "KEYCLOAK_CLIENT_ID");
+    assert.equal(workspace.scripts?.[0].envFileArg, "-EnvFile");
+    assert.equal(workspace.executionProfiles?.[0].scriptRefs?.[0].name, "keycloak-token-bootstrap");
+  }
+});
+
+test("validateProjectArtifact fails closed when execution profile scriptRef is unknown", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        scripts: [{ name: "seed-data", command: "node", args: ["scripts/seed.js"] }],
+        executionProfiles: [
+          {
+            executionProfile: "regression-test-run",
+            executionPolicy: "stop_on_fail",
+            scriptRefs: [{ name: "missing-script", phase: "prePlan" }],
+            plans: [{ order: 1, planName: "course-service-regression-spec" }],
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.errors.join("\n"), /scriptRefs\[0\]\.name must match/);
+  }
+});
+
 test("validateProjectArtifact accepts sessionExport runtime defaults", () => {
   const result = validateProjectArtifact({
     workspaces: [
@@ -237,9 +332,13 @@ test("validateProjectArtifact accepts sessionExport runtime defaults", () => {
         sessionExport: {
           includeRuntimeStartup: true,
           includeHealthcheckGate: false,
+          includeResolvedSecrets: true,
         },
       },
     ],
   });
   assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.artifact.workspaces[0]?.sessionExport?.includeResolvedSecrets, true);
+  }
 });
