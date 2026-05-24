@@ -303,6 +303,39 @@ async function forceStop(child: ChildProcess): Promise<void> {
   }
 }
 
+async function createTempProbeRegistryConfig(args: {
+  workspaceRootAbs: string;
+  probeBaseUrl: string;
+}): Promise<{ dirAbs: string; fileAbs: string }> {
+  const parentAbs = path.join(repoRootAbs, "test", ".tmp", "probe-registry");
+  await fs.mkdir(parentAbs, { recursive: true });
+  const dirAbs = await fs.mkdtemp(path.join(parentAbs, "mcp-"));
+  const fileAbs = path.join(dirAbs, "probe-config.json");
+  const registry = {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        defaultProbe: "post-app",
+        probes: {
+          "post-app": {
+            baseUrl: args.probeBaseUrl,
+            include: ["com.example.social.**"],
+            exclude: ["**.config.**"],
+          },
+        },
+      },
+    },
+    workspaces: [
+      {
+        root: args.workspaceRootAbs,
+        profile: "dev",
+      },
+    ],
+  };
+  await fs.writeFile(fileAbs, `${JSON.stringify(registry, null, 2)}\n`, "utf8");
+  return { dirAbs, fileAbs };
+}
+
 export async function findLineNumberBySnippet(
   fileAbs: string,
   snippet: string,
@@ -411,6 +444,14 @@ export async function startMcpClient(args: {
   await assertFileExists(mcpServerEntryAbs, "mcp server dist entry");
 
   const logBuffer: string[] = [];
+  const explicitProbeConfigFile = args.extraEnv?.MCP_PROBE_CONFIG_FILE;
+  const tempProbeConfig =
+    typeof explicitProbeConfigFile === "string" && explicitProbeConfigFile.trim().length > 0
+      ? undefined
+      : await createTempProbeRegistryConfig({
+          workspaceRootAbs: args.workspaceRootAbs,
+          probeBaseUrl: args.probeBaseUrl,
+        });
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [mcpServerEntryAbs],
@@ -418,6 +459,7 @@ export async function startMcpClient(args: {
     env: {
       MCP_WORKSPACE_ROOT: args.workspaceRootAbs,
       MCP_PROBE_BASE_URL: args.probeBaseUrl,
+      ...(tempProbeConfig ? { MCP_PROBE_CONFIG_FILE: tempProbeConfig.fileAbs } : {}),
       ...(args.extraEnv ?? {}),
     },
     stderr: "pipe",
@@ -434,6 +476,7 @@ export async function startMcpClient(args: {
     await client.connect(transport);
   } catch (error) {
     await transport.close().catch(() => undefined);
+    if (tempProbeConfig) await fs.rm(tempProbeConfig.dirAbs, { recursive: true, force: true }).catch(() => undefined);
     throw new Error(`Failed to start MCP client.\n${logBuffer.join("\n")}\n${String(error)}`);
   }
 
@@ -441,6 +484,7 @@ export async function startMcpClient(args: {
     client,
     close: async () => {
       await transport.close();
+      if (tempProbeConfig) await fs.rm(tempProbeConfig.dirAbs, { recursive: true, force: true });
     },
     logs: () => logBuffer.join(""),
   };

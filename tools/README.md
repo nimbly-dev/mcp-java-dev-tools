@@ -6,6 +6,9 @@ This folder is the workspace-style scaffold for TS tool packages.
 - `contracts/tools-contracts`
 - `core/tools-core`
 - `core/tools-registry`
+- `features/execution-profile-export`
+- `spec/project-artifact-spec`
+- `spec/regression-execution-plan-spec`
 - `synthesizers/tools-synthesizer-api`
 - `synthesizers/tools-spring-http`
 - `synthesizers/tools-jaxrs-http`
@@ -37,6 +40,11 @@ These are folder-level placeholders only. Spring HTTP is the only active synthes
   - `core/tools-core/src`
 - Synthesizer plugin registry runtime:
   - `core/tools-registry/src`
+- Execution Profile export feature implementation:
+  - `features/execution-profile-export`
+- `.mcpjvm/**` Artifact Spec implementations:
+  - `spec/project-artifact-spec/src`
+  - `spec/regression-execution-plan-spec/src`
 - Spring HTTP synthesizer runtime implementation:
   - `synthesizers/tools-spring-http/src`
 

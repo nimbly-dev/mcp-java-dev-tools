@@ -5,6 +5,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { loadConfigFromEnvAndArgs } = require("@/config/server-config");
+const { MCP_ENV } = require("@/config/env-vars");
 
 const FIXTURE = path.resolve(__dirname, "fixtures", "probe-config.sample.json");
 
@@ -71,6 +72,30 @@ test("workspace root resolution uses INIT_CWD then PWD when CLI arg is absent", 
         const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
         assert.equal(cfg.workspaceRootSource, "session");
         assert.equal(cfg.workspaceRootAbs, path.resolve(sessionRoot));
+      },
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("workspace root resolution prefers MCP_WORKSPACE_ROOT over session vars", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-env-"));
+  try {
+    const envRoot = path.join(tmp, "env");
+    const sessionRoot = path.join(tmp, "session");
+    writeProbeConfig(envRoot);
+    writeProbeConfig(sessionRoot);
+    withEnv(
+      {
+        [MCP_ENV.WORKSPACE_ROOT]: envRoot,
+        INIT_CWD: sessionRoot,
+        PWD: sessionRoot,
+      },
+      () => {
+        const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
+        assert.equal(cfg.workspaceRootSource, "env");
+        assert.equal(cfg.workspaceRootAbs, path.resolve(envRoot));
       },
     );
   } finally {

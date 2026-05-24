@@ -29,23 +29,36 @@ export class ServerConfigLoader {
 
   load(): ServerConfig {
     const argWorkspaceRoot = this.args.get("--workspace-root");
+    const envWorkspaceRoot = this.env(MCP_ENV.WORKSPACE_ROOT);
     const sessionWorkspaceRoot = this.detectSessionWorkspaceRoot();
     const cwdWorkspaceRoot = process.cwd();
 
     const workspaceRoot =
-      argWorkspaceRoot ?? sessionWorkspaceRoot ?? cwdWorkspaceRoot;
+      argWorkspaceRoot ?? envWorkspaceRoot ?? sessionWorkspaceRoot ?? cwdWorkspaceRoot;
     const workspaceRootSource: ServerConfig["workspaceRootSource"] = argWorkspaceRoot
       ? "arg"
+      : envWorkspaceRoot
+        ? "env"
       : sessionWorkspaceRoot
         ? "session"
         : "cwd";
 
-    const probeConfigFile = this.detectWorkspaceProbeConfigFile(path.resolve(workspaceRoot));
+    const workspaceRootAbs = path.resolve(workspaceRoot);
+    const detectedProbeConfigFile = this.detectWorkspaceProbeConfigFile(workspaceRootAbs);
+    const envProbeConfigFile = this.env(MCP_ENV.PROBE_CONFIG_FILE);
+    const explicitEnvProbeConfigFile =
+      typeof envProbeConfigFile === "string" && envProbeConfigFile.trim().length > 0
+        ? path.resolve(envProbeConfigFile.trim())
+        : undefined;
+    const probeConfigFile =
+      argWorkspaceRoot && detectedProbeConfigFile
+        ? detectedProbeConfigFile
+        : explicitEnvProbeConfigFile ?? detectedProbeConfigFile;
     const probeRegistry =
       typeof probeConfigFile === "string" && probeConfigFile.trim().length > 0
         ? loadProbeRegistry({
             filePath: probeConfigFile.trim(),
-            workspaceRootAbs: path.resolve(workspaceRoot),
+            workspaceRootAbs,
           })
         : undefined;
 
@@ -87,7 +100,7 @@ export class ServerConfigLoader {
     this.validateProbeBaseUrl(probeBaseUrl);
 
     return {
-      workspaceRootAbs: path.resolve(workspaceRoot),
+      workspaceRootAbs,
       workspaceRootSource,
       probeBaseUrl,
       probeStatusPath,

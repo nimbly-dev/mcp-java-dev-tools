@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "npm run build:compile && npm run test:all",
-    "build:compile": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json && tsc-alias -p tsconfig.json && node -e \"const fs=require('fs');const path=require('path');const src=path.join('tools','export','execution-profile','templates');const dst=path.join('dist','tools','export','execution-profile','templates');if(fs.existsSync(src)){fs.mkdirSync(path.dirname(dst),{recursive:true});fs.cpSync(src,dst,{recursive:true});}\"",
+    "build:compile": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json && tsc-alias -p tsconfig.json && node -e \"const fs=require('fs');const path=require('path');const src=path.join('tools','features','execution-profile-export','templates');const dst=path.join('dist','tools','features','execution-profile-export','templates');if(fs.existsSync(src)){fs.mkdirSync(path.dirname(dst),{recursive:true});fs.cpSync(src,dst,{recursive:true});}\"",
     "build:java": "mvn -f java-agent\\pom.xml package",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/server.js",

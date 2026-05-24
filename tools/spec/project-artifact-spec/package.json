@@ -1,0 +1,6 @@
+{
+  "name": "@mcp-java-dev-tools/tools-project-artifact-spec",
+  "private": true,
+  "version": "0.1.0",
+  "main": "src/project_artifact.util.ts"
+}

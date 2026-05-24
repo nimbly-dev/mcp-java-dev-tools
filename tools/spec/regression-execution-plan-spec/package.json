@@ -1,0 +1,6 @@
+{
+  "name": "@mcp-java-dev-tools/tools-regression-execution-plan-spec",
+  "private": true,
+  "version": "0.1.0",
+  "main": "src/regression_artifact_paths.util.ts"
+}

@@ -68,3 +68,28 @@ test("missing probe-config fails closed and does not rely on MCP_PROBE_BASE_URL"
   );
 });
 
+test("loads explicit probe registry from MCP_PROBE_CONFIG_FILE", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-file-"));
+  try {
+    const workspaceRoot = path.join(tmpRoot, "workspace");
+    const configDir = path.join(tmpRoot, "config");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.copyFileSync(FIXTURE, path.join(configDir, "probe-config.json"));
+    withEnv(
+      {
+        [MCP_ENV.WORKSPACE_ROOT]: workspaceRoot,
+        [MCP_ENV.PROBE_CONFIG_FILE]: path.join(configDir, "probe-config.json"),
+        INIT_CWD: undefined,
+        PWD: undefined,
+      },
+      () => {
+        const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
+        assert.equal(cfg.workspaceRootSource, "env");
+        assert.equal(cfg.probeBaseUrl, "http://127.0.0.1:9190");
+      },
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
