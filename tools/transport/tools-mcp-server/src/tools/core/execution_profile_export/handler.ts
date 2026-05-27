@@ -23,6 +23,8 @@ export function registerExecutionProfileExportTool(server: McpServer, deps: Exec
       includeResolvedSecrets,
       includeRuntimeStartup,
       includeHealthcheckGate,
+      contextBindings,
+      contextValues,
     }) => {
       const request: {
         workspaceRootAbs: string;
@@ -34,6 +36,8 @@ export function registerExecutionProfileExportTool(server: McpServer, deps: Exec
         includeResolvedSecrets?: boolean;
         includeRuntimeStartup?: boolean;
         includeHealthcheckGate?: boolean;
+        contextBindings?: Record<string, string>;
+        contextValues?: Record<string, string>;
       } = {
         workspaceRootAbs: deps.workspaceRootAbs,
         mode,
@@ -58,6 +62,20 @@ export function registerExecutionProfileExportTool(server: McpServer, deps: Exec
       }
       if (typeof includeHealthcheckGate === "boolean") {
         request.includeHealthcheckGate = includeHealthcheckGate;
+      }
+      if (contextBindings && typeof contextBindings === "object" && !Array.isArray(contextBindings)) {
+        request.contextBindings = Object.fromEntries(
+          Object.entries(contextBindings)
+            .filter(([k, v]) => typeof k === "string" && k.trim().length > 0 && typeof v === "string" && v.trim().length > 0)
+            .map(([k, v]) => [k.trim(), v.trim()]),
+        );
+      }
+      if (contextValues && typeof contextValues === "object" && !Array.isArray(contextValues)) {
+        request.contextValues = Object.fromEntries(
+          Object.entries(contextValues)
+            .filter(([k, v]) => typeof k === "string" && k.trim().length > 0 && typeof v === "string")
+            .map(([k, v]) => [k.trim(), v]),
+        );
       }
 
       return await executionProfileExportDomain(request);

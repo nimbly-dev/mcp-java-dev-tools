@@ -1,4 +1,4 @@
-import { exportExecutionProfilePs1, exportExecutionProfileSh } from "@tools-export-execution-profile/index";
+import { exportExecutionProfilePostman, exportExecutionProfilePs1, exportExecutionProfileSh } from "@tools-export-execution-profile/index";
 import { resolveExportIdForExport } from "@tools-export-execution-profile/loaders/export_selector.loader";
 
 import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
@@ -20,6 +20,42 @@ function blockedResponse(reasonCode: string, reason: string, reasonMeta?: Record
   };
 }
 
+function parsePostmanReasonMeta(reason: string): Record<string, unknown> {
+  if (reason.startsWith("postman_script_conversion_required:")) {
+    const [, scriptName = "", extension = "unknown"] = reason.split(":");
+    return { failedStep: "postman_script_validation", scriptName, extension };
+  }
+  if (reason.startsWith("postman_script_invalid_format:")) {
+    const [, scriptName = "", detail = "invalid_js"] = reason.split(":");
+    return { failedStep: "postman_script_validation", scriptName, detail };
+  }
+  if (reason.startsWith("postman_script_non_convertible:")) {
+    const [, cause = "unknown", scriptName = ""] = reason.split(":");
+    return { failedStep: "postman_script_resolution", cause, scriptName };
+  }
+  if (reason.startsWith("postman_provisioning_not_supported:")) {
+    const [, scriptName = ""] = reason.split(":");
+    return { failedStep: "postman_scope_guard", scriptName };
+  }
+  if (reason.startsWith("postman_export_blocked:")) {
+    const parts = reason.split(":");
+    const cause = parts[1] ?? "unknown";
+    if (cause === "required_prerequisite_unresolved") {
+      return { failedStep: "postman_export_render", cause, prerequisiteKey: parts[2] ?? "" };
+    }
+    if (cause === "binding_env_missing") {
+      return { failedStep: "postman_export_render", cause, prerequisiteKey: parts[2] ?? "", envKey: parts[3] ?? "" };
+    }
+    if (cause === "provided_context_ambiguous") {
+      return { failedStep: "postman_export_render", cause, contextKey: parts[2] ?? "" };
+    }
+    const planName = parts[2] ?? "";
+    const stepId = parts[3] ?? "";
+    return { failedStep: "postman_export_render", cause, ...(planName ? { planName } : {}), ...(stepId ? { stepId } : {}) };
+  }
+  return {};
+}
+
 export async function executionProfileExportDomain(input: {
   workspaceRootAbs: string;
   exportId?: string;
@@ -30,18 +66,12 @@ export async function executionProfileExportDomain(input: {
   includeResolvedSecrets?: boolean;
   includeRuntimeStartup?: boolean;
   includeHealthcheckGate?: boolean;
+  contextBindings?: Record<string, string>;
+  contextValues?: Record<string, string>;
 }): Promise<{
   content: Array<{ type: "text"; text: string }>;
   structuredContent: Record<string, unknown>;
 }> {
-  if (input.mode !== "ps1" && input.mode !== "sh") {
-    return blockedResponse(
-      "unsupported_mode",
-      "Requested export mode is not implemented yet.",
-      { mode: input.mode, supportedModes: ["ps1", "sh"] },
-    );
-  }
-
   try {
     const selectorInput: {
       workspaceRootAbs: string;
@@ -73,6 +103,8 @@ export async function executionProfileExportDomain(input: {
       includeResolvedSecrets?: boolean;
       includeRuntimeStartup?: boolean;
       includeHealthcheckGate?: boolean;
+      contextBindings?: Record<string, string>;
+      contextValues?: Record<string, string>;
     } = {
       workspaceRootAbs: input.workspaceRootAbs,
       exportId: resolvedExportId,
@@ -86,11 +118,37 @@ export async function executionProfileExportDomain(input: {
     if (typeof input.includeHealthcheckGate === "boolean") {
       request.includeHealthcheckGate = input.includeHealthcheckGate;
     }
+    if (input.contextBindings && typeof input.contextBindings === "object") {
+      request.contextBindings = input.contextBindings;
+    }
+    if (input.contextValues && typeof input.contextValues === "object") {
+      request.contextValues = input.contextValues;
+    }
 
-    const out =
-      input.mode === "ps1"
-        ? await exportExecutionProfilePs1(request)
-        : await exportExecutionProfileSh(request);
+    let out:
+      | Awaited<ReturnType<typeof exportExecutionProfilePs1>>
+      | Awaited<ReturnType<typeof exportExecutionProfileSh>>
+      | Awaited<ReturnType<typeof exportExecutionProfilePostman>>;
+    if (input.mode === "ps1") {
+      out = await exportExecutionProfilePs1(request);
+    } else if (input.mode === "sh") {
+      out = await exportExecutionProfileSh(request);
+    } else {
+      out = await exportExecutionProfilePostman(request);
+    }
+
+    let output: Record<string, unknown>;
+    if ("scriptPathAbs" in out) {
+      output = {
+        scriptPathAbs: out.scriptPathAbs,
+        ...("readmePathAbs" in out && out.readmePathAbs ? { readmePathAbs: out.readmePathAbs } : {}),
+      };
+    } else {
+      output = {
+        collectionPathAbs: out.collectionPathAbs,
+        environmentPathAbs: out.environmentPathAbs,
+      };
+    }
 
     const structuredContent = {
       resultType: "execution_profile_export",
@@ -99,10 +157,7 @@ export async function executionProfileExportDomain(input: {
       exportId: out.exportId,
       ...(input.executionProfile ? { executionProfile: input.executionProfile } : {}),
       exportDirAbs: out.exportDirAbs,
-      output: {
-        scriptPathAbs: out.scriptPathAbs,
-        ...(out.readmePathAbs ? { readmePathAbs: out.readmePathAbs } : {}),
-      },
+      output,
     };
 
     return {
@@ -111,21 +166,34 @@ export async function executionProfileExportDomain(input: {
     };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    const reasonCode =
+    let reasonCode = "execution_profile_export_failed";
+    if (reason.startsWith("postman_script_conversion_required")) {
+      reasonCode = "postman_script_conversion_required";
+    } else if (reason.startsWith("postman_script_invalid_format")) {
+      reasonCode = "postman_script_invalid_format";
+    } else if (reason.startsWith("postman_provisioning_not_supported")) {
+      reasonCode = "postman_provisioning_not_supported";
+    } else if (reason.startsWith("postman_script_non_convertible")) {
+      reasonCode = "postman_script_non_convertible";
+    } else if (reason.startsWith("postman_export_blocked")) {
+      reasonCode = "postman_export_blocked";
+    } else if (
       reason === "export_selector_missing" ||
       reason === "execution_profile_export_manifest_missing" ||
       reason === "execution_profile_not_found" ||
       reason === "execution_profile_no_exports" ||
       reason === "export_selector_no_match" ||
       reason === "export_id_invalid"
-        ? reason
-        : "execution_profile_export_failed";
+    ) {
+      reasonCode = reason;
+    }
     return blockedResponse(reasonCode, reason, {
       ...(input.exportId ? { exportId: input.exportId } : {}),
       ...(input.executionProfile ? { executionProfile: input.executionProfile } : {}),
       ...(input.planName ? { planName: input.planName } : {}),
       ...(input.when ? { when: input.when } : {}),
       mode: input.mode,
+      ...parsePostmanReasonMeta(reason),
     });
   }
 }

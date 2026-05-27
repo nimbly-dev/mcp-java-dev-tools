@@ -316,9 +316,29 @@ examples:
 | `exportDirAbs` | Fresh one-off export directory containing generated artifacts. | `execution_profile_export` | true | `"C:\\repo\\.mcpjvm\\test-project\\exports\\2026-05-21-..."` |
 | `output.scriptPathAbs` | Absolute path to the generated executable replay script. | `execution_profile_export` | true | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\run-execution-profile.sh"` |
 | `output.readmePathAbs` | Absolute path to generated export usage notes when the selected mode emits a README artifact. SH mode does not emit this file. | `execution_profile_export` | false | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\README.ps1.md"` |
-| `reasonCode` | Deterministic failure code for fail-closed report outputs. | `execution_profile_export` | false | `"unsupported_mode"` |
+| `output.collectionPathAbs` | Absolute path to generated Postman collection artifact when `mode=postman`. | `execution_profile_export` | false | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\collection.postman.json"` |
+| `output.environmentPathAbs` | Absolute path to generated Postman environment artifact when `mode=postman`. | `execution_profile_export` | false | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\environment.postman.json"` |
+| `reasonCode` | Deterministic failure code for fail-closed report outputs. Includes Postman-specific gates such as `postman_script_conversion_required`, `postman_script_invalid_format`, and `postman_provisioning_not_supported`. | `execution_profile_export` | false | `"postman_provisioning_not_supported"` |
 | `nextActionCode` | Verb-style deterministic follow-up action key for fail-closed outputs. | `execution_profile_export` | false | `"choose_supported_mode"` |
-| `reasonMeta` | Optional compact typed context for diagnostics rendering. | `execution_profile_export` | false | `{"mode":"postman","supportedModes":["ps1","sh"]}` |
+| `reasonMeta` | Optional compact typed context for diagnostics rendering. | `execution_profile_export` | false | `{"mode":"postman","supportedModes":["ps1","sh","postman"]}` |
+
+Postman mode operator recovery guidance:
+- `postman_script_conversion_required`: replace referenced non-JS script with `.js/.mjs/.cjs`, or use `ps1/sh` mode.
+- `postman_script_invalid_format`: fix JS syntax or Postman-script structure for the referenced script.
+- `postman_script_non_convertible`: ensure the script exists in workspace `scripts` with a resolvable file path.
+- `postman_provisioning_not_supported`: move provisioning/startup/teardown outside Postman export; provision environment first.
+- `postman_export_blocked` with `reasonMeta.cause=unsupported_transport`: keep Postman profiles HTTP-only.
+- `postman_export_blocked` with `reasonMeta.cause=url_unresolved`: provide explicit `url` or resolvable `pathTemplate` + base URL context.
+- `postman_export_blocked` with `reasonMeta.cause=url_unrunnable`: ensure final URL is absolute (`http(s)://...`) or Postman base-variable rooted (`{{var}}/...`), not path-only.
+
+Postman variable normalization policy:
+- Exporter normalizes `${var}` placeholders to `{{var}}` for URL, headers, and body fields.
+- Exporter emits referenced Postman variables into `environment.values` deterministically so Runner can resolve them.
+- Exporter applies contract prerequisite string defaults into `environment.values` when keys are referenced.
+- When `includeResolvedSecrets=true`, exporter resolves `auth.bearer` from workspace env via `variables.bearerTokenEnv` when available.
+- Exporter supports `contextBindings` (prerequisite key -> env key) and uses it with highest precedence for value resolution.
+- Exporter supports `contextValues` (direct key -> value) with highest precedence for run-scoped export context.
+- Referenced required prerequisites that remain unresolved fail closed (`postman_export_blocked` with `reasonMeta.cause=required_prerequisite_unresolved`).
 
 ## Skill-Orchestrated Route Pushback (`mcp-java-dev-tools-line-probe-run`, `mcp-java-dev-tools-regression-suite`)
 

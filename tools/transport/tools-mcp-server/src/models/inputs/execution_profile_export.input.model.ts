@@ -12,4 +12,12 @@ export const ExecutionProfileExportInputSchema = {
   includeResolvedSecrets: z.boolean().optional().describe("Include resolved secret values in generated artifacts."),
   includeRuntimeStartup: z.boolean().optional().describe("Include runtime startup section in exported script."),
   includeHealthcheckGate: z.boolean().optional().describe("Include healthcheck gate section in exported script."),
+  contextBindings: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe("Optional prerequisite-to-env-key binding map for export-time variable resolution (for example auth.bearer -> AUTH_BEARER_TOKEN)."),
+  contextValues: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe("Optional direct prerequisite/context values for this export invocation (run-scoped, non-env)."),
 } as const;
