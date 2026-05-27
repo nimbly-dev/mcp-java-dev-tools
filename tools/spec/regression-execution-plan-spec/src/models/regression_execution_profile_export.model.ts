@@ -52,6 +52,8 @@ export type ExportExecutionProfilePs1Input = {
   includeResolvedSecrets?: boolean;
   includeRuntimeStartup?: boolean;
   includeHealthcheckGate?: boolean;
+  contextBindings?: Record<string, string>;
+  contextValues?: Record<string, string>;
 };
 
 export type ExportExecutionProfilePs1Result = {
