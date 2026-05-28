@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-regression-result
-description: "Render deterministic, artifact-derived regression results with extensible presentation modes (table-first)."
+description: "Render regression run results from artifacts into deterministic summaries and tables."
 ---
 
 # MCP JVM Regression Result

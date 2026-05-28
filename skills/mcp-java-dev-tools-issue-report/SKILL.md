@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-issue-report
-description: "Create sanitized, developer-ready issue reports from the current debugging session, workspace context, logs, stack traces, probe results, runtime evidence, and user input. Use when the user asks to document a bug, summarize a failure, prepare a reproducible issue report, or says things like 'I have this issue when calling this method'. Extract the minimum facts needed to reproduce the issue, preserve technical meaning, and remove secrets, bearer tokens, enterprise identifiers, company package names, and sensitive class names from the final output."
+description: "Create sanitized, reproducible bug/issue reports from session evidence. Use for issue tickets, failure summaries, repro steps, exceptions, or failing endpoints."
 ---
 
 # MCP Java Dev Tools Issue Report

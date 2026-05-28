@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-probe-registry-manager
-description: "Manage multi-probe registry entries on demand. Use when the user wants terminal-driven add/update/list flows for probe services, validate probe-config.json, reload registry, and produce MCP run configuration snippets."
+description: "Manage probe registry configuration (`probe-config.json`): add/update/list probes, validate config, reload registry, and generate MCP run snippets."
 ---
 
 # MCP Java Dev Tools Probe Registry Manager

@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-execution-profile-export
-description: "Export execution profiles into deterministic self-contained artifacts using a single selected mode (ps1, sh, or postman)."
+description: "Export execution profiles to runnable artifacts (ps1, sh, postman). Use for export, share, replay, or handoff of regression execution flows."
 ---
 
 # MCP JVM Execution Profile Export

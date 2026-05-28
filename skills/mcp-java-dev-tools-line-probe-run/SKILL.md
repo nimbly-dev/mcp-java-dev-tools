@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-line-probe-run
-description: "Run strict single-line JVM probe verification with mandatory MCP toolchain usage and fail-closed runtime route resolution."
+description: "Run strict single-line JVM probe verification. Use for line-hit checks, route validation, and fail-closed probe execution."
 ---
 
 # MCP JVM Line Probe Run
