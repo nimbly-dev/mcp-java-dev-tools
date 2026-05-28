@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-project-artifact-manager
-description: "Manage persistent project artifacts under .mcpjvm/<project-name>/projects.json. Use when the user wants project context setup for runtime contexts, external systems, and health checks without duplicating probe-config."
+description: "Manage `.mcpjvm/<project>/projects.json` project context artifacts (read/validate/upsert/list) for runtime contexts, external systems, and health checks."
 ---
 
 # MCP Java Dev Tools Project Artifact Manager

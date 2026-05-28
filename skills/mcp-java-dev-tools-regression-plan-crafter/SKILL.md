@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-regression-plan-crafter
-description: "Craft deterministic regression execution plans under .mcpjvm/<project_name>/plans/regression/<name>/ using metadata.json, contract.json, and plan.md with artifact lifecycle persisted via artifact_management."
+description: "Create or update deterministic regression plans (`metadata.json`, `contract.json`, `plan.md`) under `.mcpjvm/.../plans/regression`."
 ---
 
 # MCP JVM Regression Plan Crafter
