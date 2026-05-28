@@ -13,6 +13,7 @@ Use this skill for operational management of `probe-config.json` and registry ru
 2. Validate deterministic registry shape (`defaultProfile`, `workspaces[]`, `profiles`, `probes`).
 3. Trigger `probe_registry_reload` after changes.
 4. Provide ready-to-paste MCP client configuration snippets.
+5. Use `artifact_management` with `artifactType=probe_config` for read/validate/upsert artifact operations.
 
 ## Rules
 
@@ -66,12 +67,13 @@ Notes:
 
 ## Workflow
 
-1. Locate workspace-local `.mcpjvm/probe-config.json` via project root discovery.
-2. Read and validate JSON structure.
+1. Call `artifact_management` with `artifactType=probe_config` and `action=read`.
+2. Validate registry contract through `artifact_management` `action=validate`.
 3. Apply requested mutation (add/update/remove workspace/profile/probe).
-4. Re-validate the entire file.
-5. Call `probe_registry_reload`.
-6. Return:
+4. Persist via `artifact_management` with `artifactType=probe_config` and `action=upsert`.
+5. Re-validate with `artifact_management` `action=validate`.
+6. Call `probe_registry_reload`.
+7. Return:
    - change summary
    - any Fail-Closed validation errors
    - MCP run snippet

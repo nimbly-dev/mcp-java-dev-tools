@@ -30,7 +30,12 @@ If user request conflicts with these rules, fail closed and return deterministic
 
 ## Source of Truth
 
-Read only from persisted run artifacts:
+Operational source for artifact reads:
+
+1. `artifact_management` MCP Tool:
+   - `artifactType=run_result`, `action=read|list`
+
+Artifact semantics/reference paths:
 
 1. `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/execution.result.json`
 2. `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/evidence.json`

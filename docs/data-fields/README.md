@@ -340,6 +340,32 @@ Postman variable normalization policy:
 - Exporter supports `contextValues` (direct key -> value) with highest precedence for run-scoped export context.
 - Referenced required prerequisites that remain unresolved fail closed (`postman_export_blocked` with `reasonMeta.cause=required_prerequisite_unresolved`).
 
+## artifact_management
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `resultType` | Output discriminator for unified Artifact lifecycle operations. | `artifact_management` | true | `"artifact"` |
+| `status` | Deterministic operation status (`ok`) or fail-closed reason status. | `artifact_management` | true | `"ok"` |
+| `artifactType` | Artifact class selected by caller (`probe_config`, `project_context`, `regression_plan`, `run_result`, `execution_export`). | `artifact_management` | true | `"project_context"` |
+| `action` | Requested lifecycle action (`read`, `validate`, `upsert`, `list`, `generate`). | `artifact_management` | true | `"validate"` |
+| `input` | Typed per-artifact payload object. The top-level request is generic; artifact-specific fields are nested under `input`. | `artifact_management` | true | `{"projectName":"catalog-service","query":{"select":["summary"]}}` |
+| `input.query.select` | Optional projection selectors for structured reads to reduce payload size. Supported examples: `project_context` (`summary`, `executionProfiles`, `runtimeContexts`, `scripts`, `runPrerequisites`, `workspaces`), `regression_plan` (`metadata`, `contract`, `plan`), `run_result` (`executionResult`, `evidence`). | `artifact_management` | false | `["summary","executionProfiles"]` |
+| `reasonCode` | Deterministic blocked reason code (for example `artifact_action_not_allowed`, `project_artifact_missing`). | `artifact_management` | false | `"artifact_action_not_allowed"` |
+| `nextActionCode` | Verb-style deterministic follow-up action key for blocked outputs. | `artifact_management` | false | `"artifact_action_not_allowed"` |
+| `reasonMeta` | Optional typed diagnostics including allowed action presets for the selected `artifactType`. | `artifact_management` | false | `{"allowedActions":["read","validate","upsert"]}` |
+| `artifact` | Artifact payload returned by read actions (shape varies by `artifactType`). | `artifact_management` | false | `{"workspaces":[{"projectRoot":"C:\\repo"}]}` |
+
+`artifact_management` action presets:
+- `probe_config`: `read`, `validate`, `upsert`
+- `project_context`: `read`, `validate`, `upsert`, `list`
+- `regression_plan`: `read`, `validate`, `upsert`, `list`
+- `run_result`: `read`, `list`
+- `execution_export`: `read`, `list`, `generate`
+
+Typed request envelope examples:
+- `{"artifactType":"probe_config","action":"validate","input":{}}`
+- `{"artifactType":"project_context","action":"read","input":{"projectName":"catalog","query":{"select":["summary","executionProfiles"],"executionProfile":"smoke"}}}`
+
 ## Skill-Orchestrated Route Pushback (`mcp-java-dev-tools-line-probe-run`, `mcp-java-dev-tools-regression-suite`)
 
 These fields are emitted by orchestration summaries in skill-guided runs when probe route resolution cannot be proven uniquely.

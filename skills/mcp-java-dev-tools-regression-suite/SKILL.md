@@ -38,7 +38,7 @@ Single-call execution skill for regression plans.
 ## Branch Router
 
 1. `execution_profile` present => `runtime_suite_branch`:
-   - load `projects.json` workspace `executionProfiles[]` entry by `executionProfile`
+   - load workspace execution profile by `executionProfile` through `artifact_management` (`artifactType=project_context`, `action=read`)
    - validate ordered `plans[]` and execution policy
    - execute plans in order using suite policy
 2. `plan_name` present => `single_plan_branch`:
@@ -99,6 +99,10 @@ Use these references/templates:
 8. `templates/fail-closed.result.json`
 9. `templates/needs-user-input.result.json`
 10. `templates/run-summary.result.json`
+11. `artifact_management` MCP Tool (operational source) for artifact lifecycle reads/validations:
+   - `artifactType=project_context` (`read|validate|list`)
+   - `artifactType=regression_plan` (`read|validate|list`)
+   - `artifactType=run_result` (`list|read`)
 
 ## Required Artifacts and Correlation
 
@@ -117,8 +121,9 @@ Use these references/templates:
    - example: `05-09-2026-08-33-41PM`
 7. Never invent ad-hoc run IDs (for example `20260509T134827387Z-customers`).
 8. If run_id is non-canonical, fail closed before artifact write.
-9. Runtime suite branch additionally requires runtime manifest path:
+9. Runtime suite branch additionally references runtime manifest semantics at:
    - `.mcpjvm/<project_name>/projects.json` with matching workspace `executionProfiles[]`
+10. Persisted artifact access in this workflow should route through `artifact_management` wherever MCP path is available.
 
 ## MCP-First and Wrapped Transport
 

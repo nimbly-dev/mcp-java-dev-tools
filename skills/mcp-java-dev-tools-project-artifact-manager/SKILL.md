@@ -15,6 +15,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 4. Add/update shared scripts used by execution profiles.
 5. Add/update external systems and health checks.
 6. Resolve env key references (never env values).
+7. Use `artifact_management` as the canonical MCP Tool for read/validate/upsert/list artifact lifecycle operations.
 
 ## Rules
 
@@ -140,18 +141,23 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 
 1. Resolve workspace root.
 2. Ask for project name when missing.
-3. Build artifact path `.mcpjvm/<project-name>/projects.json`.
-4. If file exists: read + normalize misaligned fields + validate + patch requested changes.
-5. If file does not exist: create minimal valid structure and apply requested changes.
-6. Validate end-to-end and return deterministic summary.
+3. Call `artifact_management` with `artifactType=project_context` and `action=read|list` to load current state.
+4. Normalize and prepare requested changes in-memory.
+5. Call `artifact_management` with `artifactType=project_context` and `action=validate` before persistence.
+6. Call `artifact_management` with `artifactType=project_context` and `action=upsert` to persist.
+7. Validate end-to-end and return deterministic summary.
 
 ## Misaligned Field Fix Rules
 
 1. Always run normalization before validation and write.
-2. Treat `templates/projects.terminal.example.json` as the canonical schema allowlist.
-3. Any field not present in the canonical template is misaligned and must be removed during normalization.
-4. For HTTP health checks, normalize to canonical `url` when `type=http`.
-5. If normalization cannot be done deterministically, fail closed with compact output and do not write partial state.
+2. Treat the TypeScript validator contract in `tools/spec/project-artifact-spec/src/project_artifact.util.ts` as canonical.
+3. Do not use `templates/projects.terminal.example.json` as a strict allowlist for field removal.
+4. Optional validator-supported fields are canonical and must not be removed as non-canonical:
+   1. `executionProfiles[].runtimeConfig`
+   2. `executionProfiles[].plans[].onFail`
+   3. `executionProfiles[].plans[].providedContext`
+5. For HTTP health checks, normalize to canonical `url` when `type=http`.
+6. If normalization cannot be done deterministically, fail closed with compact output and do not write partial state.
 
 ## Validate Action (Keep It Lean)
 

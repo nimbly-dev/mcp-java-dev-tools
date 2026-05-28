@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-regression-plan-crafter
-description: "Craft deterministic regression execution plans under .mcpjvm/<project_name>/plans/regression/<name>/ using metadata.json, contract.json, and plan.md without introducing new MCP tools."
+description: "Craft deterministic regression execution plans under .mcpjvm/<project_name>/plans/regression/<name>/ using metadata.json, contract.json, and plan.md with artifact lifecycle persisted via artifact_management."
 ---
 
 # MCP JVM Regression Plan Crafter
@@ -25,6 +25,7 @@ Produce a deterministic, fail-closed plan package:
 3. `.mcpjvm/<project_name>/plans/regression/<regression_name>/plan.md`
 
 Do not hand-author `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/...` artifacts in this skill. Those are machine-generated during execution.
+Use `artifact_management` (`artifactType=regression_plan`) as the canonical MCP Tool for read/validate/upsert/list lifecycle operations.
 
 ## Portable Source of Truth
 
@@ -182,6 +183,7 @@ When user asks to craft a plan, produce or update:
 
 Never require manual hand-construction when templates can be applied.
 Use the template files, then specialize fields from the user context.
+Persist through `artifact_management` with `action=upsert` after `action=validate`.
 
 ## Fail-Closed Cases
 
@@ -218,6 +220,6 @@ When crafting or updating plans, output:
 
 ## Non-Goals
 
-1. Do not create new MCP tools.
+1. Do not create additional MCP tools beyond the existing `artifact_management` path.
 2. Do not execute regression runs from this skill.
 3. Do not write `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>` artifacts manually.

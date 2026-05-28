@@ -18,6 +18,7 @@ import {
   type ProbeRegistrySummary,
 } from "@/tools/core/probe_registry/handler";
 import { registerExecutionProfileExportTool } from "@/tools/core/execution_profile_export/handler";
+import { registerArtifactManagementTool } from "@/tools/core/artifact_management/handler";
 
 async function main() {
   const cfg = loadConfigFromEnvAndArgs(process.argv);
@@ -223,6 +224,9 @@ async function main() {
     allowNonWrappedExecutable: () => activeRegistry?.allowNonWrappedExecutable ?? false,
   });
   registerExecutionProfileExportTool(server, {
+    workspaceRootAbs: cfg.workspaceRootAbs,
+  });
+  registerArtifactManagementTool(server, {
     workspaceRootAbs: cfg.workspaceRootAbs,
   });
 
