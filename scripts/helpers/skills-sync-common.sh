@@ -183,11 +183,6 @@ detect_default_java_agent_jar() {
 }
 
 ensure_node_build_deps() {
-  local tsc_bin="$REPO_ROOT/node_modules/.bin/tsc"
-  local tsc_alias_bin="$REPO_ROOT/node_modules/.bin/tsc-alias"
-  if [[ -f "$tsc_bin" && -f "$tsc_alias_bin" ]]; then
-    return
-  fi
   echo "- Installing Node dependencies for TypeScript compile"
   if [[ -f "$REPO_ROOT/package-lock.json" ]]; then
     (cd "$REPO_ROOT" && npm ci --include=dev)
