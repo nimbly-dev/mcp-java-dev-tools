@@ -59,7 +59,14 @@ Resolve in this selector order:
 
 ## Source of Truth
 
-Primary source:
+Operational source for artifact lifecycle:
+
+1. `artifact_management` MCP Tool:
+   - `artifactType=project_context` (`read|validate|list`)
+   - `artifactType=regression_plan` (`read|validate|list`)
+   - `artifactType=execution_export` (`generate|read|list`)
+
+Artifact semantics/reference paths:
 
 1. `.mcpjvm/<project_name>/projects.json` (`executionProfiles`)
 2. `.mcpjvm/<project_name>/plans/regression/<plan>/contract.json`

@@ -8,8 +8,12 @@ Use these checks during `validate` to keep `SKILL.md` concise and deterministic.
 2. Each workspace must define `projectRoot`.
 3. `runtimeContexts[]` should exist when the project artifact manages runtime startup.
 4. Runtime `mode` must be `terminal` or `docker`.
-5. `templates/projects.terminal.example.json` is the canonical shape reference.
-6. Any field not represented by the canonical shape is misaligned and must be removed before validation.
+5. `tools/spec/project-artifact-spec/src/project_artifact.util.ts` is the canonical validation contract.
+6. `templates/projects.terminal.example.json` is an authoring starter, not a strict schema allowlist.
+7. Do not remove validator-supported optional fields as non-canonical:
+   1. `executionProfiles[].runtimeConfig`
+   2. `executionProfiles[].plans[].onFail`
+   3. `executionProfiles[].plans[].providedContext`
 
 ## Terminal Runtime Rules
 

@@ -68,13 +68,21 @@
           "executionProfile": "regression-test-run",
           "runtimeContextName": "docker-compose-infra",
           "executionPolicy": "stop_on_fail",
+          "runtimeConfig": {
+            "requestTimeoutMs": 10000,
+            "retryMax": 1
+          },
           "scriptRefs": [
             "keycloak-token-bootstrap"
           ],
           "plans": [
             {
               "order": 1,
-              "planName": "owners-regression"
+              "planName": "owners-regression",
+              "onFail": "inherit",
+              "providedContext": {
+                "tenantId": "demo"
+              }
             }
           ]
         }
