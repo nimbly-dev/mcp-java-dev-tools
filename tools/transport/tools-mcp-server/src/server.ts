@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import * as fs from "node:fs";
+import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
@@ -20,7 +21,35 @@ import {
 import { registerExecutionProfileExportTool } from "@/tools/core/execution_profile_export/handler";
 import { registerArtifactManagementTool } from "@/tools/core/artifact_management/handler";
 
+function resolveServerVersion(): string {
+  const fromEnv = process.env.MCP_JAVA_DEV_TOOLS_VERSION;
+  if (typeof fromEnv === "string" && fromEnv.trim().length > 0) {
+    return fromEnv.trim();
+  }
+
+  const candidates = [
+    path.resolve(__dirname, "../../../../package.json"),
+    path.resolve(__dirname, "../../../../../package.json"),
+    path.resolve(process.cwd(), "package.json"),
+  ];
+  for (const fileAbs of candidates) {
+    try {
+      const raw = fs.readFileSync(fileAbs, "utf8");
+      const parsed = JSON.parse(raw) as { version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version.trim().length > 0) {
+        return parsed.version.trim();
+      }
+    } catch {
+      // Try next candidate.
+    }
+  }
+  throw new Error(
+    "server_version_unresolved: unable to resolve MCP server version from MCP_JAVA_DEV_TOOLS_VERSION or package.json",
+  );
+}
+
 async function main() {
+  const serverVersion = resolveServerVersion();
   const cfg = loadConfigFromEnvAndArgs(process.argv);
   const probeStatusPath = cfg.probeStatusPath;
   const probeResetPath = cfg.probeResetPath;
@@ -118,7 +147,7 @@ async function main() {
 
   const server = new McpServer({
     name: "mcp-java-dev-tools",
-    version: "0.1.4",
+    version: serverVersion,
   });
 
   server.registerResource(
@@ -129,7 +158,7 @@ async function main() {
       const payload = {
         ok: true,
         name: "mcp-java-dev-tools",
-        version: "0.1.4",
+        version: serverVersion,
         workspaceRoot: cfg.workspaceRootAbs,
         workspaceRootSource: cfg.workspaceRootSource,
         probe: {
@@ -180,7 +209,7 @@ async function main() {
       const structuredContent = {
         ok: true,
         serverTime: new Date().toISOString(),
-        version: "0.1.4",
+        version: serverVersion,
       };
       return {
         content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
@@ -234,7 +263,7 @@ async function main() {
   await server.connect(transport);
   setupRegistryWatcher();
   console.error(
-    `mcp-java-dev-tools 0.1.4 running (stdio). workspaceRoot=${cfg.workspaceRootAbs} probeBaseUrl=${currentBaseUrl()}`,
+    `mcp-java-dev-tools ${serverVersion} running (stdio). workspaceRoot=${cfg.workspaceRootAbs} probeBaseUrl=${currentBaseUrl()}`,
   );
 }
 
