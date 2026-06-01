@@ -19,8 +19,19 @@ async function fileExists(abs: string): Promise<boolean> {
   }
 }
 
-export async function resolveRegressionPlansRootAbs(workspaceRootAbs: string): Promise<string> {
+export async function resolveRegressionPlansRootAbs(
+  workspaceRootAbs: string,
+  projectName?: string,
+): Promise<string> {
   const mcpjvmRoot = path.join(workspaceRootAbs, ".mcpjvm");
+  if (typeof projectName === "string" && projectName.trim().length > 0) {
+    const selected = projectName.trim();
+    const projectsJsonAbs = path.join(mcpjvmRoot, selected, "projects.json");
+    if (!(await fileExists(projectsJsonAbs))) {
+      throw new Error("project_artifact_missing");
+    }
+    return path.join(mcpjvmRoot, selected, "plans", "regression");
+  }
   const projectDirs = await dirNames(mcpjvmRoot);
   const withProjectsJson: string[] = [];
   for (const dir of projectDirs) {

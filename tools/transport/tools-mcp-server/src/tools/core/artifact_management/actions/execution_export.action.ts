@@ -18,6 +18,7 @@ export async function handleExecutionExportArtifact(
     }
     return await executionProfileExportDomain({
       workspaceRootAbs: ctx.workspaceRootAbs,
+      ...(request.input.projectName ? { projectName: request.input.projectName } : {}),
       mode: request.input.mode,
       ...(request.input.executionProfile ? { executionProfile: request.input.executionProfile } : {}),
       ...(request.input.planName ? { planName: request.input.planName } : {}),

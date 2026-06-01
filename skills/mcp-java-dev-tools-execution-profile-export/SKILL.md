@@ -21,6 +21,8 @@ This skill runs in three phases:
 2. `Assemble`
 3. `Emit`
 
+Mode selection is single selected mode only.
+
 ## Portable Source of Truth
 
 Always align with:
@@ -35,6 +37,7 @@ Required input:
 
 1. `project_name`
 2. `mode` (`ps1` | `sh` | `postman`)
+3. If `mode` is missing, fail closed (`execution_export_mode_required`); do not default to `ps1`.
 
 Optional:
 
@@ -78,7 +81,9 @@ No runtime run artifact is required for default export behavior.
 1. `mode=ps1` => emit PowerShell export package
 2. `mode=sh` => emit shell export package
 3. `mode=postman` => emit Postman collection package
-4. unknown mode => fail closed
+4. missing mode => fail closed (`execution_export_mode_required`)
+5. unknown mode => fail closed
+6. never apply implicit mode fallback/default
 
 ## Determinism Rules
 

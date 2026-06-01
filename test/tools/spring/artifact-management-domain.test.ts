@@ -122,3 +122,60 @@ test("artifact_management run_result rejects invalid action with deterministic f
   });
   assert.equal(out.structuredContent.status, "artifact_action_not_allowed");
 });
+
+test("artifact_management run_result blocks generate action after orchestration extraction", async () => {
+  const out = await artifactManagementDomain({
+    workspaceRootAbs: process.cwd(),
+    request: {
+      artifactType: "run_result",
+      action: "generate",
+      input: {},
+    } as any,
+  });
+  assert.equal(out.structuredContent.status, "artifact_action_not_allowed");
+});
+
+test("artifact_management regression_plan validate fails closed when step protocol is unsupported by execution_orchestration", async () => {
+  const root = createTestTempDir("artifact-management-regression-validate-protocol");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    writeJson(path.join(root, ".mcpjvm", "alpha", "plans", "regression", "p1", "metadata.json"), {
+      execution: { intent: "regression" },
+    });
+    writeJson(path.join(root, ".mcpjvm", "alpha", "plans", "regression", "p1", "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [],
+      steps: [
+        {
+          order: 1,
+          id: "artifact_read_full",
+          targetRef: 0,
+          protocol: "artifact_management",
+          transport: {
+            artifact_management: {
+              action: "read",
+              artifactType: "regression_plan",
+            },
+          },
+          expect: [{ id: "e1", actualPath: "status", operator: "field_equals", expected: "ok" }],
+        },
+      ],
+    });
+
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "regression_plan",
+        action: "validate",
+        input: { projectName: "alpha", planName: "p1" },
+      },
+    });
+
+    assert.equal(out.structuredContent.status, "transport_protocol_mismatch");
+    assert.equal(out.structuredContent.reasonCode, "transport_protocol_mismatch");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

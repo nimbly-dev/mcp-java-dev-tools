@@ -36,11 +36,13 @@ function renderScriptPhaseSection(input: {
   title: string;
   scripts: CommandExportBundledScript[];
   workspaceRootAbs: string;
+  functionName?: string;
 }): string[] {
   const selected = input.scripts.filter((entry) => entry.phase === input.phase);
-  if (selected.length === 0) return [`echo '[S00] ${input.title} skipped; no shared scriptRefs for phase'`];
-
-  const lines: string[] = [];
+  const bodyLines: string[] = [];
+  if (selected.length === 0) {
+    bodyLines.push(`echo '[S00] ${input.title} skipped; no shared scriptRefs for phase'`);
+  }
   selected.forEach((entry, index) => {
     const id = `S${String(index + 1).padStart(2, "0")}`;
     const appdir = entry.script.appdir
@@ -53,16 +55,24 @@ function renderScriptPhaseSection(input: {
     ]
       .join(" ")
       .trim();
-    lines.push(`echo '[${id}] ${input.phase} ${entry.script.name}'`);
-    lines.push("set +e");
-    lines.push(`(cd "${appdir}" && ${commandLine})`);
-    lines.push("__mcpjvm_script_rc=$?");
-    lines.push("set -e");
-    lines.push("if [ $__mcpjvm_script_rc -ne 0 ]; then echo 'profile script failed' >&2; exit 1; fi");
-    lines.push("reload_workspace_env");
-    lines.push("");
+    bodyLines.push(`echo '[${id}] ${input.phase} ${entry.script.name}'`);
+    bodyLines.push("set +e");
+    bodyLines.push(`(cd "${appdir}" && ${commandLine})`);
+    bodyLines.push("__mcpjvm_script_rc=$?");
+    bodyLines.push("set -e");
+    bodyLines.push("if [ $__mcpjvm_script_rc -ne 0 ]; then echo 'profile script failed' >&2; exit 1; fi");
+    bodyLines.push("reload_workspace_env");
+    bodyLines.push("");
   });
-  return lines;
+  if (input.functionName) {
+    const lines: string[] = [];
+    lines.push(`${input.functionName}() {`);
+    lines.push(...bodyLines.map((line) => `  ${line}`));
+    lines.push("}");
+    lines.push(`${input.functionName}`);
+    return lines;
+  }
+  return bodyLines;
 }
 
 export async function prepareShExportPackage(input: {
@@ -91,6 +101,7 @@ export async function prepareShExportPackage(input: {
       title: "post-healthcheck scripts",
       scripts: commandPackage.bundledScripts,
       workspaceRootAbs: input.workspaceRootAbs,
+      functionName: "invoke_posthealthcheck_scripts",
     }),
     prePlanScriptSection: renderScriptPhaseSection({
       phase: "prePlan",

@@ -29,11 +29,14 @@ test("Execution Profile Export skill is portable with bundled references and tem
 test("Execution Profile Export skill remains single-mode and deterministic", () => {
   const loaded = loadExecutionProfileExportSkill();
   assert.match(loaded.skill, /mode` \(`ps1` \| `sh` \| `postman`\)/);
+  assert.match(loaded.skill, /do not default to `ps1`/i);
   assert.match(loaded.skill, /single selected mode/i);
   assert.match(loaded.skill, /Preserve execution order from profile plan order and contract step order/);
   assert.match(loaded.skill, /fail closed/i);
   assert.match(loaded.specRules, /mode must be exactly one of/i);
+  assert.match(loaded.specRules, /missing mode must fail closed/i);
   assert.match(loaded.checklist, /mode router selected exactly one branch/i);
+  assert.match(loaded.checklist, /no `ps1` fallback/i);
   assert.match(loaded.templatesIndex, /Default template id: `execution_profile_export`/);
   assert.match(loaded.template, /Plan Order/);
 });

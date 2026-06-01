@@ -491,6 +491,93 @@ test("exportExecutionProfileSh uses execution profile plan providedContext apiBa
   }
 });
 
+test("exportExecutionProfileSh aligns TARGET_BASE_URL default with resolved plan base URL", async () => {
+  const root = createTestTempDir("execution-profile-sh-target-base-url-aligned");
+  try {
+    const projectName = "petclinic-regression";
+    writeJson(path.join(root, ".mcpjvm", "probe-config.json"), {
+      defaultProfile: "dev",
+      workspaces: [{ root, profile: "dev" }],
+      profiles: {
+        dev: {
+          probes: {
+            "course-composite-service": {
+              baseUrl: "http://127.0.0.1:9195",
+              include: ["x.**"],
+              exclude: [],
+              runtime: { port: 8080 },
+            },
+          },
+        },
+      },
+    });
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "regression-test-run",
+              executionPolicy: "stop_on_fail",
+              runtimeContextName: "terminal-cli",
+              plans: [{ order: 1, planName: "course-composite-service-regression-spec" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    await writeExecutionProfileExport({
+      workspaceRootAbs: root,
+      exportId: "session-target-base-url-aligned",
+      generatedAt: new Date("2026-05-16T11:00:00.000Z"),
+      startedAt: new Date("2026-05-16T10:59:00.000Z"),
+      endedAt: new Date("2026-05-16T11:00:00.000Z"),
+      executionProfile: "regression-test-run",
+      executionPolicy: "stop_on_fail",
+      runStatus: "pass",
+      runtimeContextName: "terminal-cli",
+      planRuns: [
+        { order: 1, planName: "course-composite-service-regression-spec", status: "executed", runStatus: "pass", runId: "run-a" },
+      ],
+    });
+
+    const planRoot = path.join(
+      root,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "regression",
+      "course-composite-service-regression-spec",
+    );
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.Composite", method: "hello" } }],
+      prerequisites: [
+        { key: "targetBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://127.0.0.1:9000" },
+      ],
+      steps: [
+        {
+          order: 1,
+          id: "hello",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "${targetBaseUrl}/api/metrics/hello" } },
+          expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
+        },
+      ],
+    });
+
+    const out = await exportExecutionProfileSh({ workspaceRootAbs: root, exportId: "session-target-base-url-aligned" });
+    const script = fs.readFileSync(out.scriptPathAbs, "utf8");
+    assert.match(script, /TARGET_BASE_URL="http:\/\/127\.0\.0\.1:8080"/);
+    assert.doesNotMatch(script, /TARGET_BASE_URL="http:\/\/127\.0\.0\.1:9000"/);
+    assert.match(script, /curl -fsS -X "GET".*"\$\{TARGET_BASE_URL\}\/api\/metrics\/hello"/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("exportExecutionProfileSh uses probe-config runtime.port even when Docker compose is present", async () => {
   const root = createTestTempDir("execution-profile-sh-probe-config-precedence");
   try {

@@ -54,6 +54,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 export type ExecuteRegressionPlanWorkflowArgs = {
   workspaceRootAbs: string;
+  projectName?: string;
   planName: string;
   mcpInvoke: McpToolInvoker;
   providedContext?: Record<string, unknown>;
@@ -286,7 +287,7 @@ function buildHttpPayload(args: {
 export async function executeRegressionPlanWorkflow(
   args: ExecuteRegressionPlanWorkflowArgs,
 ): Promise<ExecuteRegressionPlanWorkflowResult> {
-  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs, args.projectName);
   const planRootAbs = path.join(plansRootAbs, args.planName);
   const metadata = await readJsonFile<PlanMetadata>(path.join(planRootAbs, "metadata.json"));
   const contract = await readJsonFile<PlanContract>(path.join(planRootAbs, "contract.json"));
@@ -498,6 +499,9 @@ export async function executeRegressionPlanWorkflow(
 
   const artifacts = await writeRegressionRunArtifacts({
     workspaceRootAbs: args.workspaceRootAbs,
+    ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
+      ? { projectName: args.projectName.trim() }
+      : {}),
     runId,
     planRef: { name: args.planName, path: planRootAbs },
     resolvedContext,

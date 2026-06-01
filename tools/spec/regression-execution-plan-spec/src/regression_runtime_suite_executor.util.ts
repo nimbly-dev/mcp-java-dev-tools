@@ -169,9 +169,10 @@ function validateSuiteManifest(input: unknown):
 
 async function readSuiteManifest(args: {
   workspaceRootAbs: string;
+  projectName?: string;
   executionProfile: string;
 }): Promise<{ ok: true; manifest: RuntimeSuiteManifest } | { ok: false; reasonCode: string; requiredUserAction: string[] }> {
-  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs, args.projectName);
   const projectName = path.basename(path.dirname(path.dirname(plansRootAbs)));
   const projectsFileAbs = path.join(args.workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
   const parsed = await readProjectArtifact(projectsFileAbs).catch(() => ({
@@ -208,6 +209,7 @@ async function readSuiteManifest(args: {
 
 export type ExecuteRegressionRuntimeSuiteArgs = {
   workspaceRootAbs: string;
+  projectName?: string;
   executionProfile: string;
   mcpInvoke: ExecuteRegressionPlanWorkflowArgs["mcpInvoke"];
 };
@@ -217,6 +219,9 @@ export async function executeRegressionRuntimeSuite(
 ): Promise<RuntimeSuiteRunResult | { status: "blocked"; reasonCode: string; requiredUserAction: string[] }> {
   const suite = await readSuiteManifest({
     workspaceRootAbs: args.workspaceRootAbs,
+    ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
+      ? { projectName: args.projectName.trim() }
+      : {}),
     executionProfile: args.executionProfile,
   });
   if (!suite.ok) {
@@ -243,6 +248,9 @@ export async function executeRegressionRuntimeSuite(
     }
     const run = await executeRegressionPlanWorkflow({
       workspaceRootAbs: args.workspaceRootAbs,
+      ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
+        ? { projectName: args.projectName.trim() }
+        : {}),
       planName: plan.planName,
       mcpInvoke: args.mcpInvoke,
       ...(manifest.runtimeConfig ? { runtimeConfigOverride: manifest.runtimeConfig } : {}),

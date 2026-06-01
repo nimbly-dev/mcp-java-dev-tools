@@ -15,11 +15,13 @@ export function registerExecutionProfileExportTool(server: McpServer, deps: Exec
       inputSchema: EXECUTION_PROFILE_EXPORT_TOOL.inputSchema,
     },
     async ({
+      projectName,
       exportId,
       executionProfile,
       planName,
       when,
       mode,
+      type,
       includeResolvedSecrets,
       includeRuntimeStartup,
       includeHealthcheckGate,
@@ -28,11 +30,13 @@ export function registerExecutionProfileExportTool(server: McpServer, deps: Exec
     }) => {
       const request: {
         workspaceRootAbs: string;
+        projectName?: string;
         exportId?: string;
         executionProfile?: string;
         planName?: string;
         when?: string;
-        mode: "ps1" | "sh" | "postman";
+        mode?: "ps1" | "sh" | "postman";
+        type?: "ps1" | "sh" | "postman";
         includeResolvedSecrets?: boolean;
         includeRuntimeStartup?: boolean;
         includeHealthcheckGate?: boolean;
@@ -40,10 +44,18 @@ export function registerExecutionProfileExportTool(server: McpServer, deps: Exec
         contextValues?: Record<string, string>;
       } = {
         workspaceRootAbs: deps.workspaceRootAbs,
-        mode,
       };
+      if (typeof mode === "string") {
+        request.mode = mode;
+      }
+      if (typeof type === "string") {
+        request.type = type;
+      }
       if (typeof exportId === "string" && exportId.trim().length > 0) {
         request.exportId = exportId;
+      }
+      if (typeof projectName === "string" && projectName.trim().length > 0) {
+        request.projectName = projectName.trim();
       }
       if (typeof executionProfile === "string" && executionProfile.trim().length > 0) {
         request.executionProfile = executionProfile;

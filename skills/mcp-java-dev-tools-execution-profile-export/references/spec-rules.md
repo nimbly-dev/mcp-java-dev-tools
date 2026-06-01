@@ -9,6 +9,8 @@
    - `ps1`
    - `sh`
    - `postman`
+   - missing mode must fail closed (`execution_export_mode_required`)
+   - no implicit default mode is allowed
 5. Preserve execution profile plan order and contract step order exactly.
 6. Do not add inferred execution steps not present in resolved profile/contract source.
 7. If `includeResolvedSecrets=true`, output must include `SENSITIVE EXPORT` warning.

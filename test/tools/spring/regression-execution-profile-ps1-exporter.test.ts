@@ -109,6 +109,10 @@ test("exportExecutionProfilePs1 writes deterministic script and readme from expo
     assert.match(readme, /1\. \[1\] plan-a \(executed\)/);
     assert.match(readme, /1\. \[2\] plan-b \(executed\)/);
     assert.doesNotMatch(readme, /\(executed\)1\./);
+    assert.match(readme, /AUTH_BOOTSTRAP_HINT: includeResolvedSecrets=false/);
+    assert.match(readme, /Keep `includeResolvedSecrets=false`/);
+    assert.match(readme, /Optional: rerun export with `includeResolvedSecrets=true`/);
+    assert.match(readme, /never auto-enabled at runtime/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -1,6 +1,7 @@
 import { toShellEnvKey } from "@tools-export-execution-profile/common";
 import { loadPlanContract } from "@tools-export-execution-profile/loaders/plan_contract.loader";
 import type { ExecutionProfileExportPlanRun } from "@tools-export-execution-profile/models/execution_profile_export.model";
+import { resolvePlanBaseUrls } from "@tools-export-execution-profile/sections/sh/plan_execution.section";
 import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 
 type RequiredInput = {
@@ -57,9 +58,18 @@ function defaultValueForEnvVar(key: string, contractDefault?: string): string {
 
 async function collectPlanRequiredInputs(input: {
   workspaceRootAbs: string;
+  workspace: Record<string, unknown> | undefined;
+  projectName?: string;
+  executionProfile: string;
   planRuns: ExecutionProfileExportPlanRun[];
 }): Promise<RequiredInput[]> {
-  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs, input.projectName);
+  const planBaseUrls = await resolvePlanBaseUrls({
+    workspaceRootAbs: input.workspaceRootAbs,
+    workspace: input.workspace,
+    executionProfile: input.executionProfile,
+    planRuns: input.planRuns,
+  });
   const inputs = new Map<string, RequiredInput>();
   for (const plan of input.planRuns) {
     const contract = await loadPlanContract({ plansRootAbs, planName: plan.planName });
@@ -67,7 +77,12 @@ async function collectPlanRequiredInputs(input: {
     for (const prerequisite of contract.prerequisites) {
       if (prerequisite.required !== true && typeof prerequisite.default === "undefined") continue;
       const envKey = toShellEnvKey(prerequisite.key);
-      const defaultValue = prerequisite.secret ? undefined : stringifyDefault(prerequisite.default);
+      const resolvedPlanBaseUrl = envKey === "TARGET_BASE_URL" || prerequisite.key === "targetBaseUrl"
+        ? planBaseUrls[plan.planName]
+        : undefined;
+      const defaultValue = prerequisite.secret
+        ? undefined
+        : (resolvedPlanBaseUrl ?? stringifyDefault(prerequisite.default));
       mergeRequiredInput(inputs, { envKey, ...(typeof defaultValue === "string" ? { defaultValue } : {}) });
     }
   }
@@ -89,8 +104,9 @@ function renderProjectEnvHelpers(workspace: Record<string, unknown> | undefined)
   lines.push("  }");
   lines.push("}");
   lines.push("function Reload-WorkspaceEnv {");
+  lines.push("  param([switch]$SkipAuthBearerFallback)");
   lines.push("  Import-ProjectEnv");
-  lines.push("  if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER', 'Process')) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER_TOKEN', 'Process'))) {");
+  lines.push("  if (-not $SkipAuthBearerFallback -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER', 'Process')) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER_TOKEN', 'Process'))) {");
   lines.push("    [Environment]::SetEnvironmentVariable('AUTH_BEARER', [Environment]::GetEnvironmentVariable('AUTH_BEARER_TOKEN', 'Process'), 'Process')");
   lines.push("  }");
   const vars = workspace?.variables;
@@ -135,11 +151,15 @@ function renderJsonAndAuthHelpers(): string[] {
     "  return ((-not [string]::IsNullOrWhiteSpace($clientId)) -and ((-not [string]::IsNullOrWhiteSpace($clientSecret)) -or ((-not [string]::IsNullOrWhiteSpace($username)) -and (-not [string]::IsNullOrWhiteSpace($password)))))",
     "}",
     "function Refresh-AuthBearer {",
-    "  Reload-WorkspaceEnv",
+    "  param([switch]$Force)",
+    "  Reload-WorkspaceEnv -SkipAuthBearerFallback:$Force",
     "  $existing = [Environment]::GetEnvironmentVariable('AUTH_BEARER', 'Process')",
-    "  if (-not [string]::IsNullOrWhiteSpace($existing) -and $existing -ne 'REDACTED_TOKEN') { Write-Host 'auth_bootstrap_succeeded: AUTH_BEARER'; return }",
+    "  if (-not $Force -and -not [string]::IsNullOrWhiteSpace($existing) -and $existing -ne 'REDACTED_TOKEN') { Write-Host 'auth_bootstrap_succeeded: AUTH_BEARER'; return }",
     "  $realm = [Environment]::GetEnvironmentVariable('KEYCLOAK_REALM', 'Process')",
-    "  if ([string]::IsNullOrWhiteSpace($realm) -or -not (Can-RefreshAuthBearer)) { return }",
+    "  if ([string]::IsNullOrWhiteSpace($realm) -or -not (Can-RefreshAuthBearer)) {",
+    "    if ($Force) { throw 'auth_refresh_unavailable: missing KEYCLOAK_* refresh prerequisites' }",
+    "    return",
+    "  }",
     "  $baseUrl = [Environment]::GetEnvironmentVariable('KEYCLOAK_BASE_URL', 'Process')",
     "  if ([string]::IsNullOrWhiteSpace($baseUrl)) { $baseUrl = 'http://127.0.0.1:8081' }",
     "  $scope = [Environment]::GetEnvironmentVariable('KEYCLOAK_SCOPE', 'Process')",
@@ -161,7 +181,12 @@ function renderJsonAndAuthHelpers(): string[] {
     "      [Environment]::SetEnvironmentVariable('AUTH_BEARER_TOKEN', [string]$response.access_token, 'Process')",
     "      Write-Host 'auth_bootstrap_succeeded: AUTH_BEARER'",
     "    }",
-    "  } catch { }",
+    "  } catch {",
+    "    if ($Force) { throw 'auth_refresh_failed: token endpoint rejected credentials or request' }",
+    "  }",
+    "  if ($Force -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER', 'Process'))) {",
+    "    throw 'auth_refresh_failed: no access_token returned from token endpoint'",
+    "  }",
     "}",
   ];
 }
@@ -210,7 +235,9 @@ function renderPostStartupAuthSection(requiredInputs: RequiredInput[]): string[]
 
 export async function buildPs1PrerequisitesSections(input: {
   workspaceRootAbs: string;
+  projectName?: string;
   workspace: Record<string, unknown> | undefined;
+  executionProfile: string;
   planRuns: ExecutionProfileExportPlanRun[];
   planExecutionSection: string[];
 }): Promise<{ prerequisitesSection: string[]; postStartupAuthSection: string[] }> {
@@ -220,6 +247,11 @@ export async function buildPs1PrerequisitesSections(input: {
   }
   for (const requiredInput of await collectPlanRequiredInputs({
     workspaceRootAbs: input.workspaceRootAbs,
+    workspace: input.workspace,
+    ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
+      ? { projectName: input.projectName.trim() }
+      : {}),
+    executionProfile: input.executionProfile,
     planRuns: input.planRuns,
   })) {
     mergeRequiredInput(requiredInputs, requiredInput);

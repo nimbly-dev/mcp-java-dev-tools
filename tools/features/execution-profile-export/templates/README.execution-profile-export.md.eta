@@ -20,4 +20,6 @@
 
 <% if (it.includeResolvedSecrets) { %>
 > SENSITIVE EXPORT: includeResolvedSecrets=true
+<% } else { %>
+<%= it.redactedSecretsGuidance %>
 <% } %>

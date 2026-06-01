@@ -132,11 +132,12 @@ export async function resolvePlanBaseUrls(input: {
 
 export async function buildShPlanExecutionSection(input: {
   workspaceRootAbs: string;
+  projectName?: string;
   workspace: Record<string, unknown> | undefined;
   executionProfile: string;
   planRuns: ExecutionProfileExportPlanRun[];
 }): Promise<string[]> {
-  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs, input.projectName);
   const planBaseUrls = await resolvePlanBaseUrls({
     workspaceRootAbs: input.workspaceRootAbs,
     workspace: input.workspace,

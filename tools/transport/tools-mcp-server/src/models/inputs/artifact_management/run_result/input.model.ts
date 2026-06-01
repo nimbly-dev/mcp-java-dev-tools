@@ -4,6 +4,7 @@ import { ArtifactSelectQuerySchema, ProjectScopedInputSchema } from "@/models/in
 export const RunResultInputSchema = ProjectScopedInputSchema.extend({
   planName: z.string().optional(),
   runId: z.string().optional(),
+  executionProfile: z.string().optional(),
   query: ArtifactSelectQuerySchema.optional(),
 });
 
