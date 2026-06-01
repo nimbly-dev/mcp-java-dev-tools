@@ -257,6 +257,62 @@ test("executionProfileExportDomain exports postman collection when scripts are J
   }
 });
 
+test("executionProfileExportDomain exports postman collection with plan folders for multi-plan profiles", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-postman-plan-folders");
+  try {
+    const projectName = "test-project";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          scripts: [{ name: "setup-js", phase: "prePlan", command: "node", args: [".mcpjvm/test-project/scripts/setup.js"] }],
+          executionProfiles: [
+            {
+              executionProfile: "regression-test-run",
+              executionPolicy: "stop_on_fail",
+              scriptRefs: [{ name: "setup-js", phase: "prePlan" }],
+              plans: [
+                { order: 1, planName: "plan-a" },
+                { order: 2, planName: "plan-b" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "plan-a", "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [],
+      steps: [{ order: 1, id: "a1", targetRef: 0, protocol: "http", transport: { http: { method: "GET", url: "http://127.0.0.1:8080/a" } }, expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }] }],
+    });
+    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "plan-b", "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.B", method: "m" } }],
+      prerequisites: [],
+      steps: [{ order: 1, id: "b1", targetRef: 0, protocol: "http", transport: { http: { method: "GET", url: "http://127.0.0.1:8080/b" } }, expect: [{ id: "e2", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }] }],
+    });
+    fs.mkdirSync(path.join(root, ".mcpjvm", "test-project", "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".mcpjvm", "test-project", "scripts", "setup.js"), "pm.environment.set('ok','1');\n", "utf8");
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      executionProfile: "regression-test-run",
+      mode: "postman",
+    });
+    assert.equal(out.structuredContent.status, "ok");
+    const collection = readJson(String(out.structuredContent.output?.collectionPathAbs));
+    assert.equal(Array.isArray(collection.item), true);
+    assert.equal(collection.item.length, 2);
+    assert.equal(collection.item[0].name, "[1] plan-a");
+    assert.equal(collection.item[1].name, "[2] plan-b");
+    assert.equal(Array.isArray(collection.item[0].item), true);
+    assert.equal(Array.isArray(collection.item[1].item), true);
+    assert.equal(collection.item[0].item[0].request.url, "http://127.0.0.1:8080/a");
+    assert.equal(collection.item[1].item[0].request.url, "http://127.0.0.1:8080/b");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executionProfileExportDomain normalizes ${var} syntax and emits referenced environment variables", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-vars");
   try {
