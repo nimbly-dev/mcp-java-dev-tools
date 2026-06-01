@@ -20,6 +20,7 @@ import {
 } from "@/tools/core/probe_registry/handler";
 import { registerExecutionProfileExportTool } from "@/tools/core/execution_profile_export/handler";
 import { registerArtifactManagementTool } from "@/tools/core/artifact_management/handler";
+import { registerExecutionOrchestrationTool } from "@/tools/core/execution_orchestration/handler";
 
 function resolveServerVersion(): string {
   const fromEnv = process.env.MCP_JAVA_DEV_TOOLS_VERSION;
@@ -256,6 +257,9 @@ async function main() {
     workspaceRootAbs: cfg.workspaceRootAbs,
   });
   registerArtifactManagementTool(server, {
+    workspaceRootAbs: cfg.workspaceRootAbs,
+  });
+  registerExecutionOrchestrationTool(server, {
     workspaceRootAbs: cfg.workspaceRootAbs,
   });
 

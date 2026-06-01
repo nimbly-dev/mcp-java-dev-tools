@@ -4,6 +4,7 @@ import path from "node:path";
 import { toShellEnvKey } from "@tools-export-execution-profile/common";
 import { loadPlanContract } from "@tools-export-execution-profile/loaders/plan_contract.loader";
 import type { ExecutionProfileExportPlanRun } from "@tools-export-execution-profile/models/execution_profile_export.model";
+import { resolvePlanBaseUrls } from "@tools-export-execution-profile/sections/sh/plan_execution.section";
 import { toWorkspaceShellPath } from "@tools-export-execution-profile/shell_path.util";
 import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 
@@ -73,8 +74,9 @@ function renderAuthRefreshFunction(input: {
   lines.push("}");
   lines.push("");
   lines.push("refresh_auth_bearer() {");
-  lines.push(`  ${input.reloadWorkspaceEnvCommand}`);
-  lines.push("  if [ -n \"${AUTH_BEARER:-}\" ] && [ \"${AUTH_BEARER}\" != \"REDACTED_TOKEN\" ]; then");
+  lines.push("  local force_refresh=\"${1:-}\"");
+  lines.push(`  ${input.reloadWorkspaceEnvCommand} "\${force_refresh}"`);
+  lines.push("  if [ \"${force_refresh}\" != \"force\" ] && [ -n \"${AUTH_BEARER:-}\" ] && [ \"${AUTH_BEARER}\" != \"REDACTED_TOKEN\" ]; then");
   lines.push("    export AUTH_BEARER");
   lines.push("    echo \"auth_bootstrap_succeeded: AUTH_BEARER\"");
   lines.push("    return 0");
@@ -82,6 +84,10 @@ function renderAuthRefreshFunction(input: {
   lines.push("  KC_BASE_URL=\"${KEYCLOAK_BASE_URL:-http://127.0.0.1:8081}\"");
   lines.push("  KC_REALM=\"${KEYCLOAK_REALM:-}\"");
   lines.push("  KC_SCOPE=\"${KEYCLOAK_SCOPE:-openid}\"");
+  lines.push("  if [ \"${force_refresh}\" = \"force\" ] && { [ -z \"${KC_REALM}\" ] || ! can_refresh_auth_bearer; }; then");
+  lines.push("    echo \"auth_refresh_unavailable: missing KEYCLOAK_* refresh prerequisites\" >&2");
+  lines.push("    return 2");
+  lines.push("  fi");
   lines.push("  if [ -n \"${KC_REALM}\" ] && can_refresh_auth_bearer; then");
   lines.push("    KC_TOKEN_ARGS=(--data-urlencode \"client_id=${KEYCLOAK_CLIENT_ID}\" --data-urlencode \"scope=${KC_SCOPE}\")");
   lines.push("    if [ -n \"${KEYCLOAK_USERNAME:-}\" ] && [ -n \"${KEYCLOAK_PASSWORD:-}\" ]; then");
@@ -94,6 +100,11 @@ function renderAuthRefreshFunction(input: {
   lines.push("    AUTH_BEARER=\"$(extract_json_field \"${KC_TOKEN_RESPONSE}\" \"access_token\")\"");
   lines.push("    if [ -n \"${AUTH_BEARER:-}\" ]; then AUTH_BEARER_TOKEN=\"${AUTH_BEARER}\"; export AUTH_BEARER AUTH_BEARER_TOKEN; echo \"auth_bootstrap_succeeded: AUTH_BEARER\"; fi");
   lines.push("  fi");
+  lines.push("  if [ \"${force_refresh}\" = \"force\" ] && [ -z \"${AUTH_BEARER:-}\" ]; then");
+  lines.push("    echo \"auth_refresh_failed: no access_token returned from token endpoint\" >&2");
+  lines.push("    return 3");
+  lines.push("  fi");
+  lines.push("  return 0");
   lines.push("}");
   return lines;
 }
@@ -173,13 +184,14 @@ function renderPostStartupAuthSection(requiredInputs: RequiredInput[]): string[]
 function renderWorkspaceBootstrapSection(input: { workspace: Record<string, unknown> | undefined }): WorkspaceEnvBinding {
   const lines: string[] = [];
   const reloadLines: string[] = [];
+  reloadLines.push("  local force_refresh=\"${1:-}\"");
   reloadLines.push("  if [ -f \"${__MCPJVM_PROJECT_ENV}\" ]; then set -a; . \"${__MCPJVM_PROJECT_ENV}\"; set +a; fi");
   const vars = input.workspace?.variables;
   if (vars && typeof vars === "object" && !Array.isArray(vars)) {
     const varsRecord = vars as Record<string, unknown>;
     const bearerTokenEnv = typeof varsRecord.bearerTokenEnv === "string" ? String(varsRecord.bearerTokenEnv).trim() : "";
     if (bearerTokenEnv.length > 0) {
-      reloadLines.push(`  if [ -z "\${AUTH_BEARER:-}" ] && [ -n "\${${bearerTokenEnv}:-}" ]; then AUTH_BEARER="\${${bearerTokenEnv}}"; fi`);
+      reloadLines.push(`  if [ "\${force_refresh}" != "force" ] && [ -z "\${AUTH_BEARER:-}" ] && [ -n "\${${bearerTokenEnv}:-}" ]; then AUTH_BEARER="\${${bearerTokenEnv}}"; fi`);
       reloadLines.push("  export AUTH_BEARER");
     }
     const keycloakMap: Array<{ sourceKey: string; targetVar: string }> = [
@@ -347,9 +359,18 @@ function stringifyDefault(value: unknown): string | undefined {
 
 async function collectPlanRequiredInputs(input: {
   workspaceRootAbs: string;
+  workspace: Record<string, unknown> | undefined;
+  projectName?: string;
+  executionProfile: string;
   planRuns: ExecutionProfileExportPlanRun[];
 }): Promise<RequiredInput[]> {
-  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs, input.projectName);
+  const planBaseUrls = await resolvePlanBaseUrls({
+    workspaceRootAbs: input.workspaceRootAbs,
+    workspace: input.workspace,
+    executionProfile: input.executionProfile,
+    planRuns: input.planRuns,
+  });
   const inputs = new Map<string, RequiredInput>();
   for (const plan of input.planRuns) {
     const contract = await loadPlanContract({ plansRootAbs, planName: plan.planName });
@@ -357,7 +378,12 @@ async function collectPlanRequiredInputs(input: {
     for (const prerequisite of contract.prerequisites) {
       if (prerequisite.required !== true && typeof prerequisite.default === "undefined") continue;
       const envKey = toShellEnvKey(prerequisite.key);
-      const defaultValue = prerequisite.secret ? undefined : stringifyDefault(prerequisite.default);
+      const resolvedPlanBaseUrl = envKey === "TARGET_BASE_URL" || prerequisite.key === "targetBaseUrl"
+        ? planBaseUrls[plan.planName]
+        : undefined;
+      const defaultValue = prerequisite.secret
+        ? undefined
+        : (resolvedPlanBaseUrl ?? stringifyDefault(prerequisite.default));
       mergeRequiredInput(inputs, { envKey, ...(typeof defaultValue === "string" ? { defaultValue } : {}) });
     }
   }
@@ -366,7 +392,9 @@ async function collectPlanRequiredInputs(input: {
 
 export async function buildShPrerequisitesSections(input: {
   workspaceRootAbs: string;
+  projectName?: string;
   workspace: Record<string, unknown> | undefined;
+  executionProfile: string;
   planRuns: ExecutionProfileExportPlanRun[];
   planExecutionSection: string[];
 }): Promise<ShPrerequisitesSections> {
@@ -376,6 +404,11 @@ export async function buildShPrerequisitesSections(input: {
   }
   for (const requiredInput of await collectPlanRequiredInputs({
     workspaceRootAbs: input.workspaceRootAbs,
+    workspace: input.workspace,
+    ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
+      ? { projectName: input.projectName.trim() }
+      : {}),
+    executionProfile: input.executionProfile,
     planRuns: input.planRuns,
   })) {
     mergeRequiredInput(requiredInputs, requiredInput);

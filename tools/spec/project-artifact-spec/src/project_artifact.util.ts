@@ -28,6 +28,27 @@ function asTrimmedString(value: unknown): string | null {
   return out.length > 0 ? out : null;
 }
 
+function isAbsolutePathLike(value: string): boolean {
+  const text = value.trim();
+  if (text.length === 0) return false;
+  if (/^[A-Za-z]:[\\/]/.test(text)) return true;
+  if (/^\\\\[^\\]/.test(text)) return true;
+  if (/^\//.test(text)) return true;
+  if (/^~[\\/]/.test(text)) return true;
+  return false;
+}
+
+function validateReplayableScriptPath(input: {
+  value: string | undefined;
+  fieldPath: string;
+  errors: string[];
+}): void {
+  if (!input.value) return;
+  if (isAbsolutePathLike(input.value)) {
+    input.errors.push(`${input.fieldPath} must be relative/replayable (absolute paths are not allowed)`);
+  }
+}
+
 function isPositivePort(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 65535;
 }
@@ -62,6 +83,11 @@ function normalizeCommandEntry(input: unknown, fieldPath: string, errors: string
         .filter((arg) => arg.length > 0)
     : undefined;
   const appdir = asTrimmedString(input.appdir) ?? undefined;
+  validateReplayableScriptPath({
+    value: appdir,
+    fieldPath: `${fieldPath}.appdir`,
+    errors,
+  });
   const env = isRecord(input.env)
     ? Object.fromEntries(
         Object.entries(input.env)
@@ -75,6 +101,15 @@ function normalizeCommandEntry(input: unknown, fieldPath: string, errors: string
       )
     : undefined;
   const envFileArg = asTrimmedString(input.envFileArg) ?? undefined;
+  if (args && args.length > 0) {
+    args.forEach((arg, i) =>
+      validateReplayableScriptPath({
+        value: arg,
+        fieldPath: `${fieldPath}.args[${i}]`,
+        errors,
+      }),
+    );
+  }
   if (!name || !command) return null;
   return {
     name,
@@ -343,6 +378,11 @@ function normalizeRunPrerequisite(input: unknown, index: number, errors: string[
     errors.push(`workspaces[].runPrerequisites[${index}].script.scriptPath is required`);
     return null;
   }
+  validateReplayableScriptPath({
+    value: scriptPath,
+    fieldPath: `workspaces[].runPrerequisites[${index}].script.scriptPath`,
+    errors,
+  });
   const args = Array.isArray(input.script.args)
     ? input.script.args
         .filter((arg) => typeof arg === "string")
@@ -350,6 +390,11 @@ function normalizeRunPrerequisite(input: unknown, index: number, errors: string[
         .filter((arg) => arg.length > 0)
     : undefined;
   const cwd = asTrimmedString(input.script.cwd) ?? undefined;
+  validateReplayableScriptPath({
+    value: cwd,
+    fieldPath: `workspaces[].runPrerequisites[${index}].script.cwd`,
+    errors,
+  });
   return {
     order: Number(order),
     id: id ?? `run-prereq-${index + 1}`,

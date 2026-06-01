@@ -342,3 +342,54 @@ test("validateProjectArtifact accepts sessionExport runtime defaults", () => {
     assert.equal(result.artifact.workspaces[0]?.sessionExport?.includeResolvedSecrets, true);
   }
 });
+
+test("validateProjectArtifact fails closed when shared script uses absolute path args", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        scripts: [
+          {
+            name: "token-bootstrap",
+            phase: "postHealthcheck",
+            command: "powershell",
+            args: ["-File", "C:\\Users\\Altheo\\scripts\\refresh-token.ps1"],
+            appdir: ".",
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /scripts\[0\]\.args\[1\] must be relative\/replayable/);
+  }
+});
+
+test("validateProjectArtifact fails closed when runPrerequisite scriptPath is absolute", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        runPrerequisites: [
+          {
+            order: 1,
+            id: "bootstrap",
+            type: "script",
+            onFail: "block",
+            script: {
+              command: "node",
+              scriptPath: "C:\\workspace\\spring\\scripts\\bootstrap.js",
+            },
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /runPrerequisites\[0\]\.script\.scriptPath must be relative\/replayable/);
+  }
+});

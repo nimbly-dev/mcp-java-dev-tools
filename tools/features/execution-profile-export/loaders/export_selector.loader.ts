@@ -38,6 +38,7 @@ function formatExportId(epochMs: number, profile: string): string {
 
 export async function resolveExportIdForExport(input: {
   workspaceRootAbs: string;
+  projectName?: string;
   exportId?: string;
   executionProfile?: string;
   planName?: string;
@@ -51,7 +52,7 @@ export async function resolveExportIdForExport(input: {
   const planNameFilter = asString(input.planName);
   const whenEpoch = parseWhenHint(asString(input.when));
 
-  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs, input.projectName);
   const projectName = path.basename(path.dirname(path.dirname(plansRootAbs)));
   const projectsFileAbs = path.join(input.workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
   const artifact = await readProjectArtifact(projectsFileAbs).catch(() => null);
@@ -66,7 +67,7 @@ export async function resolveExportIdForExport(input: {
   }
 
   const nowEpoch = Date.now();
-  const candidates: Array<{ exportId: string; score: number }> = [];
+  const candidates: Array<{ exportId: string; score: number; executionProfile: string }> = [];
   for (const profile of workspace.executionProfiles) {
     if (executionProfileFilter && profile.executionProfile !== executionProfileFilter) {
       continue;
@@ -76,11 +77,16 @@ export async function resolveExportIdForExport(input: {
     }
 
     const score = nowEpoch;
-    candidates.push({ exportId: formatExportId(score, profile.executionProfile), score });
+    candidates.push({ exportId: formatExportId(score, profile.executionProfile), score, executionProfile: profile.executionProfile });
   }
 
   if (candidates.length === 0) {
     throw new Error(executionProfileFilter ? "execution_profile_no_exports" : "export_selector_no_match");
+  }
+
+  const uniqueProfiles = new Set(candidates.map((entry) => entry.executionProfile));
+  if (uniqueProfiles.size > 1) {
+    throw new Error("execution_profile_ambiguous");
   }
 
   if (typeof whenEpoch === "number") {

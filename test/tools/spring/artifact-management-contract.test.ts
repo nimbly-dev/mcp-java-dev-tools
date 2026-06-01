@@ -45,3 +45,19 @@ test("artifact_management handler accepts typed envelope", async () => {
   });
   assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
 });
+
+test("artifact_management handler accepts snake_case aliases inside typed input envelope", async () => {
+  const handler = captureRegisteredHandler((server: any) =>
+    registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
+  );
+  const out = await handler({
+    artifactType: "run_result",
+    action: "generate",
+    input: {
+      project_name: "test-project-performance",
+      execution_profile: "test-performance-stress-suite",
+    },
+  });
+  assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
+  assert.notEqual(out.structuredContent.reasonCode, "project_artifact_ambiguous");
+});

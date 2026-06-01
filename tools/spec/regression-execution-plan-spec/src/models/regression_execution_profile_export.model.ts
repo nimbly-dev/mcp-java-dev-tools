@@ -48,6 +48,7 @@ export type WriteExecutionProfileExportResult = {
 
 export type ExportExecutionProfilePs1Input = {
   workspaceRootAbs: string;
+  projectName?: string;
   exportId: string;
   includeResolvedSecrets?: boolean;
   includeRuntimeStartup?: boolean;

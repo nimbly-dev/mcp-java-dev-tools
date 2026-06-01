@@ -58,11 +58,13 @@ function parsePostmanReasonMeta(reason: string): Record<string, unknown> {
 
 export async function executionProfileExportDomain(input: {
   workspaceRootAbs: string;
+  projectName?: string;
   exportId?: string;
   executionProfile?: string;
   planName?: string;
   when?: string;
-  mode: ExecutionProfileExportMode;
+  mode?: ExecutionProfileExportMode;
+  type?: ExecutionProfileExportMode;
   includeResolvedSecrets?: boolean;
   includeRuntimeStartup?: boolean;
   includeHealthcheckGate?: boolean;
@@ -73,14 +75,45 @@ export async function executionProfileExportDomain(input: {
   structuredContent: Record<string, unknown>;
 }> {
   try {
+    const selectedMode = input.mode ?? input.type;
+    if (!selectedMode) {
+      return blockedResponse(
+        "execution_export_mode_required",
+        "mode (or type alias) is required: choose exactly one of ps1|sh|postman",
+        {
+          ...(input.executionProfile ? { executionProfile: input.executionProfile } : {}),
+          ...(input.planName ? { planName: input.planName } : {}),
+          ...(input.projectName ? { projectName: input.projectName } : {}),
+          neededInput: ["mode"],
+          acceptedModes: ["ps1", "sh", "postman"],
+          nextAction: "provide mode=ps1|sh|postman",
+        },
+      );
+    }
+    if (input.mode && input.type && input.mode !== input.type) {
+      return blockedResponse(
+        "execution_export_mode_conflict",
+        "mode and type alias conflict; provide one value or matching values",
+        {
+          mode: input.mode,
+          type: input.type,
+          acceptedModes: ["ps1", "sh", "postman"],
+        },
+      );
+    }
+
     const selectorInput: {
       workspaceRootAbs: string;
+      projectName?: string;
       exportId?: string;
       executionProfile?: string;
       planName?: string;
       when?: string;
     } = {
       workspaceRootAbs: input.workspaceRootAbs,
+      ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
+        ? { projectName: input.projectName.trim() }
+        : {}),
     };
     if (typeof input.exportId === "string" && input.exportId.trim().length > 0) {
       selectorInput.exportId = input.exportId;
@@ -99,6 +132,7 @@ export async function executionProfileExportDomain(input: {
 
     const request: {
       workspaceRootAbs: string;
+      projectName?: string;
       exportId: string;
       includeResolvedSecrets?: boolean;
       includeRuntimeStartup?: boolean;
@@ -107,6 +141,9 @@ export async function executionProfileExportDomain(input: {
       contextValues?: Record<string, string>;
     } = {
       workspaceRootAbs: input.workspaceRootAbs,
+      ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
+        ? { projectName: input.projectName.trim() }
+        : {}),
       exportId: resolvedExportId,
     };
     if (typeof input.includeResolvedSecrets === "boolean") {
@@ -129,9 +166,9 @@ export async function executionProfileExportDomain(input: {
       | Awaited<ReturnType<typeof exportExecutionProfilePs1>>
       | Awaited<ReturnType<typeof exportExecutionProfileSh>>
       | Awaited<ReturnType<typeof exportExecutionProfilePostman>>;
-    if (input.mode === "ps1") {
+    if (selectedMode === "ps1") {
       out = await exportExecutionProfilePs1(request);
-    } else if (input.mode === "sh") {
+    } else if (selectedMode === "sh") {
       out = await exportExecutionProfileSh(request);
     } else {
       out = await exportExecutionProfilePostman(request);
@@ -153,7 +190,7 @@ export async function executionProfileExportDomain(input: {
     const structuredContent = {
       resultType: "execution_profile_export",
       status: "ok",
-      mode: input.mode,
+      mode: selectedMode,
       exportId: out.exportId,
       ...(input.executionProfile ? { executionProfile: input.executionProfile } : {}),
       exportDirAbs: out.exportDirAbs,
@@ -183,6 +220,9 @@ export async function executionProfileExportDomain(input: {
       reason === "execution_profile_not_found" ||
       reason === "execution_profile_no_exports" ||
       reason === "export_selector_no_match" ||
+      reason === "execution_profile_ambiguous" ||
+      reason === "project_artifact_ambiguous" ||
+      reason === "project_artifact_missing" ||
       reason === "export_id_invalid"
     ) {
       reasonCode = reason;
@@ -192,8 +232,10 @@ export async function executionProfileExportDomain(input: {
       ...(input.executionProfile ? { executionProfile: input.executionProfile } : {}),
       ...(input.planName ? { planName: input.planName } : {}),
       ...(input.when ? { when: input.when } : {}),
-      mode: input.mode,
+      ...(input.mode ? { mode: input.mode } : {}),
+      ...(input.type ? { type: input.type } : {}),
       ...parsePostmanReasonMeta(reason),
+      ...(input.projectName ? { projectName: input.projectName } : {}),
     });
   }
 }

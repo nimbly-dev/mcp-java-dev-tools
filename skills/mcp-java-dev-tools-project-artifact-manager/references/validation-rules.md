@@ -32,6 +32,7 @@ Use these checks during `validate` to keep `SKILL.md` concise and deterministic.
 5. `executionProfiles[].scriptRefs[]` may contain script names or `{ "name": "...", "phase": "..." }` objects.
 6. Each `executionProfiles[].scriptRefs[].name` must match a `scripts[].name`.
 7. Use `scripts[].envFileArg` when a script accepts an env-file parameter that export runners should point to export-local `project.env`.
+8. Replayability guard: absolute machine paths are not allowed in `scripts[].appdir`, path-like `scripts[].args[]`, `runPrerequisites[].script.scriptPath`, or `runPrerequisites[].script.cwd`.
 
 ## Docker Runtime Rules
 

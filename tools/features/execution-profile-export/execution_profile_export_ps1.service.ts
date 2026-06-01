@@ -33,6 +33,9 @@ export async function exportExecutionProfilePs1(input: ExportExecutionProfilePs1
   const { manifest, projectRootAbs } = await loadExecutionProfileExportManifest({
     workspaceRootAbs: input.workspaceRootAbs,
     exportId: input.exportId,
+    ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
+      ? { projectName: input.projectName.trim() }
+      : {}),
   });
 
   const workspace = await loadProjectWorkspace({
@@ -57,13 +60,20 @@ export async function exportExecutionProfilePs1(input: ExportExecutionProfilePs1
   });
   const planExecutionSection = await buildPs1PlanExecutionSection({
     workspaceRootAbs: input.workspaceRootAbs,
+    ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
+      ? { projectName: input.projectName.trim() }
+      : {}),
     workspace,
     executionProfile: manifest.executionProfile,
     planRuns: manifest.planRuns,
   });
   const prerequisitesSections = await buildPs1PrerequisitesSections({
     workspaceRootAbs: input.workspaceRootAbs,
+    ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
+      ? { projectName: input.projectName.trim() }
+      : {}),
     workspace,
+    executionProfile: manifest.executionProfile,
     planRuns: manifest.planRuns,
     planExecutionSection,
   });

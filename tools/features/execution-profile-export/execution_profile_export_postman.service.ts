@@ -380,6 +380,9 @@ export async function exportExecutionProfilePostman(
   const { manifest, projectRootAbs } = await loadExecutionProfileExportManifest({
     workspaceRootAbs: input.workspaceRootAbs,
     exportId: input.exportId,
+    ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
+      ? { projectName: input.projectName.trim() }
+      : {}),
   });
   const workspace = await loadProjectWorkspace({
     workspaceRootAbs: input.workspaceRootAbs,
@@ -396,7 +399,7 @@ export async function exportExecutionProfilePostman(
     executionProfile: manifest.executionProfile,
   });
 
-  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs, input.projectName);
   const planBaseUrls = await resolvePlanBaseUrls({
     workspaceRootAbs: input.workspaceRootAbs,
     workspace,

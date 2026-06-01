@@ -10,3 +10,4 @@ export { ProbeActuateInputSchema } from "@/models/inputs/probe_actuate.input.mod
 export { TransportExecuteInputSchema } from "@/models/inputs/transport_execute.input.model";
 export { ExecutionProfileExportInputSchema } from "@/models/inputs/execution_profile_export.input.model";
 export { ArtifactManagementInputSchema } from "@/models/inputs/artifact_management";
+export { ExecutionOrchestrationInputSchema } from "@/models/inputs/execution_orchestration";

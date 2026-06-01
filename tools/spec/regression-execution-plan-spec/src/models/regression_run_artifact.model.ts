@@ -99,6 +99,7 @@ export type DiscoveryEvidence = {
 
 export type WriteRegressionRunArtifactsInput = {
   workspaceRootAbs: string;
+  projectName?: string;
   runId: string;
   planRef?: RegressionPlanReference;
   resolvedContext: Record<string, unknown>;

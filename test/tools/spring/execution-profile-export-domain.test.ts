@@ -48,8 +48,24 @@ function writeProject(root: string): void {
   });
 }
 
-function writePlanContract(root: string, planName: string): void {
-  const projectName = "test-project";
+function writeProjectWithName(root: string, projectName: string, executionProfile: string, planName: string): void {
+  writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: root,
+        executionProfiles: [
+          {
+            executionProfile,
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName }],
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function writePlanContract(root: string, planName: string, projectName = "test-project"): void {
   writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"), {
     targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
     prerequisites: [],
@@ -101,7 +117,42 @@ test("executionProfileExportDomain resolves executionProfile and creates a fresh
   }
 });
 
-test("executionProfileExportDomain derives export id from current profile when no selector is provided", async () => {
+test("executionProfileExportDomain fails closed when mode/type is missing", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-mode-required");
+  try {
+    writeProject(root);
+    writePlanContract(root, "gateway-route-smoke-spec");
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      executionProfile: "regression-test-run",
+    });
+    assert.equal(out.structuredContent.status, "execution_export_mode_required");
+    assert.equal(out.structuredContent.reasonCode, "execution_export_mode_required");
+    assert.equal(out.structuredContent.reasonMeta.nextAction, "provide mode=ps1|sh|postman");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain fails closed when mode/type conflict", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-mode-conflict");
+  try {
+    writeProject(root);
+    writePlanContract(root, "gateway-route-smoke-spec");
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      executionProfile: "regression-test-run",
+      mode: "sh",
+      type: "ps1",
+    });
+    assert.equal(out.structuredContent.status, "execution_export_mode_conflict");
+    assert.equal(out.structuredContent.reasonCode, "execution_export_mode_conflict");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain fails closed when executionProfile is ambiguous and no selector is provided", async () => {
   const root = createTestTempDir("execution-profile-export-domain-default");
   try {
     writeProject(root);
@@ -114,8 +165,29 @@ test("executionProfileExportDomain derives export id from current profile when n
       mode: "sh",
     });
 
+    assert.equal(out.structuredContent.status, "execution_profile_ambiguous");
+    assert.equal(out.structuredContent.reasonCode, "execution_profile_ambiguous");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain resolves project ambiguity when projectName is explicitly provided", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-project-selector");
+  try {
+    writeProjectWithName(root, "test-project", "regression-test-run", "gateway-route-smoke-spec");
+    writeProjectWithName(root, "test-project-performance", "test-performance-contract-run", "mcp-tool-performance-replay-spec");
+    writePlanContract(root, "mcp-tool-performance-replay-spec", "test-project-performance");
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName: "test-project-performance",
+      executionProfile: "test-performance-contract-run",
+      mode: "sh",
+    });
+
     assert.equal(out.structuredContent.status, "ok");
-    assert.match(String(out.structuredContent.exportId ?? ""), /^20\d{6}-\d{6}-regression-test-run$/);
+    assert.match(String(out.structuredContent.exportId ?? ""), /^20\d{6}-\d{6}-test-performance-contract-run$/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

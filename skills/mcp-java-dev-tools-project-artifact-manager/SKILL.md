@@ -28,10 +28,11 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 7. For `mode=terminal`, provide `startups[]` entries per app/service with `command` (+ optional `args[]`, `appdir`, `env`) when auto-start is desired.
 8. Runtime startup entries must start/stop application runtime only; token refresh, seed, validation, and env preparation belong in shared `scripts[]`.
 9. Shared scripts are referenced by `executionProfiles[].scriptRefs[]` and may declare `phase`, `command`, `args[]`, `appdir`, `env`, and `envFileArg`.
-10. External system checks may use only deterministic `tcp` or `http` checks in v1.
-11. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
-12. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator preflight health checks.
-13. `sessionExport` uses flat defaults (`includeRuntimeStartup`, `includeHealthcheckGate`, `includeResolvedSecrets`) for execution-profile export behavior. `includeResolvedSecrets=true` is a trusted-local setting and makes exported packages sensitive.
+10. Shared scripts and run-prerequisite scripts must be replayable: use relative paths only (`scriptPath`, `appdir`, and path-like `args[]`); absolute machine paths are invalid.
+11. External system checks may use only deterministic `tcp` or `http` checks in v1.
+12. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
+13. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator preflight health checks.
+14. `sessionExport` uses flat defaults (`includeRuntimeStartup`, `includeHealthcheckGate`, `includeResolvedSecrets`) for execution-profile export behavior. `includeResolvedSecrets=true` is a trusted-local setting and makes exported packages sensitive.
 
 ## Required Artifact Path
 

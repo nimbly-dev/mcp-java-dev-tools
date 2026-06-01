@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const { RecipeGenerateInputSchema } = require("@/models/inputs/recipe_generate.input.model");
 const { TargetInferInputSchema } = require("@/models/inputs/target_infer.input.model");
+const { ExecutionProfileExportInputSchema } = require("@/models/inputs/execution_profile_export.input.model");
 const z = require("zod/v4");
 
 test("probe_recipe_create schema requires projectRootAbs", () => {
@@ -66,4 +67,16 @@ test("probe_recipe_create schema accepts runtime discovery preference values", (
     discoveryPreference: "runtime_preferred",
   });
   assert.equal(invalid.success, false);
+});
+
+test("execution_profile_export schema accepts mode or type alias and rejects invalid values", () => {
+  const exportSchema = z.object(ExecutionProfileExportInputSchema);
+  const withMode = exportSchema.safeParse({ executionProfile: "regression-test-run", mode: "sh" });
+  assert.equal(withMode.success, true);
+
+  const withType = exportSchema.safeParse({ executionProfile: "regression-test-run", type: "ps1" });
+  assert.equal(withType.success, true);
+
+  const invalidMode = exportSchema.safeParse({ executionProfile: "regression-test-run", mode: "bash" });
+  assert.equal(invalidMode.success, false);
 });

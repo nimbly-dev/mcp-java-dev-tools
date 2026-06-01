@@ -40,10 +40,11 @@ function extractExecutionProfileFromExportId(exportId: string): string | undefin
 
 export async function loadExecutionProfileExportManifest(input: {
   workspaceRootAbs: string;
+  projectName?: string;
   exportId: string;
 }): Promise<{ manifest: ExecutionProfileExportManifest; projectRootAbs: string }> {
   const safeExportId = sanitizeExportId(input.exportId);
-  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs, input.projectName);
   const projectRootAbs = path.dirname(path.dirname(plansRootAbs));
   const projectName = path.basename(projectRootAbs);
   const projectsFileAbs = path.join(input.workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
@@ -60,13 +61,13 @@ export async function loadExecutionProfileExportManifest(input: {
   }
 
   const requestedProfile = extractExecutionProfileFromExportId(safeExportId);
-  const selectedProfile =
-    (requestedProfile
-      ? workspace.executionProfiles.find((entry) => entry.executionProfile === requestedProfile)
-      : undefined) ?? workspace.executionProfiles[0];
-  if (!selectedProfile) {
-    throw new Error("execution_profile_export_unresolvable");
-  }
+  const selectedProfileCandidates = requestedProfile
+    ? workspace.executionProfiles.filter((entry) => entry.executionProfile === requestedProfile)
+    : workspace.executionProfiles;
+  if (selectedProfileCandidates.length === 0) throw new Error("execution_profile_export_unresolvable");
+  if (selectedProfileCandidates.length > 1) throw new Error("execution_profile_ambiguous");
+  const selectedProfile = selectedProfileCandidates[0];
+  if (!selectedProfile) throw new Error("execution_profile_export_unresolvable");
 
   const nowIso = new Date().toISOString();
   const manifest: ExecutionProfileExportManifest = {

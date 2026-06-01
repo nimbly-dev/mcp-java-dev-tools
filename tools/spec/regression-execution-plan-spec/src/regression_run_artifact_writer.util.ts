@@ -521,7 +521,7 @@ export async function writeRegressionRunArtifacts(
   if (!args.planRef?.name) {
     throw new Error("plan_name_missing");
   }
-  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs, args.projectName);
   const runDirAbs = path.join(plansRootAbs, normalizePlanName(args.planRef.name), "runs", args.runId);
   if (!RUN_ID_PATTERN.test(args.runId)) {
     throw new Error("run_id_invalid");

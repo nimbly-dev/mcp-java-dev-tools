@@ -10,6 +10,25 @@ function asStringArray(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
 }
 
+function collectUnsupportedStepProtocols(contract: Record<string, unknown>): Array<{
+  stepId: string;
+  protocol: string;
+}> {
+  const allowedProtocols = new Set(["http"]);
+  const steps = Array.isArray(contract.steps) ? contract.steps : [];
+  const out: Array<{ stepId: string; protocol: string }> = [];
+  for (const rawStep of steps) {
+    if (typeof rawStep !== "object" || rawStep === null || Array.isArray(rawStep)) continue;
+    const step = rawStep as Record<string, unknown>;
+    const protocol = typeof step.protocol === "string" ? step.protocol.trim() : "";
+    if (!protocol) continue;
+    if (allowedProtocols.has(protocol)) continue;
+    const stepId = typeof step.id === "string" && step.id.trim().length > 0 ? step.id : "unknown_step";
+    out.push({ stepId, protocol });
+  }
+  return out;
+}
+
 export async function handleRegressionPlanArtifact(
   ctx: ArtifactActionContext,
   request: ArtifactActionRequest<"regression_plan">,
@@ -89,7 +108,22 @@ export async function handleRegressionPlanArtifact(
 
   if (request.action === "validate") {
     await readJsonFile(path.join(planRoot, "metadata.json"));
-    await readJsonFile(path.join(planRoot, "contract.json"));
+    const contract = (await readJsonFile(path.join(planRoot, "contract.json"))) as Record<string, unknown>;
+    const unsupported = collectUnsupportedStepProtocols(contract);
+    if (unsupported.length > 0) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: "transport_protocol_mismatch",
+        reason: "regression plan contains step protocol not supported by execution_orchestration",
+        reasonMeta: {
+          artifactType: request.artifactType,
+          action: request.action,
+          projectName,
+          planName,
+          allowedProtocols: ["http"],
+          unsupportedSteps: unsupported,
+        },
+      });
+    }
     return okArtifactResponse({
       resultType: "artifact",
       status: "ok",
