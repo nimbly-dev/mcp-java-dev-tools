@@ -407,7 +407,7 @@ export async function exportExecutionProfilePostman(
     planRuns: manifest.planRuns,
   });
 
-  const items: Record<string, unknown>[] = [];
+  const planItemsByName = new Map<string, Record<string, unknown>[]>();
   const referencedVariables = new Set<string>();
   const urlAuthorityVariables = new Set<string>();
   const prerequisiteDefaults = new Map<string, string>();
@@ -421,6 +421,9 @@ export async function exportExecutionProfilePostman(
   const profileProvidedContext = resolveProfileProvidedContext(workspace, manifest.executionProfile);
   const vars = isRecord(workspace?.variables) ? (workspace.variables as WorkspaceVariables) : {};
   const orderedPlans = [...manifest.planRuns].sort((a, b) => a.order - b.order);
+  for (const plan of orderedPlans) {
+    planItemsByName.set(plan.planName, []);
+  }
   const firstUseOrderByKey = new Map<string, number>();
   const firstExtractOrderByKey = new Map<string, number>();
   let requestSequence = 0;
@@ -480,7 +483,7 @@ export async function exportExecutionProfilePostman(
       collectUrlAuthorityVariables(normalizedUrl, urlAuthorityVariables);
       const stepVariables = new Set<string>();
       const extractMappings = Array.isArray(step.extract) ? step.extract : [];
-      items.push(
+      const requestItem =
         buildRequestItem({
           planName: plan.planName,
           stepOrder: step.order,
@@ -491,8 +494,13 @@ export async function exportExecutionProfilePostman(
           body: http.body,
           variables: stepVariables,
           ...(extractMappings.length > 0 ? { extract: extractMappings } : {}),
-        }),
-      );
+        });
+      const bucket = planItemsByName.get(plan.planName);
+      if (bucket) {
+        bucket.push(requestItem);
+      } else {
+        planItemsByName.set(plan.planName, [requestItem]);
+      }
       requestSequence += 1;
       for (const key of stepVariables) {
         referencedVariables.add(key);
@@ -524,12 +532,20 @@ export async function exportExecutionProfilePostman(
     }
   }
 
+  const collectionItems =
+    orderedPlans.length > 1
+      ? orderedPlans.map((plan) => ({
+          name: `[${plan.order}] ${plan.planName}`,
+          item: planItemsByName.get(plan.planName) ?? [],
+        }))
+      : (planItemsByName.get(orderedPlans[0]?.planName ?? "") ?? []);
+
   const collection = {
     info: {
       name: `execution-profile:${manifest.executionProfile}:${manifest.exportId}`,
       schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     },
-    item: items,
+    item: collectionItems,
   };
   await fs.writeFile(collectionPathAbs, `${JSON.stringify(collection, null, 2)}\n`, "utf8");
 
