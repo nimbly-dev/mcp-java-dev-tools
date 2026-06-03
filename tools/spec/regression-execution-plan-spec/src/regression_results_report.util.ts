@@ -233,7 +233,7 @@ export async function renderRegressionRunResultsTableFromArtifacts(
 ): Promise<RenderResult> {
   const executionPath = path.join(args.runDirAbs, "execution.result.json");
   const evidencePath = path.join(args.runDirAbs, "evidence.json");
-  const correlationPath = path.join(args.runDirAbs, "correlation.json");
+  const correlationPath = path.join(args.runDirAbs, "correlation", "correlation.json");
   const [executionText, evidenceText] = await Promise.all([
     fs.readFile(executionPath, "utf8"),
     fs.readFile(evidencePath, "utf8"),

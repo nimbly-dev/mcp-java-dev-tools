@@ -46,14 +46,15 @@ export class ServerConfigLoader {
     const workspaceRootAbs = path.resolve(workspaceRoot);
     const detectedProbeConfigFile = this.detectWorkspaceProbeConfigFile(workspaceRootAbs);
     const envProbeConfigFile = this.env(MCP_ENV.PROBE_CONFIG_FILE);
-    const explicitEnvProbeConfigFile =
-      typeof envProbeConfigFile === "string" && envProbeConfigFile.trim().length > 0
-        ? path.resolve(envProbeConfigFile.trim())
-        : undefined;
-    const probeConfigFile =
-      argWorkspaceRoot && detectedProbeConfigFile
-        ? detectedProbeConfigFile
-        : explicitEnvProbeConfigFile ?? detectedProbeConfigFile;
+    const explicitEnvProbeConfigFile = this.resolveExplicitProbeConfigFile({
+      rawValue: envProbeConfigFile,
+      workspaceRootAbs,
+    });
+    const probeConfigFile = this.selectProbeConfigFile({
+      workspaceRootAbs,
+      ...(detectedProbeConfigFile ? { detectedProbeConfigFile } : {}),
+      ...(explicitEnvProbeConfigFile ? { explicitEnvProbeConfigFile } : {}),
+    });
     const probeRegistry =
       typeof probeConfigFile === "string" && probeConfigFile.trim().length > 0
         ? loadProbeRegistry({
@@ -167,6 +168,43 @@ export class ServerConfigLoader {
           "If unknown, ask the user which service probe port is currently mapped.",
       );
     }
+  }
+
+  private resolveExplicitProbeConfigFile(args: {
+    rawValue: string | undefined;
+    workspaceRootAbs: string;
+  }): string | undefined {
+    if (typeof args.rawValue !== "string" || args.rawValue.trim().length === 0) return undefined;
+    const trimmed = args.rawValue.trim();
+    if (trimmed === ".mcpjvm/probe-config.json" || trimmed === ".mcpjvm\\probe-config.json") {
+      return path.join(args.workspaceRootAbs, ".mcpjvm", "probe-config.json");
+    }
+    if (trimmed === "/.mcpjvm/probe-config.json" || trimmed === "\\.mcpjvm\\probe-config.json") {
+      return path.join(args.workspaceRootAbs, ".mcpjvm", "probe-config.json");
+    }
+    return path.resolve(trimmed);
+  }
+
+  private selectProbeConfigFile(args: {
+    workspaceRootAbs: string;
+    detectedProbeConfigFile?: string;
+    explicitEnvProbeConfigFile?: string;
+  }): string | undefined {
+    if (args.detectedProbeConfigFile) {
+      if (
+        args.explicitEnvProbeConfigFile &&
+        this.isPathWithinWorkspace(args.explicitEnvProbeConfigFile, args.workspaceRootAbs)
+      ) {
+        return args.explicitEnvProbeConfigFile;
+      }
+      return args.detectedProbeConfigFile;
+    }
+    return args.explicitEnvProbeConfigFile;
+  }
+
+  private isPathWithinWorkspace(candidateAbs: string, workspaceRootAbs: string): boolean {
+    const relative = path.relative(workspaceRootAbs, candidateAbs);
+    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
   }
 
   private registryDefaultBaseUrl(registry?: ProbeRegistry): string | undefined {

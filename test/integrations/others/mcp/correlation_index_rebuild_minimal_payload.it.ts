@@ -36,6 +36,7 @@ test("rebuildCorrelationIndex canonicalizes minimal correlation payloads with nu
       plan,
       "runs",
       runId,
+      "correlation",
       "correlation.json",
     );
     writeJson(corrPath, {

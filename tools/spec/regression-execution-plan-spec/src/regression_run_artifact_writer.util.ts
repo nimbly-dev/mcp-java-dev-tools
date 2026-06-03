@@ -350,13 +350,20 @@ function normalizeWindowRecord(input: Record<string, unknown>): {
 
 async function updateCorrelationIndex(args: {
   workspaceRootAbs: string;
+  projectName?: string;
   correlation: CorrelationArtifact;
   runId: string;
   planName: string;
   runDirAbs: string;
   now: Date;
 }): Promise<string> {
-  const indexPathAbs = path.join(args.workspaceRootAbs, ".mcpjvm", "correlation-index.json");
+  const { projectRootAbs } = await resolveProjectRootAbs({
+    workspaceRootAbs: args.workspaceRootAbs,
+    ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
+      ? { projectName: args.projectName.trim() }
+      : {}),
+  });
+  const indexPathAbs = path.join(projectRootAbs, "correlation-index.json");
   let entries: CorrelationIndexEntry[] = [];
   try {
     const current = JSON.parse(await fs.readFile(indexPathAbs, "utf8")) as { entries?: unknown };
@@ -407,10 +414,11 @@ async function updateCorrelationIndex(args: {
 
 export async function rebuildCorrelationIndex(args: {
   workspaceRootAbs: string;
+  projectName?: string;
   now?: Date;
 }): Promise<CorrelationIndexRebuildResult> {
   const now = args.now ?? new Date();
-  const root = await resolveRegressionPlansRootAbs(args.workspaceRootAbs);
+  const root = await resolveRegressionPlansRootAbs(args.workspaceRootAbs, args.projectName);
   const entries: CorrelationIndexEntry[] = [];
   try {
     const plans = await fs.readdir(root, { withFileTypes: true });
@@ -426,7 +434,7 @@ export async function rebuildCorrelationIndex(args: {
       for (const runDir of runDirs) {
         if (!runDir.isDirectory()) continue;
         const runAbs = path.join(runsRoot, runDir.name);
-        const corrPath = path.join(runAbs, "correlation.json");
+        const corrPath = path.join(runAbs, "correlation", "correlation.json");
         let parsed: unknown;
         try {
           parsed = JSON.parse(await fs.readFile(corrPath, "utf8"));
@@ -452,7 +460,13 @@ export async function rebuildCorrelationIndex(args: {
     return `${a.planName}:${a.runId}`.localeCompare(`${b.planName}:${b.runId}`);
   });
 
-  const indexPathAbs = path.join(args.workspaceRootAbs, ".mcpjvm", "correlation-index.json");
+  const { projectRootAbs } = await resolveProjectRootAbs({
+    workspaceRootAbs: args.workspaceRootAbs,
+    ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
+      ? { projectName: args.projectName.trim() }
+      : {}),
+  });
+  const indexPathAbs = path.join(projectRootAbs, "correlation-index.json");
   await fs.mkdir(path.dirname(indexPathAbs), { recursive: true });
   await writeJsonFile(indexPathAbs, {
     version: 1,
@@ -464,6 +478,18 @@ export async function rebuildCorrelationIndex(args: {
 
 async function writeJsonFile(filePathAbs: string, payload: Record<string, unknown>): Promise<void> {
   await fs.writeFile(filePathAbs, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
+async function resolveProjectRootAbs(args: {
+  workspaceRootAbs: string;
+  projectName?: string;
+}): Promise<{ projectName: string; projectRootAbs: string }> {
+  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs, args.projectName);
+  const projectRootAbs = path.dirname(path.dirname(plansRootAbs));
+  return {
+    projectName: path.basename(projectRootAbs),
+    projectRootAbs,
+  };
 }
 
 function normalizePlanName(planName: string): string {
@@ -534,7 +560,8 @@ export async function writeRegressionRunArtifacts(
   const contextResolvedPathAbs = path.join(runDirAbs, "context.resolved.json");
   const executionResultPathAbs = path.join(runDirAbs, "execution.result.json");
   const evidencePathAbs = path.join(runDirAbs, "evidence.json");
-  const correlationPathAbs = path.join(runDirAbs, "correlation.json");
+  const correlationDirAbs = path.join(runDirAbs, "correlation");
+  const correlationPathAbs = path.join(correlationDirAbs, "correlation.json");
 
   const contextResolvedPayload = sanitizeByKey(
     {
@@ -550,6 +577,8 @@ export async function writeRegressionRunArtifacts(
       ...args.executionResult,
       ...(args.planRef ? { planRef: args.planRef } : {}),
       runId: args.runId,
+      ...(typeof args.executionProfile === "string" ? { executionProfile: args.executionProfile } : {}),
+      ...(typeof args.suiteRunId === "string" ? { suiteRunId: args.suiteRunId } : {}),
     },
     explicitSecretPaths,
   ) as Record<string, unknown>;
@@ -577,6 +606,7 @@ export async function writeRegressionRunArtifacts(
         now,
       });
   if (correlation) {
+    await fs.mkdir(correlationDirAbs, { recursive: true });
     const correlationPayload = sanitizeByKey(
       normalizeCorrelationPayload(correlation),
       explicitSecretPaths,
@@ -585,6 +615,9 @@ export async function writeRegressionRunArtifacts(
     writtenCorrelationPathAbs = correlationPathAbs;
     writtenCorrelationIndexPathAbs = await updateCorrelationIndex({
       workspaceRootAbs: args.workspaceRootAbs,
+      ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
+        ? { projectName: args.projectName.trim() }
+        : {}),
       correlation,
       runId: args.runId,
       planName: args.planRef.name,
@@ -602,4 +635,3 @@ export async function writeRegressionRunArtifacts(
     ...(writtenCorrelationIndexPathAbs ? { correlationIndexPathAbs: writtenCorrelationIndexPathAbs } : {}),
   };
 }
-

@@ -329,11 +329,10 @@ test("preflight stale_plan when pinStrictProbeKey is enabled but strict key is i
   assert.equal(result.reasonCode, "strict_probe_key_invalid");
 });
 
-test("preflight blocks correlation when crossPlan=true and correlationSessionId is missing", () => {
+test("preflight accepts correlation without session scope when correlationSessionId is omitted", () => {
   const contract = baseContract({
     correlation: {
       enabled: true,
-      crossPlan: true,
       key: { type: "traceId", value: "trace-001" },
       window: { maxWindowMs: 5000 },
       probeIds: ["gateway-service", "user-service"],
@@ -350,8 +349,8 @@ test("preflight blocks correlation when crossPlan=true and correlationSessionId 
     providedContext: { "auth.bearer": "ok" },
     targetCandidateCount: 1,
   });
-  assert.equal(result.status, "blocked_invalid");
-  assert.equal(result.reasonCode, "correlation_session_missing");
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
 });
 
 test("preflight blocks correlation when maxWindowMs is invalid", () => {

@@ -101,6 +101,8 @@ export type WriteRegressionRunArtifactsInput = {
   workspaceRootAbs: string;
   projectName?: string;
   runId: string;
+  executionProfile?: string;
+  suiteRunId?: string;
   planRef?: RegressionPlanReference;
   resolvedContext: Record<string, unknown>;
   secretContextKeys?: string[];
