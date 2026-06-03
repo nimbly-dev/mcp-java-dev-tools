@@ -166,6 +166,7 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
     assert.equal(typeof context.requestBody.token, "undefined");
     assert.equal(result.status, "pass");
     assert.equal(result.runId, runId);
+    assert.equal(typeof result.executionProfile, "undefined");
     assert.equal(evidence.runId, runId);
     assert.equal(evidence.authMode.scheme, "bearer");
     assert.equal(evidence.discovery.outcomes[0].key, "auth.bearer");
@@ -177,6 +178,7 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
     assert.equal(correlation.status, "ok");
     assert.equal(correlation.timeline[0].eventId, "e-1");
     assert.equal(correlation.timeline[1].eventId, "e-2");
+    assert.match(String(written.correlationPathAbs).replaceAll("\\", "/"), /\/correlation\/correlation\.json$/);
     assert.equal(correlationIndex.entries.length, 1);
     assert.equal(correlationIndex.entries[0].correlationSessionId, "sess-2026-04-19");
   } finally {
@@ -384,7 +386,7 @@ test("rebuildCorrelationIndex regenerates canonical index from existing correlat
     });
     assert.ok(fs.existsSync(written.correlationPathAbs));
 
-    const indexPath = path.join(root, ".mcpjvm", "correlation-index.json");
+    const indexPath = path.join(root, ".mcpjvm", "test-project", "correlation-index.json");
     fs.writeFileSync(indexPath, `${JSON.stringify({ version: 1, generatedAt: "2026-04-19T08:01:27.000Z", entries: [] }, null, 2)}\n`, "utf8");
 
     const rebuilt = await rebuildCorrelationIndex({

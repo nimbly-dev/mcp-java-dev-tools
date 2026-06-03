@@ -775,6 +775,76 @@ test("exportExecutionProfileSh emits endpoint-level HTTP commands for executed s
   }
 });
 
+test("exportExecutionProfileSh does not inject AUTH_BEARER gate for non-auth HTTP profiles", async () => {
+  const root = createTestTempDir("execution-profile-sh-no-auth-gate");
+  try {
+    const projectName = "event-driven-microservice-example";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile: "producer-consumer-regression",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "producer-plan" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    await writeExecutionProfileExport({
+      workspaceRootAbs: root,
+      exportId: "session-no-auth",
+      generatedAt: new Date("2026-06-03T05:00:00.000Z"),
+      startedAt: new Date("2026-06-03T04:59:00.000Z"),
+      endedAt: new Date("2026-06-03T05:00:00.000Z"),
+      executionProfile: "producer-consumer-regression",
+      executionPolicy: "stop_on_fail",
+      runStatus: "pass",
+      planRuns: [{ order: 1, planName: "producer-plan", status: "executed", runStatus: "pass", runId: "run-a" }],
+    });
+
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "producer-plan");
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.Producer", method: "send" } }],
+      prerequisites: [
+        { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://127.0.0.1:8080" },
+      ],
+      steps: [
+        {
+          order: 1,
+          id: "send_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: {
+            http: {
+              method: "POST",
+              pathTemplate: "/produce",
+              body: { payload: "hello" },
+            },
+          },
+          expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
+        },
+      ],
+    });
+
+    const out = await exportExecutionProfileSh({ workspaceRootAbs: root, exportId: "session-no-auth" });
+    const script = fs.readFileSync(out.scriptPathAbs, "utf8");
+
+    assert.match(script, /\[A00\] auth bootstrap skipped; no AUTH_BEARER placeholder detected/);
+    assert.doesNotMatch(script, /missing_required_input: AUTH_BEARER/);
+    assert.doesNotMatch(script, /endpoint auth refresh failed after retries/);
+    assert.doesNotMatch(script, /refresh_auth_bearer force/);
+    assert.doesNotMatch(script, /__failed_auth="\$\{AUTH_BEARER:-\}"/);
+    assert.match(script, /API_BASE_URL="http:\/\/127\.0\.0\.1:8080"/);
+    assert.match(script, /curl -fsS -X "POST".*"\$\{API_BASE_URL\}\/produce"/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("exportExecutionProfileSh bundles shared profile scripts and export-local project env", async () => {
   const root = createTestTempDir("execution-profile-sh-bundled-scripts");
   try {

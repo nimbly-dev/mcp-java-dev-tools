@@ -93,3 +93,67 @@ test("loads explicit probe registry from MCP_PROBE_CONFIG_FILE", () => {
   }
 });
 
+test("ignores stale absolute MCP_PROBE_CONFIG_FILE from another workspace when active workspace has probe-config.json", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-stale-env-"));
+  try {
+    const workspaceRoot = path.join(tmpRoot, "workspace");
+    const otherWorkspace = path.join(tmpRoot, "other-workspace");
+    const workspaceMcpjvmDir = path.join(workspaceRoot, ".mcpjvm");
+    const otherMcpjvmDir = path.join(otherWorkspace, ".mcpjvm");
+    fs.mkdirSync(workspaceMcpjvmDir, { recursive: true });
+    fs.mkdirSync(otherMcpjvmDir, { recursive: true });
+    fs.copyFileSync(FIXTURE, path.join(workspaceMcpjvmDir, "probe-config.json"));
+    fs.writeFileSync(
+      path.join(otherMcpjvmDir, "probe-config.json"),
+      JSON.stringify(
+        {
+          profiles: [{ name: "dev", probes: [{ id: "wrong-service", baseUrl: "http://127.0.0.1:9292" }] }],
+          defaultProfile: "dev",
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    withEnv(
+      {
+        [MCP_ENV.WORKSPACE_ROOT]: workspaceRoot,
+        [MCP_ENV.PROBE_CONFIG_FILE]: path.join(otherMcpjvmDir, "probe-config.json"),
+        INIT_CWD: undefined,
+        PWD: undefined,
+      },
+      () => {
+        const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
+        assert.equal(cfg.probeRegistry?.configFileAbs, path.join(workspaceMcpjvmDir, "probe-config.json"));
+        assert.equal(cfg.probeBaseUrl, "http://127.0.0.1:9190");
+      },
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("resolves workspace-relative MCP_PROBE_CONFIG_FILE to active workspace probe-config.json", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-relative-env-"));
+  try {
+    const workspaceRoot = path.join(tmpRoot, "workspace");
+    const mcpjvmDir = path.join(workspaceRoot, ".mcpjvm");
+    fs.mkdirSync(mcpjvmDir, { recursive: true });
+    fs.copyFileSync(FIXTURE, path.join(mcpjvmDir, "probe-config.json"));
+    withEnv(
+      {
+        [MCP_ENV.WORKSPACE_ROOT]: workspaceRoot,
+        [MCP_ENV.PROBE_CONFIG_FILE]: "/.mcpjvm/probe-config.json",
+        INIT_CWD: undefined,
+        PWD: undefined,
+      },
+      () => {
+        const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
+        assert.equal(cfg.probeRegistry?.configFileAbs, path.join(mcpjvmDir, "probe-config.json"));
+      },
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+

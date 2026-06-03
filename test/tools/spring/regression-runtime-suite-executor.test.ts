@@ -44,6 +44,66 @@ function writePlan(root: string, projectName: string, planName: string, routePat
   });
 }
 
+function writeCorrelatedPlan(
+  root: string,
+  projectName: string,
+  planName: string,
+  routePath: string,
+  args: {
+    probeId: string;
+    correlationSessionId: string;
+    keyValue?: string;
+    keySourcePath?: string;
+    expectedFlow?: string[];
+  },
+): void {
+  const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+  writeJson(path.join(planRoot, "metadata.json"), {
+    specVersion: "1.0.0",
+    execution: {
+      intent: "regression",
+      probeVerification: false,
+      pinStrictProbeKey: false,
+      discoveryPolicy: "allow_discoverable_prerequisites",
+    },
+  });
+  writeJson(path.join(planRoot, "contract.json"), {
+    targets: [
+      {
+        type: "class_method",
+        selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" },
+        runtimeVerification: { strictProbeKey: "org.example.Controller#call:10", probeId: args.probeId },
+      },
+    ],
+    prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+    steps: [
+      {
+        order: 1,
+        id: "step_1",
+        targetRef: 0,
+        protocol: "http",
+        transport: { http: { method: "GET", pathTemplate: routePath } },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+    correlation: {
+      enabled: true,
+      correlationSessionId: args.correlationSessionId,
+      key: args.keyValue
+        ? { type: "traceId", value: args.keyValue }
+        : { type: "traceId", source: { type: "header", path: args.keySourcePath ?? "x-trace-id" } },
+      window: { maxWindowMs: 5000 },
+      probeIds: [args.probeId],
+      ...(args.expectedFlow ? { expectedFlow: args.expectedFlow } : {}),
+      matchPolicy: {
+        requireExactKeyMatch: true,
+        requireWindowMatch: true,
+        ambiguityStrategy: "fail_closed",
+      },
+    },
+  });
+}
+
 function writeAuthPlan(root: string, projectName: string, planName: string, routePath: string): void {
   const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
   writeJson(path.join(planRoot, "metadata.json"), {
@@ -390,6 +450,158 @@ test("executeRegressionRuntimeSuite blocks replay/export script paths in executi
     if ("reasonCode" in out) {
       assert.equal(out.reasonCode, "invalid_execution_path_replay_script");
     }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionRuntimeSuite annotates plan runs for shared correlation session", async () => {
+  const root = createTestTempDir("runtime-suite-correlation");
+  try {
+    const projectName = "petclinic-regression";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "async-flow",
+              executionPolicy: "stop_on_fail",
+              plans: [
+                { order: 1, planName: "producer-plan" },
+                { order: 2, planName: "consumer-plan" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    writeCorrelatedPlan(root, projectName, "producer-plan", "/produce", {
+      probeId: "producer-service",
+      correlationSessionId: "order-flow",
+      keyValue: "trace-abc-123",
+      expectedFlow: ["producer-service", "consumer-service"],
+    });
+    writeCorrelatedPlan(root, projectName, "consumer-plan", "/consume", {
+      probeId: "consumer-service",
+      correlationSessionId: "order-flow",
+      keySourcePath: "x-trace-id",
+      expectedFlow: ["producer-service", "consumer-service"],
+    });
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "async-flow",
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const req = input.request as Record<string, unknown>;
+        const url = String(req.url ?? "");
+        if (url.includes("/consume")) {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 8,
+              bodyPreview: "{\"ok\":true}",
+              headers: { "x-trace-id": "trace-abc-123" },
+            },
+          };
+        }
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 7,
+            bodyPreview: "{\"ok\":true}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    assert.equal(Array.isArray(out.correlations), true);
+    assert.equal(out.correlations?.length, 1);
+    assert.equal(out.correlations?.[0].status, "ok");
+    assert.equal(out.correlations?.[0].correlationSessionId, "order-flow");
+
+    const producerRunId = out.planRuns.find((entry: { planName: string; runId?: string }) => entry.planName === "producer-plan")?.runId;
+    const consumerRunId = out.planRuns.find((entry: { planName: string; runId?: string }) => entry.planName === "consumer-plan")?.runId;
+    assert.ok(producerRunId);
+    assert.ok(consumerRunId);
+
+    const producerExecution = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          root,
+          ".mcpjvm",
+          projectName,
+          "plans",
+          "regression",
+          "producer-plan",
+          "runs",
+          String(producerRunId),
+          "execution.result.json",
+        ),
+        "utf8",
+      ),
+    );
+    const producerCorrelation = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          root,
+          ".mcpjvm",
+          projectName,
+          "plans",
+          "regression",
+          "producer-plan",
+          "runs",
+          String(producerRunId),
+          "correlation",
+          "correlation.json",
+        ),
+        "utf8",
+      ),
+    );
+    const consumerExecution = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          root,
+          ".mcpjvm",
+          projectName,
+          "plans",
+          "regression",
+          "consumer-plan",
+          "runs",
+          String(consumerRunId),
+          "execution.result.json",
+        ),
+        "utf8",
+      ),
+    );
+    const consumerCorrelation = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          root,
+          ".mcpjvm",
+          projectName,
+          "plans",
+          "regression",
+          "consumer-plan",
+          "runs",
+          String(consumerRunId),
+          "correlation",
+          "correlation.json",
+        ),
+        "utf8",
+      ),
+    );
+    assert.equal(producerExecution.executionProfile, "async-flow");
+    assert.equal(producerExecution.suiteRunId, out.suiteRunId);
+    assert.equal(producerCorrelation.correlationSessionId, "order-flow");
+    assert.equal(consumerExecution.executionProfile, "async-flow");
+    assert.equal(consumerExecution.suiteRunId, out.suiteRunId);
+    assert.equal(consumerCorrelation.status, "ok");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

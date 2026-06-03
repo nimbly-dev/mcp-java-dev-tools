@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type {
   PlanContract,
+  PlanCorrelationPolicy,
   PlanMetadata,
   PlanStepCondition,
   PlanStepConditionPredicate,
@@ -60,6 +61,7 @@ export type ExecuteRegressionPlanWorkflowArgs = {
   providedContext?: Record<string, unknown>;
   runtimeContextName?: string;
   executionProfileName?: string;
+  suiteRunId?: string;
   runtimeConfigOverride?: {
     requestTimeoutMs?: number;
     retryMax?: number;
@@ -91,6 +93,14 @@ function readByPath(input: Record<string, unknown>, pathKey: string): unknown {
     cursor = (cursor as Record<string, unknown>)[segment];
   }
   return cursor;
+}
+
+function tryParseJson(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
 }
 
 function resolveConditionLeftValue(args: {
@@ -284,6 +294,124 @@ function buildHttpPayload(args: {
   return transportHttp;
 }
 
+function resolveCorrelationKeyValue(args: {
+  correlation: PlanCorrelationPolicy;
+  resolvedContext: Record<string, unknown>;
+  stepOutputsByOrder: Record<number, Record<string, unknown>>;
+}): string | undefined {
+  const directValue = asString(args.correlation.key.value);
+  if (directValue) {
+    return directValue.replace(/\$\{([^}]+)\}/g, (_match, key) => {
+      const resolved = args.resolvedContext[key];
+      return typeof resolved === "undefined" || resolved === null ? "" : String(resolved);
+    });
+  }
+
+  const source = args.correlation.key.source;
+  if (!source || typeof source.path !== "string" || source.path.trim().length === 0) {
+    return undefined;
+  }
+
+  const orders = Object.keys(args.stepOutputsByOrder)
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value))
+    .sort((a, b) => b - a);
+  for (const order of orders) {
+    const stepOutput = args.stepOutputsByOrder[order];
+    if (!stepOutput) continue;
+    if (source.type === "header") {
+      const headers = asRecord(readByPath(stepOutput, "response.headers"));
+      if (!headers) continue;
+      const headerName = source.path.trim().toLowerCase();
+      for (const [key, value] of Object.entries(headers)) {
+        if (key.toLowerCase() === headerName) {
+          return asString(value);
+        }
+      }
+      continue;
+    }
+
+    if (source.type === "json_path") {
+      const parsedBody = readByPath(stepOutput, "response.bodyJson");
+      const parsedBodyRecord = asRecord(parsedBody);
+      if (parsedBodyRecord) {
+        const value = readByPath(parsedBodyRecord, source.path.trim());
+        const textValue = asString(value);
+        if (textValue) return textValue;
+      }
+      continue;
+    }
+
+    const value = readByPath(stepOutput, source.path.trim());
+    const textValue = asString(value);
+    if (textValue) return textValue;
+  }
+
+  return undefined;
+}
+
+function buildPlanCorrelationEvidence(args: {
+  contract: PlanContract;
+  resolvedContext: Record<string, unknown>;
+  stepOutputsByOrder: Record<number, Record<string, unknown>>;
+  stepEventTimesByOrder: Record<number, number>;
+}):
+  | {
+      correlationPolicy: Record<string, unknown>;
+      correlationEvents: Array<Record<string, unknown>>;
+    }
+  | undefined {
+  const correlation = args.contract.correlation;
+  if (!correlation || correlation.enabled !== true) return undefined;
+
+  const keyValue = resolveCorrelationKeyValue({
+    correlation,
+    resolvedContext: args.resolvedContext,
+    stepOutputsByOrder: args.stepOutputsByOrder,
+  });
+
+  const correlationEvents: Array<Record<string, unknown>> = [];
+  for (const step of [...args.contract.steps].sort((a, b) => a.order - b.order)) {
+    const stepOutput = args.stepOutputsByOrder[step.order];
+    const timestampEpochMs = args.stepEventTimesByOrder[step.order];
+    if (!stepOutput || typeof timestampEpochMs !== "number") continue;
+    if (asString(readByPath(stepOutput, "status")) !== "pass") continue;
+    const target = args.contract.targets[step.targetRef];
+    const probeId =
+      asString(target?.runtimeVerification?.probeId) ??
+      (correlation.probeIds.length === 1 ? correlation.probeIds[0] : undefined);
+    if (!probeId) continue;
+    correlationEvents.push({
+      eventId: `${step.id}:${step.order}`,
+      probeId,
+      timestampEpochMs,
+      keyType: correlation.key.type,
+      ...(keyValue ? { keyValue } : {}),
+      ...(typeof target?.runtimeVerification?.strictProbeKey === "string"
+        ? { lineKey: target.runtimeVerification.strictProbeKey }
+        : {}),
+      eventType: step.protocol,
+    });
+  }
+
+  return {
+    correlationPolicy: {
+      keyType: correlation.key.type,
+      ...(keyValue ? { keyValue } : {}),
+      ...(typeof correlation.correlationSessionId === "string" && correlation.correlationSessionId.trim().length > 0
+        ? { correlationSessionId: correlation.correlationSessionId.trim() }
+        : {}),
+      maxWindowMs: correlation.window.maxWindowMs,
+      ...(Array.isArray(correlation.expectedFlow) ? { expectedFlow: correlation.expectedFlow } : {}),
+      ...(typeof correlation.window.startEpochMs === "number"
+        ? { startEpochMs: correlation.window.startEpochMs }
+        : {}),
+      ...(typeof correlation.window.endEpochMs === "number" ? { endEpochMs: correlation.window.endEpochMs } : {}),
+    },
+    correlationEvents,
+  };
+}
+
 export async function executeRegressionPlanWorkflow(
   args: ExecuteRegressionPlanWorkflowArgs,
 ): Promise<ExecuteRegressionPlanWorkflowResult> {
@@ -333,7 +461,9 @@ export async function executeRegressionPlanWorkflow(
   let resolvedContext = { ...resolvedContextInitial };
   const stepRows: RegressionRunStepResult[] = [];
   const stepOutputsByOrder: Record<number, Record<string, unknown>> = {};
+  const stepEventTimesByOrder: Record<number, number> = {};
   let hardRuntimeBlocker = false;
+  let eventCursorEpochMs = now.getTime();
   for (const step of [...contract.steps].sort((a, b) => a.order - b.order)) {
     if (typeof step.when !== "undefined") {
       const conditionResult = evaluateStepCondition({
@@ -423,6 +553,8 @@ export async function executeRegressionPlanWorkflow(
       response: {
         statusCode: transport.statusCode ?? 0,
         body: transport.bodyPreview ?? "",
+        ...(transport.headers ? { headers: transport.headers } : {}),
+        ...(typeof transport.bodyPreview === "string" ? { bodyJson: tryParseJson(transport.bodyPreview) } : {}),
       },
       transport: {
         durationMs: transport.durationMs,
@@ -476,6 +608,8 @@ export async function executeRegressionPlanWorkflow(
           }),
     });
     stepOutputsByOrder[step.order] = stepEnvelope;
+    stepEventTimesByOrder[step.order] = eventCursorEpochMs;
+    eventCursorEpochMs += Math.max(1, transport.durationMs);
     resolvedContext = applyStepExtract(stepEnvelope, step.extract, resolvedContext);
 
     if (transport.status === "blocked_runtime" || transport.status === "blocked_invalid") {
@@ -497,12 +631,21 @@ export async function executeRegressionPlanWorkflow(
     steps: stepRows,
   };
 
+  const correlationEvidence = buildPlanCorrelationEvidence({
+    contract,
+    resolvedContext,
+    stepOutputsByOrder,
+    stepEventTimesByOrder,
+  });
+
   const artifacts = await writeRegressionRunArtifacts({
     workspaceRootAbs: args.workspaceRootAbs,
     ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
       ? { projectName: args.projectName.trim() }
       : {}),
     runId,
+    ...(typeof args.executionProfileName === "string" ? { executionProfile: args.executionProfileName } : {}),
+    ...(typeof args.suiteRunId === "string" ? { suiteRunId: args.suiteRunId } : {}),
     planRef: { name: args.planName, path: planRootAbs },
     resolvedContext,
     secretContextKeys: contract.prerequisites.filter((entry) => entry.secret).map((entry) => entry.key),
@@ -518,6 +661,7 @@ export async function executeRegressionPlanWorkflow(
         runEndEpoch: ended.getTime(),
         runDurationMs: Math.max(1, ended.getTime() - now.getTime()),
       },
+      ...(correlationEvidence ?? {}),
     },
     now,
   });

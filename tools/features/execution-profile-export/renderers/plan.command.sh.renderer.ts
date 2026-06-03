@@ -34,6 +34,19 @@ function renderExtractLines(step: PlanStep, responseVar: string): string[] {
   return lines;
 }
 
+function stepRequiresAuthBearer(step: PlanStep): boolean {
+  const httpTransport =
+    typeof step.transport.http === "object" && step.transport.http !== null && !Array.isArray(step.transport.http)
+      ? (step.transport.http as Record<string, unknown>)
+      : undefined;
+  const headers =
+    httpTransport && typeof httpTransport.headers === "object" && httpTransport.headers !== null && !Array.isArray(httpTransport.headers)
+      ? (httpTransport.headers as Record<string, unknown>)
+      : undefined;
+  if (!headers) return false;
+  return Object.values(headers).some((value) => typeof value === "string" && value.includes("${auth.bearer}"));
+}
+
 export async function renderShPlanExecutionSection(input: {
   planRuns: ExecutionProfileExportPlanRun[];
   plansRootAbs: string;
@@ -77,27 +90,29 @@ export async function renderShPlanExecutionSection(input: {
       lines.push("  __step_rc=$?");
       lines.push("  set -e");
       lines.push(`  if [ $__step_rc -eq 0 ]; then ${responseVar}="$__step_out"; break; fi`);
-      lines.push("  if printf '%s' \"$__step_out\" | grep -Eqi '(^|[^0-9])401([^0-9]|$)|unauthorized'; then");
-      lines.push("    __failed_auth=\"${AUTH_BEARER:-}\"");
-      lines.push("    if command -v invoke_posthealthcheck_scripts >/dev/null 2>&1; then invoke_posthealthcheck_scripts; fi");
-      lines.push("    if [ -n \"${AUTH_BEARER:-}\" ] && [ \"${AUTH_BEARER}\" != \"${__failed_auth}\" ]; then");
-      lines.push("      attempt=$((attempt+1))");
-      lines.push("      if [ $attempt -ge 30 ]; then echo 'endpoint auth refresh failed after retries' >&2; exit 1; fi");
-      lines.push("      sleep 2");
-      lines.push("      continue");
-      lines.push("    fi");
-      lines.push("    if can_refresh_auth_bearer; then");
-      lines.push("      AUTH_BEARER=\"\"");
-      lines.push("      if ! refresh_auth_bearer force; then echo 'endpoint auth refresh failed: refresh_unavailable_or_failed' >&2; exit 1; fi");
-      lines.push("      if [ -z \"${AUTH_BEARER:-}\" ] || [ \"${AUTH_BEARER}\" = \"${__failed_auth}\" ]; then echo 'endpoint auth refresh failed: stale_or_missing_token' >&2; exit 1; fi");
-      lines.push("      attempt=$((attempt+1))");
-      lines.push("      if [ $attempt -ge 30 ]; then echo 'endpoint auth refresh failed after retries' >&2; exit 1; fi");
-      lines.push("      sleep 2");
-      lines.push("      continue");
-      lines.push("    fi");
-      lines.push("    echo 'endpoint_auth_failed: received unauthorized response (401). Prerequisite auth scripts did not provide a usable credential.' >&2");
-      lines.push("    exit 1");
-      lines.push("  fi");
+      if (stepRequiresAuthBearer(step)) {
+        lines.push("  if printf '%s' \"$__step_out\" | grep -Eqi '(^|[^0-9])401([^0-9]|$)|unauthorized'; then");
+        lines.push("    __failed_auth=\"${AUTH_BEARER:-}\"");
+        lines.push("    if command -v invoke_posthealthcheck_scripts >/dev/null 2>&1; then invoke_posthealthcheck_scripts; fi");
+        lines.push("    if [ -n \"${AUTH_BEARER:-}\" ] && [ \"${AUTH_BEARER}\" != \"${__failed_auth}\" ]; then");
+        lines.push("      attempt=$((attempt+1))");
+        lines.push("      if [ $attempt -ge 30 ]; then echo 'endpoint auth refresh failed after retries' >&2; exit 1; fi");
+        lines.push("      sleep 2");
+        lines.push("      continue");
+        lines.push("    fi");
+        lines.push("    if can_refresh_auth_bearer; then");
+        lines.push("      AUTH_BEARER=\"\"");
+        lines.push("      if ! refresh_auth_bearer force; then echo 'endpoint auth refresh failed: refresh_unavailable_or_failed' >&2; exit 1; fi");
+        lines.push("      if [ -z \"${AUTH_BEARER:-}\" ] || [ \"${AUTH_BEARER}\" = \"${__failed_auth}\" ]; then echo 'endpoint auth refresh failed: stale_or_missing_token' >&2; exit 1; fi");
+        lines.push("      attempt=$((attempt+1))");
+        lines.push("      if [ $attempt -ge 30 ]; then echo 'endpoint auth refresh failed after retries' >&2; exit 1; fi");
+        lines.push("      sleep 2");
+        lines.push("      continue");
+        lines.push("    fi");
+        lines.push("    echo 'endpoint_auth_failed: received unauthorized response (401). Prerequisite auth scripts did not provide a usable credential.' >&2");
+        lines.push("    exit 1");
+        lines.push("  fi");
+      }
       lines.push("  attempt=$((attempt+1))");
       lines.push("  if [ $attempt -ge 30 ]; then echo 'endpoint execution failed after retries' >&2; exit 1; fi");
       lines.push("  sleep 2");

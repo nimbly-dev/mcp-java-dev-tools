@@ -352,15 +352,15 @@ function validateCorrelationPolicy(
       requiredUserAction: ["Set correlation.window.maxWindowMs to a positive number."],
     };
   }
-  if (correlation.crossPlan === true) {
-    const sessionId = correlation.correlationSessionId;
-    if (typeof sessionId !== "string" || sessionId.trim() === "") {
-      return {
-        ok: false,
-        reasonCode: "correlation_session_missing",
-        requiredUserAction: ["Set non-empty correlation.correlationSessionId when crossPlan=true."],
-      };
-    }
+  if (
+    typeof correlation.correlationSessionId !== "undefined" &&
+    (typeof correlation.correlationSessionId !== "string" || correlation.correlationSessionId.trim() === "")
+  ) {
+    return {
+      ok: false,
+      reasonCode: "correlation_session_missing",
+      requiredUserAction: ["Set non-empty correlation.correlationSessionId when correlation is session-scoped."],
+    };
   }
   return { ok: true };
 }
