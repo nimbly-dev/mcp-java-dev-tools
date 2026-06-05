@@ -43,8 +43,9 @@ export async function handleRunResultArtifact(
     });
   }
 
-  const runDirArgs: { workspaceRootAbs: string; planName?: string; runId?: string } = {
+  const runDirArgs: { workspaceRootAbs: string; projectName?: string; planName?: string; runId?: string } = {
     workspaceRootAbs: ctx.workspaceRootAbs,
+    projectName,
   };
   if (typeof request.input.planName === "string") runDirArgs.planName = request.input.planName;
   if (typeof request.input.runId === "string") runDirArgs.runId = request.input.runId;
