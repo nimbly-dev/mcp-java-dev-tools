@@ -43,6 +43,7 @@ type RenderFromArtifactsArgs = {
 
 type ResolveRunDirArgs = {
   workspaceRootAbs: string;
+  projectName?: string;
   planName?: string;
   runId?: string;
 };
@@ -280,7 +281,7 @@ async function dirExists(dirAbs: string): Promise<boolean> {
 }
 
 export async function resolveRegressionRunDirAbs(args: ResolveRunDirArgs): Promise<string | null> {
-  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs, args.projectName);
   const planRunsRoot =
     typeof args.planName === "string" && args.planName.trim().length > 0
       ? path.join(plansRootAbs, args.planName, "runs")

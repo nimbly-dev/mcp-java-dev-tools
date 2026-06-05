@@ -179,3 +179,45 @@ test("artifact_management regression_plan validate fails closed when step protoc
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("artifact_management run_result read uses explicit projectName in multi-project workspace", async () => {
+  const root = createTestTempDir("artifact-management-run-read-project");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    writeJson(path.join(root, ".mcpjvm", "beta", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    writeJson(
+      path.join(root, ".mcpjvm", "beta", "plans", "regression", "misc-controllers", "runs", "06-05-2026-07-27-58AM", "execution.result.json"),
+      {
+        status: "pass",
+        steps: [{ order: 1, id: "health_check", status: "pass" }],
+      },
+    );
+    writeJson(
+      path.join(root, ".mcpjvm", "beta", "plans", "regression", "misc-controllers", "runs", "06-05-2026-07-27-58AM", "evidence.json"),
+      { targetResolution: [] },
+    );
+
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "read",
+        input: {
+          projectName: "beta",
+          planName: "misc-controllers",
+          runId: "06-05-2026-07-27-58AM",
+        },
+      },
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    assert.match(String(out.structuredContent.runDirAbs).replaceAll("\\", "/"), /\.mcpjvm\/beta\/plans\/regression\/misc-controllers\/runs\/06-05-2026-07-27-58AM$/);
+    assert.notEqual(out.structuredContent.reasonCode, "project_artifact_ambiguous");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

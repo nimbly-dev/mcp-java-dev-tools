@@ -205,3 +205,84 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
     }
   }
 });
+
+test("mcp IT: artifact_management run_result read honors explicit projectName in multi-project workspace", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-run-read-project-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const targetProjectName = "entity-regression";
+  const otherProjectName = "configuration-api";
+  const mcpjvmRoot = path.join(workspaceRootAbs, ".mcpjvm");
+  const probeConfigAbs = path.join(mcpjvmRoot, "probe-config.json");
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        defaultProbe: "gateway-service",
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.gateway.**"],
+            exclude: [],
+          },
+        },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(mcpjvmRoot, otherProjectName, "projects.json"), {
+    workspaces: [{ projectRoot: path.join(workspaceRootAbs, "other-app") }],
+  });
+  await writeJson(path.join(mcpjvmRoot, targetProjectName, "projects.json"), {
+    workspaces: [{ projectRoot: path.join(workspaceRootAbs, "target-app") }],
+  });
+
+  const runRoot = path.join(
+    mcpjvmRoot,
+    targetProjectName,
+    "plans",
+    "regression",
+    "misc-controllers",
+    "runs",
+    "06-05-2026-07-27-58AM",
+  );
+  await writeJson(path.join(runRoot, "execution.result.json"), {
+    status: "pass",
+    steps: [{ order: 1, id: "get-application-version", status: "pass" }],
+  });
+  await writeJson(path.join(runRoot, "evidence.json"), { targetResolution: [] });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: {
+        MCP_PROBE_CONFIG_FILE: probeConfigAbs,
+      },
+    });
+
+    const out = await callTool(mcp, "artifact_management", {
+      artifactType: "run_result",
+      action: "read",
+      input: {
+        projectName: targetProjectName,
+        planName: "misc-controllers",
+        runId: "06-05-2026-07-27-58AM",
+      },
+    });
+
+    assert.equal(out.structuredContent?.status, "ok");
+    assert.notEqual(out.structuredContent?.reasonCode, "project_artifact_ambiguous");
+    assert.match(
+      String(out.structuredContent?.runDirAbs ?? "").replaceAll("\\", "/"),
+      /\.mcpjvm\/entity-regression\/plans\/regression\/misc-controllers\/runs\/06-05-2026-07-27-58AM$/,
+    );
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
