@@ -74,6 +74,11 @@ Both scripts:
 - sync shipped skills into the target client skill directory
 - by default prompt for a first workspace and generate MCP env config block output (Codex/Kiro specific)
 
+Kiro-specific behavior during install/update:
+- stale managed skills matching `mcp-java-dev-tools-*` are detected and can be deleted interactively
+- installed managed skills are validated after sync (`SKILL.md` + expected folder presence)
+- Kiro restart/reload guidance is printed so the visible tool/skill list refreshes from the synced skill directory
+
 Default MCP registry env input can be skipped:
 
 ```bash

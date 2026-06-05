@@ -276,6 +276,87 @@ sync_client_skills() {
   done
 }
 
+list_stale_managed_skill_dirs() {
+  local skills_root="$1"
+  local -A repo_managed=()
+  local -a repo_skill_dirs=()
+  local -a target_skill_dirs=()
+  local -a stale_dirs=()
+  local d name
+
+  shopt -s nullglob
+  repo_skill_dirs=("$REPO_ROOT"/skills/"$MANAGED_SKILL_PREFIX"*)
+  for d in "${repo_skill_dirs[@]}"; do
+    [[ -d "$d" ]] || continue
+    name="$(basename "$d")"
+    repo_managed["$name"]=1
+  done
+
+  target_skill_dirs=("$skills_root"/"$MANAGED_SKILL_PREFIX"*)
+  shopt -u nullglob
+  for d in "${target_skill_dirs[@]}"; do
+    [[ -d "$d" ]] || continue
+    name="$(basename "$d")"
+    if [[ -z "${repo_managed[$name]+x}" ]]; then
+      stale_dirs+=("$d")
+    fi
+  done
+
+  printf '%s\n' "${stale_dirs[@]}"
+}
+
+validate_synced_skills() {
+  local skills_root="$1"
+  local client_label="$2"
+  local skill_name dest_dir
+  local -a missing_dirs=()
+  local -a missing_skill_md=()
+  local -a stale_dirs=()
+
+  for skill_name in "${SKILL_NAMES[@]}"; do
+    dest_dir="$skills_root/$skill_name"
+    if [[ ! -d "$dest_dir" ]]; then
+      missing_dirs+=("$dest_dir")
+      continue
+    fi
+    if [[ ! -f "$dest_dir/SKILL.md" ]]; then
+      missing_skill_md+=("$dest_dir/SKILL.md")
+    fi
+  done
+
+  while IFS= read -r dest_dir; do
+    [[ -n "$dest_dir" ]] || continue
+    stale_dirs+=("$dest_dir")
+  done < <(list_stale_managed_skill_dirs "$skills_root")
+
+  if [[ "${#missing_dirs[@]}" -gt 0 ]]; then
+    echo "$client_label skill sync validation failed: missing installed skill directories." >&2
+    printf ' - %s\n' "${missing_dirs[@]}" >&2
+    exit 1
+  fi
+
+  if [[ "${#missing_skill_md[@]}" -gt 0 ]]; then
+    echo "$client_label skill sync validation failed: SKILL.md missing from installed skills." >&2
+    printf ' - %s\n' "${missing_skill_md[@]}" >&2
+    exit 1
+  fi
+
+  if [[ "${#stale_dirs[@]}" -gt 0 ]]; then
+    echo "$client_label skill sync validation failed: stale managed skills remain after sync." >&2
+    printf ' - %s\n' "${stale_dirs[@]}" >&2
+    exit 1
+  fi
+
+  echo "- $client_label skill sync validation passed (${#SKILL_NAMES[@]} managed skill(s))"
+}
+
+print_kiro_refresh_note() {
+  cat <<EOF
+- Kiro refresh note:
+  Restart or reload the Kiro session so its visible tools/skills list refreshes from $KIRO_SKILLS_DIR.
+EOF
+}
+
 run_skill_sync() {
   local mode_label="$1"
   validate_common_config
@@ -296,7 +377,10 @@ run_skill_sync() {
     if [[ -z "$KIRO_SKILLS_DIR" ]]; then
       KIRO_SKILLS_DIR="$(detect_kiro_skills_dir)"
     fi
+    prompt_delete_stale_managed_skills
     sync_client_skills "$KIRO_SKILLS_DIR" "Kiro"
+    validate_synced_skills "$KIRO_SKILLS_DIR" "Kiro"
+    print_kiro_refresh_note
   fi
 
   if [[ "$CONFIGURE_MCP_ENV" -eq 1 ]]; then
@@ -495,29 +579,12 @@ prompt_delete_stale_managed_skills() {
     return
   fi
 
-  local -A repo_managed=()
-  local -a repo_skill_dirs=()
-  local -a target_skill_dirs=()
   local -a stale_dirs=()
-  local d name
-
-  shopt -s nullglob
-  repo_skill_dirs=("$REPO_ROOT"/skills/"$MANAGED_SKILL_PREFIX"*)
-  for d in "${repo_skill_dirs[@]}"; do
-    [[ -d "$d" ]] || continue
-    name="$(basename "$d")"
-    repo_managed["$name"]=1
-  done
-
-  target_skill_dirs=("$skills_root"/"$MANAGED_SKILL_PREFIX"*)
-  shopt -u nullglob
-  for d in "${target_skill_dirs[@]}"; do
-    [[ -d "$d" ]] || continue
-    name="$(basename "$d")"
-    if [[ -z "${repo_managed[$name]+x}" ]]; then
-      stale_dirs+=("$d")
-    fi
-  done
+  local d
+  while IFS= read -r d; do
+    [[ -n "$d" ]] || continue
+    stale_dirs+=("$d")
+  done < <(list_stale_managed_skill_dirs "$skills_root")
 
   if [[ "${#stale_dirs[@]}" -eq 0 ]]; then
     echo "- No stale managed skills detected under $skills_root"
