@@ -393,3 +393,47 @@ test("validateProjectArtifact fails closed when runPrerequisite scriptPath is ab
     assert.match(result.errors.join("\n"), /runPrerequisites\[0\]\.script\.scriptPath must be relative\/replayable/);
   }
 });
+
+test("validateProjectArtifact fails closed when workspace envFile is absolute", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        envFile: "C:\\workspace\\spring\\.env",
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /workspaces\[0\]\.envFile must be relative\/replayable/);
+  }
+});
+
+test("validateProjectArtifact fails closed when runPrerequisite script args contain absolute path", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        runPrerequisites: [
+          {
+            order: 1,
+            id: "bootstrap",
+            type: "script",
+            onFail: "block",
+            script: {
+              command: "node",
+              scriptPath: "scripts/bootstrap.js",
+              args: ["--seed", "C:\\workspace\\spring\\fixtures\\seed.json"],
+            },
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /runPrerequisites\[0\]\.script\.args\[1\] must be relative\/replayable/);
+  }
+});
