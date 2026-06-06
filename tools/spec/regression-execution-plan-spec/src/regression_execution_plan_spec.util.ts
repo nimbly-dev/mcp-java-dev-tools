@@ -319,6 +319,42 @@ function validateStepConditions(
   return { ok: true };
 }
 
+function containsUnsupportedTransportPlaceholder(value: unknown): boolean {
+  if (typeof value === "string") {
+    return /\{\{\s*[A-Za-z0-9_.-]+\s*\}\}/.test(value);
+  }
+  if (Array.isArray(value)) {
+    return value.some((entry) => containsUnsupportedTransportPlaceholder(entry));
+  }
+  if (isRecord(value)) {
+    return Object.values(value).some((entry) => containsUnsupportedTransportPlaceholder(entry));
+  }
+  return false;
+}
+
+function validateTransportPlaceholderSyntax(
+  steps: PlanStep[],
+):
+  | { ok: true }
+  | {
+      ok: false;
+      reasonCode: "transport_placeholder_syntax_invalid";
+      requiredUserAction: string[];
+    } {
+  for (const step of steps) {
+    if (containsUnsupportedTransportPlaceholder(step.transport)) {
+      return {
+        ok: false,
+        reasonCode: "transport_placeholder_syntax_invalid",
+        requiredUserAction: [
+          `Replace unsupported {{key}} placeholder syntax in step '${step.id}' transport fields with canonical \${key} syntax.`,
+        ],
+      };
+    }
+  }
+  return { ok: true };
+}
+
 function validateCorrelationPolicy(
   correlation: PlanCorrelationPolicy | undefined,
 ):
@@ -592,6 +628,15 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
       reasonCode: stepConditionValidation.reasonCode,
       ...emptyPreflightDetails(),
       requiredUserAction: stepConditionValidation.requiredUserAction,
+    };
+  }
+  const transportPlaceholderValidation = validateTransportPlaceholderSyntax(contract.steps);
+  if (!transportPlaceholderValidation.ok) {
+    return {
+      status: "blocked_invalid",
+      reasonCode: transportPlaceholderValidation.reasonCode,
+      ...emptyPreflightDetails(),
+      requiredUserAction: transportPlaceholderValidation.requiredUserAction,
     };
   }
   const correlationValidation = validateCorrelationPolicy(contract.correlation);
