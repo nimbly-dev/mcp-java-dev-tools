@@ -495,3 +495,130 @@ test("preflight blocks when step condition uses forward step reference", () => {
   assert.equal(result.reasonCode, "step_condition_forward_reference");
 });
 
+test("preflight blocks unsupported {{key}} transport placeholder syntax before execution", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            url: "{{targetBaseUrl}}/api/v1/posts",
+            headers: {
+              Authorization: "Bearer {{auth.bearer}}",
+            },
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "transport_placeholder_syntax_invalid");
+  assert.match(result.requiredUserAction[0], /canonical \$\{key\} syntax/);
+});
+
+test("preflight blocks unsupported spaced {{ key }} transport placeholder syntax before execution", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            url: "{{ targetBaseUrl }}/api/v1/posts",
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "transport_placeholder_syntax_invalid");
+});
+
+test("preflight blocks unsupported nested {{key}} placeholder syntax inside transport body", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            url: "${tenantId}/api/v1/posts",
+            body: {
+              items: ["{{targetBaseUrl}}", { title: "ok" }],
+            },
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "transport_placeholder_syntax_invalid");
+});
+
+test("preflight still accepts canonical ${key} placeholder syntax in nested transport fields", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            url: "${tenantId}/api/v1/posts",
+            headers: {
+              Authorization: "Bearer ${auth.bearer}",
+            },
+            body: {
+              meta: {
+                target: "${tenantId}",
+              },
+            },
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
+});
+

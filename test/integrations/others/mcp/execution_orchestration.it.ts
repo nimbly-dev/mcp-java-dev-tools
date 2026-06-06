@@ -225,3 +225,112 @@ test("mcp IT: execution_orchestration execute does not fail with project_artifac
     }
   }
 });
+
+test("mcp IT: execution_orchestration fails closed on unsupported transport placeholder syntax before creating a run", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-placeholder-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-performance";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "mcp-tool-performance-replay-spec-temp-repro";
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
+  const runRootAbs = path.join(planRootAbs, "runs");
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        defaultProbe: "gateway-service",
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        executionProfiles: [
+          {
+            executionProfile: "test-performance-contract-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [
+      {
+        key: "targetBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: "http://127.0.0.1:8080",
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "sample_hello_001",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "GET",
+            url: "{{ targetBaseUrl }}/api/metrics/hello",
+            body: {
+              nested: ["{{targetBaseUrl}}"],
+            },
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "test-performance-contract-run",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "blocked");
+    const planRuns = Array.isArray(out.structuredContent?.planRuns)
+      ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 1);
+    assert.equal(planRuns[0]?.status, "blocked");
+    assert.equal(planRuns[0]?.blockedReasonCode, "transport_placeholder_syntax_invalid");
+    assert.equal(fssync.existsSync(runRootAbs), false);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
