@@ -320,7 +320,93 @@ test("validateProjectArtifact fails closed when execution profile scriptRef is u
   });
   assert.equal(result.ok, false);
   if (!result.ok) {
+    assert.equal(result.reasonCode, "project_reference_invalid");
     assert.match(result.errors.join("\n"), /scriptRefs\[0\]\.name must match/);
+  }
+});
+
+test("validateProjectArtifact fails closed when execution profile scriptRef is provided without any shared scripts", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        executionProfiles: [
+          {
+            executionProfile: "regression-test-run",
+            executionPolicy: "stop_on_fail",
+            scriptRefs: [{ name: "missing-script", phase: "prePlan" }],
+            plans: [{ order: 1, planName: "course-service-regression-spec" }],
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "project_reference_invalid");
+    assert.match(result.errors.join("\n"), /scriptRefs\[0\]\.name must match/);
+  }
+});
+
+test("validateProjectArtifact fails closed when execution profile runtimeContextName is unknown", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        executionProfiles: [
+          {
+            executionProfile: "regression-test-run",
+            runtimeContextName: "missing-context",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName: "course-service-regression-spec" }],
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "runtime_context_unknown");
+    assert.match(result.errors.join("\n"), /runtimeContextName must match/);
+  }
+});
+
+test("readProjectArtifact fails closed when execution profile planName does not exist on disk", async () => {
+  const root = createTestTempDir("project-artifact-missing-plan-ref");
+  try {
+    const out = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(
+      out,
+      `${JSON.stringify(
+        {
+          workspaces: [
+            {
+              projectRoot: root,
+              executionProfiles: [
+                {
+                  executionProfile: "smoke",
+                  executionPolicy: "stop_on_fail",
+                  plans: [{ order: 1, planName: "missing-plan" }],
+                },
+              ],
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const read = await readProjectArtifact(out);
+    assert.equal(read.ok, false);
+    if (!read.ok) {
+      assert.equal(read.reasonCode, "project_reference_invalid");
+      assert.match(read.errors.join("\n"), /planName must match an existing regression plan artifact/);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 

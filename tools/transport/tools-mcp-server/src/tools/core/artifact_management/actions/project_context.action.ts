@@ -1,6 +1,11 @@
 import path from "node:path";
 import type { ExecutionProfileEntry, ProjectArtifact } from "@tools-project-artifact-spec/models/project_artifact.model";
-import { readProjectArtifact, validateProjectArtifact, writeProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import {
+  readProjectArtifact,
+  validateProjectArtifact,
+  validateProjectArtifactReferenceIntegrity,
+  writeProjectArtifact,
+} from "@tools-project-artifact-spec/project_artifact.util";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "@/tools/core/artifact_management/actions/types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "@/tools/core/artifact_management/shared/fail_closed.util";
 import { listProjectNames, resolveProjectName } from "@/tools/core/artifact_management/shared/project_resolution.util";
@@ -137,6 +142,17 @@ export async function handleProjectContextArtifact(
       reasonCode: checked.reasonCode,
       reason: checked.errors[0] ?? "project artifact invalid",
       reasonMeta: { errors: checked.errors, projectName },
+    });
+  }
+  const refsChecked = await validateProjectArtifactReferenceIntegrity({
+    projectsFileAbs,
+    artifact: checked.artifact,
+  });
+  if (!refsChecked.ok) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: refsChecked.reasonCode,
+      reason: refsChecked.errors[0] ?? "project artifact invalid",
+      reasonMeta: { errors: refsChecked.errors, projectName },
     });
   }
   await writeProjectArtifact(projectsFileAbs, checked.artifact);

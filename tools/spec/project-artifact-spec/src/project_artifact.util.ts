@@ -49,6 +49,24 @@ function validateReplayableScriptPath(input: {
   }
 }
 
+async function dirExists(abs: string): Promise<boolean> {
+  try {
+    const st = await fs.stat(abs);
+    return st.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function fileExists(abs: string): Promise<boolean> {
+  try {
+    const st = await fs.stat(abs);
+    return st.isFile();
+  } catch {
+    return false;
+  }
+}
+
 function isPositivePort(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 65535;
 }
@@ -577,36 +595,32 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
       }
     }
   }
-  if (runtimeContexts.length > 0 && executionProfiles.length > 0) {
-    const runtimeContextNames = new Set(runtimeContexts.map((entry) => entry.name));
-    executionProfiles.forEach((profile, i) => {
-      if (profile.runtimeContextName && !runtimeContextNames.has(profile.runtimeContextName)) {
+  const runtimeContextNames = new Set(runtimeContexts.map((entry) => entry.name));
+  executionProfiles.forEach((profile, i) => {
+    if (profile.runtimeContextName && !runtimeContextNames.has(profile.runtimeContextName)) {
+      errors.push(
+        `workspaces[].executionProfiles[${i}].runtimeContextName must match a workspaces[].runtimeContexts[].name`,
+      );
+    }
+    if (!Array.isArray(profile.plans)) return;
+    profile.plans.forEach((plan, j) => {
+      if (plan.runtimeContextName && !runtimeContextNames.has(plan.runtimeContextName)) {
         errors.push(
-          `workspaces[].executionProfiles[${i}].runtimeContextName must match a workspaces[].runtimeContexts[].name`,
+          `workspaces[].executionProfiles[${i}].plans[${j}].runtimeContextName must match a workspaces[].runtimeContexts[].name`,
         );
       }
-      if (!Array.isArray(profile.plans)) return;
-      profile.plans.forEach((plan, j) => {
-        if (plan.runtimeContextName && !runtimeContextNames.has(plan.runtimeContextName)) {
-          errors.push(
-            `workspaces[].executionProfiles[${i}].plans[${j}].runtimeContextName must match a workspaces[].runtimeContexts[].name`,
-          );
-        }
-      });
     });
-  }
-  if (scripts.length > 0 && executionProfiles.length > 0) {
-    const scriptNames = new Set(scripts.map((entry) => entry.name));
-    executionProfiles.forEach((profile, i) => {
-      profile.scriptRefs?.forEach((scriptRef, j) => {
-        if (!scriptNames.has(scriptRef.name)) {
-          errors.push(
-            `workspaces[].executionProfiles[${i}].scriptRefs[${j}].name must match a workspaces[].scripts[].name`,
-          );
-        }
-      });
+  });
+  const scriptNames = new Set(scripts.map((entry) => entry.name));
+  executionProfiles.forEach((profile, i) => {
+    profile.scriptRefs?.forEach((scriptRef, j) => {
+      if (!scriptNames.has(scriptRef.name)) {
+        errors.push(
+          `workspaces[].executionProfiles[${i}].scriptRefs[${j}].name must match a workspaces[].scripts[].name`,
+        );
+      }
     });
-  }
+  });
   const externalSystems = Array.isArray(input.externalSystems)
     ? input.externalSystems
         .map((entry, i) => normalizeExternalSystem(entry, i, errors))
@@ -673,12 +687,59 @@ export function validateProjectArtifact(input: unknown): ProjectArtifactValidati
         ? "env_key_missing"
         : errors.some((e) => e.includes("runtimeContexts"))
           ? "runtime_context_unknown"
+          : errors.some(
+                (e) =>
+                  e.includes("executionProfiles") &&
+                  (e.includes("runtimeContextName must match") ||
+                    e.includes("scriptRefs") ||
+                    e.includes("plans[].planName") ||
+                    e.includes(".plans[")),
+              )
+            ? "project_reference_invalid"
           : errors.some((e) => e.includes("externalSystems"))
             ? "external_system_invalid"
             : "project_artifact_invalid";
     return { ok: false, reasonCode, errors };
   }
   return { ok: true, artifact: { workspaces } };
+}
+
+export async function validateProjectArtifactReferenceIntegrity(args: {
+  projectsFileAbs: string;
+  artifact: ProjectArtifact;
+}): Promise<ProjectArtifactValidationResult> {
+  const errors: string[] = [];
+  const checks: Array<{ wi: number; pi: number; pli: number; planRootAbs: string }> = [];
+  const artifactRootAbs = path.dirname(args.projectsFileAbs);
+  const plansRootAbs = path.join(artifactRootAbs, "plans", "regression");
+  args.artifact.workspaces.forEach((workspace, wi) => {
+    const executionProfiles = Array.isArray(workspace.executionProfiles) ? workspace.executionProfiles : [];
+    executionProfiles.forEach((profile, pi) => {
+      const plans = Array.isArray(profile.plans) ? profile.plans : [];
+      plans.forEach((plan, pli) => {
+        const planRootAbs = path.join(plansRootAbs, plan.planName);
+        checks.push({ wi, pi, pli, planRootAbs });
+      });
+    });
+  });
+  for (const check of checks) {
+    const hasPlanDir = await dirExists(check.planRootAbs);
+    const hasMetadata = await fileExists(path.join(check.planRootAbs, "metadata.json"));
+    const hasContract = await fileExists(path.join(check.planRootAbs, "contract.json"));
+    if (!hasPlanDir || !hasMetadata || !hasContract) {
+      errors.push(
+        `workspaces[${check.wi}].executionProfiles[${check.pi}].plans[${check.pli}].planName must match an existing regression plan artifact`,
+      );
+    }
+  }
+  if (errors.length > 0) {
+    return {
+      ok: false,
+      reasonCode: "project_reference_invalid",
+      errors,
+    };
+  }
+  return { ok: true, artifact: args.artifact };
 }
 
 export async function readProjectArtifact(projectsFileAbs: string): Promise<ProjectArtifactValidationResult> {
@@ -693,7 +754,12 @@ export async function readProjectArtifact(projectsFileAbs: string): Promise<Proj
       errors: ["projects.json is not valid JSON"],
     };
   }
-  return validateProjectArtifact(parsed);
+  const validated = validateProjectArtifact(parsed);
+  if (!validated.ok) return validated;
+  return validateProjectArtifactReferenceIntegrity({
+    projectsFileAbs,
+    artifact: validated.artifact,
+  });
 }
 
 export async function writeProjectArtifact(projectsFileAbs: string, artifact: ProjectArtifact): Promise<void> {

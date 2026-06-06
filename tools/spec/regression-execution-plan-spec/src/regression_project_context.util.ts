@@ -17,6 +17,7 @@ import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifa
 type ProjectContextBlockedReason =
   | "project_artifact_missing"
   | "project_artifact_invalid"
+  | "project_reference_invalid"
   | "workspace_root_invalid"
   | "env_key_missing"
   | "runtime_context_unknown"
