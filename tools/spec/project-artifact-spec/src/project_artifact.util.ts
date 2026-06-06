@@ -389,6 +389,15 @@ function normalizeRunPrerequisite(input: unknown, index: number, errors: string[
         .map((arg) => String(arg).trim())
         .filter((arg) => arg.length > 0)
     : undefined;
+  if (args && args.length > 0) {
+    args.forEach((arg, i) =>
+      validateReplayableScriptPath({
+        value: arg,
+        fieldPath: `workspaces[].runPrerequisites[${index}].script.args[${i}]`,
+        errors,
+      }),
+    );
+  }
   const cwd = asTrimmedString(input.script.cwd) ?? undefined;
   validateReplayableScriptPath({
     value: cwd,
@@ -506,6 +515,11 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
     return null;
   }
   const envFile = asTrimmedString(input.envFile) ?? undefined;
+  validateReplayableScriptPath({
+    value: envFile,
+    fieldPath: `workspaces[${index}].envFile`,
+    errors,
+  });
   if ("auth" in input) {
     errors.push(`workspaces[${index}].auth is unsupported; use variables`);
   }
