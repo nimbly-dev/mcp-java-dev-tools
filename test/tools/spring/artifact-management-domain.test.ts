@@ -16,6 +16,26 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+function writeRegressionPlan(root: string, projectName: string, planName: string): void {
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [],
+    steps: [
+      {
+        order: 1,
+        id: "health",
+        targetRef: 0,
+        protocol: "http",
+        transport: { http: { method: "GET", url: "http://localhost/health" } },
+        expect: [{ id: "status-200", actualPath: "$.statusCode", operator: "field_equals", expected: 200 }],
+      },
+    ],
+  });
+}
+
 test("artifact_management blocks disallowed action by artifactType", async () => {
   const out = await artifactManagementDomain({
     workspaceRootAbs: process.cwd(),
@@ -60,6 +80,7 @@ test("artifact_management project_context read supports structured query project
         },
       ],
     });
+    writeRegressionPlan(root, "alpha", "p1");
     const out = await artifactManagementDomain({
       workspaceRootAbs: root,
       request: {
@@ -93,6 +114,7 @@ test("artifact_management project_context read returns summary by default", asyn
         },
       ],
     });
+    writeRegressionPlan(root, "alpha", "p1");
     const out = await artifactManagementDomain({
       workspaceRootAbs: root,
       request: {
@@ -106,6 +128,32 @@ test("artifact_management project_context read returns summary by default", asyn
     assert.equal(out.structuredContent.summary.workspaceCount, 1);
     assert.deepEqual(out.structuredContent.summary.executionProfileNames, ["smoke"]);
     assert.deepEqual(out.structuredContent.summary.runtimeContextNames, ["terminal-cli"]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management project_context validate fails closed when execution profile references missing plan artifact", async () => {
+  const root = createTestTempDir("artifact-management-project-missing-plan");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [{ executionProfile: "smoke", executionPolicy: "stop_on_fail", plans: [{ order: 1, planName: "missing-plan" }] }],
+        },
+      ],
+    });
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "validate",
+        input: { projectName: "alpha" },
+      },
+    });
+    assert.equal(out.structuredContent.status, "project_reference_invalid");
+    assert.equal(out.structuredContent.reasonCode, "project_reference_invalid");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

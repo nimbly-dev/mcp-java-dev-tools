@@ -39,6 +39,7 @@ export type PreflightReasonCode =
   | "correlation_key_invalid"
   | "project_artifact_missing"
   | "project_artifact_invalid"
+  | "project_reference_invalid"
   | "workspace_root_invalid"
   | "env_key_missing"
   | "runtime_context_unknown"
@@ -181,6 +182,7 @@ export type BuildPreflightArgs = {
     reasonCode?:
       | "project_artifact_missing"
       | "project_artifact_invalid"
+      | "project_reference_invalid"
       | "workspace_root_invalid"
       | "env_key_missing"
       | "runtime_context_unknown"

@@ -156,6 +156,7 @@ export type ProjectArtifactValidationResult =
       ok: false;
       reasonCode:
         | "project_artifact_invalid"
+        | "project_reference_invalid"
         | "workspace_root_invalid"
         | "env_key_missing"
         | "runtime_context_unknown"
