@@ -349,8 +349,8 @@ async function readSuiteManifest(args: {
   if (!parsed.ok) {
     return {
       ok: false,
-      reasonCode: "runtime_suite_missing",
-      requiredUserAction: [`Unable to read projects.json: ${projectsFileAbs}`],
+      reasonCode: parsed.reasonCode,
+      requiredUserAction: parsed.errors,
     };
   }
   const workspace = parsed.artifact.workspaces.find((entry) => entry.projectRoot === args.workspaceRootAbs);
@@ -371,6 +371,19 @@ async function readSuiteManifest(args: {
     };
   }
   return validateSuiteManifest(match);
+}
+
+function isSuiteLevelPreflightBlocker(reasonCode: string | undefined): boolean {
+  return (
+    reasonCode === "env_key_missing" ||
+    reasonCode === "external_healthcheck_failed" ||
+    reasonCode === "runtime_context_unknown" ||
+    reasonCode === "project_artifact_missing" ||
+    reasonCode === "project_artifact_invalid" ||
+    reasonCode === "project_reference_invalid" ||
+    reasonCode === "workspace_root_invalid" ||
+    reasonCode === "external_system_invalid"
+  );
 }
 
 export type ExecuteRegressionRuntimeSuiteArgs = {
@@ -403,6 +416,7 @@ export async function executeRegressionRuntimeSuite(
   const correlationSessions = new Map<string, RuntimeSuiteCorrelationSession>();
   let hasFail = false;
   let hasBlocked = false;
+  let suiteLevelBlocked = false;
   const orderedPlans = [...manifest.plans].sort((a, b) => a.order - b.order);
   let stop = false;
   for (const plan of orderedPlans) {
@@ -431,6 +445,9 @@ export async function executeRegressionRuntimeSuite(
     });
     if (run.status === "blocked") {
       hasBlocked = true;
+      if (isSuiteLevelPreflightBlocker(run.preflight.reasonCode)) {
+        suiteLevelBlocked = true;
+      }
       planRuns.push({
         order: plan.order,
         planName: plan.planName,
@@ -443,7 +460,7 @@ export async function executeRegressionRuntimeSuite(
           : manifest.executionPolicy === "stop_on_fail"
             ? "stop"
             : "continue";
-      if (effectiveOnFail === "stop") stop = true;
+      if (suiteLevelBlocked || effectiveOnFail === "stop") stop = true;
       continue;
     }
     planRuns.push({
@@ -472,7 +489,9 @@ export async function executeRegressionRuntimeSuite(
   }
 
   let status: RuntimeSuiteRunResult["status"] = "pass";
-  if (manifest.executionPolicy === "continue_on_fail") {
+  if (suiteLevelBlocked) {
+    status = "blocked";
+  } else if (manifest.executionPolicy === "continue_on_fail") {
     if (hasBlocked || hasFail) {
       status = "partial_fail";
     }

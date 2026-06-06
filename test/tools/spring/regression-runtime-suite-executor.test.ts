@@ -237,6 +237,49 @@ test("executeRegressionRuntimeSuite continue_on_fail returns partial_fail and co
   }
 });
 
+test("executeRegressionRuntimeSuite continue_on_fail blocks whole suite on shared env/auth non-viability", async () => {
+  const root = createTestTempDir("runtime-suite-continue-suite-level-block");
+  try {
+    const projectName = "petclinic-regression";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "core-continue-auth-missing",
+              executionPolicy: "continue_on_fail",
+              plans: [
+                { order: 1, planName: "plan-auth-a" },
+                { order: 2, planName: "plan-auth-b" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    writeAuthPlan(root, projectName, "plan-auth-a", "/auth-a");
+    writeAuthPlan(root, projectName, "plan-auth-b", "/auth-b");
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-continue-auth-missing",
+      mcpInvoke: async () => {
+        throw new Error("mcpInvoke should not be called when suite-level preflight blocks");
+      },
+    });
+
+    assert.equal(out.status, "blocked");
+    assert.equal(out.planRuns[0].status, "blocked");
+    assert.equal(out.planRuns[0].blockedReasonCode, "env_key_missing");
+    assert.equal(out.planRuns[1].status, "skipped");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite applies runtimeConfig retryMax override", async () => {
   const root = createTestTempDir("runtime-suite-runtime-config");
   let attempts = 0;
@@ -405,7 +448,7 @@ test("executeRegressionRuntimeSuite applies profile runtimeContextName when plan
     assert.equal(out.status, "blocked");
     assert.equal("reasonCode" in out, true);
     if ("reasonCode" in out) {
-      assert.equal(out.reasonCode, "runtime_suite_missing");
+      assert.equal(out.reasonCode, "runtime_context_unknown");
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -448,7 +491,7 @@ test("executeRegressionRuntimeSuite blocks replay/export script paths in executi
 
     assert.equal(out.status, "blocked");
     if ("reasonCode" in out) {
-      assert.equal(out.reasonCode, "invalid_execution_path_replay_script");
+      assert.equal(out.reasonCode, "project_reference_invalid");
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
