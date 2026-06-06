@@ -28,6 +28,29 @@ async function writeJson(filePath: string, payload: Record<string, unknown>): Pr
   await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+async function writeRegressionPlan(args: {
+  workspaceRootAbs: string;
+  projectName: string;
+  planName: string;
+}): Promise<void> {
+  const planRootAbs = path.join(
+    args.workspaceRootAbs,
+    ".mcpjvm",
+    args.projectName,
+    "plans",
+    "regression",
+    args.planName,
+  );
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [],
+    steps: [],
+  });
+}
+
 test("mcp IT: artifact_management enforces typed envelope and returns project_context summary by default", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
@@ -55,6 +78,11 @@ test("mcp IT: artifact_management enforces typed envelope and returns project_co
         ],
       },
     ],
+  });
+  await writeRegressionPlan({
+    workspaceRootAbs,
+    projectName,
+    planName: "gateway-route-smoke-spec",
   });
 
   let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
@@ -86,6 +114,92 @@ test("mcp IT: artifact_management enforces typed envelope and returns project_co
     assert.equal(typeof legacyFlat.structuredContent, "undefined");
     const maybeText = legacyFlat.content?.[0]?.text;
     assert.match(String(maybeText ?? ""), /-32602|invalid params|MCP error/i);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("mcp IT: artifact_management project_context validate fails closed on absolute envFile", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-invalid-envfile-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project";
+  const projectsFileAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
+
+  await writeJson(projectsFileAbs, {
+    workspaces: [
+      {
+        projectRoot: workspaceRootAbs,
+        envFile: "C:\\workspace\\spring\\.env",
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9191",
+    });
+
+    const out = await callTool(mcp, "artifact_management", {
+      artifactType: "project_context",
+      action: "validate",
+      input: {
+        projectName,
+      },
+    });
+    assert.equal(out.structuredContent?.status, "project_artifact_invalid");
+    assert.equal(out.structuredContent?.reasonCode, "project_artifact_invalid");
+    assert.match(String(out.structuredContent?.reason ?? ""), /envFile must be relative\/replayable/i);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("mcp IT: artifact_management project_context validate fails closed on missing execution profile plan artifact", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-missing-plan-ref-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project";
+  const projectsFileAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
+
+  await writeJson(projectsFileAbs, {
+    workspaces: [
+      {
+        projectRoot: workspaceRootAbs,
+        executionProfiles: [
+          {
+            executionProfile: "regression-test-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName: "missing-regression-plan" }],
+          },
+        ],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9191",
+    });
+
+    const out = await callTool(mcp, "artifact_management", {
+      artifactType: "project_context",
+      action: "validate",
+      input: {
+        projectName,
+      },
+    });
+    assert.equal(out.structuredContent?.status, "project_reference_invalid");
+    assert.equal(out.structuredContent?.reasonCode, "project_reference_invalid");
+    assert.match(String(out.structuredContent?.reason ?? ""), /planName must match an existing regression plan artifact/i);
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
