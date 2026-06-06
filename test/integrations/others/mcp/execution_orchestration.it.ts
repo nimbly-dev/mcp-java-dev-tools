@@ -334,3 +334,138 @@ test("mcp IT: execution_orchestration fails closed on unsupported transport plac
     }
   }
 });
+
+test("mcp IT: execution_orchestration continue_on_fail stops after suite-level env blocker and creates no runs", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-suite-block-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-performance";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const firstPlanName = "producer-endpoint";
+  const secondPlanName = "consumer-listener";
+  const firstRunRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    firstPlanName,
+    "runs",
+  );
+  const secondRunRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    secondPlanName,
+    "runs",
+  );
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        defaultProbe: "gateway-service",
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        variables: {
+          bearerTokenEnv: "AUTH_BEARER_TOKEN",
+        },
+        executionProfiles: [
+          {
+            executionProfile: "producer-consumer-regression",
+            executionPolicy: "continue_on_fail",
+            plans: [
+              { order: 1, planName: firstPlanName, onFail: "inherit" },
+              { order: 2, planName: secondPlanName, onFail: "inherit" },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  for (const planName of [firstPlanName, secondPlanName]) {
+    const planRootAbs = path.join(
+      workspaceRootAbs,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "regression",
+      planName,
+    );
+    await writeJson(path.join(planRootAbs, "metadata.json"), {
+      execution: { intent: "regression" },
+    });
+    await writeJson(path.join(planRootAbs, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [
+        {
+          key: "auth.bearer",
+          required: true,
+          secret: true,
+          provisioning: "user_input",
+        },
+      ],
+      steps: [
+        {
+          order: 1,
+          id: "auth_step",
+          targetRef: 0,
+          protocol: "http",
+          transport: {
+            http: {
+              method: "GET",
+              url: "http://127.0.0.1:8080/secure",
+              headers: { Authorization: "Bearer ${auth.bearer}" },
+            },
+          },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+  }
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "producer-consumer-regression",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "blocked");
+    const planRuns = Array.isArray(out.structuredContent?.planRuns)
+      ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 2);
+    assert.equal(planRuns[0]?.status, "blocked");
+    assert.equal(planRuns[0]?.blockedReasonCode, "env_key_missing");
+    assert.equal(planRuns[1]?.status, "skipped");
+    assert.equal(fssync.existsSync(firstRunRootAbs), false);
+    assert.equal(fssync.existsSync(secondRunRootAbs), false);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
