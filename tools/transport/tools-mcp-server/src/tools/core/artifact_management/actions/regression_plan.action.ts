@@ -5,9 +5,36 @@ import { buildFailClosedArtifactResponse, okArtifactResponse } from "@/tools/cor
 import { readJsonFile, writeJsonFile } from "@/tools/core/artifact_management/shared/json_io.util";
 import { resolveProjectName } from "@/tools/core/artifact_management/shared/project_resolution.util";
 
+const DEFAULT_PREREQUISITES_LIMIT = 50;
+const DEFAULT_STEPS_LIMIT = 25;
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+}
+
+function normalizeWindow(value: unknown, defaults: { offset: number; limit: number }): { offset: number; limit: number } {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return defaults;
+  }
+  const raw = value as Record<string, unknown>;
+  const offset = typeof raw.offset === "number" && Number.isInteger(raw.offset) && raw.offset >= 0 ? raw.offset : defaults.offset;
+  const limit = typeof raw.limit === "number" && Number.isInteger(raw.limit) && raw.limit > 0 ? raw.limit : defaults.limit;
+  return { offset, limit };
+}
+
+function toWindowedSection<T>(items: T[], window: { offset: number; limit: number }) {
+  const start = Math.min(window.offset, items.length);
+  const end = Math.min(start + window.limit, items.length);
+  const page = items.slice(start, end);
+  return {
+    offset: start,
+    limit: window.limit,
+    returned: page.length,
+    total: items.length,
+    hasMore: end < items.length,
+    items: page,
+  };
 }
 
 function collectUnsupportedStepProtocols(contract: Record<string, unknown>): Array<{
@@ -64,6 +91,14 @@ export async function handleRegressionPlanArtifact(
   if (request.action === "read") {
     const selectors = asStringArray(request.input.query?.select);
     const includeAll = selectors.length === 0;
+    const needsMetadata = includeAll || selectors.includes("metadata") || selectors.includes("summary");
+    const needsContract =
+      selectors.includes("contract") ||
+      selectors.includes("summary") ||
+      selectors.includes("targets") ||
+      selectors.includes("prerequisites") ||
+      selectors.includes("steps");
+
     if (includeAll) {
       const metadata = (await readJsonFile(path.join(planRoot, "metadata.json"))) as Record<string, unknown>;
       const contract = (await readJsonFile(path.join(planRoot, "contract.json"))) as Record<string, unknown>;
@@ -85,25 +120,64 @@ export async function handleRegressionPlanArtifact(
         },
       });
     }
+    const metadata = needsMetadata ? ((await readJsonFile(path.join(planRoot, "metadata.json"))) as Record<string, unknown>) : undefined;
+    const contract = needsContract ? ((await readJsonFile(path.join(planRoot, "contract.json"))) as Record<string, unknown>) : undefined;
     const artifact: Record<string, unknown> = {};
-    if (selectors.includes("metadata")) {
-      artifact.metadata = await readJsonFile(path.join(planRoot, "metadata.json"));
-    }
-    if (selectors.includes("contract")) {
-      artifact.contract = await readJsonFile(path.join(planRoot, "contract.json"));
-    }
-    if (selectors.includes("plan")) {
-      artifact.plan = await fs.readFile(path.join(planRoot, "plan.md"), "utf8").catch(() => "");
-    }
-    return okArtifactResponse({
+    const response: Record<string, unknown> = {
       resultType: "artifact",
       status: "ok",
       artifactType: request.artifactType,
       action: request.action,
       projectName,
       planName,
-      artifact,
-    });
+    };
+
+    if (selectors.includes("summary")) {
+      const steps = contract && Array.isArray(contract.steps) ? contract.steps : [];
+      const targets = contract && Array.isArray(contract.targets) ? contract.targets : [];
+      const prerequisites = contract && Array.isArray(contract.prerequisites) ? contract.prerequisites : [];
+      response.summary = {
+        intent:
+          metadata && metadata.execution && typeof metadata.execution === "object"
+            ? (metadata.execution as Record<string, unknown>).intent ?? null
+            : null,
+        stepCount: steps.length,
+        targetCount: targets.length,
+        prerequisiteCount: prerequisites.length,
+      };
+    }
+    if (selectors.includes("targets")) {
+      response.targets = contract && Array.isArray(contract.targets) ? contract.targets : [];
+    }
+    if (selectors.includes("prerequisites")) {
+      const prerequisites = contract && Array.isArray(contract.prerequisites) ? contract.prerequisites : [];
+      const window = normalizeWindow(request.input.query?.prerequisites, {
+        offset: 0,
+        limit: DEFAULT_PREREQUISITES_LIMIT,
+      });
+      response.prerequisites = toWindowedSection(prerequisites, window);
+    }
+    if (selectors.includes("steps")) {
+      const steps = contract && Array.isArray(contract.steps) ? contract.steps : [];
+      const window = normalizeWindow(request.input.query?.steps, {
+        offset: 0,
+        limit: DEFAULT_STEPS_LIMIT,
+      });
+      response.steps = toWindowedSection(steps, window);
+    }
+    if (selectors.includes("metadata")) {
+      artifact.metadata = metadata ?? (await readJsonFile(path.join(planRoot, "metadata.json")));
+    }
+    if (selectors.includes("contract")) {
+      artifact.contract = contract ?? (await readJsonFile(path.join(planRoot, "contract.json")));
+    }
+    if (selectors.includes("plan")) {
+      artifact.plan = await fs.readFile(path.join(planRoot, "plan.md"), "utf8").catch(() => "");
+    }
+    if (Object.keys(artifact).length > 0) {
+      response.artifact = artifact;
+    }
+    return okArtifactResponse(response);
   }
 
   if (request.action === "validate") {

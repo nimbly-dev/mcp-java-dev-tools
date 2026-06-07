@@ -349,11 +349,29 @@ Postman variable normalization policy:
 | `artifactType` | Artifact class selected by caller (`probe_config`, `project_context`, `regression_plan`, `run_result`, `execution_export`). | `artifact_management` | true | `"project_context"` |
 | `action` | Requested lifecycle action (`read`, `validate`, `upsert`, `list`, `generate`). | `artifact_management` | true | `"validate"` |
 | `input` | Typed per-artifact payload object. The top-level request is generic; artifact-specific fields are nested under `input`. | `artifact_management` | true | `{"projectName":"catalog-service","query":{"select":["summary"]}}` |
-| `input.query.select` | Optional projection selectors for structured reads to reduce payload size. Supported examples: `project_context` (`summary`, `executionProfiles`, `runtimeContexts`, `scripts`, `runPrerequisites`, `workspaces`), `regression_plan` (`metadata`, `contract`, `plan`), `run_result` (`executionResult`, `evidence`). | `artifact_management` | false | `["summary","executionProfiles"]` |
+| `input.query.select` | Optional projection selectors for structured reads to reduce payload size. Supported examples: `project_context` (`summary`, `executionProfiles`, `runtimeContexts`, `scripts`, `runPrerequisites`, `workspaces`), `regression_plan` (`summary`, `targets`, `prerequisites`, `steps`, `metadata`, `contract`, `plan`), `run_result` (`executionResult`, `evidence`). | `artifact_management` | false | `["summary","executionProfiles"]` |
+| `input.query.prerequisites.offset` | Optional zero-based window start for `regression_plan` `prerequisites` section reads. | `artifact_management` | false | `0` |
+| `input.query.prerequisites.limit` | Optional window size for `regression_plan` `prerequisites` section reads. | `artifact_management` | false | `50` |
+| `input.query.steps.offset` | Optional zero-based window start for `regression_plan` `steps` section reads. | `artifact_management` | false | `0` |
+| `input.query.steps.limit` | Optional window size for `regression_plan` `steps` section reads. | `artifact_management` | false | `25` |
 | `reasonCode` | Deterministic blocked reason code (for example `artifact_action_not_allowed`, `project_artifact_missing`). | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `nextActionCode` | Verb-style deterministic follow-up action key for blocked outputs. | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `reasonMeta` | Optional typed diagnostics including allowed action presets for the selected `artifactType`. | `artifact_management` | false | `{"allowedActions":["read","validate","upsert"]}` |
 | `artifact` | Artifact payload returned by read actions (shape varies by `artifactType`). | `artifact_management` | false | `{"workspaces":[{"projectRoot":"C:\\repo"}]}` |
+| `summary.stepCount` | For default `regression_plan` reads or explicit `summary` selection, the number of plan steps in `contract.json`. | `artifact_management` | false | `115` |
+| `summary.prerequisiteCount` | For default `regression_plan` reads or explicit `summary` selection, the number of prerequisites in `contract.json`. | `artifact_management` | false | `265` |
+| `prerequisites.offset` | Returned zero-based start offset for a windowed `regression_plan` prerequisites section. | `artifact_management` | false | `0` |
+| `prerequisites.limit` | Requested window size for a windowed `regression_plan` prerequisites section. | `artifact_management` | false | `50` |
+| `prerequisites.returned` | Number of prerequisite entries actually returned in the current window. | `artifact_management` | false | `50` |
+| `prerequisites.total` | Total prerequisite count for the plan Artifact. | `artifact_management` | false | `265` |
+| `prerequisites.hasMore` | Whether more prerequisite entries remain after the current window. | `artifact_management` | false | `true` |
+| `prerequisites.items` | Current window slice of regression plan prerequisites. | `artifact_management` | false | `[{"key":"ctx-1"}]` |
+| `steps.offset` | Returned zero-based start offset for a windowed `regression_plan` steps section. | `artifact_management` | false | `0` |
+| `steps.limit` | Requested window size for a windowed `regression_plan` steps section. | `artifact_management` | false | `25` |
+| `steps.returned` | Number of step entries actually returned in the current window. | `artifact_management` | false | `25` |
+| `steps.total` | Total step count for the plan Artifact. | `artifact_management` | false | `115` |
+| `steps.hasMore` | Whether more step entries remain after the current window. | `artifact_management` | false | `true` |
+| `steps.items` | Current window slice of regression plan steps. | `artifact_management` | false | `[{"id":"step-1"}]` |
 
 `artifact_management` action presets:
 - `probe_config`: `read`, `validate`, `upsert`
