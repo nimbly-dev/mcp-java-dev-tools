@@ -16,6 +16,18 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+function writePlanArtifact(root: string, projectName: string, planName: string): void {
+  const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+  writeJson(path.join(planRoot, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  writeJson(path.join(planRoot, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [],
+    steps: [],
+  });
+}
+
 test("exportExecutionProfileSh synthesizes export context from projects.json", async () => {
   const root = createTestTempDir("execution-profile-sh-no-manifest");
   try {
@@ -38,6 +50,8 @@ test("exportExecutionProfileSh synthesizes export context from projects.json", a
         },
       ],
     });
+    writePlanArtifact(root, projectName, "course-service-regression-spec");
+    writePlanArtifact(root, projectName, "review-service-regression-spec");
 
     const runDir = path.join(
       root,
@@ -86,6 +100,7 @@ test("exportExecutionProfileSh does not require a persisted export manifest", as
         },
       ],
     });
+    writePlanArtifact(root, projectName, "course-service-regression-spec");
 
     const runDir = path.join(
       root,

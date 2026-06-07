@@ -5,11 +5,11 @@ description: "Manage probe registry configuration (`probe-config.json`): add/upd
 
 # MCP Java Dev Tools Probe Registry Manager
 
-Use this skill for operational management of `probe-config.json` and registry runtime refresh.
+Use this skill for operational management of `.mcpjvm/probe-config.json` and registry runtime refresh.
 
 ## Scope
 
-1. Add/update/remove probe entries in `probe-config.json`.
+1. Add/update/remove probe entries in `.mcpjvm/probe-config.json`.
 2. Validate deterministic registry shape (`defaultProfile`, `workspaces[]`, `profiles`, `probes`).
 3. Trigger `probe_registry_reload` after changes.
 4. Provide ready-to-paste MCP client configuration snippets.

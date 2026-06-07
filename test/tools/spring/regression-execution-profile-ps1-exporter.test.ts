@@ -17,6 +17,21 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+function writePlanArtifact(root: string, projectName: string, planName: string, contract?: Record<string, unknown>): void {
+  const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+  writeJson(path.join(planRoot, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  writeJson(
+    path.join(planRoot, "contract.json"),
+    contract ?? {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [],
+      steps: [],
+    },
+  );
+}
+
 test("exportExecutionProfilePs1 writes deterministic script and readme from export manifest", async () => {
   const root = createTestTempDir("execution-profile-ps1-export");
   try {
@@ -58,6 +73,8 @@ test("exportExecutionProfilePs1 writes deterministic script and readme from expo
         },
       ],
     });
+    writePlanArtifact(root, projectName, "plan-a");
+    writePlanArtifact(root, projectName, "plan-b");
 
     const written = await writeExecutionProfileExport({
       workspaceRootAbs: root,
@@ -137,8 +154,7 @@ test("exportExecutionProfilePs1 emits native PowerShell HTTP requests without cu
       ],
     });
 
-    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "plan-a");
-    writeJson(path.join(planRoot, "contract.json"), {
+    writePlanArtifact(root, projectName, "plan-a", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [
         { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" },
@@ -210,6 +226,7 @@ test("exportExecutionProfilePs1 includes sensitive warning when includeResolvedS
         },
       ],
     });
+    writePlanArtifact(root, projectName, "plan-a");
 
     await writeExecutionProfileExport({
       workspaceRootAbs: root,
@@ -274,6 +291,7 @@ test("exportExecutionProfilePs1 bundles shared profile scripts and export-local 
         },
       ],
     });
+    writePlanArtifact(root, projectName, "plan-a");
     const envFileAbs = path.join(root, ".mcpjvm", "test-project", ".env");
     fs.mkdirSync(path.dirname(envFileAbs), { recursive: true });
     fs.writeFileSync(envFileAbs, "AUTH_BEARER_TOKEN=secret-token\nKEYCLOAK_PASSWORD=password\n", "utf8");
