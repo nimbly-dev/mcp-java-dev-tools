@@ -83,22 +83,23 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
   });
   await writeJson(path.join(planRoot, "contract.json"), {
     targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
-    prerequisites: [],
-    steps: [
-      {
-        order: 1,
-        id: "health_check",
-        targetRef: 0,
-        protocol: "http",
-        transport: {
-          http: {
-            method: "GET",
-            url: "http://127.0.0.1:8080/actuator/health",
-          },
+    prerequisites: Array.from({ length: 4 }, (_, index) => ({
+      key: `ctx-${index + 1}`,
+      source: "provided",
+    })),
+    steps: Array.from({ length: 3 }, (_, index) => ({
+      order: index + 1,
+      id: `health_check_${index + 1}`,
+      targetRef: 0,
+      protocol: "http",
+      transport: {
+        http: {
+          method: "GET",
+          url: `http://127.0.0.1:8080/actuator/health/${index + 1}`,
         },
-        expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
       },
-    ],
+      expect: [{ id: `e${index + 1}`, actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
+    })),
   });
   await fs.mkdir(planRoot, { recursive: true });
   await fs.writeFile(path.join(planRoot, "plan.md"), "# Gateway Route Smoke\n", "utf8");
@@ -144,7 +145,7 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
     });
     assert.equal(planReadSummary.structuredContent?.status, "ok");
     assert.equal(typeof planReadSummary.structuredContent?.summary, "object");
-    assert.equal((planReadSummary.structuredContent?.summary as { stepCount?: unknown })?.stepCount, 1);
+    assert.equal((planReadSummary.structuredContent?.summary as { stepCount?: unknown })?.stepCount, 3);
 
     const planReadDetail = await callTool(mcp, "artifact_management", {
       artifactType: "regression_plan",
@@ -153,6 +154,37 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
     });
     assert.equal(planReadDetail.structuredContent?.status, "ok");
     assert.equal(typeof (planReadDetail.structuredContent?.artifact as { contract?: unknown })?.contract, "object");
+
+    const planReadWindowed = await callTool(mcp, "artifact_management", {
+      artifactType: "regression_plan",
+      action: "read",
+      input: {
+        projectName,
+        planName: "gateway-route-smoke-spec",
+        query: {
+          select: ["summary", "targets", "prerequisites", "steps"],
+          prerequisites: { offset: 1, limit: 2 },
+          steps: { offset: 1, limit: 1 },
+        },
+      },
+    });
+    assert.equal(planReadWindowed.structuredContent?.status, "ok");
+    assert.equal((planReadWindowed.structuredContent?.summary as { prerequisiteCount?: unknown })?.prerequisiteCount, 4);
+    assert.equal(Array.isArray(planReadWindowed.structuredContent?.targets), true);
+    assert.equal((planReadWindowed.structuredContent?.prerequisites as { offset?: unknown })?.offset, 1);
+    assert.equal((planReadWindowed.structuredContent?.prerequisites as { returned?: unknown })?.returned, 2);
+    assert.equal((planReadWindowed.structuredContent?.prerequisites as { hasMore?: unknown })?.hasMore, true);
+    assert.equal(
+      ((planReadWindowed.structuredContent?.prerequisites as { items?: Array<{ key?: unknown }> })?.items ?? [])[0]?.key,
+      "ctx-2",
+    );
+    assert.equal((planReadWindowed.structuredContent?.steps as { offset?: unknown })?.offset, 1);
+    assert.equal((planReadWindowed.structuredContent?.steps as { returned?: unknown })?.returned, 1);
+    assert.equal((planReadWindowed.structuredContent?.steps as { hasMore?: unknown })?.hasMore, true);
+    assert.equal(
+      ((planReadWindowed.structuredContent?.steps as { items?: Array<{ id?: unknown }> })?.items ?? [])[0]?.id,
+      "health_check_2",
+    );
 
     const runList = await callTool(mcp, "artifact_management", {
       artifactType: "run_result",

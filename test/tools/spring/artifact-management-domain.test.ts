@@ -228,6 +228,67 @@ test("artifact_management regression_plan validate fails closed when step protoc
   }
 });
 
+test("artifact_management regression_plan read supports windowable prerequisites and steps sections", async () => {
+  const root = createTestTempDir("artifact-management-regression-windowed-read");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    writeJson(path.join(root, ".mcpjvm", "alpha", "plans", "regression", "p1", "metadata.json"), {
+      execution: { intent: "regression" },
+    });
+    writeJson(path.join(root, ".mcpjvm", "alpha", "plans", "regression", "p1", "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: Array.from({ length: 4 }, (_, index) => ({
+        key: `ctx-${index + 1}`,
+        source: "provided",
+      })),
+      steps: Array.from({ length: 3 }, (_, index) => ({
+        order: index + 1,
+        id: `step-${index + 1}`,
+        targetRef: 0,
+        protocol: "http",
+        transport: { http: { method: "GET", url: `http://localhost/${index + 1}` } },
+        expect: [{ id: `e-${index + 1}`, actualPath: "$.statusCode", operator: "numeric_gte", expected: 200 }],
+      })),
+    });
+
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "regression_plan",
+        action: "read",
+        input: {
+          projectName: "alpha",
+          planName: "p1",
+          query: {
+            select: ["summary", "targets", "prerequisites", "steps"],
+            prerequisites: { offset: 1, limit: 2 },
+            steps: { offset: 1, limit: 1 },
+          },
+        },
+      },
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.summary.stepCount, 3);
+    assert.equal(out.structuredContent.summary.prerequisiteCount, 4);
+    assert.equal(out.structuredContent.targets.length, 1);
+    assert.equal(out.structuredContent.prerequisites.offset, 1);
+    assert.equal(out.structuredContent.prerequisites.returned, 2);
+    assert.equal(out.structuredContent.prerequisites.total, 4);
+    assert.equal(out.structuredContent.prerequisites.hasMore, true);
+    assert.equal(out.structuredContent.prerequisites.items[0].key, "ctx-2");
+    assert.equal(out.structuredContent.steps.offset, 1);
+    assert.equal(out.structuredContent.steps.returned, 1);
+    assert.equal(out.structuredContent.steps.total, 3);
+    assert.equal(out.structuredContent.steps.hasMore, true);
+    assert.equal(out.structuredContent.steps.items[0].id, "step-2");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("artifact_management run_result read uses explicit projectName in multi-project workspace", async () => {
   const root = createTestTempDir("artifact-management-run-read-project");
   try {
