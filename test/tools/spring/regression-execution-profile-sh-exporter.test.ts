@@ -17,6 +17,26 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+function writePlanArtifact(
+  root: string,
+  projectName: string,
+  planName: string,
+  contract?: Record<string, unknown>,
+): void {
+  const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+  writeJson(path.join(planRoot, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  writeJson(
+    path.join(planRoot, "contract.json"),
+    contract ?? {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [],
+      steps: [],
+    },
+  );
+}
+
 test("exportExecutionProfileSh writes deterministic script from export manifest", async () => {
   const root = createTestTempDir("execution-profile-sh-export");
   try {
@@ -79,6 +99,8 @@ test("exportExecutionProfileSh writes deterministic script from export manifest"
         },
       ],
     });
+    writePlanArtifact(root, projectName, "plan-a");
+    writePlanArtifact(root, projectName, "plan-b");
     const bootstrapScriptPath = path.join(root, ".mcpjvm", "test-project", "scripts", "bootstrap.sh");
     fs.mkdirSync(path.dirname(bootstrapScriptPath), { recursive: true });
     fs.writeFileSync(bootstrapScriptPath, "#!/usr/bin/env bash\necho BOOTSTRAPPED=true\n", "utf8");
@@ -172,6 +194,7 @@ test("exportExecutionProfileSh writes sh export as one-off artifact under export
         },
       ],
     });
+    writePlanArtifact(root, projectName, "plan-a");
 
     await writeExecutionProfileExport({
       workspaceRootAbs: root,
@@ -223,6 +246,7 @@ test("exportExecutionProfileSh emits docker teardown trap when runtime context o
         },
       ],
     });
+    writePlanArtifact(root, projectName, "plan-a");
 
     await writeExecutionProfileExport({
       workspaceRootAbs: root,
@@ -306,7 +330,7 @@ test("exportExecutionProfileSh does not infer API base URL from Docker compose w
     });
 
     const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "course-service-regression-spec");
-    writeJson(path.join(planRoot, "contract.json"), {
+    writePlanArtifact(root, projectName, path.basename(planRoot), {
       targets: [{ type: "class_method", selectors: { fqcn: "x.Course", method: "post" } }],
       prerequisites: [],
       steps: [
@@ -400,7 +424,7 @@ test("exportExecutionProfileSh resolves terminal service base URL from probe-con
     });
 
     const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "course-service-regression-spec");
-    writeJson(path.join(planRoot, "contract.json"), {
+    writePlanArtifact(root, projectName, path.basename(planRoot), {
       targets: [{ type: "class_method", selectors: { fqcn: "x.Course", method: "post" } }],
       prerequisites: [],
       steps: [
@@ -467,7 +491,7 @@ test("exportExecutionProfileSh uses execution profile plan providedContext apiBa
     });
 
     const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "course-service-regression-spec");
-    writeJson(path.join(planRoot, "contract.json"), {
+    writePlanArtifact(root, projectName, path.basename(planRoot), {
       targets: [{ type: "class_method", selectors: { fqcn: "x.Course", method: "post" } }],
       prerequisites: [],
       steps: [
@@ -551,7 +575,7 @@ test("exportExecutionProfileSh aligns TARGET_BASE_URL default with resolved plan
       "regression",
       "course-composite-service-regression-spec",
     );
-    writeJson(path.join(planRoot, "contract.json"), {
+    writePlanArtifact(root, projectName, path.basename(planRoot), {
       targets: [{ type: "class_method", selectors: { fqcn: "x.Composite", method: "hello" } }],
       prerequisites: [
         { key: "targetBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://127.0.0.1:9000" },
@@ -644,7 +668,7 @@ test("exportExecutionProfileSh uses probe-config runtime.port even when Docker c
     });
 
     const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "course-service-regression-spec");
-    writeJson(path.join(planRoot, "contract.json"), {
+    writePlanArtifact(root, projectName, path.basename(planRoot), {
       targets: [{ type: "class_method", selectors: { fqcn: "x.Course", method: "post" } }],
       prerequisites: [],
       steps: [
@@ -700,7 +724,7 @@ test("exportExecutionProfileSh emits endpoint-level HTTP commands for executed s
     });
 
     const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "plan-a");
-    writeJson(path.join(planRoot, "contract.json"), {
+    writePlanArtifact(root, projectName, path.basename(planRoot), {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [
         { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" },
@@ -807,7 +831,7 @@ test("exportExecutionProfileSh does not inject AUTH_BEARER gate for non-auth HTT
     });
 
     const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "producer-plan");
-    writeJson(path.join(planRoot, "contract.json"), {
+    writePlanArtifact(root, projectName, path.basename(planRoot), {
       targets: [{ type: "class_method", selectors: { fqcn: "x.Producer", method: "send" } }],
       prerequisites: [
         { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://127.0.0.1:8080" },
@@ -883,6 +907,7 @@ test("exportExecutionProfileSh bundles shared profile scripts and export-local p
         },
       ],
     });
+    writePlanArtifact(root, projectName, "plan-a");
     const envFileAbs = path.join(root, ".mcpjvm", "test-project", ".env");
     fs.mkdirSync(path.dirname(envFileAbs), { recursive: true });
     fs.writeFileSync(
@@ -966,6 +991,7 @@ test("exportExecutionProfileSh honors sessionExport includeResolvedSecrets for p
         },
       ],
     });
+    writePlanArtifact(root, projectName, "plan-a");
     const envFileAbs = path.join(root, ".mcpjvm", "test-project", ".env");
     fs.mkdirSync(path.dirname(envFileAbs), { recursive: true });
     fs.writeFileSync(envFileAbs, "KEYCLOAK_PASSWORD=password\nAUTH_BEARER_TOKEN=secret-token\n", "utf8");
@@ -995,3 +1021,4 @@ test("exportExecutionProfileSh honors sessionExport includeResolvedSecrets for p
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+

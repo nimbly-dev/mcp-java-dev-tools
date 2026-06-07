@@ -51,11 +51,12 @@ test("artifact_management handler accepts snake_case aliases inside typed input 
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );
   const out = await handler({
-    artifactType: "run_result",
+    artifactType: "execution_export",
     action: "generate",
     input: {
       project_name: "test-project-performance",
       execution_profile: "test-performance-stress-suite",
+      mode: "sh",
     },
   });
   assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");

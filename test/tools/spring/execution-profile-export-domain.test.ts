@@ -46,6 +46,8 @@ function writeProject(root: string): void {
       },
     ],
   });
+  writePlanContract(root, "gateway-route-smoke-spec", projectName);
+  writePlanContract(root, "alternate-spec", projectName);
 }
 
 function writeProjectWithName(root: string, projectName: string, executionProfile: string, planName: string): void {
@@ -66,6 +68,9 @@ function writeProjectWithName(root: string, projectName: string, executionProfil
 }
 
 function writePlanContract(root: string, planName: string, projectName = "test-project"): void {
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
   writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"), {
     targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
     prerequisites: [],
@@ -85,6 +90,13 @@ function writePlanContract(root: string, planName: string, projectName = "test-p
       },
     ],
   });
+}
+
+function writePlanArtifact(root: string, planName: string, contract: Record<string, unknown>, projectName = "test-project"): void {
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"), contract);
 }
 
 function readJson(filePath: string): any {
@@ -250,7 +262,10 @@ test("executionProfileExportDomain exports postman collection when scripts are J
     });
     const collection2 = readJson(String(out2.structuredContent.output?.collectionPathAbs));
     const environment2 = readJson(String(out2.structuredContent.output?.environmentPathAbs));
-    assert.deepEqual(collection2, collection);
+    assert.equal(collection2.info.schema, collection.info.schema);
+    assert.match(String(collection2.info.name ?? ""), /^execution-profile:regression-test-run:\d{8}-\d{6}-regression-test-run$/);
+    assert.match(String(collection.info.name ?? ""), /^execution-profile:regression-test-run:\d{8}-\d{6}-regression-test-run$/);
+    assert.deepEqual({ ...collection2, info: { ...collection2.info, name: "<normalized>" } }, { ...collection, info: { ...collection.info, name: "<normalized>" } });
     assert.deepEqual(environment2, environment);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -280,12 +295,12 @@ test("executionProfileExportDomain exports postman collection with plan folders 
         },
       ],
     });
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "plan-a", "contract.json"), {
+    writePlanArtifact(root, "plan-a", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
       steps: [{ order: 1, id: "a1", targetRef: 0, protocol: "http", transport: { http: { method: "GET", url: "http://127.0.0.1:8080/a" } }, expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }] }],
     });
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "plan-b", "contract.json"), {
+    writePlanArtifact(root, "plan-b", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.B", method: "m" } }],
       prerequisites: [],
       steps: [{ order: 1, id: "b1", targetRef: 0, protocol: "http", transport: { http: { method: "GET", url: "http://127.0.0.1:8080/b" } }, expect: [{ id: "e2", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }] }],
@@ -318,7 +333,7 @@ test("executionProfileExportDomain normalizes ${var} syntax and emits referenced
   try {
     writeProject(root);
     const projectName = "test-project";
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
       steps: [
@@ -365,7 +380,7 @@ test("executionProfileExportDomain fails closed for postman when url authority v
   try {
     writeProject(root);
     const projectName = "test-project";
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
       steps: [
@@ -400,7 +415,7 @@ test("executionProfileExportDomain applies prerequisite defaults and uses gatewa
   try {
     writeProject(root);
     const projectName = "test-project";
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [{ key: "gatewayBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://service-gateway" }],
       steps: [
@@ -452,7 +467,7 @@ test("executionProfileExportDomain resolves auth.bearer from workspace env when 
         },
       ],
     });
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [{ key: "auth.bearer", required: true, secret: true, provisioning: "user_input" }],
       steps: [{ order: 1, id: "s1", targetRef: 0, protocol: "http", transport: { http: { method: "GET", url: "http://127.0.0.1:8080/x", headers: { Authorization: "Bearer ${auth.bearer}" } } }, expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }] }],
@@ -493,7 +508,7 @@ test("executionProfileExportDomain resolves auth.bearer from sessionExport inclu
         },
       ],
     });
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [{ key: "auth.bearer", required: true, secret: true, provisioning: "user_input" }],
       steps: [{ order: 1, id: "s1", targetRef: 0, protocol: "http", transport: { http: { method: "GET", url: "http://127.0.0.1:8080/x", headers: { Authorization: "Bearer ${auth.bearer}" } } }, expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }] }],
@@ -530,7 +545,7 @@ test("executionProfileExportDomain resolves required auth.bearer via contextBind
         },
       ],
     });
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [{ key: "auth.bearer", required: true, secret: true, provisioning: "user_input" }],
       steps: [{ order: 1, id: "s1", targetRef: 0, protocol: "http", transport: { http: { method: "GET", url: "http://127.0.0.1:8080/x", headers: { Authorization: "Bearer ${auth.bearer}" } } }, expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }] }],
@@ -559,7 +574,7 @@ test("executionProfileExportDomain fails closed when required prerequisite remai
   try {
     writeProject(root);
     const projectName = "test-project";
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [{ key: "auth.bearer", required: true, secret: true, provisioning: "user_input" }],
       steps: [{ order: 1, id: "s1", targetRef: 0, protocol: "http", transport: { http: { method: "GET", url: "http://127.0.0.1:8080/x", headers: { Authorization: "Bearer ${auth.bearer}" } } }, expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }] }],
@@ -585,7 +600,7 @@ test("executionProfileExportDomain resolves required prerequisite from contextVa
   try {
     writeProject(root);
     const projectName = "test-project";
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [{ key: "auth.bearer", required: true, secret: true, provisioning: "user_input" }],
       steps: [{ order: 1, id: "s1", targetRef: 0, protocol: "http", transport: { http: { method: "GET", url: "http://127.0.0.1:8080/x", headers: { Authorization: "Bearer ${auth.bearer}" } } }, expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }] }],
@@ -613,7 +628,7 @@ test("executionProfileExportDomain supports derived required prerequisite via po
   try {
     writeProject(root);
     const projectName = "test-project";
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [{ key: "courseId", required: true, secret: false, provisioning: "user_input" }],
       steps: [
@@ -770,7 +785,7 @@ test("executionProfileExportDomain fails closed for postman when plan step trans
   try {
     writeProject(root);
     const projectName = "test-project";
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
       steps: [{ order: 1, id: "s1", targetRef: 0, protocol: "probe", transport: {} }],
@@ -800,7 +815,7 @@ test("executionProfileExportDomain fails closed for postman when url is unresolv
   try {
     writeProject(root);
     const projectName = "test-project";
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
       steps: [
@@ -839,7 +854,7 @@ test("executionProfileExportDomain fails closed for postman when url is not runn
   try {
     writeProject(root);
     const projectName = "test-project";
-    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-route-smoke-spec", "contract.json"), {
+    writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
       steps: [
@@ -870,3 +885,4 @@ test("executionProfileExportDomain fails closed for postman when url is not runn
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
