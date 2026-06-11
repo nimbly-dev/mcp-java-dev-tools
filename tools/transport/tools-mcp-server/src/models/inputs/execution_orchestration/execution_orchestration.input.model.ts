@@ -11,6 +11,17 @@ export const ExecutionOrchestrationPayloadSchema = z
       .string()
       .min(1)
       .describe("Required execution profile name under workspaces[].executionProfiles[]."),
+    suiteRunId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Optional canonical suite run id to resume an in-progress execution_orchestration call."),
+    maxPlansPerCall: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("Optional positive plan-slice size for synchronous resumable suite execution."),
   })
   .strict();
 

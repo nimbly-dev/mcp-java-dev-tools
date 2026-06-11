@@ -39,7 +39,7 @@ export type RuntimeSuitePlanRunResult = {
   runId?: string;
 };
 
-export type RuntimeSuiteRunStatus = "pass" | "fail" | "blocked" | "partial_fail";
+export type RuntimeSuiteRunStatus = "pass" | "fail" | "blocked" | "partial_fail" | "in_progress";
 
 export type RuntimeSuiteCorrelationResult = {
   correlationSessionId: string;
@@ -56,5 +56,7 @@ export type RuntimeSuiteRunResult = {
   executionPolicy: RuntimeSuiteExecutionPolicy;
   planRuns: RuntimeSuitePlanRunResult[];
   suiteRunId?: string;
+  nextPlanOrder?: number;
+  completedPlanCount?: number;
   correlations?: RuntimeSuiteCorrelationResult[];
 };

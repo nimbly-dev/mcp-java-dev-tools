@@ -5,21 +5,24 @@ import { buildFailClosedArtifactResponse, okArtifactResponse } from "@/tools/cor
 import { readJsonFile, writeJsonFile } from "@/tools/core/artifact_management/shared/json_io.util";
 import { resolveProjectName } from "@/tools/core/artifact_management/shared/project_resolution.util";
 
-const DEFAULT_PREREQUISITES_LIMIT = 50;
-const DEFAULT_STEPS_LIMIT = 25;
-
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
 }
 
-function normalizeWindow(value: unknown, defaults: { offset: number; limit: number }): { offset: number; limit: number } {
+function readRequiredWindow(value: unknown): { offset: number; limit: number } {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return defaults;
+    throw new Error("window_query_required");
   }
   const raw = value as Record<string, unknown>;
-  const offset = typeof raw.offset === "number" && Number.isInteger(raw.offset) && raw.offset >= 0 ? raw.offset : defaults.offset;
-  const limit = typeof raw.limit === "number" && Number.isInteger(raw.limit) && raw.limit > 0 ? raw.limit : defaults.limit;
+  const offset = raw.offset;
+  const limit = raw.limit;
+  if (typeof offset !== "number" || !Number.isInteger(offset) || offset < 0) {
+    throw new Error("window_query_required");
+  }
+  if (typeof limit !== "number" || !Number.isInteger(limit) || limit <= 0) {
+    throw new Error("window_query_required");
+  }
   return { offset, limit };
 }
 
@@ -32,7 +35,6 @@ function toWindowedSection<T>(items: T[], window: { offset: number; limit: numbe
     limit: window.limit,
     returned: page.length,
     total: items.length,
-    hasMore: end < items.length,
     items: page,
   };
 }
@@ -151,18 +153,12 @@ export async function handleRegressionPlanArtifact(
     }
     if (selectors.includes("prerequisites")) {
       const prerequisites = contract && Array.isArray(contract.prerequisites) ? contract.prerequisites : [];
-      const window = normalizeWindow(request.input.query?.prerequisites, {
-        offset: 0,
-        limit: DEFAULT_PREREQUISITES_LIMIT,
-      });
+      const window = readRequiredWindow(request.input.query?.prerequisites);
       response.prerequisites = toWindowedSection(prerequisites, window);
     }
     if (selectors.includes("steps")) {
       const steps = contract && Array.isArray(contract.steps) ? contract.steps : [];
-      const window = normalizeWindow(request.input.query?.steps, {
-        offset: 0,
-        limit: DEFAULT_STEPS_LIMIT,
-      });
+      const window = readRequiredWindow(request.input.query?.steps);
       response.steps = toWindowedSection(steps, window);
     }
     if (selectors.includes("metadata")) {

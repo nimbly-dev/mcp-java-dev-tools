@@ -291,6 +291,12 @@ function buildHttpPayload(args: {
     }
     transportHttp.headers = headers;
   }
+  if (typeof transportHttp.timeoutMs !== "number" || !Number.isFinite(transportHttp.timeoutMs) || transportHttp.timeoutMs <= 0) {
+    const defaultTimeoutMs = args.context["runtime.requestTimeoutMs"];
+    if (typeof defaultTimeoutMs === "number" && Number.isFinite(defaultTimeoutMs) && defaultTimeoutMs > 0) {
+      transportHttp.timeoutMs = Math.floor(defaultTimeoutMs);
+    }
+  }
   return transportHttp;
 }
 
@@ -450,10 +456,13 @@ export async function executeRegressionPlanWorkflow(
   const runId = buildTimestampRunId(now, 1);
   const startedAt = now.toISOString();
 
-  const resolvedContextInitial = resolvePrerequisiteContext(
-    contract.prerequisites,
-    preflightWithDiscovery.resolvedContext,
-  );
+  const resolvedContextInitial = {
+    ...preflightWithDiscovery.resolvedContext,
+    ...resolvePrerequisiteContext(
+      contract.prerequisites,
+      preflightWithDiscovery.resolvedContext,
+    ),
+  };
 
   const adapter = createMcpWrappedTransportAdapter(args.mcpInvoke);
   const registry = createTransportRegistry([adapter]);

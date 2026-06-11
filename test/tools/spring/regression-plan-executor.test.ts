@@ -135,6 +135,75 @@ test("executeRegressionPlanWorkflow serializes object HTTP body for wrapped tran
   }
 });
 
+test("executeRegressionPlanWorkflow applies workspace requestTimeoutMs to wrapped transport when step timeout is absent", async () => {
+  const root = createTestTempDir("plan-executor-timeout-default");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "visits-service-endpoints";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 250000 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: {
+        intent: "regression",
+        probeVerification: false,
+        pinStrictProbeKey: false,
+        discoveryPolicy: "allow_discoverable_prerequisites",
+      },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [
+        {
+          type: "class_method",
+          selectors: { fqcn: "org.example.VisitsController", method: "listVisits", sourceRoot: "src/main/java" },
+        },
+      ],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "list_visits",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/visits" } },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    let capturedTimeoutMs;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        capturedTimeoutMs = (input.request as Record<string, unknown>).timeoutMs;
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 22,
+            bodyPreview: '{"ok":true}',
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    assert.equal(capturedTimeoutMs, 250000);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow stops step iteration on runtime block", async () => {
   const root = createTestTempDir("plan-executor-blocked");
   try {

@@ -594,6 +594,7 @@ test("resolveProjectContextForRegression executes ordered runPrerequisites befor
               script: {
                 command: "node",
                 scriptPath: "scripts/create-marker.js",
+                timeoutMs: 5000,
               },
             },
             {
@@ -694,6 +695,56 @@ test("resolveProjectContextForRegression dedupes health checks covered by runPre
     assert.equal(out.status, "ok");
   } finally {
     server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectContextForRegression uses workspace requestTimeoutMs for run prerequisite scripts by default", async () => {
+  const root = createTestTempDir("project-context-run-prereq-timeout-default");
+  try {
+    const projectsFile = path.join(root, ".mcpjvm", "petclinic-regression", "projects.json");
+    writeJson(projectsFile, {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 50 },
+          runPrerequisites: [
+            {
+              order: 1,
+              id: "slow-script",
+              type: "script",
+              onFail: "block",
+              script: {
+                command: "node",
+                scriptPath: "scripts/slow-script.js",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const scriptsDir = path.join(root, "scripts");
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(scriptsDir, "slow-script.js"),
+      "setTimeout(() => process.exit(0), 200);",
+      "utf8",
+    );
+
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projectsFile,
+      env: {},
+      healthChecksEnabled: true,
+    });
+
+    assert.equal(out.status, "blocked");
+    if (out.status === "blocked") {
+      assert.equal(out.reasonCode, "external_healthcheck_failed");
+      assert.equal(out.checks?.some((entry: string) => entry.includes("timeout (50ms)")), true);
+    }
+  } finally {
+    await new Promise<void>((resolve) => setTimeout(resolve, 150));
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

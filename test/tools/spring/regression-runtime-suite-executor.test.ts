@@ -237,6 +237,70 @@ test("executeRegressionRuntimeSuite continue_on_fail returns partial_fail and co
   }
 });
 
+test("executeRegressionRuntimeSuite returns in_progress and resumes from nextPlanOrder at plan boundary", async () => {
+  const root = createTestTempDir("runtime-suite-resume");
+  try {
+    const projectName = "petclinic-regression";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "core-resume",
+              executionPolicy: "stop_on_fail",
+              plans: [
+                { order: 1, planName: "plan-a" },
+                { order: 2, planName: "plan-b" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    writePlan(root, projectName, "plan-a", "/a");
+    writePlan(root, projectName, "plan-b", "/b");
+
+    const first = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-resume",
+      maxPlansPerCall: 1,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 7, bodyPreview: "{}" } };
+      },
+    });
+
+    assert.equal(first.status, "in_progress");
+    assert.equal(first.planRuns.length, 1);
+    assert.equal(first.planRuns[0].planName, "plan-a");
+    assert.equal(first.nextPlanOrder, 2);
+    assert.equal(typeof first.suiteRunId, "string");
+
+    const second = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-resume",
+      suiteRunId: first.suiteRunId,
+      startPlanOrder: first.nextPlanOrder,
+      priorPlanRuns: first.planRuns,
+      maxPlansPerCall: 1,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 7, bodyPreview: "{}" } };
+      },
+    });
+
+    assert.equal(second.status, "pass");
+    assert.equal(second.planRuns.length, 2);
+    assert.equal(second.planRuns[0].planName, "plan-a");
+    assert.equal(second.planRuns[1].planName, "plan-b");
+    assert.equal(second.suiteRunId, first.suiteRunId);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite continue_on_fail blocks whole suite on shared env/auth non-viability", async () => {
   const root = createTestTempDir("runtime-suite-continue-suite-level-block");
   try {

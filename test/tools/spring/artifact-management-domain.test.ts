@@ -277,12 +277,10 @@ test("artifact_management regression_plan read supports windowable prerequisites
     assert.equal(out.structuredContent.prerequisites.offset, 1);
     assert.equal(out.structuredContent.prerequisites.returned, 2);
     assert.equal(out.structuredContent.prerequisites.total, 4);
-    assert.equal(out.structuredContent.prerequisites.hasMore, true);
     assert.equal(out.structuredContent.prerequisites.items[0].key, "ctx-2");
     assert.equal(out.structuredContent.steps.offset, 1);
     assert.equal(out.structuredContent.steps.returned, 1);
     assert.equal(out.structuredContent.steps.total, 3);
-    assert.equal(out.structuredContent.steps.hasMore, true);
     assert.equal(out.structuredContent.steps.items[0].id, "step-2");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

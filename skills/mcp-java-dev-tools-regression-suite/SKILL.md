@@ -40,6 +40,7 @@ Single-call execution skill for regression plans.
 1. `execution_profile` present => `runtime_suite_branch`:
    - load workspace execution profile by `executionProfile` through `artifact_management` (`artifactType=project_context`, `action=read`) using explicit typed input: `{ "projectName": "<project_name>", "query": { "select": ["executionProfiles"] } }`
    - validate ordered `plans[]` and execution policy
+   - load each ordered plan through `artifact_management` (`artifactType=regression_plan`, `action=read`) with explicit pagination for windowable sections before execution
    - execute plans in order using suite policy
 2. `plan_name` present => `single_plan_branch`:
    - execute one regression plan using phase pipeline below
@@ -84,6 +85,52 @@ Runtime suite branch (`execution_profile`) rules:
    - `requestTimeoutMs`
    - `retryMax`
 5. Do not accept unrecognized `runtimeConfig` keys.
+6. For actual runtime suite execution, treat `artifact_management` as the canonical plan loader:
+   - do not read `contract.json`, `metadata.json`, or `plan.md` directly when the same data can be loaded through `artifact_management`
+   - do not use shell/file reads as the primary source for plan steps or prerequisites
+   - fail closed rather than bypassing `artifact_management` for regression plan loading when MCP path is available
+7. For each plan in `execution_profile` order, use a staged plan load:
+   - first read `query.select=["summary","targets"]`
+   - then read `prerequisites` with explicit `{ "offset": ..., "limit": ... }`
+   - then read `steps` with explicit `{ "offset": ..., "limit": ... }`
+   - continue windowing until all required plan sections are loaded
+8. Do not replace runtime-suite artifact paging with ad hoc small-enough full reads.
+9. For `execution_profile` prompts, the maintained execution path MUST use resumable orchestration slices:
+   - call `execution_orchestration` with `maxPlansPerCall`
+   - if the tool returns `status="in_progress"`, re-call `execution_orchestration` with the returned `suiteRunId`
+   - continue the same run until terminal `pass`, `fail`, `blocked`, or `partial_fail`
+10. Do not restart from the beginning when resumable progress exists:
+   - resume with the same `suiteRunId`
+   - trust `nextPlanOrder` from the persisted suite-status artifact
+   - fail closed rather than rerunning already completed plans
+11. Do not summarize a runtime-suite `execution_profile` run as completed until the terminal orchestration status is returned.
+12. Do not treat a caller/tool-boundary timeout as the primary execution result when resumable progress is available:
+   - resume the same `suiteRunId`
+   - report the final terminal suite status instead of timeout-first narration
+13. Do not reuse a stale suite artifact as the result of a fresh execution request:
+   - the maintained workflow must correlate the final summary to the suite run started/resumed in the current request chain
+   - fail closed rather than attaching an older suite summary to a new prompt
+
+## Context and Read Budget
+
+1. Always use bounded or windowed reads for Artifact inspection, logs, and generated scripts.
+2. Do not switch to full Artifact reads based on artifact size; this workflow should use paged/windowed inspection by default.
+3. Never dump full `contract.json`, `execution.result.json`, `evidence.json`, or export scripts into context when a bounded/windowed read can answer the question.
+4. For `artifact_management` `regression_plan` reads:
+   - use `query.select`
+   - treat `targets` as full
+   - treat `prerequisites` as windowable
+   - treat `steps` as windowable
+5. When inspecting regression plans, always prefer explicit windows such as:
+   - `query: { "select": ["summary", "prerequisites", "steps"], "prerequisites": { "offset": 0, "limit": 50 }, "steps": { "offset": 0, "limit": 25 } }`
+6. For actual runtime suite execution, do not treat windowing as debug-only:
+   - the orchestrator should load runtime suite plan inputs through these paged `artifact_management` calls as the maintained execution path
+   - this applies even when a direct file read might seem cheaper
+6. For file/shell inspection outside MCP Artifact reads, always prefer bounded reads such as:
+   - `rg`
+   - `Select-Object -First`
+   - targeted line/field extraction
+7. If a required investigation cannot be completed without Artifact inspection, read only the minimum slice needed and say which slice was inspected.
 
 ## Source of Truth
 
@@ -103,6 +150,7 @@ Use these references/templates:
    - `artifactType=project_context` (`read|validate|list`)
    - `artifactType=regression_plan` (`read|validate|list`)
    - `artifactType=run_result` (`list|read`)
+12. For orchestrated runtime-suite execution, `artifact_management` is the maintained read path for execution profile lookup and regression plan loading.
 
 ## Required Artifacts and Correlation
 
