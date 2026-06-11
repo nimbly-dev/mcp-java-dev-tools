@@ -31,7 +31,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 10. Shared scripts and run-prerequisite scripts must be replayable: use relative paths only (`scriptPath`, `appdir`, and path-like `args[]`); absolute machine paths are invalid.
 11. External system checks may use only deterministic `tcp` or `http` checks in v1.
 12. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
-13. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator preflight health checks.
+13. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator runtime operations by default, including health checks, wrapped HTTP execution, and replayable bootstrap/prerequisite scripts unless a narrower timeout is set.
 14. `sessionExport` uses flat defaults (`includeRuntimeStartup`, `includeHealthcheckGate`, `includeResolvedSecrets`) for execution-profile export behavior. `includeResolvedSecrets=true` is a trusted-local setting and makes exported packages sensitive.
 
 ## Required Artifact Path
@@ -174,7 +174,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 ## Runtime Health Defaults
 
 1. `defaults.retryMax`: retry attempts for required external system checks.
-2. `defaults.requestTimeoutMs`: default timeout for required external system checks when per-check timeout is not set.
+2. `defaults.requestTimeoutMs`: default timeout for suite-owned runtime operations when a narrower timeout is not set, including required external system checks, wrapped HTTP execution, and replayable bootstrap/prerequisite scripts.
 3. Keep values small and deterministic for fast preflight feedback.
 
 ## Shared Scripts

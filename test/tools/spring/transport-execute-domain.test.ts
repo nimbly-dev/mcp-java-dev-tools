@@ -97,3 +97,36 @@ test("transport_execute serializes object body and sets json content-type when a
   }
 });
 
+test("transport_execute preserves explicit request timeout above 120s without truncation", async () => {
+  const originalFetch = global.fetch;
+  const originalSetTimeout = global.setTimeout;
+  const originalClearTimeout = global.clearTimeout;
+  let capturedTimeoutMs = 0;
+  try {
+    global.setTimeout = ((handler: (...args: any[]) => void, timeout?: number, ...args: any[]) => {
+      capturedTimeoutMs = Number(timeout ?? 0);
+      return originalSetTimeout(handler, 0, ...args);
+    }) as typeof setTimeout;
+    global.clearTimeout = ((handle: any) => originalClearTimeout(handle)) as typeof clearTimeout;
+    global.fetch = (async () => ({
+      status: 200,
+      headers: new Headers(),
+      text: async () => '{"ok":true}',
+    })) as unknown as typeof fetch;
+
+    const out = await transportExecuteDomain({
+      protocol: "http",
+      request: { method: "GET", url: "http://127.0.0.1:8080/test", timeoutMs: 300000 },
+      wrappedOnly: true,
+      allowNonWrappedExecutable: false,
+    });
+
+    assert.equal(out.structuredContent.status, "pass");
+    assert.equal(capturedTimeoutMs, 300000);
+  } finally {
+    global.fetch = originalFetch;
+    global.setTimeout = originalSetTimeout;
+    global.clearTimeout = originalClearTimeout;
+  }
+});
+

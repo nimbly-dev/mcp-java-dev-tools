@@ -350,10 +350,10 @@ Postman variable normalization policy:
 | `action` | Requested lifecycle action (`read`, `validate`, `upsert`, `list`, `generate`). | `artifact_management` | true | `"validate"` |
 | `input` | Typed per-artifact payload object. The top-level request is generic; artifact-specific fields are nested under `input`. | `artifact_management` | true | `{"projectName":"catalog-service","query":{"select":["summary"]}}` |
 | `input.query.select` | Optional projection selectors for structured reads to reduce payload size. Supported examples: `project_context` (`summary`, `executionProfiles`, `runtimeContexts`, `scripts`, `runPrerequisites`, `workspaces`), `regression_plan` (`summary`, `targets`, `prerequisites`, `steps`, `metadata`, `contract`, `plan`), `run_result` (`executionResult`, `evidence`). | `artifact_management` | false | `["summary","executionProfiles"]` |
-| `input.query.prerequisites.offset` | Optional zero-based window start for `regression_plan` `prerequisites` section reads. | `artifact_management` | false | `0` |
-| `input.query.prerequisites.limit` | Optional window size for `regression_plan` `prerequisites` section reads. | `artifact_management` | false | `50` |
-| `input.query.steps.offset` | Optional zero-based window start for `regression_plan` `steps` section reads. | `artifact_management` | false | `0` |
-| `input.query.steps.limit` | Optional window size for `regression_plan` `steps` section reads. | `artifact_management` | false | `25` |
+| `input.query.prerequisites.offset` | Required zero-based window start for `regression_plan` `prerequisites` section reads when `select` includes `prerequisites`. | `artifact_management` | false | `0` |
+| `input.query.prerequisites.limit` | Required window size for `regression_plan` `prerequisites` section reads when `select` includes `prerequisites`. | `artifact_management` | false | `50` |
+| `input.query.steps.offset` | Required zero-based window start for `regression_plan` `steps` section reads when `select` includes `steps`. | `artifact_management` | false | `0` |
+| `input.query.steps.limit` | Required window size for `regression_plan` `steps` section reads when `select` includes `steps`. | `artifact_management` | false | `25` |
 | `reasonCode` | Deterministic blocked reason code (for example `artifact_action_not_allowed`, `project_artifact_missing`). | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `nextActionCode` | Verb-style deterministic follow-up action key for blocked outputs. | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `reasonMeta` | Optional typed diagnostics including allowed action presets for the selected `artifactType`. | `artifact_management` | false | `{"allowedActions":["read","validate","upsert"]}` |
@@ -364,13 +364,11 @@ Postman variable normalization policy:
 | `prerequisites.limit` | Requested window size for a windowed `regression_plan` prerequisites section. | `artifact_management` | false | `50` |
 | `prerequisites.returned` | Number of prerequisite entries actually returned in the current window. | `artifact_management` | false | `50` |
 | `prerequisites.total` | Total prerequisite count for the plan Artifact. | `artifact_management` | false | `265` |
-| `prerequisites.hasMore` | Whether more prerequisite entries remain after the current window. | `artifact_management` | false | `true` |
 | `prerequisites.items` | Current window slice of regression plan prerequisites. | `artifact_management` | false | `[{"key":"ctx-1"}]` |
 | `steps.offset` | Returned zero-based start offset for a windowed `regression_plan` steps section. | `artifact_management` | false | `0` |
 | `steps.limit` | Requested window size for a windowed `regression_plan` steps section. | `artifact_management` | false | `25` |
 | `steps.returned` | Number of step entries actually returned in the current window. | `artifact_management` | false | `25` |
 | `steps.total` | Total step count for the plan Artifact. | `artifact_management` | false | `115` |
-| `steps.hasMore` | Whether more step entries remain after the current window. | `artifact_management` | false | `true` |
 | `steps.items` | Current window slice of regression plan steps. | `artifact_management` | false | `[{"id":"step-1"}]` |
 
 `artifact_management` action presets:
@@ -383,6 +381,23 @@ Postman variable normalization policy:
 Typed request envelope examples:
 - `{"artifactType":"probe_config","action":"validate","input":{}}`
 - `{"artifactType":"project_context","action":"read","input":{"projectName":"catalog","query":{"select":["summary","executionProfiles"],"executionProfile":"smoke"}}}`
+
+## execution_orchestration
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `resultType` | Output discriminator for runtime-suite orchestration. | `execution_orchestration` | true | `"execution_orchestration"` |
+| `status` | Suite status for synchronous execution (`pass`, `fail`, `blocked`, `partial_fail`) or resumable progress checkpoint (`in_progress`). | `execution_orchestration` | true | `"in_progress"` |
+| `action` | Requested orchestration lifecycle action. | `execution_orchestration` | true | `"execute"` |
+| `projectName` | Explicit project selector for multi-project-safe suite execution. | `execution_orchestration` | true | `"test-project-performance"` |
+| `executionProfile` | Workspace execution profile selected from `projects.json`. | `execution_orchestration` | true | `"test-performance-stress-suite"` |
+| `suiteRunId` | Canonical suite-level run id reused across resumable calls. Present on `in_progress` and terminal outputs. | `execution_orchestration` | false | `"06-10-2026-12-07-41AM"` |
+| `statusArtifactPath` | Persisted suite-status artifact path for resumable progress and terminal summaries. | `execution_orchestration` | false | `.mcpjvm/test-project-performance/suite-runs/06-10-2026-12-07-41AM/execution_orchestration.result.json` |
+| `executionPolicy` | Effective suite execution policy. | `execution_orchestration` | false | `"stop_on_fail"` |
+| `planRuns` | Ordered cumulative per-plan execution summary for completed progress so far or the final suite result. | `execution_orchestration` | false | `[{"order":1,"planName":"mcp-tool-performance-replay-spec","status":"executed","runStatus":"pass","runId":"06-10-2026-12-07-42AM"}]` |
+| `nextPlanOrder` | Next plan order to execute when `status="in_progress"`. | `execution_orchestration` | false | `2` |
+| `completedPlanCount` | Number of cumulative plans already persisted for the suite run. | `execution_orchestration` | false | `1` |
+| `correlations` | Optional suite-level cross-plan correlation summary for completed runs. | `execution_orchestration` | false | `[{"correlationSessionId":"order-flow","status":"ok","reasonCode":"ok","keyType":"traceId","contributingPlans":["producer-plan","consumer-plan"]}]` |
 
 ## Skill-Orchestrated Route Pushback (`mcp-java-dev-tools-line-probe-run`, `mcp-java-dev-tools-regression-suite`)
 

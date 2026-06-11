@@ -469,3 +469,102 @@ test("mcp IT: execution_orchestration continue_on_fail stops after suite-level e
     }
   }
 });
+
+test("mcp IT: execution_orchestration supports resumable in_progress slicing by suiteRunId", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-resume-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-performance";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        defaultProbe: "gateway-service",
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        executionProfiles: [
+          {
+            executionProfile: "resumable-suite",
+            executionPolicy: "continue_on_fail",
+            plans: [
+              { order: 1, planName: "plan-a", onFail: "inherit" },
+              { order: 2, planName: "plan-b", onFail: "inherit" },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  for (const planName of ["plan-a", "plan-b"]) {
+    await writeJson(
+      path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName, "metadata.json"),
+      { execution: { intent: "regression" } },
+    );
+    await writeJson(
+      path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"),
+      {
+        targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+        prerequisites: [],
+        steps: [],
+      },
+    );
+  }
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const first = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "resumable-suite",
+        maxPlansPerCall: 1,
+      },
+    });
+
+    assert.equal(first.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(first.structuredContent?.status, "in_progress");
+    assert.equal(first.structuredContent?.nextPlanOrder, 2);
+    const suiteRunId = String(first.structuredContent?.suiteRunId ?? "");
+    assert.equal(suiteRunId.length > 0, true);
+
+    const second = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "resumable-suite",
+        suiteRunId,
+        maxPlansPerCall: 1,
+      },
+    });
+
+    assert.equal(second.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(second.structuredContent?.status, "partial_fail");
+    assert.equal(second.structuredContent?.suiteRunId, suiteRunId);
+    const planRuns = Array.isArray(second.structuredContent?.planRuns)
+      ? (second.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 2);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});

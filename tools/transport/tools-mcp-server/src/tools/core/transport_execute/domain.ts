@@ -125,7 +125,7 @@ export async function transportExecuteDomain(args: {
     };
   }
 
-  const timeoutMs = Math.max(1000, Math.min(120000, asNumber(args.request.timeoutMs) ?? 20000));
+  const timeoutMs = Math.max(1, Math.round(asNumber(args.request.timeoutMs) ?? 20000));
   const ctrl = new AbortController();
   const handle = setTimeout(() => ctrl.abort(), timeoutMs);
   try {

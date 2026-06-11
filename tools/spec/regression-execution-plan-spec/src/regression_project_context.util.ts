@@ -149,6 +149,14 @@ function resolveWorkspaceEnvFileAbs(args: {
     : path.resolve(args.workspaceRootAbs, args.workspace.envFile);
 }
 
+function resolveWorkspaceRequestTimeoutMs(workspace: ProjectWorkspaceEntry, fallbackMs: number): number {
+  const timeoutRaw = workspace.defaults?.requestTimeoutMs;
+  if (typeof timeoutRaw === "number" && Number.isFinite(timeoutRaw) && timeoutRaw > 0) {
+    return Math.floor(timeoutRaw);
+  }
+  return fallbackMs;
+}
+
 async function readProbeRegistryFromWorkspace(workspaceRootAbs: string): Promise<{
   ok: true;
   registry: ProbeRegistry;
@@ -438,6 +446,7 @@ async function executeSharedScriptsForPhase(args: {
     workspace: args.workspace,
     workspaceRootAbs: args.workspaceRootAbs,
   });
+  const timeoutMs = resolveWorkspaceRequestTimeoutMs(args.workspace, 20_000);
   let currentEnv = { ...args.env };
   for (const entry of selected) {
     const script = entry.script;
@@ -456,16 +465,31 @@ async function executeSharedScriptsForPhase(args: {
         windowsHide: true,
       });
       let stderr = "";
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        child.kill();
+        resolve({ ok: false, detail: `timeout (${timeoutMs}ms)` });
+      }, timeoutMs);
       child.stderr.on("data", (buf) => {
         stderr += String(buf ?? "");
       });
       child.on("close", (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         resolve({
           ok: code === 0,
           detail: code === 0 ? "ok" : (stderr.trim() || `exit_code=${String(code ?? 1)}`),
         });
       });
-      child.on("error", (err) => resolve({ ok: false, detail: String(err.message ?? err) }));
+      child.on("error", (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ ok: false, detail: String(err.message ?? err) });
+      });
     });
     checks.push(`profile_script:${args.phase}:${script.name}=${result.ok ? "pass" : `fail(${result.detail})`}`);
     if (!result.ok) {
@@ -500,11 +524,7 @@ async function runRequiredHealthChecks(workspace: ProjectWorkspaceEntry): Promis
     typeof retryMaxRaw === "number" && Number.isFinite(retryMaxRaw) && retryMaxRaw > 0
       ? Math.floor(retryMaxRaw)
       : 1;
-  const timeoutDefaultRaw = workspace.defaults?.requestTimeoutMs;
-  const timeoutDefaultMs =
-    typeof timeoutDefaultRaw === "number" && Number.isFinite(timeoutDefaultRaw) && timeoutDefaultRaw > 0
-      ? Math.floor(timeoutDefaultRaw)
-      : 3000;
+  const timeoutDefaultMs = resolveWorkspaceRequestTimeoutMs(workspace, 3000);
   const systems = workspace.externalSystems ?? [];
   const failures: string[] = [];
   const checks: string[] = [];
@@ -578,11 +598,7 @@ async function runRequiredHealthChecksWithDedupe(args: {
     typeof retryMaxRaw === "number" && Number.isFinite(retryMaxRaw) && retryMaxRaw > 0
       ? Math.floor(retryMaxRaw)
       : 1;
-  const timeoutDefaultRaw = args.workspace.defaults?.requestTimeoutMs;
-  const timeoutDefaultMs =
-    typeof timeoutDefaultRaw === "number" && Number.isFinite(timeoutDefaultRaw) && timeoutDefaultRaw > 0
-      ? Math.floor(timeoutDefaultRaw)
-      : 3000;
+  const timeoutDefaultMs = resolveWorkspaceRequestTimeoutMs(args.workspace, 3000);
   const systems = args.workspace.externalSystems ?? [];
   const failures: string[] = [];
   const checks: string[] = [];
@@ -652,6 +668,7 @@ async function executeRunPrerequisites(args: {
 > {
   const prereqs = [...(args.workspace.runPrerequisites ?? [])].sort((a, b) => a.order - b.order);
   if (prereqs.length === 0) return { status: "ok", checks: [], dedupeKeys: new Set<string>() };
+  const timeoutDefaultMs = resolveWorkspaceRequestTimeoutMs(args.workspace, 3000);
   const checks: string[] = [];
   const dedupeKeys = new Set<string>();
   for (const prereq of prereqs) {
@@ -673,9 +690,9 @@ async function executeRunPrerequisites(args: {
           ok = false;
         }
       } else if (prereq.assert.kind === "port_reachable") {
-        ok = await tcpCheck(`${prereq.assert.host}:${prereq.assert.port}`, prereq.assert.timeoutMs ?? 3000);
+        ok = await tcpCheck(`${prereq.assert.host}:${prereq.assert.port}`, prereq.assert.timeoutMs ?? timeoutDefaultMs);
       } else if (prereq.assert.kind === "url_reachable") {
-        ok = await httpCheck(prereq.assert.url ?? "", "GET", prereq.assert.timeoutMs ?? 3000);
+        ok = await httpCheck(prereq.assert.url ?? "", "GET", prereq.assert.timeoutMs ?? timeoutDefaultMs);
       } else if (prereq.assert.kind === "command_available") {
         ok = await isCommandAvailable(prereq.assert.name ?? "");
       }
@@ -705,7 +722,8 @@ async function executeRunPrerequisites(args: {
       const cwd = script.cwd
         ? (path.isAbsolute(script.cwd) ? script.cwd : path.resolve(args.workspaceRootAbs, script.cwd))
         : args.workspaceRootAbs;
-      const timeoutMs = typeof script.timeoutMs === "number" && script.timeoutMs > 0 ? script.timeoutMs : 120000;
+      const timeoutMs =
+        typeof script.timeoutMs === "number" && script.timeoutMs > 0 ? script.timeoutMs : timeoutDefaultMs;
       let command = "";
       let cmdArgs: string[] = [];
       if (script.command === "node") {
@@ -1025,7 +1043,9 @@ export async function resolveProjectContextForRegression(
     selectedRuntimeContextName = runtimeSelection.selected?.name;
   }
 
-  const contextPatch: Record<string, unknown> = {};
+  const contextPatch: Record<string, unknown> = {
+    "runtime.requestTimeoutMs": resolveWorkspaceRequestTimeoutMs(effectiveWorkspace, 20_000),
+  };
 
   if (selectedRuntimeContext) {
     contextPatch["runtime.context.name"] = selectedRuntimeContext.name;
@@ -1151,10 +1171,7 @@ export async function resolveProjectContextForRegression(
       }
     }
     if (health.ok && strictProbeBases.length > 0) {
-      const timeoutMs =
-        typeof effectiveWorkspace.defaults?.requestTimeoutMs === "number" && Number.isFinite(effectiveWorkspace.defaults.requestTimeoutMs) && effectiveWorkspace.defaults.requestTimeoutMs > 0
-          ? Math.floor(effectiveWorkspace.defaults.requestTimeoutMs)
-          : 3000;
+      const timeoutMs = resolveWorkspaceRequestTimeoutMs(effectiveWorkspace, 3000);
       let unreachableBases: string[] = [];
       for (const probeBase of strictProbeBases) {
         const reachable = await httpCheck(`${probeBase.replace(/\/$/, "")}/__probe/status`, "GET", timeoutMs);

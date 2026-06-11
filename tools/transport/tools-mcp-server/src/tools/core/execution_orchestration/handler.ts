@@ -43,7 +43,14 @@ export function registerExecutionOrchestrationTool(
       return await executionOrchestrationDomain({
         workspaceRootAbs: deps.workspaceRootAbs,
         action: parsed.data.action,
-        payload: parsed.data.input,
+        payload: {
+          projectName: parsed.data.input.projectName,
+          executionProfile: parsed.data.input.executionProfile,
+          ...(typeof parsed.data.input.suiteRunId === "string" ? { suiteRunId: parsed.data.input.suiteRunId } : {}),
+          ...(typeof parsed.data.input.maxPlansPerCall === "number"
+            ? { maxPlansPerCall: parsed.data.input.maxPlansPerCall }
+            : {}),
+        },
       });
     },
   );

@@ -173,14 +173,12 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
     assert.equal(Array.isArray(planReadWindowed.structuredContent?.targets), true);
     assert.equal((planReadWindowed.structuredContent?.prerequisites as { offset?: unknown })?.offset, 1);
     assert.equal((planReadWindowed.structuredContent?.prerequisites as { returned?: unknown })?.returned, 2);
-    assert.equal((planReadWindowed.structuredContent?.prerequisites as { hasMore?: unknown })?.hasMore, true);
     assert.equal(
       ((planReadWindowed.structuredContent?.prerequisites as { items?: Array<{ key?: unknown }> })?.items ?? [])[0]?.key,
       "ctx-2",
     );
     assert.equal((planReadWindowed.structuredContent?.steps as { offset?: unknown })?.offset, 1);
     assert.equal((planReadWindowed.structuredContent?.steps as { returned?: unknown })?.returned, 1);
-    assert.equal((planReadWindowed.structuredContent?.steps as { hasMore?: unknown })?.hasMore, true);
     assert.equal(
       ((planReadWindowed.structuredContent?.steps as { items?: Array<{ id?: unknown }> })?.items ?? [])[0]?.id,
       "health_check_2",

@@ -2,7 +2,12 @@ import { loadConfigFromEnvAndArgs } from "@/config/server-config";
 import { createProbeDomain } from "@/tools/core/probe/domain";
 import { transportExecuteDomain } from "@/tools/core/transport_execute/domain";
 import { deriveNextActionCode } from "@/utils/failure_diagnostics.util";
-import { executeRegressionRuntimeSuite } from "@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util";
+import {
+  buildSuiteStatusArtifactRelPath,
+  executeRegressionRuntimeSuite,
+  readExecutionOrchestrationSuiteResult,
+  writeExecutionOrchestrationSuiteResult,
+} from "@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util";
 
 function blockedResponse(args: {
   reasonCode: string;
@@ -29,6 +34,8 @@ export async function executionOrchestrationDomain(input: {
   payload: {
     projectName: string;
     executionProfile: string;
+    suiteRunId?: string;
+    maxPlansPerCall?: number;
   };
 }): Promise<{
   content: Array<{ type: "text"; text: string }>;
@@ -44,6 +51,14 @@ export async function executionOrchestrationDomain(input: {
 
   const projectName = input.payload.projectName.trim();
   const executionProfile = input.payload.executionProfile.trim();
+  const suiteRunId =
+    typeof input.payload.suiteRunId === "string" && input.payload.suiteRunId.trim().length > 0
+      ? input.payload.suiteRunId.trim()
+      : undefined;
+  const maxPlansPerCall =
+    typeof input.payload.maxPlansPerCall === "number" && Number.isInteger(input.payload.maxPlansPerCall)
+      ? input.payload.maxPlansPerCall
+      : undefined;
   if (!projectName) {
     return blockedResponse({
       reasonCode: "project_name_required",
@@ -72,10 +87,68 @@ export async function executionOrchestrationDomain(input: {
     ...(cfg.probeRegistry ? { getProbeRegistry: () => cfg.probeRegistry } : {}),
   });
 
+  let priorSuite:
+    | Awaited<ReturnType<typeof readExecutionOrchestrationSuiteResult>>
+    | null = null;
+  if (typeof suiteRunId === "string") {
+    priorSuite = await readExecutionOrchestrationSuiteResult({
+      workspaceRootAbs: input.workspaceRootAbs,
+      projectName,
+      suiteRunId,
+    });
+    if (!priorSuite) {
+      return blockedResponse({
+        reasonCode: "suite_progress_missing",
+        reason: "suite_progress_missing",
+        reasonMeta: { projectName, executionProfile, suiteRunId },
+      });
+    }
+    if (priorSuite.executionProfile !== executionProfile) {
+      return blockedResponse({
+        reasonCode: "suite_progress_mismatch",
+        reason: "suite_progress_mismatch",
+        reasonMeta: { projectName, executionProfile, suiteRunId },
+      });
+    }
+    if (priorSuite.status !== "in_progress") {
+      const structuredContent = {
+        resultType: "execution_orchestration",
+        status: priorSuite.status,
+        action: "execute",
+        projectName,
+        executionProfile: priorSuite.executionProfile,
+        executionPolicy: priorSuite.executionPolicy,
+        suiteRunId,
+        planRuns: priorSuite.planRuns,
+        ...(typeof priorSuite.completedPlanCount === "number"
+          ? { completedPlanCount: priorSuite.completedPlanCount }
+          : {}),
+        ...(Array.isArray(priorSuite.correlations) ? { correlations: priorSuite.correlations } : {}),
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+        structuredContent,
+      };
+    }
+    if (typeof priorSuite.nextPlanOrder !== "number") {
+      return blockedResponse({
+        reasonCode: "suite_progress_invalid",
+        reason: "suite_progress_invalid",
+        reasonMeta: { projectName, executionProfile, suiteRunId },
+      });
+    }
+  }
+
   const suite = await executeRegressionRuntimeSuite({
     workspaceRootAbs: input.workspaceRootAbs,
     projectName,
     executionProfile,
+    ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
+    ...(typeof maxPlansPerCall === "number" ? { maxPlansPerCall } : {}),
+    ...(priorSuite && Array.isArray(priorSuite.planRuns) ? { priorPlanRuns: priorSuite.planRuns } : {}),
+    ...(priorSuite && typeof priorSuite.nextPlanOrder === "number"
+      ? { startPlanOrder: priorSuite.nextPlanOrder }
+      : {}),
     mcpInvoke: async ({ toolName, input: toolInput }) => {
       if (toolName === "transport_execute") {
         const result = await transportExecuteDomain({
@@ -116,6 +189,12 @@ export async function executionOrchestrationDomain(input: {
     });
   }
 
+  await writeExecutionOrchestrationSuiteResult({
+    workspaceRootAbs: input.workspaceRootAbs,
+    projectName,
+    suite,
+  });
+
   const structuredContent = {
     resultType: "execution_orchestration",
     status: suite.status,
@@ -123,7 +202,15 @@ export async function executionOrchestrationDomain(input: {
     projectName,
     executionProfile: suite.executionProfile,
     executionPolicy: suite.executionPolicy,
+    suiteRunId: suite.suiteRunId,
+    statusArtifactPath: buildSuiteStatusArtifactRelPath({
+      projectName,
+      suiteRunId: String(suite.suiteRunId),
+    }),
     planRuns: suite.planRuns,
+    ...(typeof suite.nextPlanOrder === "number" ? { nextPlanOrder: suite.nextPlanOrder } : {}),
+    ...(typeof suite.completedPlanCount === "number" ? { completedPlanCount: suite.completedPlanCount } : {}),
+    ...(Array.isArray(suite.correlations) ? { correlations: suite.correlations } : {}),
   };
   return {
     content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],

@@ -62,3 +62,23 @@ test("artifact_management handler accepts snake_case aliases inside typed input 
   assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
   assert.notEqual(out.structuredContent.reasonCode, "project_artifact_ambiguous");
 });
+
+test("artifact_management handler rejects regression_plan windowed read when pagination params are missing", async () => {
+  const handler = captureRegisteredHandler((server: any) =>
+    registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
+  );
+  const out = await handler({
+    artifactType: "regression_plan",
+    action: "read",
+    input: {
+      projectName: "test-project-performance",
+      planName: "mcp-tool-performance-stress-5000",
+      query: {
+        select: ["steps"],
+      },
+    },
+  });
+  assert.equal(out.structuredContent.resultType, "report");
+  assert.equal(out.structuredContent.reasonCode, "artifact_request_invalid");
+  assert.equal(out.structuredContent.reasonMeta.failedStep, "input_validation");
+});
