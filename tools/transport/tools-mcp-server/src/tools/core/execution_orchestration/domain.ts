@@ -161,11 +161,11 @@ export async function executionOrchestrationDomain(input: {
       }
       if (toolName === "probe_reset") {
         const result = await probeDomain.reset(toolInput as Parameters<typeof probeDomain.reset>[0]);
-        return { structuredContent: result as Record<string, unknown> };
+        return { structuredContent: result.structuredContent as Record<string, unknown> };
       }
       if (toolName === "probe_wait_for_hit") {
         const result = await probeDomain.waitForHit(toolInput as Parameters<typeof probeDomain.waitForHit>[0]);
-        return { structuredContent: result as Record<string, unknown> };
+        return { structuredContent: result.structuredContent as Record<string, unknown> };
       }
       return {
         structuredContent: {

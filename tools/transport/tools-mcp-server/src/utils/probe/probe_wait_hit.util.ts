@@ -211,6 +211,10 @@ export async function probeWaitHit(args: {
       const res = polledStatus.response;
       last = res.structuredContent;
       const json = (last as any)?.response?.json as Record<string, unknown> | undefined;
+      const probeJson =
+        json && typeof json.probe === "object" && json.probe !== null
+          ? (json.probe as Record<string, unknown>)
+          : undefined;
       const lineValidation = readLineValidation(json ?? null);
       if (lineValidation.invalidLineTarget) {
         return buildInvalidLineTargetResponse({
@@ -224,8 +228,18 @@ export async function probeWaitHit(args: {
         });
       }
 
-      const hitCount = typeof json?.hitCount === "number" ? json.hitCount : null;
-      const lastHitEpoch = typeof json?.lastHitEpoch === "number" ? json.lastHitEpoch : null;
+      const hitCount =
+        typeof probeJson?.hitCount === "number"
+          ? probeJson.hitCount
+          : typeof json?.hitCount === "number"
+            ? json.hitCount
+            : null;
+      const lastHitEpoch =
+        typeof probeJson?.lastHitEpoch === "number"
+          ? probeJson.lastHitEpoch
+          : typeof json?.lastHitEpoch === "number"
+            ? json.lastHitEpoch
+            : null;
       if (hitCount !== null) {
         const hitDelta = hitCount - baselineHitCount;
         const inlineByCount = hitDelta > 0;
