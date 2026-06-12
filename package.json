@@ -1,6 +1,6 @@
 {
   "name": "mcp-java-dev-tools",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "",
   "main": "dist/server.js",
   "scripts": {
@@ -69,3 +69,4 @@
     "README.md"
   ]
 }
+

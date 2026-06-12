@@ -111,9 +111,10 @@ When setting `include[]`:
       "command": "node",
       "args": ["C:\\path\\to\\mcp-jvm-debugger\\dist\\server.js"],
       "env": {
-        "MCP_JAVA_AGENT_JAR": "C:\\path\\to\\mcp-java-dev-tools-agent-0.1.6-all.jar"
+        "MCP_JAVA_AGENT_JAR": "C:\\path\\to\\mcp-java-dev-tools-agent-0.1.7-all.jar"
       }
     }
   }
 }
 ```
+

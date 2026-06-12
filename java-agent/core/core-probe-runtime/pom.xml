@@ -7,7 +7,7 @@
   <parent>
     <groupId>com.nimbly</groupId>
     <artifactId>mcp-java-dev-tools-agent-parent</artifactId>
-  <version>0.1.6</version>
+  <version>0.1.7</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
@@ -29,5 +29,6 @@
     </resources>
   </build>
 </project>
+
 
 

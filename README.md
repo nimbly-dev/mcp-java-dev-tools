@@ -4,7 +4,7 @@
 [![npm](https://img.shields.io/badge/npm-11.6.2-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/)
 [![JDK](https://img.shields.io/badge/JDK-17%2B-007396?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Java Agent Target](https://img.shields.io/badge/Java%20Agent%20Target-17-ED8B00?logo=openjdk&logoColor=white)](https://maven.apache.org/)
-[![package](https://img.shields.io/badge/package-mcp--java--dev--tools%400.1.6-0A66C2)](https://github.com/nimbly-dev/mcp-java-dev-tools)
+[![package](https://img.shields.io/badge/package-mcp--java--dev--tools%400.1.7-0A66C2)](https://github.com/nimbly-dev/mcp-java-dev-tools)
 [![MCP Badge](https://lobehub.com/badge/mcp/nimbly-dev-mcp-java-dev-tools?style=flat)](https://lobehub.com/mcp/nimbly-dev-mcp-java-dev-tools)
 
 **MCP Java Dev Tools** bridges agentic coding tools and live Java runtime behavior through a lightweight sidecar agent.
@@ -111,7 +111,7 @@ The target JVM must run on **Java 17 or newer**. If you're on Java 21, see [Java
 Add the following as a JVM argument when launching your application, replacing `{desktopName}`:
 
 ```text
--javaagent:C:\Users\{desktopName}\repository\mcp-java-dev-tools\java-agent\core\core-probe\target\mcp-java-dev-tools-agent-0.1.6.jar=host=0.0.0.0;port=9191;exclude=com.nimbly.mcpjavadevtools.agent.**,**.config.**,**Test
+-javaagent:C:\Users\{desktopName}\repository\mcp-java-dev-tools\java-agent\core\core-probe\target\mcp-java-dev-tools-agent-0.1.7.jar=host=0.0.0.0;port=9191;exclude=com.nimbly.mcpjavadevtools.agent.**,**.config.**,**Test
 ```
 
 > **Tip:** The `include` filter is optional. If omitted, the agent infers an include scope from startup command metadata (`sun.java.command`), usually the startup class package (for example `com.acme.app.**`). Set `include` explicitly when inference is ambiguous or too broad.
@@ -279,3 +279,4 @@ Probe registry runtime behavior:
 - Registry config is loaded from discovered workspace `.mcpjvm/probe-config.json`.
 - File edits are auto-reloaded with debounce.
 - `probe_registry_reload` remains available as deterministic manual refresh/fallback.
+
