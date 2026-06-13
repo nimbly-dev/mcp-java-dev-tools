@@ -1,5 +1,13 @@
 export { ProbeDiagnoseInputSchema } from "@/models/inputs/probe_diagnose.input.model";
 export { ProbeCaptureGetInputSchema } from "@/models/inputs/probe_capture_get.input.model";
+export {
+  ProbeInputSchema,
+  ProbeRequestSchema,
+  type ProbeRequest,
+  ProbeActionSchema,
+  PROBE_ACTION_ALLOWLIST,
+  type ProbeAction,
+} from "@/models/inputs/probe";
 export { TargetInferInputSchema } from "@/models/inputs/target_infer.input.model";
 export { RecipeGenerateInputSchema } from "@/models/inputs/recipe_generate.input.model";
 export { ProbeStatusInputSchema } from "@/models/inputs/probe_status.input.model";

@@ -159,13 +159,20 @@ export async function executionOrchestrationDomain(input: {
         });
         return { structuredContent: result.structuredContent };
       }
-      if (toolName === "probe_reset") {
-        const result = await probeDomain.reset(toolInput as Parameters<typeof probeDomain.reset>[0]);
-        return { structuredContent: result.structuredContent as Record<string, unknown> };
-      }
-      if (toolName === "probe_wait_for_hit") {
-        const result = await probeDomain.waitForHit(toolInput as Parameters<typeof probeDomain.waitForHit>[0]);
-        return { structuredContent: result.structuredContent as Record<string, unknown> };
+      if (toolName === "probe") {
+        const action = toolInput.action;
+        const probeInput =
+          typeof toolInput.input === "object" && toolInput.input !== null && !Array.isArray(toolInput.input)
+            ? (toolInput.input as Record<string, unknown>)
+            : undefined;
+        if (action === "reset" && probeInput) {
+          const result = await probeDomain.reset(probeInput as Parameters<typeof probeDomain.reset>[0]);
+          return { structuredContent: result.structuredContent as Record<string, unknown> };
+        }
+        if (action === "wait_for_hit" && probeInput) {
+          const result = await probeDomain.waitForHit(probeInput as Parameters<typeof probeDomain.waitForHit>[0]);
+          return { structuredContent: result.structuredContent as Record<string, unknown> };
+        }
       }
       return {
         structuredContent: {

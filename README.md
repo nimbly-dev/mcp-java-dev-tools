@@ -264,14 +264,9 @@ Start there before opening a large pull request or changing public tool contract
 |---|---|
 | `debug_check` | |
 | `artifact_management` | |
-| `probe_check` | |
+| `probe` | |
 | `probe_target_infer` | |
 | `probe_recipe_create` | |
-| `probe_get_status` | |
-| `probe_get_capture` | |
-| `probe_reset` | |
-| `probe_wait_for_hit` | |
-| `probe_enable` | |
 | `execution_profile_export` | |
 | `execution_orchestration` | |
 

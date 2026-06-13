@@ -8,7 +8,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
 import { CONFIG_DEFAULTS } from "@/config/defaults";
 import { loadProbeRegistry, summarizeProbeRegistry, type ProbeRegistrySummary } from "@/config/probe-registry";
-import { registerProbeCheckTool } from "@/tools/core/probe_check/handler";
 import { registerTargetInferTool } from "@/tools/core/target_infer/handler";
 import { registerRecipeCreateTool } from "@/tools/core/recipe_generate/handler";
 import { registerProbeTools } from "@/tools/core/probe/handler";
@@ -200,12 +199,6 @@ async function main() {
     },
   );
 
-  registerProbeCheckTool(server, {
-    probeBaseUrl: currentBaseUrl(),
-    probeStatusPath,
-    probeResetPath,
-    getProbeRegistry: () => activeRegistry,
-  });
   registerTargetInferTool(server, {
     config: cfg,
   });

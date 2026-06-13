@@ -69,10 +69,10 @@ Return the exact request plan and probe verification steps.
 5. Framework adapters resolve annotation semantics (for example Spring `@RequestParam`, `@PathVariable`, `@RequestBody`) into normalized parameter metadata before HTTP materialization
 6. Generic HTTP transport materializes path/query/body templates from normalized parameters and applies optional project fixture profile overrides from `.mcp-java-dev-tools/request-template.properties`
 7. If `resultType=report`, treat it as fail-closed - read the compact execution metadata (`executionPlan.routingReason`, `executionPlan.steps[].actionCode`) and synthesis diagnostics
-8. On a ready state, `probe_reset` clears the baseline counter for the strict line key
+8. On a ready state, `probe` with `action=reset` clears the baseline counter for the strict line key
 9. The orchestrator fires the selected HTTP trigger using the bearer token
-10. `probe_wait_for_hit` confirms the line was executed; if unavailable, `probe_get_status` provides a detailed status payload
-11. When `capturePreview.captureId` is present, `probe_get_capture` retrieves the full runtime capture for arguments and context evidence
+10. `probe` with `action=wait_for_hit` confirms the line was executed; if unavailable, `probe` with `action=status` provides a detailed status payload
+11. When `capturePreview.captureId` is present, `probe` with `action=capture` retrieves the full runtime capture for arguments and context evidence
 
 ### What You Get Back
 
@@ -109,11 +109,11 @@ Return endpoint-level HTTP results and any probe-verifiable evidence.
 1. The orchestrator resolves the API project and passes `projectRootAbs`
 2. `artifact_management` with `artifactType=project_context` and `action=validate` optionally validates the scoped project context
 3. For each route under the controller, `probe_recipe_create` is called with the exact FQCN (and shared `apiBasePath` when applicable) to produce executable request candidates and auth/readiness diagnostics
-4. If `probe_recipe_create` returns `resultType=report`, that route is treated as fail-closed — use the compact execution metadata and diagnostics for routing decisions
+4. If `probe_recipe_create` returns `resultType=report`, that route is treated as fail-closed; use the compact execution metadata and diagnostics for routing decisions
 5. The orchestrator fires regression HTTP requests route-by-route with bearer auth and records outcomes
 6. Probe verification is only applied when strict line targets are available for an endpoint
-7. For probe-eligible endpoints: `probe_reset` → execute HTTP request → `probe_wait_for_hit` (or `probe_get_status`) confirms runtime line execution
-8. Any capture preview discovered during status checks can be expanded via `probe_get_capture`
+7. For probe-eligible endpoints: `probe` with `action=reset` -> execute HTTP request -> `probe` with `action=wait_for_hit` (or `action=status`) confirms runtime line execution
+8. Any capture preview discovered during status checks can be expanded via `probe` with `action=capture`
 9. Endpoints without strict line mapping remain HTTP-only and must be explicitly marked as non-probe-verified
 
 ### What You Get Back
@@ -148,9 +148,9 @@ For every failed or flagged run, generate a reproducible recipe and include runt
 1. Run the full Use Case 2 regression flow and collect all endpoint outcomes
 2. Filter endpoints into `failed` or `flagged` sets (non-2xx, contract mismatch, probe-miss, etc.)
 3. For each failed/flagged endpoint, call `probe_recipe_create` to produce a focused rerun recipe tied to the observed failure context
-4. If strict line verification is possible, run `probe_reset` → targeted HTTP rerun → `probe_wait_for_hit` / `probe_get_status`
-5. If a capture preview exists, call `probe_get_capture` and attach the evidence to that endpoint's recipe package
-6. If the runtime route can't be uniquely validated during rerun, emit a fail-closed pushback artifact — not speculative guidance
+4. If strict line verification is possible, run `probe` with `action=reset` -> targeted HTTP rerun -> `probe` with `action=wait_for_hit` / `action=status`
+5. If a capture preview exists, call `probe` with `action=capture` and attach the evidence to that endpoint's recipe package
+6. If the runtime route can't be uniquely validated during rerun, emit a fail-closed pushback artifact, not speculative guidance
 
 ### What You Get Back
 
@@ -158,7 +158,7 @@ For every failed or flagged run, generate a reproducible recipe and include runt
 |---|---|
 | **Regression report** | Full controller endpoint pass/fail summary |
 | **Per-failure recipe bundle** | Endpoint-specific trigger request, auth requirements, strict probe target (when available), rerun steps |
-| **Evidence bundle** | Probe hit/miss status, last status payload, optional capture payload — per failed/flagged endpoint |
+| **Evidence bundle** | Probe hit/miss status, last status payload, optional capture payload per failed/flagged endpoint |
 | **Pushback bundle** | `probe_route_not_found` or `probe_route_ambiguous` with candidate validation details (when unresolved) |
 
 ---
@@ -168,3 +168,4 @@ For every failed or flagged run, generate a reproducible recipe and include runt
 - **Don't claim probe success without verification.** A probe hit must be confirmed via strict `Class#method:line` check or by observing a breakpoint pause in your IDE.
 - **Include everything the agent can't infer.** Auth tokens in particular must be in your prompt — the tool has guardrails, but it can't guess credentials.
 - **Data synthesis is the tool's job.** You provide the inputs and context; the coding agent handles synthesis.
+

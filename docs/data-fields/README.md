@@ -97,19 +97,21 @@ examples:
 | `serverTime` | Server timestamp when ping response is produced. | `debug_check` | true | `"2026-03-07T04:00:00.000Z"` |
 | `version` | MCP server version. | `debug_check` | true | `"0.1.0"` |
 
-## probe_check
+
+> Canonical live Probe MCP Tool: `probe`. Action mapping for the sections below: `check`, `actuate`, `status`, `capture`, `reset`, `wait_for_hit`.
+## probe action=check
 
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
 | --- | --- | --- | --- | --- |
-| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe_check` | false | `"order-service"` |
-| `config` | Effective diagnose call configuration. | `probe_check` | true | `{"baseUrl":"http://127.0.0.1:9191"}` |
-| `config.authConfigured` | Whether `probe_check.http.headers` were provided and applied. | `probe_check` | true | `true` |
-| `config.authHeaderNames` | Header names applied to probe reset/status calls (values intentionally omitted). | `probe_check` | true | `["Authorization"]` |
-| `checks` | Aggregated endpoint checks. | `probe_check` | true | `{"reset":{"ok":true},"status":{"ok":true}}` |
-| `checks.reset` | Reset endpoint diagnostic result. | `probe_check` | true | `{"ok":true,"status":200}` |
-| `checks.status` | Status endpoint diagnostic result. | `probe_check` | true | `{"ok":true,"keyDecodingOk":true}` |
-| `checks.status.keyDecodingOk` | Whether the probe status key decoding behavior is valid. | `probe_check` | false | `true` |
-| `recommendations` | Operator follow-up hints when check fails. | `probe_check` | true | `[]` |
+| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe` | false | `"order-service"` |
+| `config` | Effective diagnose call configuration. | `probe` | true | `{"baseUrl":"http://127.0.0.1:9191"}` |
+| `config.authConfigured` | Whether `probe.input.http.headers` were provided and applied. | `probe` | true | `true` |
+| `config.authHeaderNames` | Header names applied to probe reset/status calls (values intentionally omitted). | `probe` | true | `["Authorization"]` |
+| `checks` | Aggregated endpoint checks. | `probe` | true | `{"reset":{"ok":true},"status":{"ok":true}}` |
+| `checks.reset` | Reset endpoint diagnostic result. | `probe` | true | `{"ok":true,"status":200}` |
+| `checks.status` | Status endpoint diagnostic result. | `probe` | true | `{"ok":true,"keyDecodingOk":true}` |
+| `checks.status.keyDecodingOk` | Whether the probe status key decoding behavior is valid. | `probe` | false | `true` |
+| `recommendations` | Operator follow-up hints when check fails. | `probe` | true | `[]` |
 
 ## probe_target_infer
 
@@ -197,98 +199,98 @@ examples:
 | `runtimeCapture.lineResolvable` | Optional line-resolvable hint from runtime capture enrich pass. | `probe_recipe_create` | false | `false` |
 | `rendered` | Optional rendered template output when `outputTemplate` is supplied. | `probe_recipe_create` | false | `"Reproduction execution plan..."` |
 
-## probe_enable
+## probe action=actuate
 
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
 | --- | --- | --- | --- | --- |
-| `request` | Actuation request envelope sent to probe endpoint. | `probe_enable` | true | `{"url":"http://127.0.0.1:9191/__probe/actuate"}` |
-| `request.body.action` | Session actuation action (`arm` or `disarm`). | `probe_enable` | true | `"arm"` |
-| `request.body.sessionId` | Required actuation session identifier. | `probe_enable` | true | `"regression-run-42"` |
-| `request.body.targetKey` | Required strict line key for `action=arm`. | `probe_enable` | false | `"com.example.Catalog#save:88"` |
-| `request.body.returnBoolean` | Required branch decision for `action=arm`. | `probe_enable` | false | `true` |
-| `request.body.ttlMs` | Required session TTL for `action=arm`. | `probe_enable` | false | `15000` |
-| `response` | Raw endpoint response payload. | `probe_enable` | true | `{"status":200,"json":{"action":"arm","scopeState":"armed"}}` |
-| `response.json.scopeState` | Session scope state (`armed`, `expired`, `disarmed`). | `probe_enable` | false | `"armed"` |
-| `response.json.expiresAtEpoch` | Expiry timestamp for armed sessions. | `probe_enable` | false | `1773318672847` |
+| `request` | Actuation request envelope sent to probe endpoint. | `probe` | true | `{"url":"http://127.0.0.1:9191/__probe/actuate"}` |
+| `request.body.action` | Session actuation action (`arm` or `disarm`). | `probe` | true | `"arm"` |
+| `request.body.sessionId` | Required actuation session identifier. | `probe` | true | `"regression-run-42"` |
+| `request.body.targetKey` | Required strict line key for `action=arm`. | `probe` | false | `"com.example.Catalog#save:88"` |
+| `request.body.returnBoolean` | Required branch decision for `action=arm`. | `probe` | false | `true` |
+| `request.body.ttlMs` | Required session TTL for `action=arm`. | `probe` | false | `15000` |
+| `response` | Raw endpoint response payload. | `probe` | true | `{"status":200,"json":{"action":"arm","scopeState":"armed"}}` |
+| `response.json.scopeState` | Session scope state (`armed`, `expired`, `disarmed`). | `probe` | false | `"armed"` |
+| `response.json.expiresAtEpoch` | Expiry timestamp for armed sessions. | `probe` | false | `1773318672847` |
 
-## probe_get_status
-
-| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
-| --- | --- | --- | --- | --- |
-| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe_get_status` | false | `"order-service"` |
-| `request` | Status request details (canonical `key`, URL, timeout; `resolvedKey` appears only when canonicalization differs). | `probe_get_status` | true | `{"key":"com.example.Catalog#save:88"}` |
-| `response` | Compact normalized status payload (`status` + essential `json` fields). | `probe_get_status` | true | `{"status":200,"json":{"hitCount":1}}` |
-| `response.json.contractVersion` | Probe contract marker. | `probe_get_status` | false | `"0.1.0"` |
-| `response.json.hitCount` | Probe hit counter for the line key. | `probe_get_status` | false | `1` |
-| `response.json.lastHitEpoch` | Last hit Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_status` | false | `1739671200000` |
-| `response.json.lineValidation` | Line validation verdict (`resolvable` or `invalid_line_target`). | `probe_get_status` | false | `"resolvable"` |
-| `response.json.capturePreview` | Compact runtime preview metadata from Java agent (`available`, `captureId`, timestamp, optional path list). | `probe_get_status` | false | `{"available":true,"captureId":"abc123"}` |
-| `response.json.capturePreview.capturedAtEpoch` | Capture preview Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_status` | false | `1739671200456` |
-| `response.json.capturePreview.executionStartedAtEpoch` | Invocation start Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_status` | false | `1739671200401` |
-| `response.json.capturePreview.executionEndedAtEpoch` | Invocation end Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_status` | false | `1739671200456` |
-| `response.json.capturePreview.executionDurationMs` | Invocation elapsed wall-clock duration in milliseconds (`executionEndedAtEpoch - executionStartedAtEpoch`, non-negative). | `probe_get_status` | false | `55` |
-| `response.json.capturePreview.threadAllocatedBytesDelta` | Per-invocation thread allocation delta in bytes (`exit - enter`, non-negative). Omitted when runtime support is unavailable. | `probe_get_status` | false | `4096` |
-| `response.json.capturePreview.executionPaths` | Optional execution-path frames captured at runtime when `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true`. | `probe_get_status` | false | `["CatalogController.listCatalogShoes()#42"]` |
-| `response.json.runtime` | Runtime observe/session-actuation payload. | `probe_get_status` | false | `{"mode":"observe","activeSessionCount":0}` |
-| `response.json.runtime.sessionId` | Representative active session id when actuation is armed. | `probe_get_status` | false | `"regression-run-42"` |
-| `response.json.runtime.scopeState` | Runtime scope state snapshot (`armed` or `disarmed`). | `probe_get_status` | false | `"disarmed"` |
-| `response.json.runtime.activeSessionCount` | Number of active actuation sessions after TTL pruning. | `probe_get_status` | false | `1` |
-| `response.json.runtime.appPort.value` | Runtime application port hint when inferable (`null` when unknown). | `probe_get_status` | false | `8082` |
-| `response.json.runtime.appPort.source` | Source used to infer app port hint. | `probe_get_status` | false | `"system_property:server.port"` |
-| `result` | Guidance block when runtime alignment fails. | `probe_get_status` | false | `{"reason":"invalid_line_target","actionCode":"runtime_not_aligned"}` |
-| `mode` | Batch marker when `keys[]` is used. | `probe_get_status` | false | `"probe_batch"` |
-| `operation` | Batch operation identifier. | `probe_get_status` | false | `"status"` |
-| `summary` | Batch success/failure summary. | `probe_get_status` | false | `{"total":2,"ok":1,"failed":1}` |
-| `results` | Batch per-key rows with probe outcome details. | `probe_get_status` | false | `[{"key":"...:88","apiOutcome":"ok"}]` |
-
-## probe_get_capture
+## probe action=status
 
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
 | --- | --- | --- | --- | --- |
-| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe_get_capture` | false | `"order-service"` |
-| `request` | Capture fetch request details. | `probe_get_capture` | true | `{"captureId":"abc123","url":"http://127.0.0.1:9191/__probe/capture?captureId=abc123"}` |
-| `response` | Compact capture fetch response metadata (`status` only). | `probe_get_capture` | true | `{"status":200}` |
-| `result.found` | Whether capture payload exists and was returned. | `probe_get_capture` | true | `true` |
-| `result.capture` | Compact capture metadata (`captureId`, `methodKey`, timestamp, args/return/thrown presence flags). | `probe_get_capture` | false | `{"captureId":"abc123","argsCount":1,"hasReturnValue":true}` |
-| `result.capture.capturedAtEpoch` | Capture Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_capture` | false | `1739671200456` |
-| `result.capture.executionStartedAtEpoch` | Invocation start Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_capture` | false | `1739671200401` |
-| `result.capture.executionEndedAtEpoch` | Invocation end Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_capture` | false | `1739671200456` |
-| `result.capture.executionDurationMs` | Invocation elapsed wall-clock duration in milliseconds (`executionEndedAtEpoch - executionStartedAtEpoch`, non-negative). | `probe_get_capture` | false | `55` |
-| `result.capture.threadAllocatedBytesDelta` | Per-invocation thread allocation delta in bytes (`exit - enter`, non-negative). Omitted when runtime support is unavailable. | `probe_get_capture` | false | `4096` |
-| `result.capture.executionPaths` | Optional execution-path frames when `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true`. | `probe_get_capture` | false | `["CatalogService.save()#88"]` |
-| `result.reason` | Error reason when capture is unavailable. | `probe_get_capture` | false | `"capture_not_found"` |
+| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe` | false | `"order-service"` |
+| `request` | Status request details (canonical `key`, URL, timeout; `resolvedKey` appears only when canonicalization differs). | `probe` | true | `{"key":"com.example.Catalog#save:88"}` |
+| `response` | Compact normalized status payload (`status` + essential `json` fields). | `probe` | true | `{"status":200,"json":{"hitCount":1}}` |
+| `response.json.contractVersion` | Probe contract marker. | `probe` | false | `"0.1.0"` |
+| `response.json.hitCount` | Probe hit counter for the line key. | `probe` | false | `1` |
+| `response.json.lastHitEpoch` | Last hit Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe` | false | `1739671200000` |
+| `response.json.lineValidation` | Line validation verdict (`resolvable` or `invalid_line_target`). | `probe` | false | `"resolvable"` |
+| `response.json.capturePreview` | Compact runtime preview metadata from Java agent (`available`, `captureId`, timestamp, optional path list). | `probe` | false | `{"available":true,"captureId":"abc123"}` |
+| `response.json.capturePreview.capturedAtEpoch` | Capture preview Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe` | false | `1739671200456` |
+| `response.json.capturePreview.executionStartedAtEpoch` | Invocation start Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe` | false | `1739671200401` |
+| `response.json.capturePreview.executionEndedAtEpoch` | Invocation end Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe` | false | `1739671200456` |
+| `response.json.capturePreview.executionDurationMs` | Invocation elapsed wall-clock duration in milliseconds (`executionEndedAtEpoch - executionStartedAtEpoch`, non-negative). | `probe` | false | `55` |
+| `response.json.capturePreview.threadAllocatedBytesDelta` | Per-invocation thread allocation delta in bytes (`exit - enter`, non-negative). Omitted when runtime support is unavailable. | `probe` | false | `4096` |
+| `response.json.capturePreview.executionPaths` | Optional execution-path frames captured at runtime when `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true`. | `probe` | false | `["CatalogController.listCatalogShoes()#42"]` |
+| `response.json.runtime` | Runtime observe/session-actuation payload. | `probe` | false | `{"mode":"observe","activeSessionCount":0}` |
+| `response.json.runtime.sessionId` | Representative active session id when actuation is armed. | `probe` | false | `"regression-run-42"` |
+| `response.json.runtime.scopeState` | Runtime scope state snapshot (`armed` or `disarmed`). | `probe` | false | `"disarmed"` |
+| `response.json.runtime.activeSessionCount` | Number of active actuation sessions after TTL pruning. | `probe` | false | `1` |
+| `response.json.runtime.appPort.value` | Runtime application port hint when inferable (`null` when unknown). | `probe` | false | `8082` |
+| `response.json.runtime.appPort.source` | Source used to infer app port hint. | `probe` | false | `"system_property:server.port"` |
+| `result` | Guidance block when runtime alignment fails. | `probe` | false | `{"reason":"invalid_line_target","actionCode":"runtime_not_aligned"}` |
+| `mode` | Batch marker when `keys[]` is used. | `probe` | false | `"probe_batch"` |
+| `operation` | Batch operation identifier. | `probe` | false | `"status"` |
+| `summary` | Batch success/failure summary. | `probe` | false | `{"total":2,"ok":1,"failed":1}` |
+| `results` | Batch per-key rows with probe outcome details. | `probe` | false | `[{"key":"...:88","apiOutcome":"ok"}]` |
 
-## probe_reset
+## probe action=capture
 
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
 | --- | --- | --- | --- | --- |
-| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe_reset` | false | `"order-service"` |
-| `request` | Reset selector request details (canonical `key`; optional `resolvedKey` only when transformed from input). | `probe_reset` | true | `{"key":"com.example.Catalog#save:88"}` |
-| `response` | Compact reset response metadata (`status`, plus selector/reason metadata in batch mode). | `probe_reset` | true | `{"status":200}` |
-| `result` | Guidance block when line target is invalid. | `probe_reset` | false | `{"reason":"invalid_line_target"}` |
-| `mode` | Batch marker for multi-key/class reset. | `probe_reset` | false | `"probe_batch"` |
-| `operation` | Batch operation identifier. | `probe_reset` | false | `"reset"` |
-| `summary` | Batch outcome summary. | `probe_reset` | false | `{"total":3,"ok":2,"failed":1}` |
-| `results` | Batch per-key reset rows. | `probe_reset` | false | `[{"key":"...:88","apiOutcome":"ok"}]` |
+| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe` | false | `"order-service"` |
+| `request` | Capture fetch request details. | `probe` | true | `{"captureId":"abc123","url":"http://127.0.0.1:9191/__probe/capture?captureId=abc123"}` |
+| `response` | Compact capture fetch response metadata (`status` only). | `probe` | true | `{"status":200}` |
+| `result.found` | Whether capture payload exists and was returned. | `probe` | true | `true` |
+| `result.capture` | Compact capture metadata (`captureId`, `methodKey`, timestamp, args/return/thrown presence flags). | `probe` | false | `{"captureId":"abc123","argsCount":1,"hasReturnValue":true}` |
+| `result.capture.capturedAtEpoch` | Capture Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe` | false | `1739671200456` |
+| `result.capture.executionStartedAtEpoch` | Invocation start Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe` | false | `1739671200401` |
+| `result.capture.executionEndedAtEpoch` | Invocation end Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe` | false | `1739671200456` |
+| `result.capture.executionDurationMs` | Invocation elapsed wall-clock duration in milliseconds (`executionEndedAtEpoch - executionStartedAtEpoch`, non-negative). | `probe` | false | `55` |
+| `result.capture.threadAllocatedBytesDelta` | Per-invocation thread allocation delta in bytes (`exit - enter`, non-negative). Omitted when runtime support is unavailable. | `probe` | false | `4096` |
+| `result.capture.executionPaths` | Optional execution-path frames when `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true`. | `probe` | false | `["CatalogService.save()#88"]` |
+| `result.reason` | Error reason when capture is unavailable. | `probe` | false | `"capture_not_found"` |
 
-## probe_wait_for_hit
+## probe action=reset
 
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
 | --- | --- | --- | --- | --- |
-| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe_wait_for_hit` | false | `"order-service"` |
-| `request` | Polling request and retry configuration (`key` canonical; optional `resolvedKey` only when transformed from input). | `probe_wait_for_hit` | true | `{"key":"com.example.Catalog#save:88","maxRetries":1}` |
-| `request.waitStartEpoch` | Unix-epoch millisecond timestamp when current wait attempt started. | `probe_wait_for_hit` | false | `1773318672847` |
-| `request.triggerWindowStartEpoch` | Reset-aware Unix-epoch start used for strict inline classification. | `probe_wait_for_hit` | false | `1773318658526` |
-| `request.triggerLeadMs` | Milliseconds between wait start and trigger window start (`waitStartEpoch - triggerWindowStartEpoch`). | `probe_wait_for_hit` | false | `14321` |
-| `baseline` | Baseline probe snapshot used for inline hit diffing. | `probe_wait_for_hit` | false | `{"hitCount":0,"lastHitEpoch":0}` |
-| `result.hit` | Whether a hit was detected in current wait window. | `probe_wait_for_hit` | true | `true` |
-| `result.inline` | Whether detected hit is inline to current execution window. | `probe_wait_for_hit` | true | `true` |
-| `result.reason` | Failure reason when no inline hit is confirmed. | `probe_wait_for_hit` | false | `"timeout_no_inline_hit"` |
-| `result.actionCode` | Action code for deterministic orchestrator next-step routing. | `probe_wait_for_hit` | false | `"line_not_executed_in_window"` |
-| `result.nextActionCode` | Verb-style deterministic follow-up action key for wait failure outputs. | `probe_wait_for_hit` | false | `"verify_trigger_path"` |
-| `result.nextAction` | Human-readable follow-up action. | `probe_wait_for_hit` | false | `"verify_trigger_path_or_branch_then_rerun_probe_wait_for_hit"` |
-| `result.reasonMeta` | Optional compact typed context for diagnostics rendering. | `probe_wait_for_hit` | false | `{"failedStep":"wait_poll","waitedMs":4000}` |
-| `result.lastStatus` | Last observed probe status payload. | `probe_wait_for_hit` | false | `{"hitCount":0}` |
+| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe` | false | `"order-service"` |
+| `request` | Reset selector request details (canonical `key`; optional `resolvedKey` only when transformed from input). | `probe` | true | `{"key":"com.example.Catalog#save:88"}` |
+| `response` | Compact reset response metadata (`status`, plus selector/reason metadata in batch mode). | `probe` | true | `{"status":200}` |
+| `result` | Guidance block when line target is invalid. | `probe` | false | `{"reason":"invalid_line_target"}` |
+| `mode` | Batch marker for multi-key/class reset. | `probe` | false | `"probe_batch"` |
+| `operation` | Batch operation identifier. | `probe` | false | `"reset"` |
+| `summary` | Batch outcome summary. | `probe` | false | `{"total":3,"ok":2,"failed":1}` |
+| `results` | Batch per-key reset rows. | `probe` | false | `[{"key":"...:88","apiOutcome":"ok"}]` |
+
+## probe action=wait_for_hit
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `probeId` (input) | Optional named probe selector resolved from active probe registry; takes precedence over `baseUrl` when both are supplied. | `probe` | false | `"order-service"` |
+| `request` | Polling request and retry configuration (`key` canonical; optional `resolvedKey` only when transformed from input). | `probe` | true | `{"key":"com.example.Catalog#save:88","maxRetries":1}` |
+| `request.waitStartEpoch` | Unix-epoch millisecond timestamp when current wait attempt started. | `probe` | false | `1773318672847` |
+| `request.triggerWindowStartEpoch` | Reset-aware Unix-epoch start used for strict inline classification. | `probe` | false | `1773318658526` |
+| `request.triggerLeadMs` | Milliseconds between wait start and trigger window start (`waitStartEpoch - triggerWindowStartEpoch`). | `probe` | false | `14321` |
+| `baseline` | Baseline probe snapshot used for inline hit diffing. | `probe` | false | `{"hitCount":0,"lastHitEpoch":0}` |
+| `result.hit` | Whether a hit was detected in current wait window. | `probe` | true | `true` |
+| `result.inline` | Whether detected hit is inline to current execution window. | `probe` | true | `true` |
+| `result.reason` | Failure reason when no inline hit is confirmed. | `probe` | false | `"timeout_no_inline_hit"` |
+| `result.actionCode` | Action code for deterministic orchestrator next-step routing. | `probe` | false | `"line_not_executed_in_window"` |
+| `result.nextActionCode` | Verb-style deterministic follow-up action key for wait failure outputs. | `probe` | false | `"verify_trigger_path"` |
+| `result.nextAction` | Human-readable follow-up action. | `probe` | false | `"verify_trigger_path_or_branch_then_rerun_probe_wait_for_hit"` |
+| `result.reasonMeta` | Optional compact typed context for diagnostics rendering. | `probe` | false | `{"failedStep":"wait_poll","waitedMs":4000}` |
+| `result.lastStatus` | Last observed probe status payload. | `probe` | false | `{"hitCount":0}` |
 
 ## execution_profile_export
 
@@ -423,6 +425,8 @@ These fields are emitted by orchestration summaries in skill-guided runs when pr
 | `executionResult.steps[].status` | Step outcome status including conditional skip (`skipped_condition_false`). | `mcp-java-dev-tools-regression-suite` | true | `"skipped_condition_false"` |
 | `executionResult.steps[].conditionEvaluation.status` | Deterministic condition evaluation result (`true`, `false`, `blocked_invalid`). | `mcp-java-dev-tools-regression-suite` | false | `false` |
 | `executionResult.steps[].conditionEvaluation.reasonCode` | Deterministic reason when condition evaluation is blocked. | `mcp-java-dev-tools-regression-suite` | false | `"step_condition_forward_reference"` |
+
+
 
 
 

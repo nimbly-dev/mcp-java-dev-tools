@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { probeDiagnose } = require("@/tools/core/probe_check/domain");
+const { probeDiagnose } = require("@/tools/core/probe/domain");
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -38,7 +38,7 @@ function readHeader(headers: RequestInit["headers"] | undefined, name: string): 
   return undefined;
 }
 
-test("probe_check forwards http.headers to reset and status calls", async () => {
+test("probe action=check forwards http.headers to reset and status calls", async () => {
   const calls: Array<{ url: string; method: string | undefined; headers: RequestInit["headers"] }> = [];
 
   await withMockedFetch(async (url, init) => {
@@ -79,7 +79,7 @@ test("probe_check forwards http.headers to reset and status calls", async () => 
   assert.equal(calls.length, 2);
   const resetCall = calls[0];
   const statusCall = calls[1];
-  if (!resetCall || !statusCall) throw new Error("missing expected probe_check calls");
+  if (!resetCall || !statusCall) throw new Error("missing expected probe action=check calls");
 
   assert.equal(resetCall.method, "POST");
   assert.equal(readHeader(resetCall.headers, "authorization"), "Bearer fixture-token");
@@ -91,7 +91,7 @@ test("probe_check forwards http.headers to reset and status calls", async () => 
   assert.equal(readHeader(statusCall.headers, "x-probe-client"), "mcp-it");
 });
 
-test("probe_check surfaces deterministic guidance for protected endpoints", async () => {
+test("probe action=check surfaces deterministic guidance for protected endpoints", async () => {
   await withMockedFetch(async (url) => {
     if (String(url).includes("/__probe/reset")) {
       return jsonResponse(401, { error: "unauthorized" });
@@ -118,13 +118,13 @@ test("probe_check surfaces deterministic guidance for protected endpoints", asyn
     assert.equal(result.structuredContent.checks.status.keyDecodingOk, undefined);
     assert.equal(
       result.structuredContent.recommendations.includes(
-        "Probe reset endpoint is protected. Provide auth headers via probe_check.http.headers.",
+        "Probe reset endpoint is protected. Provide auth headers via probe.input.http.headers.",
       ),
       true,
     );
     assert.equal(
       result.structuredContent.recommendations.includes(
-        "Probe status endpoint is protected. Provide auth headers via probe_check.http.headers.",
+        "Probe status endpoint is protected. Provide auth headers via probe.input.http.headers.",
       ),
       true,
     );

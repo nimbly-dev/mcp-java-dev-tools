@@ -3,7 +3,7 @@
 ## MCP-First Requirement
 
 1. Mandatory tools:
-   - `probe_check`
+   - `probe` (`action=check`)
    - `artifact_management`
    - `probe_recipe_create`
 2. HTTP transport must use MCP-wrapped `transport_execute`.

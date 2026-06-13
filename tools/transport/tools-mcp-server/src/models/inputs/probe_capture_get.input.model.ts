@@ -1,7 +1,7 @@
 import * as z from "zod/v4";
 
 export const ProbeCaptureGetInputSchema = {
-  captureId: z.string().min(1).describe("Capture identifier returned by probe_get_status capturePreview.captureId."),
+  captureId: z.string().min(1).describe("Capture identifier returned by probe action=status capturePreview.captureId."),
   baseUrl: z
     .string()
     .optional()

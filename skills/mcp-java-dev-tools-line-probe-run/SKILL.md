@@ -15,7 +15,7 @@ Use this workflow only for strict one-line verification runs.
 
 ## MCP-First Requirement
 
-1. Mandatory tools: `probe_check`, `artifact_management`, `probe_recipe_create`, `probe_reset`, `probe_wait_for_hit` or `probe_get_status`.
+1. Mandatory tools: `probe`, `artifact_management`, `probe_recipe_create`.
 2. If MCP toolchain is unavailable, stop immediately and return:
    - `reasonCode=toolchain_unavailable`
    - `nextAction=enable_mcp_jvm_debugger_tools_then_rerun`
@@ -32,7 +32,7 @@ Use this workflow only for strict one-line verification runs.
    - probe base URL (or probe port)
    - optional `apiBasePath`
    - auth requirement/token only if needed.
-1. Validate probe connectivity first with `probe_check` on the selected probe base URL.
+1. Validate probe connectivity first with `probe` using `action=check` on the selected probe base URL.
 2. Call `artifact_management` with `artifactType=project_context`, `action=validate`, and typed `input`.
 3. Prefer explicit `projectName` for multi-project or microservice workspaces.
 4. Include `projectRootAbs` when the orchestrator needs deterministic root validation or scope cross-checking.
@@ -64,14 +64,14 @@ Use this workflow only for strict one-line verification runs.
 17. Treat `probe_target_infer.firstExecutableLine` as runtime-validated only; when unresolved, do not guess a line and fail closed.
 18. When capture preview is available, use `capturePreview.executionPaths` as runtime evidence; do not re-derive call paths heuristically.
 19. Execute probe flow:
-   - `probe_reset` -> trigger HTTP request -> `probe_wait_for_hit` / `probe_get_status`
+   - `probe` with `action=reset` -> trigger HTTP request -> `probe` with `action=wait_for_hit` / `action=status`
 20. Cleanup (disable actuation when used).
 
 ## Prerequisites
 
 Before starting execution:
 
-1. Probe endpoint must be reachable (`probe_check` succeeds for selected probe base URL).
+1. Probe endpoint must be reachable (`probe` with `action=check` succeeds for selected probe base URL).
 2. API and probe endpoints must be explicitly known and must not be assumed identical unless validated.
 3. Strict target must be provided (`Class#method:line` or inferable from exact `classHint` + `methodHint` + `lineHint`).
 4. Auth input must be present only when required by synthesis/auth diagnostics.
@@ -85,9 +85,9 @@ If `probe_recipe_create` does not infer a request candidate, continue manually:
    - request body/query shape from DTO/controller contract
    - auth token only if required.
 2. Keep probe verification strict:
-   - `probe_reset` on target line key
+   - `probe` with `action=reset` on target line key
    - execute trigger HTTP request against discovered API base URL
-   - verify with `probe_wait_for_hit` (or `probe_get_status`).
+   - verify with `probe` using `action=wait_for_hit` (or `action=status`).
 3. Report deterministic outcome:
    - include `reasonCode`, `failedStep`, `evidence`, `attemptedStrategies`
    - include executable human `Repro Steps`.
@@ -126,7 +126,7 @@ Always include:
    - `runDurationMs` (`runEndEpoch - runStartEpoch`)
    - optional human-readable UTC timestamps for operator readability
 7. `Synthesis Diagnostics` (`synthesizerUsed`, `reasonCode`, `failedStep` when present)
-8. `Runtime Evidence` (`capturePreview.executionPaths` and `probe_get_capture.capture.executionPaths` when available)
+8. `Runtime Evidence` (`capturePreview.executionPaths` and `probe action=capture -> result.capture.executionPaths` when available)
 9. `Repro Steps` (ordered, executable, numbered, per-recipe)
 10. `Cleanup`
 11. `Trust Note`
