@@ -20,19 +20,22 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 ## Rules
 
 1. If project name is missing, ask the user first and do not create files yet.
-2. `probe-config.json` remains authoritative for probes and baseUrl routing.
-3. `projects.json` MUST NOT duplicate probe endpoint config.
-4. Persist only env key names (for example `AUTH_BEARER_TOKEN`), never resolved token values.
-5. Runtime context `mode` is restricted to `terminal` and `docker`.
-6. Runtime context supports `autoStart` and `autoStopOnFinish` booleans (default true).
-7. For `mode=terminal`, provide `startups[]` entries per app/service with `command` (+ optional `args[]`, `appdir`, `env`) when auto-start is desired.
-8. Runtime startup entries must start/stop application runtime only; token refresh, seed, validation, and env preparation belong in shared `scripts[]`.
-9. Shared scripts are referenced by `executionProfiles[].scriptRefs[]` and may declare `phase`, `command`, `args[]`, `appdir`, `env`, and `envFileArg`.
-10. Shared scripts and run-prerequisite scripts must be replayable: use relative paths only (`scriptPath`, `appdir`, and path-like `args[]`); absolute machine paths are invalid.
-11. External system checks may use only deterministic `tcp` or `http` checks in v1.
-12. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
-13. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator runtime operations by default, including health checks, wrapped HTTP execution, and replayable bootstrap/prerequisite scripts unless a narrower timeout is set.
-14. `sessionExport` uses flat defaults (`includeRuntimeStartup`, `includeHealthcheckGate`, `includeResolvedSecrets`) for execution-profile export behavior. `includeResolvedSecrets=true` is a trusted-local setting and makes exported packages sensitive.
+2. Treat `projectName` as the canonical Artifact identity for `artifact_management` calls.
+3. Use `projectRootAbs` only as deterministic scope validation or cross-check input when needed.
+4. `probe-config.json` remains authoritative for probes and baseUrl routing.
+5. `projects.json` MUST NOT duplicate probe endpoint config.
+6. Persist only env key names (for example `AUTH_BEARER_TOKEN`), never resolved token values.
+7. Runtime context `mode` is restricted to `terminal` and `docker`.
+8. Runtime context supports `autoStart` and `autoStopOnFinish` booleans (default true).
+9. For `mode=terminal`, provide `startups[]` entries per app/service with `command` (+ optional `args[]`, `appdir`, `env`) when auto-start is desired.
+10. Runtime startup entries must start/stop application runtime only; token refresh, seed, validation, and env preparation belong in shared `scripts[]`.
+11. Shared scripts are referenced by `executionProfiles[].scriptRefs[]` and may declare `phase`, `command`, `args[]`, `appdir`, `env`, and `envFileArg`.
+12. Shared scripts and run-prerequisite scripts must be replayable: use relative paths only (`scriptPath`, `appdir`, and path-like `args[]`); absolute machine paths are invalid.
+13. External system checks may use only deterministic `tcp` or `http` checks in v1.
+14. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
+15. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator runtime operations by default, including health checks, wrapped HTTP execution, and replayable bootstrap/prerequisite scripts unless a narrower timeout is set.
+16. `sessionExport` uses flat defaults for `includeRuntimeStartup` and `includeHealthcheckGate`.
+17. `sessionExport.includeResolvedSecrets` must not auto-enable secret export; resolved secrets require explicit request opt-in at export time.
 
 ## Required Artifact Path
 
@@ -144,7 +147,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 2. Ask for project name when missing.
 3. Call `artifact_management` with `artifactType=project_context` and `action=read|list` to load current state.
 4. Normalize and prepare requested changes in-memory.
-5. Call `artifact_management` with `artifactType=project_context` and `action=validate` before persistence.
+5. Call `artifact_management` with `artifactType=project_context` and `action=validate` before persistence, passing explicit `projectName` and optional `projectRootAbs` only when a scope cross-check is required.
 6. Call `artifact_management` with `artifactType=project_context` and `action=upsert` to persist.
 7. Validate end-to-end and return deterministic summary.
 

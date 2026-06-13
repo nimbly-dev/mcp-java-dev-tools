@@ -4,7 +4,7 @@
 
 1. Mandatory tools:
    - `probe_check`
-   - `project_context_validate`
+   - `artifact_management`
    - `probe_recipe_create`
 2. HTTP transport must use MCP-wrapped `transport_execute`.
 3. Never fall back to raw curl/direct HTTP execution.

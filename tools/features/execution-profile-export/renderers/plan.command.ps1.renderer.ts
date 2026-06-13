@@ -138,7 +138,10 @@ export async function renderPs1PlanExecutionSection(input: {
   const lines: string[] = [];
 
   for (const plan of ordered) {
-    lines.push(`Write-Host '[E${String(plan.order).padStart(2, "0")}] ${escapePsSingleQuoted(plan.planName)} status=${escapePsSingleQuoted(plan.status)}'`);
+    const sourceStatus = typeof plan.runStatus === "string" ? plan.runStatus : plan.status;
+    lines.push(
+      `Write-Host '[E${String(plan.order).padStart(2, "0")}] ${escapePsSingleQuoted(plan.planName)} replay_plan source_status=${escapePsSingleQuoted(sourceStatus)}'`,
+    );
     const contract = await loadPlanContract({
       plansRootAbs: input.plansRootAbs,
       planName: plan.planName,
@@ -150,7 +153,9 @@ export async function renderPs1PlanExecutionSection(input: {
 
     let emittedAnyStep = false;
     for (const step of [...contract.steps].sort((left, right) => left.order - right.order)) {
-      lines.push(`Write-Host '[${escapePsSingleQuoted(plan.planName)}:${String(step.order).padStart(2, "0")}] ${escapePsSingleQuoted(step.id)} status=planned'`);
+      lines.push(
+        `Write-Host '[${escapePsSingleQuoted(plan.planName)}:${String(step.order).padStart(2, "0")}] ${escapePsSingleQuoted(step.id)} replay_step'`,
+      );
       const request = resolvePsHttpRequest({
         step,
         contextResolved: input.planBaseUrls?.[plan.planName]

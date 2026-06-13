@@ -176,7 +176,7 @@ Use these references/templates:
 
 ## MCP-First and Wrapped Transport
 
-1. Mandatory MCP tools: `probe_check`, `project_context_validate`, `probe_recipe_create`.
+1. Mandatory MCP tools: `probe_check`, `artifact_management`, `probe_recipe_create`.
 2. HTTP execution uses `transport_execute` (wrapped-only); no raw curl fallback.
 3. If toolchain is unavailable:
    - `reasonCode=toolchain_unavailable`
@@ -188,6 +188,7 @@ Use these references/templates:
 1. `autoStart=true`:
    - if app is down, start via `projects.json` runtime context
    - if app is up but non-compliant (probe down / no sidecar), replace and restart via runtime context
+   - after runtime start/restart, wait for bounded required health-check convergence before continuing into `postRuntime` scripts or strict probe verification
 2. `autoStart=false`:
    - do not start processes
    - if runtime is not already compliant, fail closed

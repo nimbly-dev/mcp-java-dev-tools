@@ -110,9 +110,10 @@ test("exportExecutionProfilePs1 writes deterministic script and readme from expo
     assert.match(script, /\$__health_result = Test-NetConnection/);
     assert.match(script, /\$__health_result\.TcpTestSucceeded -eq \$true/);
     assert.doesNotMatch(script, /Test-NetConnection[^\n]+\| Out-Null\nif \(\$LASTEXITCODE -ne 0\) \{ throw 'healthcheck gate failed' \}/);
-    assert.match(script, /\[E01\] plan-a status=executed/);
-    assert.match(script, /\[E02\] plan-b status=executed/);
-    assert.match(script, /# RunStatus: pass/);
+    assert.match(script, /\[E01\] plan-a replay_plan source_status=pass/);
+    assert.match(script, /\[E02\] plan-b replay_plan source_status=fail/);
+    assert.match(script, /# SourceRunStatus: fail/);
+    assert.match(script, /# ReplayPackageType: request_replay_only/);
     assert.match(script, /\$script:McpJvmProjectEnv = Join-Path \$script:McpJvmExportScriptDir 'project.env'/);
     assert.match(script, /workspace_root_unresolved/);
     assert.doesNotMatch(script, /\$ReplayCommand = ''/);
@@ -123,9 +124,12 @@ test("exportExecutionProfilePs1 writes deterministic script and readme from expo
     assert.match(readme, /ExecutionProfile: `regression-test-run`/);
     assert.match(readme, /IncludeRuntimeStartup: `true`/);
     assert.match(readme, /IncludeHealthcheckGate: `true`/);
-    assert.match(readme, /1\. \[1\] plan-a \(executed\)/);
-    assert.match(readme, /1\. \[2\] plan-b \(executed\)/);
-    assert.doesNotMatch(readme, /\(executed\)1\./);
+    assert.match(readme, /SourceRunStatus: `fail`/);
+    assert.match(readme, /ReplayPackageType: `request_replay_only`/);
+    assert.match(readme, /1\. \[1\] plan-a \(source_status=pass\)/);
+    assert.match(readme, /1\. \[2\] plan-b \(source_status=fail\)/);
+    assert.doesNotMatch(readme, /\(source_status=pass\)1\./);
+    assert.match(readme, /replays generated requests only/i);
     assert.match(readme, /AUTH_BOOTSTRAP_HINT: includeResolvedSecrets=false/);
     assert.match(readme, /Keep `includeResolvedSecrets=false`/);
     assert.match(readme, /Optional: rerun export with `includeResolvedSecrets=true`/);
@@ -252,6 +256,7 @@ test("exportExecutionProfilePs1 includes sensitive warning when includeResolvedS
     assert.match(script, /healthcheck gate skipped/i);
     const readme = fs.readFileSync(out.readmePathAbs, "utf8");
     assert.match(readme, /SENSITIVE EXPORT/);
+    assert.match(readme, /ReplayPackageType: `request_replay_only`/);
     assert.match(readme, /IncludeRuntimeStartup: `false`/);
     assert.match(readme, /IncludeHealthcheckGate: `false`/);
   } finally {
@@ -259,7 +264,7 @@ test("exportExecutionProfilePs1 includes sensitive warning when includeResolvedS
   }
 });
 
-test("exportExecutionProfilePs1 bundles shared profile scripts and export-local project env", async () => {
+test("exportExecutionProfilePs1 keeps secrets redacted when only sessionExport includeResolvedSecrets is set", async () => {
   const root = createTestTempDir("execution-profile-ps1-bundled-scripts");
   try {
     const projectName = "petclinic-regression";
@@ -323,9 +328,11 @@ test("exportExecutionProfilePs1 bundles shared profile scripts and export-local 
     assert.match(script, /Join-Path \$script:McpJvmExportScriptDir 'scripts\\keycloak-token-bootstrap\\refresh-keycloak-token\.ps1'/);
     assert.match(script, /'-EnvFile' \(\$script:McpJvmProjectEnv\)/);
     assert.doesNotMatch(script, /\$ReplayCommand/);
-    assert.match(projectEnv, /# SENSITIVE EXPORT: includeResolvedSecrets=true\./);
-    assert.match(projectEnv, /AUTH_BEARER_TOKEN=secret-token/);
-    assert.match(projectEnv, /KEYCLOAK_PASSWORD=password/);
+    assert.match(projectEnv, /# Secret-like values are blanked because includeResolvedSecrets=false\./);
+    assert.match(projectEnv, /AUTH_BEARER_TOKEN=/);
+    assert.match(projectEnv, /KEYCLOAK_PASSWORD=/);
+    assert.doesNotMatch(projectEnv, /secret-token/);
+    assert.doesNotMatch(projectEnv, /password/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

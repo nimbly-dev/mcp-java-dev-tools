@@ -8,7 +8,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
 import { CONFIG_DEFAULTS } from "@/config/defaults";
 import { loadProbeRegistry } from "@/config/probe-registry";
-import { registerProjectContextValidateTool } from "@/tools/core/project_context_validate/handler";
 import { registerProbeCheckTool } from "@/tools/core/probe_check/handler";
 import { registerTargetInferTool } from "@/tools/core/target_infer/handler";
 import { registerRecipeCreateTool } from "@/tools/core/recipe_generate/handler";
@@ -219,7 +218,6 @@ async function main() {
     },
   );
 
-  registerProjectContextValidateTool(server);
   registerProbeCheckTool(server, {
     probeBaseUrl: currentBaseUrl(),
     probeStatusPath,

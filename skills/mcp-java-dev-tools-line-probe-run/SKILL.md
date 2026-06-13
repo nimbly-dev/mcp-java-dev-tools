@@ -15,7 +15,7 @@ Use this workflow only for strict one-line verification runs.
 
 ## MCP-First Requirement
 
-1. Mandatory tools: `probe_check`, `project_context_validate`, `probe_recipe_create`, `probe_reset`, `probe_wait_for_hit` or `probe_get_status`.
+1. Mandatory tools: `probe_check`, `artifact_management`, `probe_recipe_create`, `probe_reset`, `probe_wait_for_hit` or `probe_get_status`.
 2. If MCP toolchain is unavailable, stop immediately and return:
    - `reasonCode=toolchain_unavailable`
    - `nextAction=enable_mcp_jvm_debugger_tools_then_rerun`
@@ -33,37 +33,39 @@ Use this workflow only for strict one-line verification runs.
    - optional `apiBasePath`
    - auth requirement/token only if needed.
 1. Validate probe connectivity first with `probe_check` on the selected probe base URL.
-2. Call `project_context_validate` with orchestrator-selected `projectRootAbs`.
-3. Call `probe_recipe_create` with intentMode=line_probe, strict line target context, and exact FQCN in `classHint`.
-4. Provide `apiBasePath` when runtime is deployed with a context path (for example `/api/v1`).
-5. Ask for context path at most once per run; reuse the same `apiBasePath` for subsequent attempts in that run.
-6. Runtime synthesis scope is runtime-only (`src/main/java` + generated-main roots); test sources are excluded.
-7. If `probe_recipe_create` returns `resultType=report`, read compact execution metadata:
+2. Call `artifact_management` with `artifactType=project_context`, `action=validate`, and typed `input`.
+3. Prefer explicit `projectName` for multi-project or microservice workspaces.
+4. Include `projectRootAbs` when the orchestrator needs deterministic root validation or scope cross-checking.
+5. Call `probe_recipe_create` with intentMode=line_probe, strict line target context, and exact FQCN in `classHint`.
+6. Provide `apiBasePath` when runtime is deployed with a context path (for example `/api/v1`).
+7. Ask for context path at most once per run; reuse the same `apiBasePath` for subsequent attempts in that run.
+8. Runtime synthesis scope is runtime-only (`src/main/java` + generated-main roots); test sources are excluded.
+9. If `probe_recipe_create` returns `resultType=report`, read compact execution metadata:
    - `executionPlan.routingReason` (code)
    - `executionPlan.steps[].actionCode` (code)
    - avoid depending on verbose instruction text.
-8. Route only by deterministic contract fields (`resultType`, `status`, `reasonCode`, `failedStep`).
-9. Never use or request confidence/heuristic scoring for routing decisions.
-10. Probe tool outputs use compact text summaries; treat `structuredContent` as canonical for full payload details.
-11. On report outputs, always capture synthesis diagnostics:
+10. Route only by deterministic contract fields (`resultType`, `status`, `reasonCode`, `failedStep`).
+11. Never use or request confidence/heuristic scoring for routing decisions.
+12. Probe tool outputs use compact text summaries; treat `structuredContent` as canonical for full payload details.
+13. On report outputs, always capture synthesis diagnostics:
    - `reasonCode`
    - `failedStep`
    - `evidence`
    - `attemptedStrategies`
    - `synthesizerUsed`
-12. If report indicates unresolved request inputs (for example `target_not_inferred`/`api_request_not_inferred`/`execution_input_required`):
+14. If report indicates unresolved request inputs (for example `target_not_inferred`/`api_request_not_inferred`/`execution_input_required`):
    - gather missing request/auth input once
    - continue with manual probe-verified flow (see fallback section).
-13. Resolve route dynamically from runtime candidates.
-14. Validate exactly one route using:
+15. Resolve route dynamically from runtime candidates.
+16. Validate exactly one route using:
    - probe reachability
    - API reachability
    - strict target alignment (`Class#method:line` resolvability or class-scoped line discovery)
-15. Treat `probe_target_infer.firstExecutableLine` as runtime-validated only; when unresolved, do not guess a line and fail closed.
-16. When capture preview is available, use `capturePreview.executionPaths` as runtime evidence; do not re-derive call paths heuristically.
-17. Execute probe flow:
+17. Treat `probe_target_infer.firstExecutableLine` as runtime-validated only; when unresolved, do not guess a line and fail closed.
+18. When capture preview is available, use `capturePreview.executionPaths` as runtime evidence; do not re-derive call paths heuristically.
+19. Execute probe flow:
    - `probe_reset` -> trigger HTTP request -> `probe_wait_for_hit` / `probe_get_status`
-18. Cleanup (disable actuation when used).
+20. Cleanup (disable actuation when used).
 
 ## Prerequisites
 

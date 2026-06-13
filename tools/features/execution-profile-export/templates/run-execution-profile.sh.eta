@@ -6,7 +6,8 @@ set -euo pipefail
 # exportId: <%= it.manifest.exportId %>
 # ExecutionProfile: <%= it.manifest.executionProfile %>
 # ExecutionPolicy: <%= it.manifest.executionPolicy %>
-# RunStatus: <%= it.manifest.runStatus %>
+# SourceRunStatus: <%= it.manifest.runStatus %>
+# ReplayPackageType: request_replay_only
 <% if (it.includeResolvedSecrets) { %>
 echo 'SENSITIVE EXPORT: includeResolvedSecrets=true' >&2
 <% } %>

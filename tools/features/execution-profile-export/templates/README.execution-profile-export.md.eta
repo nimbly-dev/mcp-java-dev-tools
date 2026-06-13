@@ -3,7 +3,8 @@
 - exportId: `<%= it.exportId %>`
 - ExecutionProfile: `<%= it.executionProfile %>`
 - ExecutionPolicy: `<%= it.executionPolicy %>`
-- RunStatus: `<%= it.runStatus %>`
+- SourceRunStatus: `<%= it.sourceRunStatus %>`
+- ReplayPackageType: `request_replay_only`
 - IncludeResolvedSecrets: `<%= it.includeResolvedSecrets ? "true" : "false" %>`
 - IncludeRuntimeStartup: `<%= it.includeRuntimeStartup ? "true" : "false" %>`
 - IncludeHealthcheckGate: `<%= it.includeHealthcheckGate ? "true" : "false" %>`
@@ -17,6 +18,8 @@
 1. Open `run-execution-profile.ps1`.
 2. Confirm `project.env` contains the local runtime inputs for the target workspace.
 3. Run the script with PowerShell from inside the project workspace.
+
+This export replays generated requests only. It does not produce fresh canonical regression execution artifacts by itself.
 
 <% if (it.includeResolvedSecrets) { %>
 > SENSITIVE EXPORT: includeResolvedSecrets=true

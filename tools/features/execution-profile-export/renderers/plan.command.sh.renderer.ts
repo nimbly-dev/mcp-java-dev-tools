@@ -56,7 +56,10 @@ export async function renderShPlanExecutionSection(input: {
   const lines: string[] = [];
 
   for (const plan of ordered) {
-    lines.push(`echo '[E${String(plan.order).padStart(2, "0")}] ${escapeShSingleQuoted(plan.planName)} status=${escapeShSingleQuoted(plan.status)}'`);
+    const sourceStatus = typeof plan.runStatus === "string" ? plan.runStatus : plan.status;
+    lines.push(
+      `echo '[E${String(plan.order).padStart(2, "0")}] ${escapeShSingleQuoted(plan.planName)} replay_plan source_status=${escapeShSingleQuoted(sourceStatus)}'`,
+    );
     const contract = await loadPlanContract({
       plansRootAbs: input.plansRootAbs,
       planName: plan.planName,
@@ -68,7 +71,9 @@ export async function renderShPlanExecutionSection(input: {
 
     let emittedAnyStep = false;
     for (const step of [...contract.steps].sort((left, right) => left.order - right.order)) {
-      lines.push(`echo '[${escapeShSingleQuoted(plan.planName)}:${String(step.order).padStart(2, "0")}] ${escapeShSingleQuoted(step.id)} status=planned'`);
+      lines.push(
+        `echo '[${escapeShSingleQuoted(plan.planName)}:${String(step.order).padStart(2, "0")}] ${escapeShSingleQuoted(step.id)} replay_step'`,
+      );
 
       const rendered = renderShTransportStep({
         planName: plan.planName,

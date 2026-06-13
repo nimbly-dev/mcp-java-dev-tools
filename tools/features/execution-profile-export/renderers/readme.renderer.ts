@@ -12,13 +12,16 @@ export type ReadmeTemplateInput = {
 export function buildReadmeTemplateModel(input: ReadmeTemplateInput): Record<string, unknown> {
   const orderedPlanLines = [...input.manifest.planRuns]
     .sort((left, right) => left.order - right.order)
-    .map((plan) => `[${plan.order}] ${plan.planName} (${plan.status})`);
+    .map((plan) => {
+      const sourceStatus = typeof plan.runStatus === "string" ? plan.runStatus : plan.status;
+      return `[${plan.order}] ${plan.planName} (source_status=${sourceStatus})`;
+    });
 
   return {
     exportId: input.manifest.exportId,
     executionProfile: input.manifest.executionProfile,
     executionPolicy: input.manifest.executionPolicy,
-    runStatus: input.manifest.runStatus,
+    sourceRunStatus: input.manifest.runStatus,
     includeResolvedSecrets: input.includeResolvedSecrets,
     includeRuntimeStartup: input.defaults.includeRuntimeStartup,
     includeHealthcheckGate: input.defaults.includeHealthcheckGate,
@@ -30,6 +33,7 @@ export function buildReadmeTemplateModel(input: ReadmeTemplateInput): Record<str
         : [
             "> AUTH_BOOTSTRAP_HINT: includeResolvedSecrets=false",
             "> `project.env` is intentionally redacted. Replay may fail with 401/auth-refresh errors until credentials are supplied.",
+            "> This package replays exported requests only; it does not persist canonical regression execution artifacts.",
             "> Next actions:",
             "> 1. Populate required auth/runtime credentials in `project.env` for your environment.",
             "> 2. Keep `includeResolvedSecrets=false` and provide credentials locally at replay time.",

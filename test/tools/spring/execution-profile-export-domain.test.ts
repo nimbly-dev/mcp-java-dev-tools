@@ -99,6 +99,18 @@ function writePlanArtifact(root: string, planName: string, contract: Record<stri
   writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"), contract);
 }
 
+function writeSuiteRunResult(
+  root: string,
+  projectName: string,
+  suiteRunId: string,
+  payload: Record<string, unknown>,
+): void {
+  writeJson(
+    path.join(root, ".mcpjvm", projectName, "suite-runs", suiteRunId, "execution_orchestration.result.json"),
+    payload,
+  );
+}
+
 function readJson(filePath: string): any {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
@@ -124,6 +136,116 @@ test("executionProfileExportDomain resolves executionProfile and creates a fresh
       String(out.structuredContent.output?.scriptPathAbs ?? ""),
       /exports[\\/]\d{4}-\d{2}-\d{2}-[0-9a-f-]+[\\/]run-execution-profile\.sh$/,
     );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain derives blocked source run status from latest canonical suite when no export summary exists", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-suite-source");
+  try {
+    writeProject(root);
+    writePlanContract(root, "gateway-route-smoke-spec");
+    fs.mkdirSync(path.join(root, ".mcpjvm", "test-project", "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".mcpjvm", "test-project", "scripts", "setup.js"), "const x = 1;\n", "utf8");
+    writeSuiteRunResult(root, "test-project", "06-13-2026-12-39-27PM", {
+      resultType: "execution_orchestration",
+      action: "execute",
+      projectName: "test-project",
+      executionProfile: "regression-test-run",
+      status: "blocked",
+      suiteRunId: "06-13-2026-12-39-27PM",
+      executionPolicy: "stop_on_fail",
+      planRuns: [
+        {
+          order: 1,
+          planName: "gateway-route-smoke-spec",
+          status: "blocked",
+          blockedReasonCode: "external_healthcheck_failed",
+        },
+      ],
+      completedPlanCount: 1,
+    });
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      executionProfile: "regression-test-run",
+      mode: "ps1",
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    const readmePathAbs = String(out.structuredContent.output?.readmePathAbs ?? "");
+    const scriptPathAbs = String(out.structuredContent.output?.scriptPathAbs ?? "");
+    const readme = fs.readFileSync(readmePathAbs, "utf8");
+    const script = fs.readFileSync(scriptPathAbs, "utf8");
+    assert.match(readme, /SourceRunStatus: `blocked`/);
+    assert.match(script, /# SourceRunStatus: blocked/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain uses real suite artifact time for when-based source selection", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-when-source");
+  try {
+    writeProject(root);
+    writePlanContract(root, "gateway-route-smoke-spec");
+    fs.mkdirSync(path.join(root, ".mcpjvm", "test-project", "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".mcpjvm", "test-project", "scripts", "setup.js"), "const x = 1;\n", "utf8");
+
+    const olderSuitePath = path.join(
+      root,
+      ".mcpjvm",
+      "test-project",
+      "suite-runs",
+      "06-13-2026-12-39-27PM",
+      "execution_orchestration.result.json",
+    );
+    writeSuiteRunResult(root, "test-project", "06-13-2026-12-39-27PM", {
+      resultType: "execution_orchestration",
+      action: "execute",
+      projectName: "test-project",
+      executionProfile: "regression-test-run",
+      status: "blocked",
+      suiteRunId: "06-13-2026-12-39-27PM",
+      executionPolicy: "stop_on_fail",
+      planRuns: [{ order: 1, planName: "gateway-route-smoke-spec", status: "blocked", blockedReasonCode: "probe_gate_failed" }],
+      completedPlanCount: 1,
+    });
+    fs.utimesSync(olderSuitePath, new Date("2026-06-13T04:39:27.000Z"), new Date("2026-06-13T04:39:27.000Z"));
+
+    const newerSuitePath = path.join(
+      root,
+      ".mcpjvm",
+      "test-project",
+      "suite-runs",
+      "06-13-2026-12-51-12PM",
+      "execution_orchestration.result.json",
+    );
+    writeSuiteRunResult(root, "test-project", "06-13-2026-12-51-12PM", {
+      resultType: "execution_orchestration",
+      action: "execute",
+      projectName: "test-project",
+      executionProfile: "regression-test-run",
+      status: "pass",
+      suiteRunId: "06-13-2026-12-51-12PM",
+      executionPolicy: "stop_on_fail",
+      planRuns: [{ order: 1, planName: "gateway-route-smoke-spec", status: "executed", runStatus: "pass", runId: "run-a" }],
+      completedPlanCount: 1,
+    });
+    fs.utimesSync(newerSuitePath, new Date("2026-06-13T04:51:12.000Z"), new Date("2026-06-13T04:51:12.000Z"));
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      executionProfile: "regression-test-run",
+      when: "2026-06-13T04:40:00.000Z",
+      mode: "ps1",
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    const readmePathAbs = String(out.structuredContent.output?.readmePathAbs ?? "");
+    const readme = fs.readFileSync(readmePathAbs, "utf8");
+    assert.match(readme, /SourceRunStatus: `blocked`/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -492,7 +614,7 @@ test("executionProfileExportDomain resolves auth.bearer from workspace env when 
   }
 });
 
-test("executionProfileExportDomain resolves auth.bearer from sessionExport includeResolvedSecrets default", async () => {
+test("executionProfileExportDomain does not resolve auth.bearer from sessionExport includeResolvedSecrets without explicit request opt-in", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-auth-session-default");
   try {
     const projectName = "test-project";
@@ -522,10 +644,9 @@ test("executionProfileExportDomain resolves auth.bearer from sessionExport inclu
       executionProfile: "regression-test-run",
       mode: "postman",
     });
-    assert.equal(out.structuredContent.status, "ok");
-    const environment = readJson(String(out.structuredContent.output?.environmentPathAbs));
-    const authVar = environment.values.find((entry: any) => entry.key === "auth.bearer");
-    assert.equal(authVar.value, "session-default-token");
+    assert.equal(out.structuredContent.status, "postman_export_blocked");
+    assert.equal(out.structuredContent.reasonMeta.cause, "required_prerequisite_unresolved");
+    assert.equal(out.structuredContent.reasonMeta.prerequisiteKey, "auth.bearer");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

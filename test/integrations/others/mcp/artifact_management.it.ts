@@ -207,3 +207,49 @@ test("mcp IT: artifact_management project_context validate fails closed on missi
     }
   }
 });
+
+test("mcp IT: artifact_management project_context validate returns root inspection for canonical selector inputs", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-root-validate-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "post-service";
+  const projectRootAbs = path.join(workspaceRootAbs, "post-service", "post-app");
+  const projectsFileAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
+
+  await fs.mkdir(path.join(projectRootAbs, "src", "main", "java"), { recursive: true });
+  await fs.writeFile(path.join(projectRootAbs, "pom.xml"), "<project/>", "utf8");
+  await writeJson(projectsFileAbs, {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9191",
+    });
+
+    const out = await callTool(mcp, "artifact_management", {
+      artifactType: "project_context",
+      action: "validate",
+      input: {
+        projectName,
+        projectRootAbs,
+      },
+    });
+    assert.equal(out.structuredContent?.status, "ok");
+    assert.equal(out.structuredContent?.projectName, projectName);
+    assert.equal(out.structuredContent?.projectRootAbs, projectRootAbs);
+    assert.deepEqual(out.structuredContent?.buildMarkers, ["pom.xml"]);
+    assert.equal(out.structuredContent?.hasBuildMarker, true);
+    assert.equal(Array.isArray(out.structuredContent?.javaSourceRoots), true);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});

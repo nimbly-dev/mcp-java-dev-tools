@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
@@ -84,6 +85,7 @@ async function executeCreatePostAs(args: { token: string; runAsUser: string; con
 }
 
 const postServiceFqcn = "com.example.social.post.app.service.PostService";
+const postServiceProjectName = "post-service";
 const inheritedControllerFqcn = "com.example.social.post.app.controller.AppController";
 const inheritedMethodHints = [
   "getData",
@@ -120,6 +122,17 @@ async function resolveFixtureActuationKey(): Promise<string> {
 }
 
 const ACTUATION_TTL_MS = 15_000;
+const postServiceProjectsFileAbs = path.join(
+  socialPlatformRootAbs,
+  ".mcpjvm",
+  postServiceProjectName,
+  "projects.json",
+);
+
+async function writeJson(fileAbs: string, payload: Record<string, unknown>) {
+  await fs.mkdir(path.dirname(fileAbs), { recursive: true });
+  await fs.writeFile(fileAbs, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
 
 async function armActuation(args: {
   sessionId: string;
@@ -150,6 +163,9 @@ async function disarmActuation(sessionId: string) {
 }
 
 test.before(async () => {
+  await writeJson(postServiceProjectsFileAbs, {
+    workspaces: [{ projectRoot: postAppProjectRootAbs }],
+  });
   runtime = await startPostAppWithAgent();
   mcp = await startMcpClient({
     workspaceRootAbs: socialPlatformRootAbs,
@@ -160,6 +176,7 @@ test.before(async () => {
 test.after(async () => {
   await mcp?.close();
   await runtime?.stop();
+  await fs.rm(path.join(socialPlatformRootAbs, ".mcpjvm"), { recursive: true, force: true });
 });
 
 test("mcp IT: happy-path covers regression, probe status, capture, class inventory, and batch probe operations", async () => {
@@ -168,8 +185,13 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   const debug = await callTool("debug_check", {});
   assert.equal(debug.structuredContent.ok, true);
 
-  const project = await callTool("project_context_validate", {
-    projectRootAbs: postAppProjectRootAbs,
+  const project = await callTool("artifact_management", {
+    artifactType: "project_context",
+    action: "validate",
+    input: {
+      projectName: postServiceProjectName,
+      projectRootAbs: postAppProjectRootAbs,
+    },
   });
   assert.equal(project.structuredContent.status, "ok");
   assert.equal(project.structuredContent.hasBuildMarker, true);
@@ -512,8 +534,12 @@ test("mcp IT: arm actuation without returnBoolean fails closed", async () => {
 test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, invalid strict lines, and invalid actuation keys", async () => {
   if (!runtime) throw new Error("post-app runtime was not started");
 
-  const invalidProject = await callTool("project_context_validate", {
-    projectRootAbs: path.join(postAppProjectRootAbs, "missing-project"),
+  const invalidProject = await callTool("artifact_management", {
+    artifactType: "project_context",
+    action: "validate",
+    input: {
+      projectRootAbs: path.join(postAppProjectRootAbs, "missing-project"),
+    },
   });
   assert.equal(invalidProject.structuredContent.status, "project_selector_invalid");
   assert.equal(invalidProject.structuredContent.reason, "projectRootAbs does not exist");

@@ -48,7 +48,7 @@ Optional:
 5. `includeResolvedSecrets` (`false` default)
 6. `includeRuntimeStartup` (`true` default; may be overridden by projects.json sessionExport defaults)
 7. `includeHealthcheckGate` (`true` default; may be overridden by projects.json sessionExport defaults)
-8. `includeResolvedSecrets` may be supplied per request or as a trusted local default under `projects.json.sessionExport`; request input overrides project defaults.
+8. `includeResolvedSecrets` must be supplied explicitly per request to enable secret export; `projects.json.sessionExport` must not auto-enable secret inclusion.
 
 ## Profile Selection
 
@@ -104,7 +104,8 @@ No runtime run artifact is required for default export behavior.
 1. If `includeResolvedSecrets=false`, redact or placeholder secret material.
 2. If `includeResolvedSecrets=false`, create `project.env` with secret-like values blanked so the receiver can fill credentials locally.
 3. If `includeResolvedSecrets=true`, add explicit sensitive warning in output artifacts and treat the package as non-shareable unless the receiver is trusted.
-4. Never auto-push or auto-commit exported artifacts.
+4. `sessionExport.includeResolvedSecrets=true` is not sufficient by itself; request-level explicit opt-in is required.
+5. Never auto-push or auto-commit exported artifacts.
 
 ## Fail-Closed Conditions
 

@@ -642,6 +642,56 @@ async function runRequiredHealthChecksWithDedupe(args: {
   return { ok: true, checks };
 }
 
+function resolveAutoStartHealthConvergenceAttempts(args: {
+  workspace: ProjectWorkspaceEntry;
+  runtimeMode: ProjectRuntimeContext["mode"];
+}): number {
+  const retryMaxRaw = args.workspace.defaults?.retryMax;
+  const retryMax =
+    typeof retryMaxRaw === "number" && Number.isFinite(retryMaxRaw) && retryMaxRaw > 0
+      ? Math.floor(retryMaxRaw)
+      : 1;
+  const baseline = args.runtimeMode === "docker" ? 10 : 3;
+  return Math.max(retryMax, baseline);
+}
+
+function resolveAutoStartHealthConvergenceDelayMs(args: {
+  workspace: ProjectWorkspaceEntry;
+  runtimeMode: ProjectRuntimeContext["mode"];
+}): number {
+  const timeoutMs = resolveWorkspaceRequestTimeoutMs(args.workspace, 3000);
+  const baseline = args.runtimeMode === "docker" ? Math.floor(timeoutMs / 3) : Math.floor(timeoutMs / 4);
+  const maxDelayMs = args.runtimeMode === "docker" ? 1000 : 500;
+  return Math.min(maxDelayMs, Math.max(100, baseline));
+}
+
+async function waitForRequiredHealthChecksAfterAutoStart(args: {
+  workspace: ProjectWorkspaceEntry;
+  skipKeys: Set<string>;
+  runtimeMode: ProjectRuntimeContext["mode"];
+}): Promise<Awaited<ReturnType<typeof runRequiredHealthChecksWithDedupe>>> {
+  const maxAttempts = resolveAutoStartHealthConvergenceAttempts({
+    workspace: args.workspace,
+    runtimeMode: args.runtimeMode,
+  });
+  const delayMs = resolveAutoStartHealthConvergenceDelayMs({
+    workspace: args.workspace,
+    runtimeMode: args.runtimeMode,
+  });
+  let last = await runRequiredHealthChecksWithDedupe({
+    workspace: args.workspace,
+    skipKeys: args.skipKeys,
+  });
+  for (let attempt = 1; attempt < maxAttempts && !last.ok; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    last = await runRequiredHealthChecksWithDedupe({
+      workspace: args.workspace,
+      skipKeys: args.skipKeys,
+    });
+  }
+  return last;
+}
+
 async function isCommandAvailable(commandName: string): Promise<boolean> {
   const bin = process.platform === "win32" ? "where" : "which";
   return await new Promise<boolean>((resolve) => {
@@ -1117,8 +1167,15 @@ export async function resolveProjectContextForRegression(
       autoStarted = startResult.success;
       autoStartDetail = startResult.detail;
       if (autoStarted) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        health = await waitForRequiredHealthChecksAfterAutoStart({
+          workspace: effectiveWorkspace,
+          skipKeys: prereqResult.dedupeKeys,
+          runtimeMode: selectedRuntimeContext.mode,
+        });
       }
+    }
+    const hasPostRuntimeScripts = profileScripts.some((entry) => entry.phase === "postRuntime");
+    if (health.ok && hasPostRuntimeScripts) {
       const postRuntimeScripts = await executeSharedScriptsForPhase({
         scripts: profileScripts,
         phase: "postRuntime",
@@ -1130,7 +1187,7 @@ export async function resolveProjectContextForRegression(
         return {
           status: "blocked",
           reasonCode: postRuntimeScripts.reasonCode,
-          checks: [...profileScriptChecks, ...prereqChecks, ...postRuntimeScripts.checks],
+          checks: [...profileScriptChecks, ...prereqChecks, ...health.checks, ...postRuntimeScripts.checks],
           nextAction: postRuntimeScripts.nextAction,
           requiredUserAction: postRuntimeScripts.requiredUserAction,
         };

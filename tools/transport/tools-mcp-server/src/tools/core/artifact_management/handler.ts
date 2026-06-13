@@ -24,6 +24,9 @@ function normalizeInputAliases(raw: unknown): unknown {
   if (typeof normalizedInput.projectName !== "string" && typeof input.project_name === "string") {
     normalizedInput.projectName = input.project_name;
   }
+  if (typeof normalizedInput.projectRootAbs !== "string" && typeof input.project_root_abs === "string") {
+    normalizedInput.projectRootAbs = input.project_root_abs;
+  }
   if (typeof normalizedInput.executionProfile !== "string" && typeof input.execution_profile === "string") {
     normalizedInput.executionProfile = input.execution_profile;
   }
