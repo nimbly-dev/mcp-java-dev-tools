@@ -97,20 +97,6 @@ examples:
 | `serverTime` | Server timestamp when ping response is produced. | `debug_check` | true | `"2026-03-07T04:00:00.000Z"` |
 | `version` | MCP server version. | `debug_check` | true | `"0.1.0"` |
 
-## project_context_validate
-
-| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
-| --- | --- | --- | --- | --- |
-| `resultType` | Output shape discriminator for context validation. | `project_context_validate` | true | `"project_context"` |
-| `status` | Validation status (`ok` or selector error status). | `project_context_validate` | true | `"ok"` |
-| `projectRootAbs` | Absolute orchestrator-selected project root used for scoped validation. | `project_context_validate` | false | `"C:\\repo\\catalog-service"` |
-| `buildMarkers` | Build markers found directly under `projectRootAbs`. | `project_context_validate` | false | `["pom.xml"]` |
-| `hasBuildMarker` | Whether any Maven/Gradle marker exists in the project root. | `project_context_validate` | false | `true` |
-| `javaSourceRoots` | Basic Java source roots discovered under the selected project root. | `project_context_validate` | false | `["C:\\repo\\catalog-service\\src\\main\\java"]` |
-| `hasJavaSourceRoot` | Whether at least one basic Java source root exists. | `project_context_validate` | false | `true` |
-| `reason` | Error reason for selector failures. | `project_context_validate` | false | `"projectRootAbs must be absolute"` |
-| `nextAction` | Follow-up action when validation fails. | `project_context_validate` | false | `"Provide projectRootAbs as an absolute existing project directory path."` |
-
 ## probe_check
 
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
@@ -349,6 +335,8 @@ Postman variable normalization policy:
 | `artifactType` | Artifact class selected by caller (`probe_config`, `project_context`, `regression_plan`, `run_result`, `execution_export`). | `artifact_management` | true | `"project_context"` |
 | `action` | Requested lifecycle action (`read`, `validate`, `upsert`, `list`, `generate`). | `artifact_management` | true | `"validate"` |
 | `input` | Typed per-artifact payload object. The top-level request is generic; artifact-specific fields are nested under `input`. | `artifact_management` | true | `{"projectName":"catalog-service","query":{"select":["summary"]}}` |
+| `input.projectName` | Canonical project Artifact identity for `project_context`, `regression_plan`, `run_result`, and `execution_export` operations. Required for orchestrator-grade calls in multi-project workspaces. | `artifact_management` | false | `"post-service"` |
+| `input.projectRootAbs` | Optional deterministic project-root selector for `project_context` validation and scope cross-checking. | `artifact_management` | false | `"C:\\repo\\social-platform\\post-service\\post-app"` |
 | `input.query.select` | Optional projection selectors for structured reads to reduce payload size. Supported examples: `project_context` (`summary`, `executionProfiles`, `runtimeContexts`, `scripts`, `runPrerequisites`, `workspaces`), `regression_plan` (`summary`, `targets`, `prerequisites`, `steps`, `metadata`, `contract`, `plan`), `run_result` (`executionResult`, `evidence`). | `artifact_management` | false | `["summary","executionProfiles"]` |
 | `input.query.prerequisites.offset` | Required zero-based window start for `regression_plan` `prerequisites` section reads when `select` includes `prerequisites`. | `artifact_management` | false | `0` |
 | `input.query.prerequisites.limit` | Required window size for `regression_plan` `prerequisites` section reads when `select` includes `prerequisites`. | `artifact_management` | false | `50` |
@@ -358,6 +346,11 @@ Postman variable normalization policy:
 | `nextActionCode` | Verb-style deterministic follow-up action key for blocked outputs. | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `reasonMeta` | Optional typed diagnostics including allowed action presets for the selected `artifactType`. | `artifact_management` | false | `{"allowedActions":["read","validate","upsert"]}` |
 | `artifact` | Artifact payload returned by read actions (shape varies by `artifactType`). | `artifact_management` | false | `{"workspaces":[{"projectRoot":"C:\\repo"}]}` |
+| `projectRootAbs` | For `project_context` `validate`, the normalized project root validated against the selected project scope. | `artifact_management` | false | `"C:\\repo\\social-platform\\post-service\\post-app"` |
+| `buildMarkers` | For `project_context` `validate`, build markers found directly under `projectRootAbs`. | `artifact_management` | false | `["pom.xml"]` |
+| `hasBuildMarker` | For `project_context` `validate`, whether any Maven/Gradle marker exists in the project root. | `artifact_management` | false | `true` |
+| `javaSourceRoots` | For `project_context` `validate`, basic Java source roots discovered under `projectRootAbs`. | `artifact_management` | false | `["C:\\repo\\social-platform\\post-service\\post-app\\src\\main\\java"]` |
+| `hasJavaSourceRoot` | For `project_context` `validate`, whether at least one basic Java source root exists. | `artifact_management` | false | `true` |
 | `summary.stepCount` | For default `regression_plan` reads or explicit `summary` selection, the number of plan steps in `contract.json`. | `artifact_management` | false | `115` |
 | `summary.prerequisiteCount` | For default `regression_plan` reads or explicit `summary` selection, the number of prerequisites in `contract.json`. | `artifact_management` | false | `265` |
 | `prerequisites.offset` | Returned zero-based start offset for a windowed `regression_plan` prerequisites section. | `artifact_management` | false | `0` |
@@ -381,6 +374,7 @@ Postman variable normalization policy:
 Typed request envelope examples:
 - `{"artifactType":"probe_config","action":"validate","input":{}}`
 - `{"artifactType":"project_context","action":"read","input":{"projectName":"catalog","query":{"select":["summary","executionProfiles"],"executionProfile":"smoke"}}}`
+- `{"artifactType":"project_context","action":"validate","input":{"projectName":"post-service","projectRootAbs":"C:\\repo\\social-platform\\post-service\\post-app"}}`
 
 ## execution_orchestration
 

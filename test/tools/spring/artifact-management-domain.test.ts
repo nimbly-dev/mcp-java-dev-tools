@@ -159,6 +159,87 @@ test("artifact_management project_context validate fails closed when execution p
   }
 });
 
+test("artifact_management project_context validate returns root inspection for matching projectName and projectRootAbs", async () => {
+  const root = createTestTempDir("artifact-management-project-validate-root");
+  try {
+    fs.mkdirSync(path.join(root, "src", "main", "java"), { recursive: true });
+    writeJson(path.join(root, "pom.xml"), { modelVersion: "4.0.0" });
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "validate",
+        input: { projectName: "alpha", projectRootAbs: root },
+      },
+    });
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.projectName, "alpha");
+    assert.equal(out.structuredContent.projectRootAbs, root);
+    assert.deepEqual(out.structuredContent.buildMarkers, ["pom.xml"]);
+    assert.equal(out.structuredContent.hasBuildMarker, true);
+    assert.deepEqual(out.structuredContent.javaSourceRoots, [path.join(root, "src", "main", "java")]);
+    assert.equal(out.structuredContent.hasJavaSourceRoot, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management project_context validate resolves unique project from projectRootAbs", async () => {
+  const root = createTestTempDir("artifact-management-project-validate-resolve-root");
+  const appRoot = path.join(root, "apps", "post-app");
+  try {
+    fs.mkdirSync(path.join(appRoot, "src", "main", "java"), { recursive: true });
+    writeJson(path.join(appRoot, "pom.xml"), { modelVersion: "4.0.0" });
+    writeJson(path.join(root, ".mcpjvm", "post-service", "projects.json"), {
+      workspaces: [{ projectRoot: appRoot }],
+    });
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "validate",
+        input: { projectRootAbs: appRoot },
+      },
+    });
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.projectName, "post-service");
+    assert.equal(out.structuredContent.projectRootAbs, appRoot);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management project_context validate fails closed when projectName and projectRootAbs mismatch", async () => {
+  const root = createTestTempDir("artifact-management-project-validate-mismatch");
+  const alphaRoot = path.join(root, "apps", "alpha");
+  const betaRoot = path.join(root, "apps", "beta");
+  try {
+    fs.mkdirSync(alphaRoot, { recursive: true });
+    fs.mkdirSync(betaRoot, { recursive: true });
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: alphaRoot }],
+    });
+    writeJson(path.join(root, ".mcpjvm", "beta", "projects.json"), {
+      workspaces: [{ projectRoot: betaRoot }],
+    });
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "validate",
+        input: { projectName: "alpha", projectRootAbs: betaRoot },
+      },
+    });
+    assert.equal(out.structuredContent.status, "project_scope_mismatch");
+    assert.equal(out.structuredContent.reasonCode, "project_scope_mismatch");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("artifact_management run_result rejects invalid action with deterministic fail-closed output", async () => {
   const out = await artifactManagementDomain({
     workspaceRootAbs: process.cwd(),

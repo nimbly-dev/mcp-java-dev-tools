@@ -4,7 +4,8 @@
 
 1. If runtime is down, start from `projects.json` selected runtime context.
 2. If runtime API is up but probe is down, treat as non-compliant and replace/restart via runtime context.
-3. Do not use ad-hoc startup commands when runtime context exists.
+3. After startup/restart, wait for bounded required health-check convergence before `postRuntime` scripts or strict probe verification.
+4. Do not use ad-hoc startup commands when runtime context exists.
 
 ## `autoStart=false`
 

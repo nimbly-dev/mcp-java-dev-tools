@@ -63,6 +63,20 @@ test("artifact_management handler accepts snake_case aliases inside typed input 
   assert.notEqual(out.structuredContent.reasonCode, "project_artifact_ambiguous");
 });
 
+test("artifact_management handler accepts project_root_abs alias inside typed input envelope", async () => {
+  const handler = captureRegisteredHandler((server: any) =>
+    registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
+  );
+  const out = await handler({
+    artifactType: "project_context",
+    action: "validate",
+    input: {
+      project_root_abs: process.cwd(),
+    },
+  });
+  assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
+});
+
 test("artifact_management handler rejects regression_plan windowed read when pagination params are missing", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),

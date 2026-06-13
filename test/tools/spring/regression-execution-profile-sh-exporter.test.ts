@@ -151,9 +151,10 @@ test("exportExecutionProfileSh writes deterministic script from export manifest"
     assert.match(script, /SECTION C3: PRE_PLAN_SCRIPTS/);
     assert.match(script, /\[A00\] auth bootstrap skipped; no AUTH_BEARER placeholder detected/);
     assert.match(script, /\[H01\]/);
-    assert.match(script, /\[E01\] plan-a status=executed/);
-    assert.match(script, /\[E02\] plan-b status=executed/);
-    assert.match(script, /# RunStatus: pass/);
+    assert.match(script, /\[E01\] plan-a replay_plan source_status=pass/);
+    assert.match(script, /\[E02\] plan-b replay_plan source_status=fail/);
+    assert.match(script, /# SourceRunStatus: fail/);
+    assert.match(script, /# ReplayPackageType: request_replay_only/);
     assert.doesNotMatch(script, /REPLAY_COMMAND/);
     assert.equal(script.includes("SENSITIVE EXPORT"), false);
 
@@ -792,7 +793,7 @@ test("exportExecutionProfileSh emits endpoint-level HTTP commands for executed s
     assert.doesNotMatch(script, /powershell/);
     assert.doesNotMatch(script, /then break; fi/);
     assert.match(script, /curl -fsS -X "POST"/);
-    assert.match(script, /status=planned/);
+    assert.match(script, /replay_step/);
     assert.doesNotMatch(script, /\$\{REPLAY_COMMAND\} --plan-name 'plan-a'/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -969,7 +970,7 @@ test("exportExecutionProfileSh bundles shared profile scripts and export-local p
   }
 });
 
-test("exportExecutionProfileSh honors sessionExport includeResolvedSecrets for project env package", async () => {
+test("exportExecutionProfileSh keeps secrets redacted when only sessionExport includeResolvedSecrets is set", async () => {
   const root = createTestTempDir("execution-profile-sh-execution-profile-export-secrets");
   try {
     const projectName = "petclinic-regression";
@@ -1013,10 +1014,12 @@ test("exportExecutionProfileSh honors sessionExport includeResolvedSecrets for p
     const script = fs.readFileSync(out.scriptPathAbs, "utf8");
     const projectEnv = fs.readFileSync(path.join(exportDir, "project.env"), "utf8");
 
-    assert.match(script, /SENSITIVE EXPORT: includeResolvedSecrets=true/);
-    assert.match(projectEnv, /# SENSITIVE EXPORT: includeResolvedSecrets=true\./);
-    assert.match(projectEnv, /KEYCLOAK_PASSWORD=password/);
-    assert.match(projectEnv, /AUTH_BEARER_TOKEN=secret-token/);
+    assert.doesNotMatch(script, /SENSITIVE EXPORT: includeResolvedSecrets=true/);
+    assert.match(projectEnv, /# Secret-like values are blanked because includeResolvedSecrets=false\./);
+    assert.match(projectEnv, /KEYCLOAK_PASSWORD=/);
+    assert.match(projectEnv, /AUTH_BEARER_TOKEN=/);
+    assert.doesNotMatch(projectEnv, /password/);
+    assert.doesNotMatch(projectEnv, /secret-token/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

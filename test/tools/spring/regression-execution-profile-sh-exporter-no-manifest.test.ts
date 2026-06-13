@@ -76,6 +76,8 @@ test("exportExecutionProfileSh synthesizes export context from projects.json", a
     const script = fs.readFileSync(out.scriptPathAbs, "utf8");
     assert.match(script, /course-service-regression-spec/);
     assert.match(script, /review-service-regression-spec/);
+    assert.match(script, /# SourceRunStatus: pass/);
+    assert.match(script, /\[E01\] course-service-regression-spec replay_plan source_status=pass/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -124,6 +126,8 @@ test("exportExecutionProfileSh does not require a persisted export manifest", as
     assert.equal(fs.existsSync(out.scriptPathAbs), true);
     const script = fs.readFileSync(out.scriptPathAbs, "utf8");
     assert.match(script, /course-service-regression-spec/);
+    assert.match(script, /# SourceRunStatus: pass/);
+    assert.match(script, /\[E01\] course-service-regression-spec replay_plan source_status=pass/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -476,6 +476,95 @@ test("executeRegressionRuntimeSuite runs shared scriptRefs and reloads env befor
   }
 });
 
+test("executeRegressionRuntimeSuite runs postRuntime scriptRefs when health checks are already ready", async () => {
+  const root = createTestTempDir("runtime-suite-postruntime-scriptrefs");
+  const server = http.createServer((_req: any, res: any) => {
+    res.statusCode = 200;
+    res.end("ok");
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  try {
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server address unavailable");
+    const port = address.port;
+    const projectName = "petclinic-regression";
+    const envFile = path.join(root, ".mcpjvm", projectName, ".env");
+    fs.mkdirSync(path.dirname(envFile), { recursive: true });
+    fs.writeFileSync(envFile, "AUTH_BEARER_TOKEN=\n", "utf8");
+    const scriptFile = path.join(root, "scripts", "write-token.js");
+    fs.mkdirSync(path.dirname(scriptFile), { recursive: true });
+    fs.writeFileSync(
+      scriptFile,
+      [
+        "const fs = require('node:fs');",
+        "const idx = process.argv.indexOf('--env-file');",
+        "if (idx < 0 || !process.argv[idx + 1]) process.exit(2);",
+        "fs.writeFileSync(process.argv[idx + 1], 'AUTH_BEARER_TOKEN=generated-token\\n', 'utf8');",
+      ].join("\n"),
+      "utf8",
+    );
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          externalSystems: [
+            {
+              name: "customers-api",
+              kind: "service",
+              host: "127.0.0.1",
+              port,
+              healthChecks: [
+                { id: "http-ready", type: "http", url: `http://127.0.0.1:${port}/health`, required: true },
+              ],
+            },
+          ],
+          scripts: [
+            {
+              name: "token-bootstrap",
+              phase: "postRuntime",
+              command: "node",
+              args: ["scripts/write-token.js"],
+              appdir: ".",
+              envFileArg: "--env-file",
+            },
+          ],
+          executionProfiles: [
+            {
+              executionProfile: "core-postruntime-scriptrefs",
+              executionPolicy: "stop_on_fail",
+              scriptRefs: ["token-bootstrap"],
+              plans: [{ order: 1, planName: "plan-auth" }],
+            },
+          ],
+        },
+      ],
+    });
+    writeAuthPlan(root, projectName, "plan-auth", "/auth");
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-postruntime-scriptrefs",
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const req = input.request as Record<string, unknown>;
+        const headers = req.headers as Record<string, unknown>;
+        assert.equal(headers.Authorization, "Bearer generated-token");
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 7, bodyPreview: "{}" } };
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    assert.equal(out.planRuns[0].status, "executed");
+    assert.match(fs.readFileSync(envFile, "utf8"), /AUTH_BEARER_TOKEN=generated-token/);
+  } finally {
+    server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite applies profile runtimeContextName when plan override is absent", async () => {
   const root = createTestTempDir("runtime-suite-profile-runtime-context");
   try {

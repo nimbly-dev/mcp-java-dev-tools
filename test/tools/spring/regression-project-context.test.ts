@@ -375,6 +375,75 @@ test("resolveProjectContextForRegression attempts auto-start when health checks 
   }
 });
 
+test("resolveProjectContextForRegression waits for delayed health convergence after auto-start", async () => {
+  const root = createTestTempDir("project-context-autostart-convergence");
+  let startedAt = 0;
+  const server = http.createServer((_req: any, res: any) => {
+    if (startedAt === 0 || Date.now() - startedAt < 1800) {
+      res.statusCode = 503;
+      res.end("starting");
+      return;
+    }
+    res.statusCode = 200;
+    res.end("ok");
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("server address unavailable");
+  const port = address.port;
+  let starterCalled = 0;
+  try {
+    const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    writeJson(projects, {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { retryMax: 1, requestTimeoutMs: 900 },
+          runtimeContexts: [
+            {
+              name: "docker-compose-all",
+              mode: "docker",
+              autoStart: true,
+              composeFile: "docker/docker-compose-all.yml",
+            },
+          ],
+          externalSystems: [
+            {
+              name: "customers-api",
+              kind: "service",
+              host: "127.0.0.1",
+              port,
+              healthChecks: [
+                { id: "http-ready", type: "http", url: `http://127.0.0.1:${port}/health`, required: true },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projects,
+      runtimeStarter: async () => {
+        starterCalled += 1;
+        startedAt = Date.now();
+        return { attempted: true, success: true, detail: "started delayed runtime" };
+      },
+    });
+
+    assert.equal(starterCalled, 1);
+    assert.equal(out.status, "ok");
+    if (out.status === "ok") {
+      assert.equal(out.contextPatch["runtime.autoStartAttempted"], true);
+      assert.equal(out.contextPatch["runtime.autoStarted"], true);
+    }
+  } finally {
+    server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("resolveProjectContextForRegression attempts auto-start when strict probe is unreachable even if health checks are ready", async () => {
   const root = createTestTempDir("project-context-strict-probe-convergence");
   const apiServer = http.createServer((_req: any, res: any) => {

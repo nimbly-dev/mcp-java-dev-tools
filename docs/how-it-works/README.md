@@ -63,7 +63,7 @@ Return the exact request plan and probe verification steps.
 ### What Happens
 
 1. The orchestrator resolves the project root and passes `projectRootAbs`
-2. `project_context_validate` optionally validates the scoped project context for that root
+2. `artifact_management` with `artifactType=project_context` and `action=validate` optionally validates the scoped project context for that root
 3. `probe_recipe_create` is called with `projectRootAbs`, `intentMode=line_probe`, exact FQCN in `classHint`, method/line hints, optional `apiBasePath`, and auth context
 4. The tool performs code-based route inference through synthesizer plugins backed by the generic JVM AST request-mapping resolver, returning `executionReadiness`, `requestCandidates`, `inferredTarget`, and `selectedMode`
 5. Framework adapters resolve annotation semantics (for example Spring `@RequestParam`, `@PathVariable`, `@RequestBody`) into normalized parameter metadata before HTTP materialization
@@ -107,7 +107,7 @@ Return endpoint-level HTTP results and any probe-verifiable evidence.
 ### What Happens
 
 1. The orchestrator resolves the API project and passes `projectRootAbs`
-2. `project_context_validate` optionally validates the scoped project context
+2. `artifact_management` with `artifactType=project_context` and `action=validate` optionally validates the scoped project context
 3. For each route under the controller, `probe_recipe_create` is called with the exact FQCN (and shared `apiBasePath` when applicable) to produce executable request candidates and auth/readiness diagnostics
 4. If `probe_recipe_create` returns `resultType=report`, that route is treated as fail-closed — use the compact execution metadata and diagnostics for routing decisions
 5. The orchestrator fires regression HTTP requests route-by-route with bearer auth and records outcomes

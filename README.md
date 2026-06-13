@@ -263,7 +263,7 @@ Start there before opening a large pull request or changing public tool contract
 | Tool | |
 |---|---|
 | `debug_check` | |
-| `project_context_validate` | |
+| `artifact_management` | |
 | `probe_check` | |
 | `probe_target_infer` | |
 | `probe_recipe_create` | |
@@ -274,6 +274,8 @@ Start there before opening a large pull request or changing public tool contract
 | `probe_enable` | |
 | `probe_registry_list` | |
 | `probe_registry_reload` | |
+| `execution_profile_export` | |
+| `execution_orchestration` | |
 
 Probe registry runtime behavior:
 - Registry config is loaded from discovered workspace `.mcpjvm/probe-config.json`.

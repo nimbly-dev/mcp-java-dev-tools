@@ -27,13 +27,8 @@ export function resolveExportDefaults(input: {
     includeHealthcheckGate = input.request.includeHealthcheckGate;
   }
 
-  let includeResolvedSecrets = false;
-  if (typeof defaults?.includeResolvedSecrets === "boolean") {
-    includeResolvedSecrets = defaults.includeResolvedSecrets;
-  }
-  if (typeof input.request.includeResolvedSecrets === "boolean") {
-    includeResolvedSecrets = input.request.includeResolvedSecrets;
-  }
+  // Secret export always requires explicit request opt-in.
+  const includeResolvedSecrets = input.request.includeResolvedSecrets === true;
 
   return {
     includeRuntimeStartup,
