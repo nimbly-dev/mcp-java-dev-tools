@@ -104,7 +104,7 @@ function buildActuateEnableStep(args: {
     phase: "prepare",
     title: "Enable branch actuation",
     instruction:
-      `Call probe_enable with mode=actuate targetKey=${args.lineTarget} returnBoolean=${args.returnBoolean}` +
+      `Call probe with action=actuate and input.action=arm targetKey=${args.lineTarget} returnBoolean=${args.returnBoolean}` +
       (args.actuatorId ? ` actuatorId=${args.actuatorId}` : "") +
       ".",
   };
@@ -118,7 +118,7 @@ function buildActuateDisableStep(args: {
     phase: "cleanup",
     title: "Disable branch actuation",
     instruction:
-      `Call probe_enable with mode=observe targetKey=${args.lineTarget}` +
+      `Call probe with action=actuate and input.action=disarm targetKey=${args.lineTarget}` +
       (args.actuatorId ? ` actuatorId=${args.actuatorId}` : "") +
       " to clean up synthetic forcing.",
   };
@@ -211,7 +211,7 @@ function buildSingleLineProbeSteps(args: {
   steps.push({
     phase: "prepare",
     title: "Reset probe baseline",
-    instruction: `Call probe_reset with key=${args.lineTarget} before running trigger request.`,
+    instruction: `Call probe with action=reset and input.key=${args.lineTarget} before running trigger request.`,
   });
   steps.push(
     buildExecuteRequestStep({
@@ -224,9 +224,9 @@ function buildSingleLineProbeSteps(args: {
     phase: "verify",
     title: "Verify single-line probe hit",
     instruction:
-      `Require line_hit on ${args.lineTarget} using probe_wait_for_hit.` +
+      `Require line_hit on ${args.lineTarget} using probe action=wait_for_hit.` +
       (args.targetFile ? ` Correlate with ${args.targetFile}:${args.lineHint}.` : "") +
-      " If probe_wait_for_hit returns invalid_line_target, rebuild the app artifact and restart the JVM before rerun.",
+      " If probe action=wait_for_hit returns invalid_line_target, rebuild the app artifact and restart the JVM before rerun.",
   });
   if (args.actuationEnabled && args.actuationConfigured) {
     steps.push(
@@ -286,7 +286,7 @@ function buildCombinedSteps(args: {
   steps.push({
     phase: "prepare",
     title: "Reset probe baseline",
-    instruction: `Call probe_reset with key=${args.lineTarget} before regression API execution.`,
+    instruction: `Call probe with action=reset and input.key=${args.lineTarget} before regression API execution.`,
   });
   steps.push(
     buildExecuteRequestStep({
@@ -299,9 +299,9 @@ function buildCombinedSteps(args: {
     phase: "verify",
     title: "Verify API and line probe outcomes",
     instruction:
-      `Require line_hit on ${args.lineTarget} via probe_wait_for_hit and validate API regression assertions in the same run.` +
+      `Require line_hit on ${args.lineTarget} via probe action=wait_for_hit and validate API regression assertions in the same run.` +
       (args.targetFile ? ` Correlate with ${args.targetFile}:${args.lineHint}.` : "") +
-      " If probe_wait_for_hit returns invalid_line_target, rebuild the app artifact and restart the JVM before rerun.",
+      " If probe action=wait_for_hit returns invalid_line_target, rebuild the app artifact and restart the JVM before rerun.",
   });
   if (args.actuationEnabled && args.actuationConfigured) {
     steps.push(

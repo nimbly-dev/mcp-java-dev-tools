@@ -528,8 +528,11 @@ export async function executeRegressionPlanWorkflow(
         resetIn.probeId = targetProbeId.trim();
       }
       const resetOut = await args.mcpInvoke({
-        toolName: "probe_reset",
-        input: resetIn,
+        toolName: "probe",
+        input: {
+          action: "reset",
+          input: resetIn,
+        },
       });
       const resetStructured = asRecord(resetOut.structuredContent);
       if (!resetStructured || "error" in resetStructured) {
@@ -581,8 +584,11 @@ export async function executeRegressionPlanWorkflow(
         waitIn.probeId = targetProbeId.trim();
       }
       const waitOut = await args.mcpInvoke({
-        toolName: "probe_wait_for_hit",
-        input: waitIn,
+        toolName: "probe",
+        input: {
+          action: "wait_for_hit",
+          input: waitIn,
+        },
       });
       const waitStructured = asRecord(waitOut.structuredContent);
       const waitResult = waitStructured ? asRecord(waitStructured.result) : null;

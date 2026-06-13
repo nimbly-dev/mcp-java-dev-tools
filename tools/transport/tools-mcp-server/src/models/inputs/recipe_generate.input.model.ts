@@ -53,7 +53,7 @@ export const RecipeGenerateInputSchema = {
     .boolean()
     .optional()
     .describe(
-      "Optional flag to emit probe_enable enable/disable steps around probe verification.",
+      "Optional flag to emit probe action=actuate arm/disarm steps around probe verification.",
     ),
   actuationReturnBoolean: z
     .boolean()

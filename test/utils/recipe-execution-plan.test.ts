@@ -67,9 +67,9 @@ test("single_line_probe enforces reset -> execute -> verify order", () => {
 
   assert.equal(plan.selectedMode, "single_line_probe");
   assert.equal(plan.steps.length, 3);
-  assert.match(plan.steps[0].instruction, /probe_reset/);
+  assert.match(plan.steps[0].instruction, /probe with action=reset/);
   assert.match(plan.steps[1].instruction, /^GET /);
-  assert.match(plan.steps[2].instruction, /probe_wait_for_hit/);
+  assert.match(plan.steps[2].instruction, /probe action=wait_for_hit/);
   assert.doesNotMatch(plan.steps[2].instruction, /probe_get_status/);
   assert.match(plan.steps[2].instruction, /invalid_line_target/i);
   assert.match(plan.steps[2].instruction, /rebuild the app artifact and restart the JVM/i);
@@ -104,9 +104,9 @@ test("combined mode enforces reset -> API -> verify order", () => {
 
   assert.equal(plan.selectedMode, "regression_plus_line_probe");
   assert.equal(plan.steps.length, 3);
-  assert.match(plan.steps[0].instruction, /probe_reset/);
+  assert.match(plan.steps[0].instruction, /probe with action=reset/);
   assert.match(plan.steps[1].title, /Execute regression API request/);
-  assert.match(plan.steps[2].instruction, /probe_wait_for_hit/);
+  assert.match(plan.steps[2].instruction, /probe action=wait_for_hit/);
   assert.doesNotMatch(plan.steps[2].instruction, /probe_get_status/);
   assert.match(plan.steps[2].instruction, /API regression assertions/);
   assert.match(plan.steps[2].instruction, /invalid_line_target/i);
@@ -144,13 +144,13 @@ test("single_line_probe actuated mode adds enable and disable cleanup calls", ()
   });
 
   assert.equal(plan.steps.length, 5);
-  assert.match(plan.steps[0].instruction, /probe_enable/);
-  assert.match(plan.steps[1].instruction, /probe_reset/);
+  assert.match(plan.steps[0].instruction, /probe with action=actuate/);
+  assert.match(plan.steps[1].instruction, /probe with action=reset/);
   assert.match(plan.steps[2].instruction, /^GET /);
-  assert.match(plan.steps[3].instruction, /probe_wait_for_hit/);
+  assert.match(plan.steps[3].instruction, /probe action=wait_for_hit/);
   assert.equal(plan.steps[4].phase, "cleanup");
-  assert.match(plan.steps[4].instruction, /probe_enable/);
-  assert.match(plan.steps[4].instruction, /mode=observe/);
+  assert.match(plan.steps[4].instruction, /probe with action=actuate/);
+  assert.match(plan.steps[4].instruction, /input.action=disarm/);
   assert.deepEqual(plan.probeCallPlan, {
     total: 4,
     verificationMethod: "probe_wait_for_hit",

@@ -25,6 +25,10 @@ async function callTool(name: string, args: Record<string, unknown>) {
   })) as any;
 }
 
+async function callProbe(action: string, input: Record<string, unknown>) {
+  return await callTool("probe", { action, input });
+}
+
 async function executeUpdatePost(): Promise<any> {
   if (!runtime) throw new Error("post-app runtime was not started");
   const response = await fetch(`${runtime.apiBaseUrl}/api/v1/posts/101`, {
@@ -141,7 +145,7 @@ async function armActuation(args: {
   actuatorId?: string;
 }) {
   if (!runtime) throw new Error("post-app runtime was not started");
-  return await callTool("probe_enable", {
+  return await callProbe("actuate", {
     baseUrl: runtime.probeBaseUrl,
     action: "arm",
     sessionId: args.sessionId,
@@ -154,7 +158,7 @@ async function armActuation(args: {
 
 async function disarmActuation(sessionId: string) {
   if (!runtime) throw new Error("post-app runtime was not started");
-  return await callTool("probe_enable", {
+  return await callProbe("actuate", {
     baseUrl: runtime.probeBaseUrl,
     action: "disarm",
     sessionId,
@@ -214,7 +218,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(Array.isArray(publicPayload.content), true);
   assert.equal(publicPayload.content.length > 0, true);
 
-  const check = await callTool("probe_check", {
+  const check = await callProbe("check", {
     baseUrl: runtime.probeBaseUrl,
     timeoutMs: 5_000,
   });
@@ -275,12 +279,12 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(observe.structuredContent.response.status, 200);
   assert.equal(observe.structuredContent.response.json.mode, "observe");
 
-  await callTool("probe_reset", {
+  await callProbe("reset", {
     key,
     baseUrl: runtime.probeBaseUrl,
   });
 
-  const resetBatch = await callTool("probe_reset", {
+  const resetBatch = await callProbe("reset", {
     keys: [key, `${candidate.fqcn}#${candidate.methodName}`],
     baseUrl: runtime.probeBaseUrl,
   });
@@ -293,7 +297,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(updated.id, 101);
   assert.equal(updated.authorUsername, "alice");
 
-  const waited = await callTool("probe_wait_for_hit", {
+  const waited = await callProbe("wait_for_hit", {
     key,
     baseUrl: runtime.probeBaseUrl,
     timeoutMs: 10_000,
@@ -303,7 +307,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(waited.structuredContent.result.hit, true);
   assert.equal(waited.structuredContent.result.inline, true);
 
-  const statusBatch = await callTool("probe_get_status", {
+  const statusBatch = await callProbe("status", {
     keys: [key, `${candidate.fqcn}#${candidate.methodName}`],
     baseUrl: runtime.probeBaseUrl,
   });
@@ -313,7 +317,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(statusBatch.structuredContent.summary.ok, 1);
   assert.equal(statusBatch.structuredContent.summary.failed, 1);
 
-  const status = await callTool("probe_get_status", {
+  const status = await callProbe("status", {
     key,
     baseUrl: runtime.probeBaseUrl,
   });
@@ -323,7 +327,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   const captureId = status.structuredContent.response.json.capturePreview.captureId;
   assert.equal(typeof captureId, "string");
 
-  const capture = await callTool("probe_get_capture", {
+  const capture = await callProbe("capture", {
     captureId,
     baseUrl: runtime.probeBaseUrl,
   });
@@ -344,7 +348,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
     assert.equal(capture.structuredContent.result.capture.threadAllocatedBytesDelta >= 0, true);
   }
 
-  const resetClass = await callTool("probe_reset", {
+  const resetClass = await callProbe("reset", {
     className: postControllerFqcn,
     baseUrl: runtime.probeBaseUrl,
   });
@@ -407,7 +411,7 @@ test("mcp IT: actuate forces deterministic fixture branch outcomes for the same 
       targetKey: key,
       returnBoolean: false,
     });
-    await callTool("probe_reset", {
+    await callProbe("reset", {
       key,
       baseUrl: runtime.probeBaseUrl,
     });
@@ -421,7 +425,7 @@ test("mcp IT: actuate forces deterministic fixture branch outcomes for the same 
     const deniedText = await deniedResponse.text();
     assert.match(deniedText, /"status"\s*:\s*409/i);
 
-    const deniedWait = await callTool("probe_wait_for_hit", {
+    const deniedWait = await callProbe("wait_for_hit", {
       key,
       baseUrl: runtime.probeBaseUrl,
       timeoutMs: 10_000,
@@ -435,7 +439,7 @@ test("mcp IT: actuate forces deterministic fixture branch outcomes for the same 
       targetKey: key,
       returnBoolean: true,
     });
-    await callTool("probe_reset", {
+    await callProbe("reset", {
       key,
       baseUrl: runtime.probeBaseUrl,
     });
@@ -452,7 +456,7 @@ test("mcp IT: actuate forces deterministic fixture branch outcomes for the same 
     assert.equal(allowedPayload.id, 101);
     assert.equal(allowedPayload.authorUsername, "alice");
 
-    const allowedWait = await callTool("probe_wait_for_hit", {
+    const allowedWait = await callProbe("wait_for_hit", {
       key,
       baseUrl: runtime.probeBaseUrl,
       timeoutMs: 10_000,
@@ -485,13 +489,13 @@ test("mcp IT: actuate with unresolved strict line target fails closed during res
     returnBoolean: true,
   });
 
-  const invalidReset = await callTool("probe_reset", {
+  const invalidReset = await callProbe("reset", {
     key: invalidLineKey,
     baseUrl: runtime.probeBaseUrl,
   });
   assert.equal(invalidReset.structuredContent.result.reason, "invalid_line_target");
 
-  const invalidWait = await callTool("probe_wait_for_hit", {
+  const invalidWait = await callProbe("wait_for_hit", {
     key: invalidLineKey,
     baseUrl: runtime.probeBaseUrl,
     timeoutMs: 2_000,
@@ -503,7 +507,7 @@ test("mcp IT: actuate with unresolved strict line target fails closed during res
 
   await disarmActuation("mcp-invalid-line");
 
-  const check = await callTool("probe_check", {
+  const check = await callProbe("check", {
     baseUrl: runtime.probeBaseUrl,
     timeoutMs: 5_000,
   });
@@ -517,7 +521,7 @@ test("mcp IT: arm actuation without returnBoolean fails closed", async () => {
 
   await disarmActuation("mcp-return-bool-required");
 
-  const armed = await callTool("probe_enable", {
+  const armed = await callProbe("actuate", {
     baseUrl: runtime.probeBaseUrl,
     action: "arm",
     sessionId: "mcp-return-bool-required",
@@ -563,14 +567,14 @@ test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, i
     line: declarationLine,
   });
 
-  const invalidStatus = await callTool("probe_get_status", {
+  const invalidStatus = await callProbe("status", {
     key: invalidLineKey,
     baseUrl: runtime.probeBaseUrl,
   });
   assert.equal(invalidStatus.structuredContent.response.json.lineValidation, "invalid_line_target");
   assert.equal(invalidStatus.structuredContent.result.reason, "invalid_line_target");
 
-  const invalidWait = await callTool("probe_wait_for_hit", {
+  const invalidWait = await callProbe("wait_for_hit", {
     key: invalidLineKey,
     baseUrl: runtime.probeBaseUrl,
     timeoutMs: 2_000,
@@ -580,7 +584,7 @@ test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, i
   assert.equal(invalidWait.structuredContent.result.reason, "invalid_line_target");
   assert.equal(invalidWait.structuredContent.result.actionCode, "runtime_not_aligned");
 
-  const invalidEnable = await callTool("probe_enable", {
+  const invalidEnable = await callProbe("actuate", {
     baseUrl: runtime.probeBaseUrl,
     action: "arm",
     sessionId: "mcp-invalid-enable",
@@ -591,7 +595,7 @@ test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, i
   assert.equal(invalidEnable.structuredContent.result.actuated, false);
   assert.equal(invalidEnable.structuredContent.result.reason, "line_key_required");
 
-  const missingCapture = await callTool("probe_get_capture", {
+  const missingCapture = await callProbe("capture", {
     captureId: "missing-capture-id",
     baseUrl: runtime.probeBaseUrl,
   });

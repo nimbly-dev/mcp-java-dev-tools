@@ -324,12 +324,15 @@ test("executeRegressionPlanWorkflow routes strict probe verification per target 
         if (toolName === "transport_execute") {
           return { structuredContent: { status: "pass", statusCode: 200, durationMs: 8, bodyPreview: "[]" } };
         }
-        if (toolName === "probe_reset") {
-          return { structuredContent: { ok: true } };
-        }
-        if (toolName === "probe_wait_for_hit") {
-          probeWaitCalls.push(input);
-          return { structuredContent: { result: { hit: true } } };
+        if (toolName === "probe") {
+          assert.equal(typeof input.action, "string");
+          if (input.action === "reset") {
+            return { structuredContent: { ok: true } };
+          }
+          if (input.action === "wait_for_hit") {
+            probeWaitCalls.push(input.input as Record<string, unknown>);
+            return { structuredContent: { result: { hit: true } } };
+          }
         }
         throw new Error(`unexpected tool: ${toolName}`);
       },
