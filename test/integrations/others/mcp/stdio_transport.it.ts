@@ -159,8 +159,8 @@ test("mcp IT: stdio transport keeps stdout protocol-only and writes diagnostics 
     const toolNames = new Set(
       tools.map((tool) => tool.name).filter((name): name is string => typeof name === "string"),
     );
-    assert.equal(toolNames.has("probe_registry_list"), true);
-    assert.equal(toolNames.has("probe_registry_reload"), true);
+    assert.equal(toolNames.has("probe_registry_list"), false);
+    assert.equal(toolNames.has("probe_registry_reload"), false);
     assert.equal(toolNames.has("artifact_management"), true);
     assert.equal(toolNames.has("execution_orchestration"), true);
     assert.equal(toolNames.has("project_context_validate"), false);

@@ -62,7 +62,7 @@ function buildFixtureProbeRegistry(workspaceRootAbs: string): Record<string, unk
   };
 }
 
-test("mcp IT: probe registry auto-reload tracks live edits and fail-closed recovery", async () => {
+test("mcp IT: artifact_management probe_config read tracks live edits and fail-closed recovery", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-probe-registry-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const mcpjvmDir = path.join(workspaceRootAbs, ".mcpjvm");
@@ -84,7 +84,11 @@ test("mcp IT: probe registry auto-reload tracks live edits and fail-closed recov
       },
     });
 
-    const initial = await callTool(mcp, "probe_registry_list", {});
+    const initial = await callTool(mcp, "artifact_management", {
+      artifactType: "probe_config",
+      action: "read",
+      input: {},
+    });
     assert.equal(initial.structuredContent?.status, "ok");
     assert.equal(initial.structuredContent?.activeProfile, "dev");
     assert.equal(initial.structuredContent?.defaultProbeId, "gateway-service");
@@ -98,7 +102,11 @@ test("mcp IT: probe registry auto-reload tracks live edits and fail-closed recov
 
     await waitFor(
       async () => {
-        const listed = await callTool(mcp!, "probe_registry_list", {});
+        const listed = await callTool(mcp!, "artifact_management", {
+          artifactType: "probe_config",
+          action: "read",
+          input: {},
+        });
         return (
           listed.structuredContent?.status === "ok" &&
           listed.structuredContent?.defaultProbeId === "course-service" &&
@@ -116,7 +124,11 @@ test("mcp IT: probe registry auto-reload tracks live edits and fail-closed recov
 
     await waitFor(
       async () => {
-        const listed = await callTool(mcp!, "probe_registry_list", {});
+        const listed = await callTool(mcp!, "artifact_management", {
+          artifactType: "probe_config",
+          action: "read",
+          input: {},
+        });
         return (
           listed.structuredContent?.status === "ok" &&
           listed.structuredContent?.defaultProbeId === "course-service" &&
@@ -139,7 +151,11 @@ test("mcp IT: probe registry auto-reload tracks live edits and fail-closed recov
 
     await waitFor(
       async () => {
-        const listed = await callTool(mcp!, "probe_registry_list", {});
+        const listed = await callTool(mcp!, "artifact_management", {
+          artifactType: "probe_config",
+          action: "read",
+          input: {},
+        });
         return (
           listed.structuredContent?.status === "ok" &&
           listed.structuredContent?.defaultProbeId === "gateway-service" &&

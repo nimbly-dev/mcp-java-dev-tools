@@ -447,3 +447,120 @@ test("buildReplayPreflightWithDiscovery remains ready when probeVerification=tru
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test("buildReplayPreflightWithDiscovery fails closed when first HTTP target is not reachable after project-context health gate", async () => {
+  const root = createTestTempDir("project-context-http-target-unreachable");
+  const closedPort = await reservePortAndRelease();
+  try {
+    const projectsFileAbs = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    writeJson(projectsFileAbs, {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 700 },
+          runtimeContexts: [{ name: "docker-compose", mode: "docker", autoStart: true, composeFile: "docker-compose.yml" }],
+        },
+      ],
+    });
+    const contract = baseContract({
+      prerequisites: [
+        {
+          key: "apiBaseUrl",
+          required: true,
+          secret: false,
+          provisioning: "user_input",
+          default: `http://127.0.0.1:${closedPort}`,
+        },
+        {
+          key: "auth.bearer",
+          required: true,
+          secret: true,
+          provisioning: "user_input",
+        },
+      ],
+    });
+
+    const result = await buildReplayPreflightWithDiscovery({
+      metadata: baseMetadata({ probeVerification: false }),
+      contract,
+      providedContext: { "auth.bearer": "runtime-token" },
+      targetCandidateCount: 1,
+      projectContextOptions: {
+        workspaceRootAbs: root,
+        projectsFileAbs,
+      },
+      adapters: {},
+    });
+
+    assert.equal(result.preflight.status, "needs_user_input");
+    assert.equal(result.preflight.reasonCode, "external_healthcheck_failed");
+    assert.match(
+      (result.preflight.checks ?? [])[0] ?? "",
+      new RegExp(`^http_target:http://127\\.0\\.0\\.1:${closedPort}=unreachable$`),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("buildReplayPreflightWithDiscovery waits for first HTTP target to become reachable before returning ready", async () => {
+  const root = createTestTempDir("project-context-http-target-converges");
+  const delayedPort = await reservePortAndRelease();
+  const server = http.createServer((_req: any, res: any) => {
+    res.statusCode = 200;
+    res.end("ok");
+  });
+  let listenTimer: NodeJS.Timeout | undefined;
+  try {
+    const projectsFileAbs = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    writeJson(projectsFileAbs, {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 1200 },
+          runtimeContexts: [{ name: "docker-compose", mode: "docker", autoStart: true, composeFile: "docker-compose.yml" }],
+        },
+      ],
+    });
+    const contract = baseContract({
+      prerequisites: [
+        {
+          key: "apiBaseUrl",
+          required: true,
+          secret: false,
+          provisioning: "user_input",
+          default: `http://127.0.0.1:${delayedPort}`,
+        },
+        {
+          key: "auth.bearer",
+          required: true,
+          secret: true,
+          provisioning: "user_input",
+        },
+      ],
+    });
+
+    listenTimer = setTimeout(() => {
+      server.listen(delayedPort, "127.0.0.1");
+    }, 350);
+
+    const result = await buildReplayPreflightWithDiscovery({
+      metadata: baseMetadata({ probeVerification: false }),
+      contract,
+      providedContext: { "auth.bearer": "runtime-token" },
+      targetCandidateCount: 1,
+      projectContextOptions: {
+        workspaceRootAbs: root,
+        projectsFileAbs,
+      },
+      adapters: {},
+    });
+
+    assert.equal(result.preflight.status, "ready");
+    assert.equal(result.preflight.reasonCode, "ok");
+  } finally {
+    if (listenTimer) clearTimeout(listenTimer);
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

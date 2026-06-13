@@ -1,3 +1,5 @@
+import net from "node:net";
+
 import type {
   BuildPreflightArgs,
   PlanContract,
@@ -7,6 +9,8 @@ import type {
   PreflightStatus,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import { buildReplayPreflight } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+import { resolvePrerequisiteContext } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+import { resolveStepTransport } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
 import { resolveProjectContextForRegression } from "@tools-regression-execution-plan-spec/regression_project_context.util";
 
 export type DiscoveryOutcome =
@@ -127,6 +131,131 @@ async function isProbeBaseReachable(urlRaw: string, timeoutMs: number): Promise<
   } catch {
     return false;
   }
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function resolveFirstHttpTargetUrl(args: {
+  contract: PlanContract;
+  providedContext: Record<string, unknown>;
+}): string | null {
+  const effectiveContext = {
+    ...args.providedContext,
+    ...resolvePrerequisiteContext(args.contract.prerequisites, args.providedContext),
+  };
+  const steps = [...args.contract.steps].sort((a, b) => a.order - b.order);
+  for (const step of steps) {
+    if (step.protocol !== "http") continue;
+    const resolvedTransport = resolveStepTransport(step, effectiveContext);
+    const http = typeof resolvedTransport.http === "object" && resolvedTransport.http !== null
+      ? (resolvedTransport.http as Record<string, unknown>)
+      : null;
+    if (!http) continue;
+    const directUrl = asString(http.url);
+    if (directUrl) return directUrl;
+    const pathTemplate = asString(http.pathTemplate);
+    if (!pathTemplate) continue;
+    if (/^https?:\/\//i.test(pathTemplate)) return pathTemplate;
+    const apiBaseUrl = asString(effectiveContext.apiBaseUrl);
+    if (apiBaseUrl) {
+      return `${apiBaseUrl.replace(/\/$/, "")}${pathTemplate.startsWith("/") ? "" : "/"}${pathTemplate}`;
+    }
+  }
+  return null;
+}
+
+function shouldGateFirstHttpTargetReadiness(providedContext: Record<string, unknown>): boolean {
+  return providedContext["runtime.autoStart"] === true;
+}
+
+function originFromUrl(urlRaw: string): string | null {
+  try {
+    return new URL(urlRaw).origin;
+  } catch {
+    return null;
+  }
+}
+
+async function isTcpReachableFromUrl(urlRaw: string, timeoutMs: number): Promise<boolean> {
+  let target: URL;
+  try {
+    target = new URL(urlRaw);
+  } catch {
+    return false;
+  }
+  const host = target.hostname;
+  const port =
+    target.port.length > 0
+      ? Number(target.port)
+      : target.protocol === "https:"
+        ? 443
+        : target.protocol === "http:"
+          ? 80
+          : NaN;
+  if (!host || !Number.isInteger(port) || port <= 0) {
+    return false;
+  }
+  return await new Promise<boolean>((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs, () => finish(false));
+    socket.once("error", () => finish(false));
+    socket.connect(port, host, () => finish(true));
+  });
+}
+
+function resolveHttpTargetConvergenceWindowMs(args: {
+  providedContext: Record<string, unknown>;
+  timeoutMs?: number;
+}): number {
+  const runtimeTimeout = args.providedContext["runtime.requestTimeoutMs"];
+  const candidate =
+    typeof runtimeTimeout === "number" && Number.isFinite(runtimeTimeout) && runtimeTimeout > 0
+      ? Math.floor(runtimeTimeout)
+      : typeof args.timeoutMs === "number" && Number.isFinite(args.timeoutMs) && args.timeoutMs > 0
+        ? Math.floor(args.timeoutMs)
+        : 3000;
+  return Math.max(600, candidate);
+}
+
+async function waitForFirstHttpTargetReachability(args: {
+  contract: PlanContract;
+  providedContext: Record<string, unknown>;
+  timeoutMs?: number;
+}): Promise<
+  | { ok: true }
+  | { ok: false; check: string; nextAction: string; requiredUserAction: string[] }
+> {
+  const targetUrl = resolveFirstHttpTargetUrl(args);
+  if (!targetUrl) return { ok: true };
+  const targetOrigin = originFromUrl(targetUrl) ?? targetUrl;
+  const timeoutMs = resolveHttpTargetConvergenceWindowMs(args);
+  const perAttemptTimeoutMs = Math.min(500, Math.max(100, Math.floor(timeoutMs / 6)));
+  const delayMs = Math.min(250, Math.max(100, Math.floor(timeoutMs / 8)));
+  const attempts = Math.max(3, Math.ceil(timeoutMs / delayMs));
+  let reachable = await isTcpReachableFromUrl(targetUrl, perAttemptTimeoutMs);
+  for (let attempt = 1; attempt < attempts && !reachable; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    reachable = await isTcpReachableFromUrl(targetUrl, perAttemptTimeoutMs);
+  }
+  if (reachable) return { ok: true };
+  return {
+    ok: false,
+    check: `http_target:${targetOrigin}=unreachable`,
+    nextAction:
+      "Wait for the target application HTTP port to accept traffic or add an explicit application-level health check under externalSystems[].healthChecks.",
+    requiredUserAction: [
+      `Target application HTTP port is not reachable yet at ${targetOrigin}. Wait for startup convergence or add an explicit application readiness health check.`,
+    ],
+  };
 }
 
 function resolveProbeBaseUrl(args: {
@@ -438,6 +567,28 @@ export async function buildReplayPreflightWithDiscovery(
     }
   }
 
+  if (
+    !projectContextArg &&
+    args.projectContextOptions?.healthChecksEnabled !== false &&
+    shouldGateFirstHttpTargetReadiness(mergedProvidedContext)
+  ) {
+    const httpTargetReadinessArgs: Parameters<typeof waitForFirstHttpTargetReachability>[0] = {
+      contract: args.contract,
+      providedContext: mergedProvidedContext,
+      ...(typeof args.timeoutMs === "number" ? { timeoutMs: args.timeoutMs } : {}),
+    };
+    const httpTargetReadiness = await waitForFirstHttpTargetReachability(httpTargetReadinessArgs);
+    if (!httpTargetReadiness.ok) {
+      projectContextArg = {
+        status: "blocked",
+        reasonCode: "external_healthcheck_failed",
+        checks: [httpTargetReadiness.check],
+        nextAction: httpTargetReadiness.nextAction,
+        requiredUserAction: httpTargetReadiness.requiredUserAction,
+      };
+    }
+  }
+
   const initialPreflight = buildReplayPreflight({
     ...args,
     providedContext: mergedProvidedContext,
@@ -489,6 +640,35 @@ export async function buildReplayPreflightWithDiscovery(
     providedContext: mergedContext,
     ...(projectContextArg ? { projectContext: projectContextArg } : {}),
   });
+  if (
+    finalPreflight.status === "ready" &&
+    args.projectContextOptions?.healthChecksEnabled !== false &&
+    shouldGateFirstHttpTargetReadiness(mergedContext)
+  ) {
+    const httpTargetReadinessArgs: Parameters<typeof waitForFirstHttpTargetReachability>[0] = {
+      contract: args.contract,
+      providedContext: mergedContext,
+      ...(typeof args.timeoutMs === "number" ? { timeoutMs: args.timeoutMs } : {}),
+    };
+    const httpTargetReadiness = await waitForFirstHttpTargetReachability(httpTargetReadinessArgs);
+    if (!httpTargetReadiness.ok) {
+      return {
+        preflight: buildReplayPreflight({
+          ...args,
+          providedContext: mergedContext,
+          projectContext: {
+            status: "blocked",
+            reasonCode: "external_healthcheck_failed",
+            checks: [httpTargetReadiness.check],
+            nextAction: httpTargetReadiness.nextAction,
+            requiredUserAction: httpTargetReadiness.requiredUserAction,
+          },
+        }),
+        resolvedContext: mergedContext,
+        discovery,
+      };
+    }
+  }
   return {
     preflight: finalPreflight,
     resolvedContext: mergedContext,

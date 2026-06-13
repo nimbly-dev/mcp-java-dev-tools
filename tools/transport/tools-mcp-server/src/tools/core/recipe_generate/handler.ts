@@ -201,7 +201,7 @@ export function registerRecipeCreateTool(
           attemptedStrategies: ["probe_selection_validation"],
           reason: probeResolve.reason,
           nextAction:
-            "Provide a valid probeId from probe_registry_list or explicit probeBaseUrl and rerun probe_recipe_create.",
+            "Provide a valid probeId from artifact_management (artifactType=probe_config, action=read) or explicit probeBaseUrl and rerun probe_recipe_create.",
         };
         return {
           content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],

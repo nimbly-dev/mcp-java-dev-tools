@@ -60,6 +60,32 @@ export type ProbeRegistry = {
   allowNonWrappedExecutable: boolean;
 };
 
+export type ProbeRegistryReloadState = {
+  lastReloadAt?: string;
+  lastReloadStatus?: "ok" | "error";
+  lastReloadError?: string;
+};
+
+export type ProbeRegistrySummary = {
+  configFileAbs: string;
+  activeProfile: string;
+  profileSource: "env" | "workspace" | "default";
+  defaultProbeId: string;
+  probeCount: number;
+  allowNonWrappedExecutable: boolean;
+  lastReloadAt?: string;
+  lastReloadStatus?: "ok" | "error";
+  lastReloadError?: string;
+  probes: Array<{
+    id: string;
+    baseUrl: string;
+    description?: string;
+    include: string[];
+    exclude: string[];
+    runtime?: Record<string, unknown>;
+  }>;
+};
+
 function stripUtf8Bom(raw: string): string {
   if (raw.charCodeAt(0) === 0xfeff) return raw.slice(1);
   return raw;
@@ -251,5 +277,30 @@ export function loadProbeRegistry(args: ProbeRegistryLoadArgs): ProbeRegistry {
     defaultProbeId,
     probesById,
     allowNonWrappedExecutable,
+  };
+}
+
+export function summarizeProbeRegistry(
+  registry: ProbeRegistry,
+  reloadState?: ProbeRegistryReloadState,
+): ProbeRegistrySummary {
+  return {
+    configFileAbs: registry.configFileAbs,
+    activeProfile: registry.activeProfile,
+    profileSource: registry.profileSource,
+    defaultProbeId: registry.defaultProbeId,
+    probeCount: registry.probesById.size,
+    allowNonWrappedExecutable: registry.allowNonWrappedExecutable,
+    ...(reloadState?.lastReloadAt ? { lastReloadAt: reloadState.lastReloadAt } : {}),
+    ...(reloadState?.lastReloadStatus ? { lastReloadStatus: reloadState.lastReloadStatus } : {}),
+    ...(reloadState?.lastReloadError ? { lastReloadError: reloadState.lastReloadError } : {}),
+    probes: Array.from(registry.probesById.values()).map((probe) => ({
+      id: probe.id,
+      baseUrl: probe.baseUrl,
+      ...(probe.description ? { description: probe.description } : {}),
+      include: probe.include,
+      exclude: probe.exclude,
+      ...(probe.runtime ? { runtime: probe.runtime } : {}),
+    })),
   };
 }

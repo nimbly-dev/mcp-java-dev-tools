@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-probe-registry-manager
-description: "Manage probe registry configuration (`probe-config.json`): add/update/list probes, validate config, reload registry, and generate MCP run snippets."
+description: "Manage probe registry configuration (`probe-config.json`): add/update/list probes, validate config, reload runtime state, and generate MCP run snippets."
 ---
 
 # MCP Java Dev Tools Probe Registry Manager
@@ -11,9 +11,9 @@ Use this skill for operational management of `.mcpjvm/probe-config.json` and reg
 
 1. Add/update/remove probe entries in `.mcpjvm/probe-config.json`.
 2. Validate deterministic registry shape (`defaultProfile`, `workspaces[]`, `profiles`, `probes`).
-3. Trigger `probe_registry_reload` after changes.
+3. Trigger runtime refresh through `artifact_management` with `artifactType=probe_config` and `action=reload` after changes.
 4. Provide ready-to-paste MCP client configuration snippets.
-5. Use `artifact_management` with `artifactType=probe_config` for read/validate/upsert artifact operations.
+5. Use `artifact_management` with `artifactType=probe_config` for read/validate/upsert/reload Artifact operations.
 
 ## Rules
 
@@ -72,7 +72,7 @@ Notes:
 3. Apply requested mutation (add/update/remove workspace/profile/probe).
 4. Persist via `artifact_management` with `artifactType=probe_config` and `action=upsert`.
 5. Re-validate with `artifact_management` `action=validate`.
-6. Call `probe_registry_reload`.
+6. Call `artifact_management` with `artifactType=probe_config` and `action=reload`.
 7. Return:
    - change summary
    - any Fail-Closed validation errors

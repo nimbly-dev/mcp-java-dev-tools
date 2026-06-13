@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ProbeRegistrySummary } from "@/config/probe-registry";
 import { ArtifactManagementRequestSchema } from "@/models/inputs/artifact_management";
 import { ARTIFACT_MANAGEMENT_TOOL } from "@/tools/core/artifact_management/contract";
 import { artifactManagementDomain } from "@/tools/core/artifact_management/domain";
@@ -6,6 +7,8 @@ import { buildFailClosedArtifactResponse } from "@/tools/core/artifact_managemen
 
 export type ArtifactManagementHandlerDeps = {
   workspaceRootAbs: string;
+  getProbeRegistrySummary?: () => ProbeRegistrySummary | undefined;
+  reloadProbeRegistry?: () => ProbeRegistrySummary | undefined;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -68,6 +71,8 @@ export function registerArtifactManagementTool(server: McpServer, deps: Artifact
       }
       return await artifactManagementDomain({
         workspaceRootAbs: deps.workspaceRootAbs,
+        ...(deps.getProbeRegistrySummary ? { getProbeRegistrySummary: deps.getProbeRegistrySummary } : {}),
+        ...(deps.reloadProbeRegistry ? { reloadProbeRegistry: deps.reloadProbeRegistry } : {}),
         request: parsed.data,
       });
     },

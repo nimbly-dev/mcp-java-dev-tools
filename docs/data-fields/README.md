@@ -333,7 +333,7 @@ Postman variable normalization policy:
 | `resultType` | Output discriminator for unified Artifact lifecycle operations. | `artifact_management` | true | `"artifact"` |
 | `status` | Deterministic operation status (`ok`) or fail-closed reason status. | `artifact_management` | true | `"ok"` |
 | `artifactType` | Artifact class selected by caller (`probe_config`, `project_context`, `regression_plan`, `run_result`, `execution_export`). | `artifact_management` | true | `"project_context"` |
-| `action` | Requested lifecycle action (`read`, `validate`, `upsert`, `list`, `generate`). | `artifact_management` | true | `"validate"` |
+| `action` | Requested lifecycle action (`read`, `validate`, `upsert`, `list`, `generate`, `reload`). | `artifact_management` | true | `"validate"` |
 | `input` | Typed per-artifact payload object. The top-level request is generic; artifact-specific fields are nested under `input`. | `artifact_management` | true | `{"projectName":"catalog-service","query":{"select":["summary"]}}` |
 | `input.projectName` | Canonical project Artifact identity for `project_context`, `regression_plan`, `run_result`, and `execution_export` operations. Required for orchestrator-grade calls in multi-project workspaces. | `artifact_management` | false | `"post-service"` |
 | `input.projectRootAbs` | Optional deterministic project-root selector for `project_context` validation and scope cross-checking. | `artifact_management` | false | `"C:\\repo\\social-platform\\post-service\\post-app"` |
@@ -344,8 +344,18 @@ Postman variable normalization policy:
 | `input.query.steps.limit` | Required window size for `regression_plan` `steps` section reads when `select` includes `steps`. | `artifact_management` | false | `25` |
 | `reasonCode` | Deterministic blocked reason code (for example `artifact_action_not_allowed`, `project_artifact_missing`). | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `nextActionCode` | Verb-style deterministic follow-up action key for blocked outputs. | `artifact_management` | false | `"artifact_action_not_allowed"` |
-| `reasonMeta` | Optional typed diagnostics including allowed action presets for the selected `artifactType`. | `artifact_management` | false | `{"allowedActions":["read","validate","upsert"]}` |
+| `reasonMeta` | Optional typed diagnostics including allowed action presets for the selected `artifactType`. | `artifact_management` | false | `{"allowedActions":["read","validate","upsert","reload"]}` |
 | `artifact` | Artifact payload returned by read actions (shape varies by `artifactType`). | `artifact_management` | false | `{"workspaces":[{"projectRoot":"C:\\repo"}]}` |
+| `configFileAbs` | For `probe_config` actions, absolute path to the resolved `.mcpjvm/probe-config.json` Artifact. | `artifact_management` | false | `"C:\\repo\\.mcpjvm\\probe-config.json"` |
+| `activeProfile` | For `probe_config` actions, active resolved profile name. | `artifact_management` | false | `"dev"` |
+| `profileSource` | For `probe_config` actions, profile resolution source (`env`, `workspace`, `default`). | `artifact_management` | false | `"workspace"` |
+| `defaultProbeId` | For `probe_config` actions, default probe id for the active profile. | `artifact_management` | false | `"order-service"` |
+| `probeCount` | For `probe_config` actions, count of registered probes in the active profile. | `artifact_management` | false | `3` |
+| `allowNonWrappedExecutable` | For `probe_config` actions, whether runtime execution may bypass wrapper enforcement. | `artifact_management` | false | `false` |
+| `lastReloadAt` | For `probe_config` `read`/`reload`, ISO timestamp of the most recent reload attempt. | `artifact_management` | false | `"2026-05-01T14:20:55.000Z"` |
+| `lastReloadStatus` | For `probe_config` `read`/`reload`, last reload outcome (`ok` or `error`). | `artifact_management` | false | `"ok"` |
+| `lastReloadError` | For `probe_config` `read`/`reload`, last reload error message when `lastReloadStatus=error`. | `artifact_management` | false | `"Unexpected token..."` |
+| `probes` | For `probe_config` actions, registered probe descriptors (`id`, `baseUrl`, selectors, runtime metadata). | `artifact_management` | false | `[{"id":"order-service","baseUrl":"http://127.0.0.1:9190"}]` |
 | `projectRootAbs` | For `project_context` `validate`, the normalized project root validated against the selected project scope. | `artifact_management` | false | `"C:\\repo\\social-platform\\post-service\\post-app"` |
 | `buildMarkers` | For `project_context` `validate`, build markers found directly under `projectRootAbs`. | `artifact_management` | false | `["pom.xml"]` |
 | `hasBuildMarker` | For `project_context` `validate`, whether any Maven/Gradle marker exists in the project root. | `artifact_management` | false | `true` |
@@ -365,7 +375,7 @@ Postman variable normalization policy:
 | `steps.items` | Current window slice of regression plan steps. | `artifact_management` | false | `[{"id":"step-1"}]` |
 
 `artifact_management` action presets:
-- `probe_config`: `read`, `validate`, `upsert`
+- `probe_config`: `read`, `validate`, `upsert`, `reload`
 - `project_context`: `read`, `validate`, `upsert`, `list`
 - `regression_plan`: `read`, `validate`, `upsert`, `list`
 - `run_result`: `read`, `list`
@@ -373,6 +383,7 @@ Postman variable normalization policy:
 
 Typed request envelope examples:
 - `{"artifactType":"probe_config","action":"validate","input":{}}`
+- `{"artifactType":"probe_config","action":"reload","input":{}}`
 - `{"artifactType":"project_context","action":"read","input":{"projectName":"catalog","query":{"select":["summary","executionProfiles"],"executionProfile":"smoke"}}}`
 - `{"artifactType":"project_context","action":"validate","input":{"projectName":"post-service","projectRootAbs":"C:\\repo\\social-platform\\post-service\\post-app"}}`
 
@@ -413,32 +424,5 @@ These fields are emitted by orchestration summaries in skill-guided runs when pr
 | `executionResult.steps[].conditionEvaluation.status` | Deterministic condition evaluation result (`true`, `false`, `blocked_invalid`). | `mcp-java-dev-tools-regression-suite` | false | `false` |
 | `executionResult.steps[].conditionEvaluation.reasonCode` | Deterministic reason when condition evaluation is blocked. | `mcp-java-dev-tools-regression-suite` | false | `"step_condition_forward_reference"` |
 
-## probe_registry_list
-
-| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
-| --- | --- | --- | --- | --- |
-| `resultType` | Output discriminator for probe registry operations. | `probe_registry_list` | true | `"probe_registry"` |
-| `status` | Registry status (`ok` or `not_configured`). | `probe_registry_list` | true | `"ok"` |
-| `activeProfile` | Active resolved profile name. | `probe_registry_list` | false | `"dev"` |
-| `profileSource` | Profile resolution source (`env`, `workspace`, `default`). | `probe_registry_list` | false | `"workspace"` |
-| `defaultProbeId` | Default probe id for the active profile. | `probe_registry_list` | false | `"order-service"` |
-| `probeCount` | Count of registered probes in the active profile. | `probe_registry_list` | false | `3` |
-| `lastReloadAt` | ISO timestamp of the most recent registry reload attempt (manual or auto-watch). | `probe_registry_list` | false | `"2026-05-01T14:20:55.000Z"` |
-| `lastReloadStatus` | Last reload outcome (`ok` or `error`). | `probe_registry_list` | false | `"ok"` |
-| `lastReloadError` | Last reload error message when `lastReloadStatus=error`. | `probe_registry_list` | false | `"Unexpected token..."` |
-| `probes` | Registered probe descriptors (`id`, `baseUrl`, selectors, runtime metadata). | `probe_registry_list` | false | `[{"id":"order-service","baseUrl":"http://127.0.0.1:9190"}]` |
-
-## probe_registry_reload
-
-| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
-| --- | --- | --- | --- | --- |
-| `resultType` | Output discriminator for probe registry operations. | `probe_registry_reload` | true | `"probe_registry"` |
-| `status` | Reload status (`reloaded` or `not_configured`). | `probe_registry_reload` | true | `"reloaded"` |
-| `activeProfile` | Active resolved profile name after reload. | `probe_registry_reload` | false | `"dev"` |
-| `profileSource` | Profile resolution source after reload (`env`, `workspace`, `default`). | `probe_registry_reload` | false | `"workspace"` |
-| `defaultProbeId` | Default probe id for the reloaded profile. | `probe_registry_reload` | false | `"order-service"` |
-| `lastReloadAt` | ISO timestamp of the reload attempt. | `probe_registry_reload` | false | `"2026-05-01T14:20:55.000Z"` |
-| `lastReloadStatus` | Reload outcome (`ok` or `error`). | `probe_registry_reload` | false | `"ok"` |
-| `lastReloadError` | Reload error message when status is `error`. | `probe_registry_reload` | false | `"Unexpected token..."` |
 
 

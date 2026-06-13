@@ -9,7 +9,7 @@ import { ArtifactActionSchema, ArtifactTypeSchema, type ArtifactActionByType } f
 export const ArtifactManagementRequestSchema = z.discriminatedUnion("artifactType", [
   z.object({
     artifactType: z.literal("probe_config"),
-    action: z.enum(["read", "validate", "upsert"]),
+    action: z.enum(["read", "validate", "upsert", "reload"]),
     input: ProbeConfigInputSchema,
   }),
   z.object({
