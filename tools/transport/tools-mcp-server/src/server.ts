@@ -7,16 +7,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
 import { CONFIG_DEFAULTS } from "@/config/defaults";
-import { loadProbeRegistry } from "@/config/probe-registry";
+import { loadProbeRegistry, summarizeProbeRegistry, type ProbeRegistrySummary } from "@/config/probe-registry";
 import { registerProbeCheckTool } from "@/tools/core/probe_check/handler";
 import { registerTargetInferTool } from "@/tools/core/target_infer/handler";
 import { registerRecipeCreateTool } from "@/tools/core/recipe_generate/handler";
 import { registerProbeTools } from "@/tools/core/probe/handler";
 import { registerTransportExecuteTool } from "@/tools/core/transport_execute/handler";
-import {
-  registerProbeRegistryTools,
-  type ProbeRegistrySummary,
-} from "@/tools/core/probe_registry/handler";
 import { registerExecutionProfileExportTool } from "@/tools/core/execution_profile_export/handler";
 import { registerArtifactManagementTool } from "@/tools/core/artifact_management/handler";
 import { registerExecutionOrchestrationTool } from "@/tools/core/execution_orchestration/handler";
@@ -102,25 +98,11 @@ async function main() {
   };
   const toRegistrySummary = (): ProbeRegistrySummary | undefined => {
     if (!activeRegistry) return undefined;
-    return {
-      configFileAbs: activeRegistry.configFileAbs,
-      activeProfile: activeRegistry.activeProfile,
-      profileSource: activeRegistry.profileSource,
-      defaultProbeId: activeRegistry.defaultProbeId,
-      probeCount: activeRegistry.probesById.size,
-      allowNonWrappedExecutable: activeRegistry.allowNonWrappedExecutable,
+    return summarizeProbeRegistry(activeRegistry, {
       ...(lastReloadAt ? { lastReloadAt } : {}),
       ...(lastReloadStatus ? { lastReloadStatus } : {}),
       ...(lastReloadError ? { lastReloadError } : {}),
-      probes: Array.from(activeRegistry.probesById.values()).map((probe) => ({
-        id: probe.id,
-        baseUrl: probe.baseUrl,
-        ...(probe.description ? { description: probe.description } : {}),
-        include: probe.include,
-        exclude: probe.exclude,
-        ...(probe.runtime ? { runtime: probe.runtime } : {}),
-      })),
-    };
+    });
   };
   const reloadRegistry = (): ProbeRegistrySummary | undefined => {
     return reloadRegistryInternal("manual");
@@ -244,10 +226,6 @@ async function main() {
     probeWaitUnreachableMaxRetries: cfg.probeWaitUnreachableMaxRetries,
     getProbeRegistry: () => activeRegistry,
   });
-  registerProbeRegistryTools(server, {
-    getRegistrySummary: () => toRegistrySummary(),
-    reloadRegistry: () => reloadRegistry(),
-  });
   registerTransportExecuteTool(server, {
     allowNonWrappedExecutable: () => activeRegistry?.allowNonWrappedExecutable ?? false,
   });
@@ -256,6 +234,8 @@ async function main() {
   });
   registerArtifactManagementTool(server, {
     workspaceRootAbs: cfg.workspaceRootAbs,
+    getProbeRegistrySummary: () => toRegistrySummary(),
+    reloadProbeRegistry: () => reloadRegistry(),
   });
   registerExecutionOrchestrationTool(server, {
     workspaceRootAbs: cfg.workspaceRootAbs,

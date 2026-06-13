@@ -528,8 +528,8 @@ Reference block:
 MCP_JAVA_AGENT_JAR = "${toml_agent_jar}"
 
 Then restart Codex/MCP session and run:
-1. probe_registry_reload
-2. probe_registry_list
+1. artifact_management { "artifactType": "probe_config", "action": "reload", "input": {} }
+2. artifact_management { "artifactType": "probe_config", "action": "read", "input": {} }
 EOF
     return
   fi
@@ -552,8 +552,8 @@ Add or merge this block into your Kiro MCP settings:
 }
 
 Then restart Kiro MCP session and run:
-1. probe_registry_reload
-2. probe_registry_list
+1. artifact_management { "artifactType": "probe_config", "action": "reload", "input": {} }
+2. artifact_management { "artifactType": "probe_config", "action": "read", "input": {} }
 EOF
 }
 

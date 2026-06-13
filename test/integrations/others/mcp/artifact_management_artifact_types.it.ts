@@ -138,6 +138,23 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
     assert.equal(probeValidate.structuredContent?.status, "ok");
     assert.equal(probeValidate.structuredContent?.defaultProbeId, "gateway-service");
 
+    const probeRead = await callTool(mcp, "artifact_management", {
+      artifactType: "probe_config",
+      action: "read",
+      input: {},
+    });
+    assert.equal(probeRead.structuredContent?.status, "ok");
+    assert.equal(probeRead.structuredContent?.probeCount, 1);
+    assert.equal(typeof probeRead.structuredContent?.artifact, "object");
+
+    const probeReload = await callTool(mcp, "artifact_management", {
+      artifactType: "probe_config",
+      action: "reload",
+      input: {},
+    });
+    assert.equal(probeReload.structuredContent?.status, "reloaded");
+    assert.equal(probeReload.structuredContent?.defaultProbeId, "gateway-service");
+
     const planReadSummary = await callTool(mcp, "artifact_management", {
       artifactType: "regression_plan",
       action: "read",

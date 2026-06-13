@@ -8,10 +8,10 @@ export const ArtifactTypeSchema = z.enum([
   "execution_export",
 ]);
 
-export const ArtifactActionSchema = z.enum(["read", "validate", "upsert", "list", "generate"]);
+export const ArtifactActionSchema = z.enum(["read", "validate", "upsert", "list", "generate", "reload"]);
 
 export const ARTIFACT_ACTION_ALLOWLIST = {
-  probe_config: ["read", "validate", "upsert"],
+  probe_config: ["read", "validate", "upsert", "reload"],
   project_context: ["read", "validate", "upsert", "list"],
   regression_plan: ["read", "validate", "upsert", "list"],
   run_result: ["read", "list"],

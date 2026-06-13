@@ -45,10 +45,19 @@ export async function dispatchArtifactAction(
 
 export async function artifactManagementDomain(input: {
   workspaceRootAbs: string;
+  getProbeRegistrySummary?: ArtifactActionContext["getProbeRegistrySummary"];
+  reloadProbeRegistry?: ArtifactActionContext["reloadProbeRegistry"];
   request: ArtifactManagementRequest;
 }): Promise<ArtifactActionResult> {
   try {
-    return await dispatchArtifactAction({ workspaceRootAbs: input.workspaceRootAbs }, input.request);
+    return await dispatchArtifactAction(
+      {
+        workspaceRootAbs: input.workspaceRootAbs,
+        ...(input.getProbeRegistrySummary ? { getProbeRegistrySummary: input.getProbeRegistrySummary } : {}),
+        ...(input.reloadProbeRegistry ? { reloadProbeRegistry: input.reloadProbeRegistry } : {}),
+      },
+      input.request,
+    );
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     return buildFailClosedArtifactResponse({

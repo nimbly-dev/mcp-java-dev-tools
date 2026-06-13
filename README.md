@@ -272,13 +272,11 @@ Start there before opening a large pull request or changing public tool contract
 | `probe_reset` | |
 | `probe_wait_for_hit` | |
 | `probe_enable` | |
-| `probe_registry_list` | |
-| `probe_registry_reload` | |
 | `execution_profile_export` | |
 | `execution_orchestration` | |
 
-Probe registry runtime behavior:
+Probe config Artifact runtime behavior:
 - Registry config is loaded from discovered workspace `.mcpjvm/probe-config.json`.
 - File edits are auto-reloaded with debounce.
-- `probe_registry_reload` remains available as deterministic manual refresh/fallback.
+- `artifact_management` with `artifactType=probe_config` and `action=reload` remains available as deterministic manual refresh/fallback.
 

@@ -12,7 +12,7 @@ function buildProbeSelectionBlockedResponse(args: {
   const nextAction =
     args.reasonCode === "probe_id_required"
       ? "Provide probeId or baseUrl, or configure profile defaultProbe."
-      : "Use probe_registry_list and select a valid probeId.";
+      : "Use artifact_management with artifactType=probe_config and action=read, then select a valid probeId.";
   const structuredContent: Record<string, unknown> = {
     resultType: "report",
     status: "probe_selection_failed",

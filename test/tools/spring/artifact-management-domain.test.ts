@@ -48,6 +48,60 @@ test("artifact_management blocks disallowed action by artifactType", async () =>
   assert.equal(out.structuredContent.status, "artifact_action_not_allowed");
 });
 
+test("artifact_management probe_config read returns summary and artifact payload", async () => {
+  const root = createTestTempDir("artifact-management-probe-read");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "probe-config.json"), {
+      defaultProfile: "dev",
+      profiles: {
+        dev: {
+          defaultProbe: "gateway-service",
+          probes: {
+            "gateway-service": {
+              baseUrl: "http://127.0.0.1:9196",
+              include: ["com.example.gateway.**"],
+              exclude: [],
+            },
+          },
+        },
+      },
+      workspaces: [{ root, profile: "dev" }],
+    });
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "probe_config",
+        action: "read",
+        input: {},
+      },
+    });
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.defaultProbeId, "gateway-service");
+    assert.equal(out.structuredContent.probeCount, 1);
+    assert.equal(typeof out.structuredContent.artifact, "object");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management probe_config reload returns not_configured when artifact is missing", async () => {
+  const root = createTestTempDir("artifact-management-probe-reload-missing");
+  try {
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "probe_config",
+        action: "reload",
+        input: {},
+      },
+    });
+    assert.equal(out.structuredContent.status, "not_configured");
+    assert.equal(out.structuredContent.reasonCode, "probe_registry_not_configured");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("artifact_management project_context list returns deterministic project names", async () => {
   const root = createTestTempDir("artifact-management-list");
   try {

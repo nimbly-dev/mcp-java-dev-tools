@@ -46,6 +46,18 @@ test("artifact_management handler accepts typed envelope", async () => {
   assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
 });
 
+test("artifact_management handler accepts probe_config reload envelope", async () => {
+  const handler = captureRegisteredHandler((server: any) =>
+    registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
+  );
+  const out = await handler({
+    artifactType: "probe_config",
+    action: "reload",
+    input: {},
+  });
+  assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
+});
+
 test("artifact_management handler accepts snake_case aliases inside typed input envelope", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
