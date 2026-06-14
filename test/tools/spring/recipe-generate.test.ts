@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { generateRecipe } = require("@/tools/core/recipe_generate/domain");
+const { generateRecipe } = require("@/tools/core/route_synthesis/shared/recipe_generation.util");
 
 const okAuth = {
   required: "unknown",
@@ -154,7 +154,7 @@ test("keeps generic target_not_inferred guidance when class inventory has no exa
   assert.equal(result.reasonCode, "target_candidate_missing");
   assert.equal(
     result.nextAction,
-    "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun probe_recipe_create.",
+    "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun route_synthesis with action=create_recipe.",
   );
   assert.equal(result.evidence.includes("class_match=exact"), false);
   assert.equal(result.evidence.includes("method_bodies=0"), false);
@@ -207,7 +207,7 @@ test("keeps generic target_not_inferred guidance when class inventory has multip
   assert.equal(result.reasonCode, "target_candidate_missing");
   assert.equal(
     result.nextAction,
-    "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun probe_recipe_create.",
+    "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun route_synthesis with action=create_recipe.",
   );
   assert.equal(result.evidence.includes("class_match=exact"), false);
   assert.equal(result.evidence.includes("method_bodies=0"), false);

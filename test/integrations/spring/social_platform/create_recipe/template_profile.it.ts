@@ -45,13 +45,16 @@ test("create_recipe IT: uses built-in fallback template profile when no project 
   await removeTemplateProfile();
 
   const recipe = (await mcp.client.callTool({
-    name: "probe_recipe_create",
+    name: "route_synthesis",
     arguments: {
-      projectRootAbs: postAppProjectRootAbs,
-      classHint: postControllerFqcn,
-      methodHint: "updatePost",
-      intentMode: "regression",
-      authToken: "alice-token",
+      action: "create_recipe",
+      input: {
+        projectRootAbs: postAppProjectRootAbs,
+        classHint: postControllerFqcn,
+        methodHint: "updatePost",
+        intentMode: "regression",
+        authToken: "alice-token",
+      },
     },
   })) as any;
 
@@ -75,13 +78,16 @@ test("create_recipe IT: applies project fixture profile overrides for determinis
   ].join("\n"));
 
   const recipe = (await mcp.client.callTool({
-    name: "probe_recipe_create",
+    name: "route_synthesis",
     arguments: {
-      projectRootAbs: postAppProjectRootAbs,
-      classHint: postControllerFqcn,
-      methodHint: "updatePost",
-      intentMode: "regression",
-      authToken: "alice-token",
+      action: "create_recipe",
+      input: {
+        projectRootAbs: postAppProjectRootAbs,
+        classHint: postControllerFqcn,
+        methodHint: "updatePost",
+        intentMode: "regression",
+        authToken: "alice-token",
+      },
     },
   })) as any;
 

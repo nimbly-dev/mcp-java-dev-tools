@@ -176,7 +176,7 @@ Use these references/templates:
 
 ## MCP-First and Wrapped Transport
 
-1. Mandatory MCP tools: `probe`, `artifact_management`, `probe_recipe_create`.
+1. Mandatory MCP tools: `probe`, `artifact_management`, `route_synthesis`.
 2. HTTP execution uses `transport_execute` (wrapped-only); no raw curl fallback.
 3. If toolchain is unavailable:
    - `reasonCode=toolchain_unavailable`

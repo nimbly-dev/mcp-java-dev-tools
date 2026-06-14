@@ -135,7 +135,7 @@ Keep your plugin aligned with `SYNTHESIZER_PLUGIN_API_VERSION`. This keeps the e
 Before wiring your plugin into the default registry, validate it through the full MCP flow using temporary local registry wiring for pre-merge checks:
 
 ```
-probe_recipe_create → inspect recipe/report → probe-verified execution
+route_synthesis (`action=create_recipe`) → inspect recipe/report → probe-verified execution
 ```
 
 Only after this path is stable should you add your plugin to `createDefaultSynthesizerRegistry`.

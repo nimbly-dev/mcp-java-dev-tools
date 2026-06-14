@@ -136,7 +136,7 @@ export async function resolveGatewayRouteConfig(args: {
     return failure({
       reasonCode: "spring_gateway_route_not_found",
       nextAction:
-        "No Spring Cloud Gateway Path predicates were found in application config. Provide explicit request context or target a routable controller method and rerun probe_recipe_create.",
+        "No Spring Cloud Gateway Path predicates were found in application config. Provide explicit request context or target a routable controller method and rerun route_synthesis with action=create_recipe.",
       evidence: [
         `projectRootAbs=${args.projectRootAbs}`,
         `scannedConfigFiles=${found.length > 0 ? found.join("|") : "(none)"}`,
@@ -151,7 +151,7 @@ export async function resolveGatewayRouteConfig(args: {
     return failure({
       reasonCode: "spring_gateway_route_not_found",
       nextAction:
-        "No usable Spring Cloud Gateway Path predicate was resolved. Provide explicit request context and rerun probe_recipe_create.",
+        "No usable Spring Cloud Gateway Path predicate was resolved. Provide explicit request context and rerun route_synthesis with action=create_recipe.",
       evidence: [`projectRootAbs=${args.projectRootAbs}`],
     });
   }
@@ -159,7 +159,7 @@ export async function resolveGatewayRouteConfig(args: {
     return failure({
       reasonCode: "spring_gateway_route_ambiguous",
       nextAction:
-        "Multiple gateway Path predicates are equally specific. Provide explicit request path/method context and rerun probe_recipe_create.",
+        "Multiple gateway Path predicates are equally specific. Provide explicit request path/method context and rerun route_synthesis with action=create_recipe.",
       evidence: [
         `projectRootAbs=${args.projectRootAbs}`,
         `ambiguousPaths=${tied.join("|")}`,

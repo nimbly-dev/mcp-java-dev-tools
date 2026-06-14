@@ -98,7 +98,7 @@ The goal is to keep the baseline strict enough to prevent noise, but flexible en
 2. Rename package, artifact, and plugin identifiers
 3. Implement your framework's rules in the mapper or plugin code
 4. Validate the module-level build in isolation first
-5. Validate end-to-end via `probe_recipe_create` (use temporary local registry wiring when testing a plugin before default registration)
+5. Validate end-to-end via `route_synthesis` with `action=create_recipe` (use temporary local registry wiring when testing a plugin before default registration)
 6. Only then wire into the default aggregator or registry
 
 Resist the urge to skip to step 6 — the isolated validation steps catch most issues early.

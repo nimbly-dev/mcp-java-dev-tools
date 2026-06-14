@@ -1,6 +1,6 @@
 # Synthesis Plugin Contract
 
-`probe_recipe_create` is the single public recipe entrypoint. Framework-specific request synthesis is internal and routed through synthesizer plugins.
+`route_synthesis` with `action=create_recipe` is the canonical public recipe entrypoint. Framework-specific request synthesis is internal and routed through synthesizer plugins.
 
 ## Core Rules
 

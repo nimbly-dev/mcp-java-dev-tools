@@ -160,6 +160,7 @@ test("mcp IT: stdio transport keeps stdout protocol-only and writes diagnostics 
       tools.map((tool) => tool.name).filter((name): name is string => typeof name === "string"),
     );
     assert.equal(toolNames.has("probe"), true);
+    assert.equal(toolNames.has("route_synthesis"), true);
     assert.equal(toolNames.has("probe_check"), false);
     assert.equal(toolNames.has("probe_enable"), false);
     assert.equal(toolNames.has("probe_get_capture"), false);
@@ -171,6 +172,8 @@ test("mcp IT: stdio transport keeps stdout protocol-only and writes diagnostics 
     assert.equal(toolNames.has("artifact_management"), true);
     assert.equal(toolNames.has("execution_orchestration"), true);
     assert.equal(toolNames.has("project_context_validate"), false);
+    assert.equal(toolNames.has("probe_target_infer"), false);
+    assert.equal(toolNames.has("probe_recipe_create"), false);
 
     const joinedStdout = stdoutChunks.join("");
     const joinedStderr = stderrChunks.join("");

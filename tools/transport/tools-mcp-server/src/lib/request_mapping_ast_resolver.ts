@@ -382,7 +382,7 @@ function buildUnavailableFailure(
     reasonCode: "ast_resolver_unavailable",
     failedStep: "request_mapping_resolver_bootstrap",
     nextAction:
-      "Build the JVM request-mapping resolver artifacts or set MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH / MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR, then rerun probe_recipe_create.",
+      "Build the JVM request-mapping resolver artifacts or set MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH / MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR, then rerun route_synthesis with action=create_recipe.",
     evidence: [reason, ...evidence],
     attemptedStrategies: ["java_ast_resolver_bootstrap"],
   };

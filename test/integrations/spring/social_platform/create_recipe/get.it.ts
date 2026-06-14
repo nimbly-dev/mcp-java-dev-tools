@@ -29,12 +29,15 @@ test("create_recipe GET: listPosts recipe is synthesized and executable", async 
   if (!runtime || !mcp) throw new Error("runtime/mcp not initialized");
 
   const recipe = (await mcp.client.callTool({
-    name: "probe_recipe_create",
+    name: "route_synthesis",
     arguments: {
-      projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
-      classHint: postControllerFqcn,
-      methodHint: "listPosts",
-      intentMode: "regression",
+      action: "create_recipe",
+      input: {
+        projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
+        classHint: postControllerFqcn,
+        methodHint: "listPosts",
+        intentMode: "regression",
+      },
     },
   })) as any;
 

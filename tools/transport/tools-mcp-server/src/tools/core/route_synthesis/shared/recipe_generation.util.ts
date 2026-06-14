@@ -29,7 +29,10 @@ import type {
 import {
   createDefaultSynthesizerRegistry,
 } from "@tools-registry/plugin.loader";
-import { discoverClassMethods, inferTargets } from "@/tools/core/target_infer/domain";
+import {
+  discoverClassMethods,
+  inferTargets,
+} from "@/tools/core/route_synthesis/shared/target_inference.util";
 
 export type { RecipeCandidate, RecipeExecutionPlan } from "@tools-core/recipe_types.util";
 export type {
@@ -262,7 +265,7 @@ export async function generateRecipe(
       executionReadiness: readiness.executionReadiness,
       missingInputs: readiness.missingInputs,
       nextAction:
-        "Probe intent requires strict line context. Provide lineHint for Class#method:line verification and rerun probe_recipe_create.",
+        "Probe intent requires strict line context. Provide lineHint for Class#method:line verification and rerun route_synthesis with action=create_recipe.",
       failurePhase: "target_inference",
       failureReasonCode: "line_target_required_for_probe_mode",
       reasonCode: "line_target_required_for_probe_mode",
@@ -370,7 +373,7 @@ export async function generateRecipe(
         executionReadiness: readiness.executionReadiness,
         missingInputs: readiness.missingInputs,
         nextAction:
-          "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun probe_recipe_create.",
+          "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun route_synthesis with action=create_recipe.",
         failurePhase: "target_inference",
         failureReasonCode: "target_candidate_missing",
         reasonCode: "target_candidate_missing",
@@ -446,7 +449,7 @@ export async function generateRecipe(
       executionReadiness: readiness.executionReadiness,
       missingInputs: readiness.missingInputs,
       nextAction:
-        "Multiple module candidates matched current hints. Narrow projectRootAbs/additionalSourceRoots to the intended module (or provide disambiguating lineHint) and rerun probe_recipe_create.",
+        "Multiple module candidates matched current hints. Narrow projectRootAbs/additionalSourceRoots to the intended module (or provide disambiguating lineHint) and rerun route_synthesis with action=create_recipe.",
       failurePhase: "target_inference",
       failureReasonCode: "target_ambiguous",
       reasonCode: "target_ambiguous",

@@ -8,6 +8,14 @@ export {
   PROBE_ACTION_ALLOWLIST,
   type ProbeAction,
 } from "@/models/inputs/probe";
+export {
+  RouteSynthesisInputSchema,
+  RouteSynthesisRequestSchema,
+  type RouteSynthesisRequest,
+  RouteSynthesisActionSchema,
+  ROUTE_SYNTHESIS_ACTION_ALLOWLIST,
+  type RouteSynthesisAction,
+} from "@/models/inputs/route_synthesis";
 export { TargetInferInputSchema } from "@/models/inputs/target_infer.input.model";
 export { RecipeGenerateInputSchema } from "@/models/inputs/recipe_generate.input.model";
 export { ProbeStatusInputSchema } from "@/models/inputs/probe_status.input.model";

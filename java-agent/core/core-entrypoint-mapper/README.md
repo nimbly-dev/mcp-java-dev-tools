@@ -1,6 +1,6 @@
 # Core Entrypoint Mapper
 
-Shared Java AST HTTP entrypoint resolver used by `probe_recipe_create` synthesis.
+Shared Java AST HTTP entrypoint resolver used by `route_synthesis` (`action=create_recipe`) synthesis.
 
 ## File Tree Packaging
 
