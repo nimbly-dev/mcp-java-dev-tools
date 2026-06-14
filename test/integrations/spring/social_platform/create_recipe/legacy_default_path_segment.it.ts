@@ -31,12 +31,15 @@ test("create_recipe IT: route synthesis avoids legacy-default segment when concr
   if (!runtime || !mcp) throw new Error("runtime/mcp not initialized");
 
   const recipe = (await mcp.client.callTool({
-    name: "probe_recipe_create",
+    name: "route_synthesis",
     arguments: {
-      projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
-      classHint: featureFlagsControllerFqcn,
-      methodHint: "featureFlags",
-      intentMode: "regression",
+      action: "create_recipe",
+      input: {
+        projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
+        classHint: featureFlagsControllerFqcn,
+        methodHint: "featureFlags",
+        intentMode: "regression",
+      },
     },
   })) as any;
 

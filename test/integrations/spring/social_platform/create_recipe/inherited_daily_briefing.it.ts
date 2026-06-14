@@ -31,12 +31,15 @@ test("create_recipe IT: inherited Spring mapping supports constants and array-ba
   if (!runtime || !mcp) throw new Error("runtime/mcp not initialized");
 
   const recipe = (await mcp.client.callTool({
-    name: "probe_recipe_create",
+    name: "route_synthesis",
     arguments: {
-      projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
-      classHint: dailyBriefingControllerFqcn,
-      methodHint: "summary",
-      intentMode: "regression",
+      action: "create_recipe",
+      input: {
+        projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
+        classHint: dailyBriefingControllerFqcn,
+        methodHint: "summary",
+        intentMode: "regression",
+      },
     },
   })) as any;
 

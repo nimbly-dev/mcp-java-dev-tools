@@ -53,13 +53,16 @@ test.after(async () => {
 async function createRecipe(args: { classHint: string; methodHint: string }) {
   if (!mcp) throw new Error("mcp not initialized");
   return (await mcp.client.callTool({
-    name: "probe_recipe_create",
+    name: "route_synthesis",
     arguments: {
-      projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
-      additionalSourceRoots: bytecodeOnlyRootAbs ? [bytecodeOnlyRootAbs] : [],
-      classHint: args.classHint,
-      methodHint: args.methodHint,
-      intentMode: "regression",
+      action: "create_recipe",
+      input: {
+        projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
+        additionalSourceRoots: bytecodeOnlyRootAbs ? [bytecodeOnlyRootAbs] : [],
+        classHint: args.classHint,
+        methodHint: args.methodHint,
+        intentMode: "regression",
+      },
     },
   })) as any;
 }

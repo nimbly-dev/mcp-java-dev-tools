@@ -31,12 +31,15 @@ test("create_recipe IT: inherited Spring mapping resolves interface -> abstract 
   if (!runtime || !mcp) throw new Error("runtime/mcp not initialized");
 
   const recipe = (await mcp.client.callTool({
-    name: "probe_recipe_create",
+    name: "route_synthesis",
     arguments: {
-      projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
-      classHint: creatorDigestControllerFqcn,
-      methodHint: "digest",
-      intentMode: "regression",
+      action: "create_recipe",
+      input: {
+        projectRootAbs: path.join(socialPlatformRootAbs, "post-service", "post-app"),
+        classHint: creatorDigestControllerFqcn,
+        methodHint: "digest",
+        intentMode: "regression",
+      },
     },
   })) as any;
 

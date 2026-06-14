@@ -4,8 +4,8 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { inferTargets } = require("@/tools/core/target_infer/domain");
-const { discoverClassMethods } = require("@/tools/core/target_infer/domain");
+const { inferTargets } = require("@/tools/core/route_synthesis/shared/target_inference.util");
+const { discoverClassMethods } = require("@/tools/core/route_synthesis/shared/target_inference.util");
 
 async function withTempDir(run: (dir: string) => Promise<void>) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "target-infer-runtime-scope-"));

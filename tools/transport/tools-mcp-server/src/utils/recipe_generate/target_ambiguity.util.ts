@@ -1,4 +1,4 @@
-import type { InferredTarget } from "@/tools/core/target_infer/domain";
+import type { InferredTarget } from "@/tools/core/route_synthesis/shared/target_inference.util";
 
 function normalizeTargetHint(value?: string): string {
   return (value ?? "").trim().toLowerCase();

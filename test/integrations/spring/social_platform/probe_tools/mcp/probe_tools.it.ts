@@ -29,6 +29,10 @@ async function callProbe(action: string, input: Record<string, unknown>) {
   return await callTool("probe", { action, input });
 }
 
+async function callRouteSynthesis(action: string, input: Record<string, unknown>) {
+  return await callTool("route_synthesis", { action, input });
+}
+
 async function executeUpdatePost(): Promise<any> {
   if (!runtime) throw new Error("post-app runtime was not started");
   const response = await fetch(`${runtime.apiBaseUrl}/api/v1/posts/101`, {
@@ -201,7 +205,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(project.structuredContent.hasBuildMarker, true);
   assert.equal(project.structuredContent.hasJavaSourceRoot, true);
 
-  const publicRecipe = await callTool("probe_recipe_create", {
+  const publicRecipe = await callRouteSynthesis("create_recipe", {
     projectRootAbs: postAppProjectRootAbs,
     classHint: postControllerFqcn,
     methodHint: "listPosts",
@@ -226,9 +230,8 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(check.structuredContent.checks.status.ok, true);
   assert.equal(check.structuredContent.checks.status.keyDecodingOk, true);
 
-  const classMethods = await callTool("probe_target_infer", {
+  const classMethods = await callRouteSynthesis("class_methods", {
     projectRootAbs: postAppProjectRootAbs,
-    discoveryMode: "class_methods",
     classHint: postControllerFqcn,
   });
   assert.equal(classMethods.structuredContent.resultType, "class_methods");
@@ -241,7 +244,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(typeof updateMethod.firstExecutableLine, "number");
   assert.equal(updateMethod.firstExecutableLine > updateMethod.startLine, true);
 
-  const inferred = await callTool("probe_target_infer", {
+  const inferred = await callRouteSynthesis("infer_target", {
     projectRootAbs: postAppProjectRootAbs,
     classHint: postControllerFqcn,
     methodHint: "updatePost",
@@ -259,7 +262,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
     line: candidate.line,
   });
 
-  const recipe = await callTool("probe_recipe_create", {
+  const recipe = await callRouteSynthesis("create_recipe", {
     projectRootAbs: postAppProjectRootAbs,
     classHint: postControllerFqcn,
     methodHint: "updatePost",
@@ -360,7 +363,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
 test("mcp IT: protected createPost requires bearer auth and executes with run-as headers", async () => {
   if (!runtime) throw new Error("post-app runtime was not started");
 
-  const recipe = await callTool("probe_recipe_create", {
+  const recipe = await callRouteSynthesis("create_recipe", {
     projectRootAbs: postAppProjectRootAbs,
     classHint: postControllerFqcn,
     methodHint: "createPost",
@@ -548,7 +551,7 @@ test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, i
   assert.equal(invalidProject.structuredContent.status, "project_selector_invalid");
   assert.equal(invalidProject.structuredContent.reason, "projectRootAbs does not exist");
 
-  const invalidRecipe = await callTool("probe_recipe_create", {
+  const invalidRecipe = await callRouteSynthesis("create_recipe", {
     projectRootAbs: postAppProjectRootAbs,
     classHint: "PostController",
     methodHint: "updatePost",
@@ -614,7 +617,7 @@ test("mcp IT: inherited controller methods across Spring mappings resolve determ
   };
 
   for (const methodHint of inheritedMethodHints) {
-    const result = await callTool("probe_recipe_create", {
+    const result = await callRouteSynthesis("create_recipe", {
       projectRootAbs: postAppProjectRootAbs,
       classHint: inheritedControllerFqcn,
       methodHint,

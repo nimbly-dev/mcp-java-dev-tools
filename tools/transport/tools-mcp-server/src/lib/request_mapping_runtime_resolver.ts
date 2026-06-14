@@ -211,7 +211,7 @@ export async function resolveRequestMappingFromRuntime(
     return failure({
       reasonCode: "runtime_mappings_input_required",
       failedStep: "runtime_mapping_configuration",
-      nextAction: "Provide a valid absolute mappingsBaseUrl and rerun probe_recipe_create.",
+      nextAction: "Provide a valid absolute mappingsBaseUrl and rerun route_synthesis with action=create_recipe.",
       evidence: [`mappingsBaseUrl=${input.mappingsBaseUrl}`],
     });
   }
@@ -233,7 +233,7 @@ export async function resolveRequestMappingFromRuntime(
       reasonCode: "runtime_mappings_unreachable",
       failedStep: "runtime_mapping_fetch",
       nextAction:
-        "Ensure actuator mappings endpoint is reachable (for example /actuator/mappings) and rerun probe_recipe_create.",
+        "Ensure actuator mappings endpoint is reachable (for example /actuator/mappings) and rerun route_synthesis with action=create_recipe.",
       evidence: [
         `mappingsBaseUrl=${endpointUrl}`,
         `fetchError=${error instanceof Error ? error.message : String(error)}`,
@@ -246,7 +246,7 @@ export async function resolveRequestMappingFromRuntime(
       reasonCode: "runtime_mappings_unauthorized",
       failedStep: "runtime_mapping_fetch",
       nextAction:
-        "Authorize access to the actuator mappings endpoint and rerun probe_recipe_create.",
+        "Authorize access to the actuator mappings endpoint and rerun route_synthesis with action=create_recipe.",
       evidence: [`mappingsBaseUrl=${endpointUrl}`, `httpStatus=${response.status}`],
     });
   }
@@ -256,7 +256,7 @@ export async function resolveRequestMappingFromRuntime(
       reasonCode: "runtime_mappings_unreachable",
       failedStep: "runtime_mapping_fetch",
       nextAction:
-        "Ensure actuator mappings endpoint is reachable (for example /actuator/mappings) and rerun probe_recipe_create.",
+        "Ensure actuator mappings endpoint is reachable (for example /actuator/mappings) and rerun route_synthesis with action=create_recipe.",
       evidence: [`mappingsBaseUrl=${endpointUrl}`, `httpStatus=${response.status}`],
     });
   }
@@ -269,7 +269,7 @@ export async function resolveRequestMappingFromRuntime(
       reasonCode: "runtime_mappings_invalid_payload",
       failedStep: "runtime_mapping_parse",
       nextAction:
-        "Return Spring actuator mappings JSON payload from mappingsBaseUrl and rerun probe_recipe_create.",
+        "Return Spring actuator mappings JSON payload from mappingsBaseUrl and rerun route_synthesis with action=create_recipe.",
       evidence: [
         `mappingsBaseUrl=${endpointUrl}`,
         `parseError=${error instanceof Error ? error.message : String(error)}`,
@@ -296,7 +296,7 @@ export async function resolveRequestMappingFromRuntime(
       reasonCode: "runtime_mapping_not_found",
       failedStep: "runtime_mapping_match",
       nextAction:
-        "Refine classHint/methodHint to exact runtime handler identifiers or use static discovery and rerun probe_recipe_create.",
+        "Refine classHint/methodHint to exact runtime handler identifiers or use static discovery and rerun route_synthesis with action=create_recipe.",
       evidence: [
         `mappingsBaseUrl=${endpointUrl}`,
         `classHint=${input.classHint}`,
@@ -311,7 +311,7 @@ export async function resolveRequestMappingFromRuntime(
       reasonCode: "runtime_mapping_ambiguous",
       failedStep: "runtime_mapping_match",
       nextAction:
-        "Narrow classHint/methodHint (or provide lineHint plus static discovery) and rerun probe_recipe_create.",
+        "Narrow classHint/methodHint (or provide lineHint plus static discovery) and rerun route_synthesis with action=create_recipe.",
       evidence: [
         `mappingsBaseUrl=${endpointUrl}`,
         `classHint=${input.classHint}`,
@@ -328,7 +328,7 @@ export async function resolveRequestMappingFromRuntime(
       reasonCode: "runtime_mappings_invalid_payload",
       failedStep: "runtime_mapping_match",
       nextAction:
-        "Return actuator mappings with standard HTTP methods (GET/POST/PUT/PATCH/DELETE) and rerun probe_recipe_create.",
+        "Return actuator mappings with standard HTTP methods (GET/POST/PUT/PATCH/DELETE) and rerun route_synthesis with action=create_recipe.",
       evidence: [
         `mappingsBaseUrl=${endpointUrl}`,
         `selectedMethod=${selected.httpMethod}`,

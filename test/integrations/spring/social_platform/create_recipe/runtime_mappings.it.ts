@@ -35,14 +35,17 @@ async function createRecipe(args: {
 }) {
   if (!mcp) throw new Error("mcp not initialized");
   return (await mcp.client.callTool({
-    name: "probe_recipe_create",
+    name: "route_synthesis",
     arguments: {
-      projectRootAbs: postAppProjectRootAbs,
-      classHint: args.classHint,
-      methodHint: args.methodHint,
-      intentMode: "regression",
-      discoveryPreference: args.discoveryPreference,
-      ...(args.mappingsBaseUrl ? { mappingsBaseUrl: args.mappingsBaseUrl } : {}),
+      action: "create_recipe",
+      input: {
+        projectRootAbs: postAppProjectRootAbs,
+        classHint: args.classHint,
+        methodHint: args.methodHint,
+        intentMode: "regression",
+        discoveryPreference: args.discoveryPreference,
+        ...(args.mappingsBaseUrl ? { mappingsBaseUrl: args.mappingsBaseUrl } : {}),
+      },
     },
   })) as any;
 }

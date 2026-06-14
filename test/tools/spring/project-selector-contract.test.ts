@@ -4,9 +4,8 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { registerRecipeCreateTool } = require("@/tools/core/recipe_generate/handler");
-const { registerTargetInferTool } = require("@/tools/core/target_infer/handler");
-const recipeGenerateDomain = require("@/tools/core/recipe_generate/domain");
+const { registerRouteSynthesisTool } = require("@/tools/core/route_synthesis/handler");
+const recipeGenerateDomain = require("@/tools/core/route_synthesis/shared/recipe_generation.util");
 
 type RegisteredToolHandler = (input: Record<string, unknown>) => Promise<{
   structuredContent: Record<string, unknown>;
@@ -62,9 +61,10 @@ async function withTempDir(run: (dir: string) => Promise<void>) {
   }
 }
 
-test("probe_recipe_create fails closed when additionalSourceRoots contains an invalid path", async () => {
+test("route_synthesis create_recipe fails closed when additionalSourceRoots contains an invalid path", async () => {
   const handler = captureRegisteredHandler((server: any) =>
-    registerRecipeCreateTool(server, {
+    registerRouteSynthesisTool(server, {
+      config: TARGET_INFER_CONFIG,
       probeBaseUrl: "http://127.0.0.1:9193",
       probeStatusPath: "/__probe/status",
       workspaceRootAbs: "C:\\repo",
@@ -72,11 +72,14 @@ test("probe_recipe_create fails closed when additionalSourceRoots contains an in
   );
 
   const out = await handler({
-    projectRootAbs: path.resolve(__dirname, "..", ".."),
-    classHint: "com.example.CatalogService",
-    methodHint: "save",
-    intentMode: "regression",
-    additionalSourceRoots: ["C:\\definitely\\missing\\source-root"],
+    action: "create_recipe",
+    input: {
+      projectRootAbs: path.resolve(__dirname, "..", ".."),
+      classHint: "com.example.CatalogService",
+      methodHint: "save",
+      intentMode: "regression",
+      additionalSourceRoots: ["C:\\definitely\\missing\\source-root"],
+    },
   });
 
   assert.equal(out.structuredContent.status, "project_selector_invalid");
@@ -86,19 +89,25 @@ test("probe_recipe_create fails closed when additionalSourceRoots contains an in
   assert.equal((out.structuredContent.reasonMeta as any).failedStep, "input_validation");
 });
 
-test("probe_target_infer fails closed when additionalSourceRoots exceeds max count", async () => {
+test("route_synthesis infer_target fails closed when additionalSourceRoots exceeds max count", async () => {
   const handler = captureRegisteredHandler((server: any) =>
-    registerTargetInferTool(server, {
+    registerRouteSynthesisTool(server, {
       config: TARGET_INFER_CONFIG,
+      probeBaseUrl: "http://127.0.0.1:9193",
+      probeStatusPath: "/__probe/status",
+      workspaceRootAbs: "C:\\repo",
     }),
   );
 
   const roots = Array.from({ length: 11 }, (_, idx) => `src/main/java/module-${idx}`);
   const out = await handler({
-    projectRootAbs: path.resolve(__dirname, "..", ".."),
-    classHint: "com.example.CatalogService",
-    methodHint: "save",
-    additionalSourceRoots: roots,
+    action: "infer_target",
+    input: {
+      projectRootAbs: path.resolve(__dirname, "..", ".."),
+      classHint: "com.example.CatalogService",
+      methodHint: "save",
+      additionalSourceRoots: roots,
+    },
   });
 
   assert.equal(out.structuredContent.status, "project_selector_invalid");
@@ -108,9 +117,10 @@ test("probe_target_infer fails closed when additionalSourceRoots exceeds max cou
   assert.equal((out.structuredContent.reasonMeta as any).failedStep, "input_validation");
 });
 
-test("probe_recipe_create requires explicit projectRootAbs", async () => {
+test("route_synthesis create_recipe requires explicit projectRootAbs", async () => {
   const handler = captureRegisteredHandler((server: any) =>
-    registerRecipeCreateTool(server, {
+    registerRouteSynthesisTool(server, {
+      config: TARGET_INFER_CONFIG,
       probeBaseUrl: "http://127.0.0.1:9193",
       probeStatusPath: "/__probe/status",
       workspaceRootAbs: "C:\\repo",
@@ -118,9 +128,12 @@ test("probe_recipe_create requires explicit projectRootAbs", async () => {
   );
 
   const out = await handler({
-    classHint: "CatalogService",
-    methodHint: "save",
-    intentMode: "regression",
+    action: "create_recipe",
+    input: {
+      classHint: "CatalogService",
+      methodHint: "save",
+      intentMode: "regression",
+    },
   });
 
   assert.equal(out.structuredContent.status, "project_selector_required");
@@ -130,26 +143,10 @@ test("probe_recipe_create requires explicit projectRootAbs", async () => {
   assert.equal(out.structuredContent.resultType, "report");
 });
 
-test("probe_target_infer requires explicit projectRootAbs", async () => {
+test("route_synthesis infer_target requires explicit projectRootAbs", async () => {
   const handler = captureRegisteredHandler((server: any) =>
-    registerTargetInferTool(server, {
+    registerRouteSynthesisTool(server, {
       config: TARGET_INFER_CONFIG,
-    }),
-  );
-
-  const out = await handler({
-    classHint: "CatalogService",
-    methodHint: "save",
-  });
-
-  assert.equal(out.structuredContent.status, "project_selector_required");
-  assert.equal(out.structuredContent.reasonCode, "project_selector_required");
-  assert.equal(out.structuredContent.nextActionCode, "provide_project_root");
-});
-
-test("probe_recipe_create fails closed when classHint is not an FQCN", async () => {
-  const handler = captureRegisteredHandler((server: any) =>
-    registerRecipeCreateTool(server, {
       probeBaseUrl: "http://127.0.0.1:9193",
       probeStatusPath: "/__probe/status",
       workspaceRootAbs: "C:\\repo",
@@ -157,10 +154,36 @@ test("probe_recipe_create fails closed when classHint is not an FQCN", async () 
   );
 
   const out = await handler({
-    projectRootAbs: path.resolve(__dirname, "..", ".."),
-    classHint: "CatalogService",
-    methodHint: "save",
-    intentMode: "regression",
+    action: "infer_target",
+    input: {
+      classHint: "CatalogService",
+      methodHint: "save",
+    },
+  });
+
+  assert.equal(out.structuredContent.status, "project_selector_required");
+  assert.equal(out.structuredContent.reasonCode, "project_selector_required");
+  assert.equal(out.structuredContent.nextActionCode, "provide_project_root");
+});
+
+test("route_synthesis create_recipe fails closed when classHint is not an FQCN", async () => {
+  const handler = captureRegisteredHandler((server: any) =>
+    registerRouteSynthesisTool(server, {
+      config: TARGET_INFER_CONFIG,
+      probeBaseUrl: "http://127.0.0.1:9193",
+      probeStatusPath: "/__probe/status",
+      workspaceRootAbs: "C:\\repo",
+    }),
+  );
+
+  const out = await handler({
+    action: "create_recipe",
+    input: {
+      projectRootAbs: path.resolve(__dirname, "..", ".."),
+      classHint: "CatalogService",
+      methodHint: "save",
+      intentMode: "regression",
+    },
   });
 
   assert.equal(out.structuredContent.status, "class_hint_not_fqcn");
@@ -175,7 +198,7 @@ test("probe_recipe_create fails closed when classHint is not an FQCN", async () 
   assert.match(out.structuredContent.nextAction, /Provide exact FQCN/i);
 });
 
-test("probe_recipe_create passes configured workspace root into generateRecipe", async () => {
+test("route_synthesis create_recipe passes configured workspace root into generateRecipe", async () => {
   await withTempDir(async (dir: string) => {
     const workspaceRootAbs = path.join(dir, "..", "workspace-root");
     let capturedArgs: Record<string, unknown> | undefined;
@@ -226,7 +249,8 @@ test("probe_recipe_create passes configured workspace root into generateRecipe",
 
     try {
       const handler = captureRegisteredHandler((server: any) =>
-        registerRecipeCreateTool(server, {
+        registerRouteSynthesisTool(server, {
+          config: TARGET_INFER_CONFIG,
           probeBaseUrl: "http://127.0.0.1:9193",
           probeStatusPath: "/__probe/status",
           workspaceRootAbs,
@@ -234,10 +258,13 @@ test("probe_recipe_create passes configured workspace root into generateRecipe",
       );
 
       await handler({
-        projectRootAbs: dir,
-        classHint: "com.example.CatalogController",
-        methodHint: "listCatalogShoes",
-        intentMode: "regression",
+        action: "create_recipe",
+        input: {
+          projectRootAbs: dir,
+          classHint: "com.example.CatalogController",
+          methodHint: "listCatalogShoes",
+          intentMode: "regression",
+        },
       });
     } finally {
       recipeGenerateDomain.generateRecipe = originalGenerateRecipe;
@@ -248,7 +275,7 @@ test("probe_recipe_create passes configured workspace root into generateRecipe",
   });
 });
 
-test("probe_recipe_create fails closed when strict runtime line is unresolved", async () => {
+test("route_synthesis create_recipe fails closed when strict runtime line is unresolved", async () => {
   await withTempDir(async (dir: string) => {
     const originalGenerateRecipe = recipeGenerateDomain.generateRecipe;
     recipeGenerateDomain.generateRecipe = async () => ({
@@ -307,7 +334,8 @@ test("probe_recipe_create fails closed when strict runtime line is unresolved", 
 
     try {
       const handler = captureRegisteredHandler((server: any) =>
-        registerRecipeCreateTool(server, {
+        registerRouteSynthesisTool(server, {
+          config: TARGET_INFER_CONFIG,
           probeBaseUrl: "http://127.0.0.1:9193",
           probeStatusPath: "/__probe/status",
           workspaceRootAbs: "C:\\repo",
@@ -328,11 +356,14 @@ test("probe_recipe_create fails closed when strict runtime line is unresolved", 
         );
       }, async () => {
         const out = await handler({
-          projectRootAbs: dir,
-          classHint: "com.example.CatalogController",
-          methodHint: "save",
-          lineHint: 50,
-          intentMode: "line_probe",
+          action: "create_recipe",
+          input: {
+            projectRootAbs: dir,
+            classHint: "com.example.CatalogController",
+            methodHint: "save",
+            lineHint: 50,
+            intentMode: "line_probe",
+          },
         });
         assert.equal(out.structuredContent.resultType, "report");
         assert.equal(out.structuredContent.status, "target_not_inferred");
@@ -348,16 +379,22 @@ test("probe_recipe_create fails closed when strict runtime line is unresolved", 
   });
 });
 
-test("probe_target_infer ranked_candidates requires exact classHint", async () => {
+test("route_synthesis infer_target requires exact classHint", async () => {
   const handler = captureRegisteredHandler((server: any) =>
-    registerTargetInferTool(server, {
+    registerRouteSynthesisTool(server, {
       config: TARGET_INFER_CONFIG,
+      probeBaseUrl: "http://127.0.0.1:9193",
+      probeStatusPath: "/__probe/status",
+      workspaceRootAbs: "C:\\repo",
     }),
   );
 
   const out = await handler({
-    projectRootAbs: path.resolve(__dirname, "..", ".."),
-    methodHint: "save",
+    action: "infer_target",
+    input: {
+      projectRootAbs: path.resolve(__dirname, "..", ".."),
+      methodHint: "save",
+    },
   });
 
   assert.equal(out.structuredContent.resultType, "report");
@@ -367,11 +404,14 @@ test("probe_target_infer ranked_candidates requires exact classHint", async () =
   assert.equal(out.structuredContent.failedStep, "input_validation");
 });
 
-test("probe_target_infer ranked success emits explicit resultType and status", async () => {
+test("route_synthesis infer_target emits explicit resultType and status", async () => {
   await withTempDir(async (dir: string) => {
     const handler = captureRegisteredHandler((server: any) =>
-      registerTargetInferTool(server, {
+      registerRouteSynthesisTool(server, {
         config: TARGET_INFER_CONFIG,
+        probeBaseUrl: "http://127.0.0.1:9193",
+        probeStatusPath: "/__probe/status",
+        workspaceRootAbs: "C:\\repo",
       }),
     );
     const javaFile = path.join(dir, "src", "main", "java", "com", "example", "CatalogService.java");
@@ -405,9 +445,12 @@ test("probe_target_infer ranked success emits explicit resultType and status", a
       );
     }, async () => {
       const out = await handler({
-        projectRootAbs: dir,
-        classHint: "com.example.CatalogService",
-        methodHint: "save",
+        action: "infer_target",
+        input: {
+          projectRootAbs: dir,
+          classHint: "com.example.CatalogService",
+          methodHint: "save",
+        },
       });
 
       assert.equal(out.structuredContent.resultType, "ranked_candidates");
@@ -422,11 +465,14 @@ test("probe_target_infer ranked success emits explicit resultType and status", a
   });
 });
 
-test("probe_target_infer fails closed when runtime probe is unreachable", async () => {
+test("route_synthesis infer_target fails closed when runtime probe is unreachable", async () => {
   await withTempDir(async (dir: string) => {
     const handler = captureRegisteredHandler((server: any) =>
-      registerTargetInferTool(server, {
+      registerRouteSynthesisTool(server, {
         config: TARGET_INFER_CONFIG,
+        probeBaseUrl: "http://127.0.0.1:9193",
+        probeStatusPath: "/__probe/status",
+        workspaceRootAbs: "C:\\repo",
       }),
     );
     const javaFile = path.join(dir, "src", "main", "java", "com", "example", "CatalogService.java");
@@ -449,9 +495,12 @@ test("probe_target_infer fails closed when runtime probe is unreachable", async 
       throw new Error("fetch failed");
     }, async () => {
       const out = await handler({
-        projectRootAbs: dir,
-        classHint: "com.example.CatalogService",
-        methodHint: "save",
+        action: "infer_target",
+        input: {
+          projectRootAbs: dir,
+          classHint: "com.example.CatalogService",
+          methodHint: "save",
+        },
       });
 
       assert.equal(out.structuredContent.resultType, "report");
@@ -464,11 +513,14 @@ test("probe_target_infer fails closed when runtime probe is unreachable", async 
   });
 });
 
-test("probe_target_infer class_methods returns unresolved line selection when no line is resolvable", async () => {
+test("route_synthesis class_methods returns unresolved line selection when no line is resolvable", async () => {
   await withTempDir(async (dir: string) => {
     const handler = captureRegisteredHandler((server: any) =>
-      registerTargetInferTool(server, {
+      registerRouteSynthesisTool(server, {
         config: TARGET_INFER_CONFIG,
+        probeBaseUrl: "http://127.0.0.1:9193",
+        probeStatusPath: "/__probe/status",
+        workspaceRootAbs: "C:\\repo",
       }),
     );
     const javaFile = path.join(
@@ -508,9 +560,11 @@ test("probe_target_infer class_methods returns unresolved line selection when no
       );
     }, async () => {
       const out = await handler({
-        projectRootAbs: dir,
-        discoveryMode: "class_methods",
-        classHint: "com.example.CatalogService",
+        action: "class_methods",
+        input: {
+          projectRootAbs: dir,
+          classHint: "com.example.CatalogService",
+        },
       });
 
       assert.equal(out.structuredContent.resultType, "class_methods");
@@ -525,10 +579,10 @@ test("probe_target_infer class_methods returns unresolved line selection when no
   });
 });
 
-test("probe_target_infer uses probeId-specific baseUrl for runtime validation", async () => {
+test("route_synthesis infer_target uses probeId-specific baseUrl for runtime validation", async () => {
   await withTempDir(async (dir: string) => {
     const handler = captureRegisteredHandler((server: any) =>
-      registerTargetInferTool(server, {
+      registerRouteSynthesisTool(server, {
         config: {
           ...TARGET_INFER_CONFIG,
           probeRegistry: {
@@ -543,6 +597,9 @@ test("probe_target_infer uses probeId-specific baseUrl for runtime validation", 
             ]),
           },
         },
+        probeBaseUrl: "http://127.0.0.1:9193",
+        probeStatusPath: "/__probe/status",
+        workspaceRootAbs: "C:\\repo",
       }),
     );
     const javaFile = path.join(dir, "src", "main", "java", "com", "example", "CatalogService.java");
@@ -576,17 +633,20 @@ test("probe_target_infer uses probeId-specific baseUrl for runtime validation", 
       );
     }, async () => {
       const out = await handler({
-        projectRootAbs: dir,
-        classHint: "com.example.CatalogService",
-        methodHint: "save",
-        probeId: "visits-service",
+        action: "infer_target",
+        input: {
+          projectRootAbs: dir,
+          classHint: "com.example.CatalogService",
+          methodHint: "save",
+          probeId: "visits-service",
+        },
       });
       assert.equal(out.structuredContent.status, "ok");
     });
   });
 });
 
-test("probe_recipe_create uses probeId-specific baseUrl for runtime capture enrichment", async () => {
+test("route_synthesis create_recipe uses probeId-specific baseUrl for runtime capture enrichment", async () => {
   await withTempDir(async (dir: string) => {
     const originalGenerateRecipe = recipeGenerateDomain.generateRecipe;
     recipeGenerateDomain.generateRecipe = async () => ({
@@ -618,7 +678,8 @@ test("probe_recipe_create uses probeId-specific baseUrl for runtime capture enri
 
     try {
       const handler = captureRegisteredHandler((server: any) =>
-        registerRecipeCreateTool(server, {
+        registerRouteSynthesisTool(server, {
+          config: TARGET_INFER_CONFIG,
           probeBaseUrl: "http://127.0.0.1:9193",
           probeStatusPath: "/__probe/status",
           workspaceRootAbs: "C:\\repo",
@@ -652,12 +713,15 @@ test("probe_recipe_create uses probeId-specific baseUrl for runtime capture enri
         );
       }, async () => {
         const out = await handler({
-          projectRootAbs: dir,
-          classHint: "com.example.CatalogController",
-          methodHint: "save",
-          lineHint: 50,
-          intentMode: "line_probe",
-          probeId: "visits-service",
+          action: "create_recipe",
+          input: {
+            projectRootAbs: dir,
+            classHint: "com.example.CatalogController",
+            methodHint: "save",
+            lineHint: 50,
+            intentMode: "line_probe",
+            probeId: "visits-service",
+          },
         });
         assert.equal(out.structuredContent.resultType, "recipe");
       });

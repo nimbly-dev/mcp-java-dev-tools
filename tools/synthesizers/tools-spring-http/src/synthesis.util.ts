@@ -82,7 +82,7 @@ function mapResolverFailureToSynthFailure(
     reasonCode: SPRING_FAILURE_CODES.ENTRYPOINT_NOT_PROVEN,
     failedStep: "spring_entrypoint_resolution",
     nextAction:
-      "Spring entrypoint could not be proven from AST-backed request mapping resolution. Provide tighter classHint/methodHint/lineHint and rerun probe_recipe_create.",
+      "Spring entrypoint could not be proven from AST-backed request mapping resolution. Provide tighter classHint/methodHint/lineHint and rerun route_synthesis with action=create_recipe.",
     evidence: [
       `classHint=${input.classHint}`,
       `methodHint=${input.methodHint}`,
@@ -116,7 +116,7 @@ export async function synthesizeSpringRecipe(
           reasonCode: "runtime_mappings_input_required",
           failedStep: "runtime_mapping_configuration",
           nextAction:
-            "Provide mappingsBaseUrl (for example http://127.0.0.1:8080/actuator/mappings) and rerun probe_recipe_create.",
+            "Provide mappingsBaseUrl (for example http://127.0.0.1:8080/actuator/mappings) and rerun route_synthesis with action=create_recipe.",
           evidence: ["mappingsBaseUrl=(missing)"],
           attemptedStrategies: ["spring_runtime_actuator_mappings"],
           synthesizerUsed: "spring",

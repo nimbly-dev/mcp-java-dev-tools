@@ -70,12 +70,15 @@ test("create_recipe REPORT: multi-module duplicate target fails closed as target
   if (!runtime || !mcp) throw new Error("runtime/mcp not initialized");
 
   const recipe = (await mcp.client.callTool({
-    name: "probe_recipe_create",
+    name: "route_synthesis",
     arguments: {
-      projectRootAbs: socialPlatformRootAbs,
-      classHint: postControllerFqcn,
-      methodHint: "listPosts",
-      intentMode: "regression",
+      action: "create_recipe",
+      input: {
+        projectRootAbs: socialPlatformRootAbs,
+        classHint: postControllerFqcn,
+        methodHint: "listPosts",
+        intentMode: "regression",
+      },
     },
   })) as any;
 

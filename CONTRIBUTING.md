@@ -41,7 +41,7 @@ For contributors adding or improving framework support.
 **Validation expectations:**
 - Java adapter changes should build and test at module scope first
 - TypeScript synthesizer changes should pass lint, typecheck, and relevant tests
-- End-to-end validation should go through `probe_recipe_create` before default registration or wiring changes
+- End-to-end validation should go through `route_synthesis` with `action=create_recipe` before default registration or wiring changes
 
 ---
 

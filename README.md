@@ -265,8 +265,7 @@ Start there before opening a large pull request or changing public tool contract
 | `debug_check` | |
 | `artifact_management` | |
 | `probe` | |
-| `probe_target_infer` | |
-| `probe_recipe_create` | |
+| `route_synthesis` | |
 | `execution_profile_export` | |
 | `execution_orchestration` | |
 

@@ -8,8 +8,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
 import { CONFIG_DEFAULTS } from "@/config/defaults";
 import { loadProbeRegistry, summarizeProbeRegistry, type ProbeRegistrySummary } from "@/config/probe-registry";
-import { registerTargetInferTool } from "@/tools/core/target_infer/handler";
-import { registerRecipeCreateTool } from "@/tools/core/recipe_generate/handler";
+import { registerRouteSynthesisTool } from "@/tools/core/route_synthesis/handler";
 import { registerProbeTools } from "@/tools/core/probe/handler";
 import { registerTransportExecuteTool } from "@/tools/core/transport_execute/handler";
 import { registerExecutionProfileExportTool } from "@/tools/core/execution_profile_export/handler";
@@ -199,10 +198,8 @@ async function main() {
     },
   );
 
-  registerTargetInferTool(server, {
+  registerRouteSynthesisTool(server, {
     config: cfg,
-  });
-  registerRecipeCreateTool(server, {
     probeBaseUrl: currentBaseUrl(),
     probeStatusPath,
     workspaceRootAbs: cfg.workspaceRootAbs,
