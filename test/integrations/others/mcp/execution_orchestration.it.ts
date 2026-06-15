@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as fssync from "node:fs";
+import * as http from "node:http";
 import * as os from "node:os";
 import * as path from "node:path";
 import test from "node:test";
@@ -27,6 +28,15 @@ async function writeJson(filePath: string, payload: Record<string, unknown>): Pr
   await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+async function listen(server: http.Server): Promise<number> {
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("server address unavailable");
+  }
+  return address.port;
+}
+
 test("mcp IT: execution_orchestration execute uses runtime suite path and does not create exports", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
@@ -39,7 +49,6 @@ test("mcp IT: execution_orchestration execute uses runtime suite path and does n
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },
@@ -134,7 +143,6 @@ test("mcp IT: execution_orchestration execute does not fail with project_artifac
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },
@@ -247,7 +255,6 @@ test("mcp IT: execution_orchestration fails closed on unsupported transport plac
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },
@@ -366,7 +373,6 @@ test("mcp IT: execution_orchestration continue_on_fail stops after suite-level e
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },
@@ -481,7 +487,6 @@ test("mcp IT: execution_orchestration supports resumable in_progress slicing by 
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },
@@ -562,6 +567,175 @@ test("mcp IT: execution_orchestration supports resumable in_progress slicing by 
       : [];
     assert.equal(planRuns.length, 2);
   } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("mcp IT: execution_orchestration executes performance suite profiles through the same MCP Tool", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-performance-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-performance";
+  const projectRootAbs = workspaceRootAbs;
+  const lineKey = "com.example.catalog.CatalogService#search:42";
+  let lineHitCount = 0;
+
+  const appServer = http.createServer((_req, res) => {
+    lineHitCount += 1;
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end("{\"ok\":true}");
+  });
+  const probeServer = http.createServer((req, res) => {
+    const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    if (req.method === "POST" && url.pathname === "/__probe/reset") {
+      lineHitCount = 0;
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ ok: true, key: lineKey, lineResolvable: true, lineValidation: "resolvable" }));
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/__probe/status") {
+      const key = url.searchParams.get("key") ?? lineKey;
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          key,
+          hitCount: lineHitCount,
+          lastHitEpoch: lineHitCount > 0 ? Date.now() : 0,
+          mode: "observe",
+          lineResolvable: true,
+          lineValidation: "resolvable",
+        }),
+      );
+      return;
+    }
+    res.statusCode = 404;
+    res.end("not found");
+  });
+
+  const appPort = await listen(appServer);
+  const probePort = await listen(probeServer);
+  const probeBaseUrl = `http://127.0.0.1:${probePort}`;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "catalog-service": { baseUrl: probeBaseUrl, include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        executionProfiles: [
+          {
+            executionProfile: "test-performance-stress-suite",
+            suiteType: "performance",
+            executionPolicy: "stop_on_fail",
+            runtimeConfig: {
+              requestTimeoutMs: 250,
+            },
+            plans: [{ order: 1, planName: "catalog-search-perf", onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(
+    path.join(
+      workspaceRootAbs,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "performance",
+      "catalog-search-perf",
+      "metadata.json",
+    ),
+    {
+      specVersion: "0.1.0",
+      suiteType: "performance",
+      execution: { intent: "performance" },
+    },
+  );
+  await writeJson(
+    path.join(
+      workspaceRootAbs,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "performance",
+      "catalog-search-perf",
+      "contract.json",
+    ),
+    {
+      entrypoints: [
+        {
+          transport: {
+            protocol: "http",
+            baseUrl: `http://127.0.0.1:${appPort}`,
+            wrappedOnly: true,
+          },
+          request: {
+            method: "GET",
+            path: "/search",
+          },
+        },
+      ],
+      observationTargets: {
+        requiredLineHits: [lineKey],
+      },
+      loadModel: {
+        mode: "concurrency",
+        concurrency: 1,
+        rampUpSeconds: 0,
+        durationSeconds: 1,
+      },
+      successCriteria: {
+        maxErrorRatePct: 0,
+        minThroughputPerSec: 0.5,
+        p95LatencyMs: 500,
+      },
+    },
+  );
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl,
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "test-performance-stress-suite",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "pass");
+    assert.notEqual(out.structuredContent?.reasonCode, "runtime_suite_invalid");
+    const planRuns = Array.isArray(out.structuredContent?.planRuns)
+      ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 1);
+    assert.equal(planRuns[0]?.status, "executed");
+    assert.equal(planRuns[0]?.runStatus, "pass");
+    assert.equal(lineHitCount > 0, true);
+  } finally {
+    appServer.close();
+    probeServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
       await fs.rm(tmpRoot, { recursive: true, force: true });

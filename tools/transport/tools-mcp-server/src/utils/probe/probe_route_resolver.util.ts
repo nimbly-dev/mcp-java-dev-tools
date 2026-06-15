@@ -6,12 +6,13 @@ function buildProbeSelectionBlockedResponse(args: {
   toolName: string;
   reasonCode: "probe_id_unknown" | "probe_id_required";
   probeId?: string;
+  probeCount?: number;
 }): ToolTextResponse {
   const nextActionCode =
     args.reasonCode === "probe_id_required" ? "provide_probe_id" : "select_registered_probe_id";
   const nextAction =
     args.reasonCode === "probe_id_required"
-      ? "Provide probeId or baseUrl, or configure profile defaultProbe."
+      ? "Provide probeId or baseUrl. Multi-probe profiles require explicit selection."
       : "Use artifact_management with artifactType=probe_config and action=read, then select a valid probeId.";
   const structuredContent: Record<string, unknown> = {
     resultType: "report",
@@ -23,6 +24,7 @@ function buildProbeSelectionBlockedResponse(args: {
       failedStep: "probe_registry_resolution",
       toolName: args.toolName,
       ...(args.probeId ? { probeId: args.probeId } : {}),
+      ...(typeof args.probeCount === "number" ? { probeCount: args.probeCount } : {}),
     },
   };
   return buildTextResponse(structuredContent, JSON.stringify(structuredContent, null, 2));
@@ -65,8 +67,19 @@ export function resolveProbeBaseUrl(args: {
   }
 
   if (args.probeRegistry) {
-    const probe = args.probeRegistry.probesById.get(args.probeRegistry.defaultProbeId);
+    const implicitProbeId = args.probeRegistry.implicitProbeId;
+    const probe = typeof implicitProbeId === "string" ? args.probeRegistry.probesById.get(implicitProbeId) : undefined;
     if (probe) return { ok: true, baseUrl: probe.baseUrl };
+    if (!args.defaultBaseUrl.trim()) {
+      return {
+        ok: false,
+        response: buildProbeSelectionBlockedResponse({
+          toolName: args.toolName,
+          reasonCode: "probe_id_required",
+          probeCount: args.probeRegistry.probesById.size,
+        }),
+      };
+    }
   }
 
   return { ok: true, baseUrl: args.defaultBaseUrl };

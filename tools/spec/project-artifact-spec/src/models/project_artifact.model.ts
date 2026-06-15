@@ -40,6 +40,7 @@ export type RunPrerequisite = {
 
 export type ExecutionProfilePolicy = "stop_on_fail" | "continue_on_fail";
 export type ExecutionProfilePlanOnFail = "inherit" | "stop" | "continue";
+export type ExecutionProfileSuiteType = "regression" | "performance";
 export type ProjectScriptPhase = "preRuntime" | "postRuntime" | "postHealthcheck" | "prePlan";
 export type ExecutionProfileRuntimeConfig = {
   requestTimeoutMs?: number;
@@ -58,6 +59,7 @@ export type ExecutionProfilePlanEntry = {
 };
 export type ExecutionProfileEntry = {
   executionProfile: string;
+  suiteType: ExecutionProfileSuiteType;
   runtimeContextName?: string;
   executionPolicy: ExecutionProfilePolicy;
   runtimeConfig?: ExecutionProfileRuntimeConfig;

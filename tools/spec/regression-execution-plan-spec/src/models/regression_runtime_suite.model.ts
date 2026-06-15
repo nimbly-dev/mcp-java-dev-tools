@@ -23,6 +23,7 @@ export type RuntimeSuitePlanEntry = {
 
 export type RuntimeSuiteManifest = {
   executionProfile: string;
+  suiteType: "regression" | "performance";
   runtimeContextName?: string;
   executionPolicy: RuntimeSuiteExecutionPolicy;
   runtimeConfig?: RuntimeSuiteRuntimeConfig;

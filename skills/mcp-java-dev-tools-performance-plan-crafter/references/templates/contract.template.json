@@ -1,0 +1,32 @@
+{
+  "entrypoints": [
+    {
+      "transport": {
+        "protocol": "http",
+        "baseUrl": "http://127.0.0.1:8080",
+        "healthCheckPath": "/actuator/health",
+        "wrappedOnly": true
+      },
+      "request": {
+        "method": "GET",
+        "path": "/example"
+      }
+    }
+  ],
+  "observationTargets": {
+    "requiredLineHits": [
+      "com.example.Service#call:10"
+    ]
+  },
+  "loadModel": {
+    "mode": "concurrency",
+    "concurrency": 1,
+    "rampUpSeconds": 0,
+    "durationSeconds": 60
+  },
+  "successCriteria": {
+    "maxErrorRatePct": 0,
+    "minThroughputPerSec": 1,
+    "p95LatencyMs": 100
+  }
+}

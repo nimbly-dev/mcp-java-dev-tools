@@ -315,7 +315,6 @@ async function createTempProbeRegistryConfig(args: {
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "post-app",
         probes: {
           "post-app": {
             baseUrl: args.probeBaseUrl,

@@ -96,7 +96,6 @@ test("mcp IT: execution_export generate fails closed when project context is amb
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },
@@ -143,7 +142,6 @@ test("mcp IT: execution_export generate fails closed when executionProfile is am
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },

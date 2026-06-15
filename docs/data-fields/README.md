@@ -351,7 +351,7 @@ Postman variable normalization policy:
 | `configFileAbs` | For `probe_config` actions, absolute path to the resolved `.mcpjvm/probe-config.json` Artifact. | `artifact_management` | false | `"C:\\repo\\.mcpjvm\\probe-config.json"` |
 | `activeProfile` | For `probe_config` actions, active resolved profile name. | `artifact_management` | false | `"dev"` |
 | `profileSource` | For `probe_config` actions, profile resolution source (`env`, `workspace`, `default`). | `artifact_management` | false | `"workspace"` |
-| `defaultProbeId` | For `probe_config` actions, default probe id for the active profile. | `artifact_management` | false | `"order-service"` |
+| `implicitProbeId` | For `probe_config` actions, the implicitly selected probe id when the active profile contains exactly one Probe. | `artifact_management` | false | `"order-service"` |
 | `probeCount` | For `probe_config` actions, count of registered probes in the active profile. | `artifact_management` | false | `3` |
 | `allowNonWrappedExecutable` | For `probe_config` actions, whether runtime execution may bypass wrapper enforcement. | `artifact_management` | false | `false` |
 | `lastReloadAt` | For `probe_config` `read`/`reload`, ISO timestamp of the most recent reload attempt. | `artifact_management` | false | `"2026-05-01T14:20:55.000Z"` |
@@ -397,7 +397,7 @@ Typed request envelope examples:
 | `status` | Suite status for synchronous execution (`pass`, `fail`, `blocked`, `partial_fail`) or resumable progress checkpoint (`in_progress`). | `execution_orchestration` | true | `"in_progress"` |
 | `action` | Requested orchestration lifecycle action. | `execution_orchestration` | true | `"execute"` |
 | `projectName` | Explicit project selector for multi-project-safe suite execution. | `execution_orchestration` | true | `"test-project-performance"` |
-| `executionProfile` | Workspace execution profile selected from `projects.json`. | `execution_orchestration` | true | `"test-performance-stress-suite"` |
+| `executionProfile` | Workspace execution profile selected from `projects.json` for either a `regression` or `performance` suite. | `execution_orchestration` | true | `"test-performance-stress-suite"` |
 | `suiteRunId` | Canonical suite-level run id reused across resumable calls. Present on `in_progress` and terminal outputs. | `execution_orchestration` | false | `"06-10-2026-12-07-41AM"` |
 | `statusArtifactPath` | Persisted suite-status artifact path for resumable progress and terminal summaries. | `execution_orchestration` | false | `.mcpjvm/test-project-performance/suite-runs/06-10-2026-12-07-41AM/execution_orchestration.result.json` |
 | `executionPolicy` | Effective suite execution policy. | `execution_orchestration` | false | `"stop_on_fail"` |

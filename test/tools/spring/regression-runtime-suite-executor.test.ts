@@ -651,6 +651,55 @@ test("executeRegressionRuntimeSuite blocks replay/export script paths in executi
   }
 });
 
+test("executeRegressionRuntimeSuite fails closed when execution profile suiteType is performance", async () => {
+  const root = createTestTempDir("runtime-suite-performance-profile");
+  try {
+    const projectName = "petclinic-performance";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "catalog-perf-smoke",
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "catalog-search-perf" }],
+            },
+          ],
+        },
+      ],
+    });
+    const perfPlanRoot = path.join(root, ".mcpjvm", projectName, "plans", "performance", "catalog-search-perf");
+    writeJson(path.join(perfPlanRoot, "metadata.json"), {
+      specVersion: "0.1.0",
+      suiteType: "performance",
+      execution: { intent: "performance" },
+    });
+    writeJson(path.join(perfPlanRoot, "contract.json"), {
+      observationTargets: { requiredLineHits: ["org.example.Service#call:10"] },
+      loadModel: { mode: "concurrency", concurrency: 1, rampUpSeconds: 0, durationSeconds: 1 },
+      successCriteria: { maxErrorRatePct: 0, minThroughputPerSec: 1, p95LatencyMs: 100 },
+    });
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "catalog-perf-smoke",
+      mcpInvoke: async () => {
+        throw new Error("mcpInvoke should not be called for performance suite profiles");
+      },
+    });
+
+    assert.equal(out.status, "blocked");
+    if ("reasonCode" in out) {
+      assert.equal(out.reasonCode, "runtime_suite_invalid");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite annotates plan runs for shared correlation session", async () => {
   const root = createTestTempDir("runtime-suite-correlation");
   try {

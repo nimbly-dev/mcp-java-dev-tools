@@ -366,7 +366,6 @@ test("exportExecutionProfileSh resolves terminal service base URL from probe-con
       workspaces: [{ root, profile: "dev" }],
       profiles: {
         dev: {
-          defaultProbe: "course-service",
           probes: {
             "course-service": {
               baseUrl: "http://127.0.0.1:9193",

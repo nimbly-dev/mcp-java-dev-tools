@@ -9,6 +9,7 @@ usage() {
 mcp-java-dev-tools install.sh
 
 Builds TypeScript + Java agent and syncs local shipped skills into Codex/Kiro skill folders.
+Shipped skills include the regression and performance suite families under `skills/mcp-java-dev-tools-*`.
 This script can also apply MCP env config for Codex when --configure-mcp-env is enabled.
 
 Usage:

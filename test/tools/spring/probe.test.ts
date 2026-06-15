@@ -893,7 +893,7 @@ test("probe domain fails closed for unknown probeId", async () => {
       configFileAbs: "C:\\probe-config.json",
       activeProfile: "dev",
       profileSource: "env",
-      defaultProbeId: "order-service",
+      implicitProbeId: "order-service",
       probesById: new Map([
         [
           "order-service",
@@ -909,6 +909,34 @@ test("probe domain fails closed for unknown probeId", async () => {
   assert.equal(out.structuredContent.status, "probe_selection_failed");
   assert.equal(out.structuredContent.reasonCode, "probe_id_unknown");
   assert.equal(out.structuredContent.nextActionCode, "select_registered_probe_id");
+});
+
+test("probe domain fails closed when registry is multi-probe and selection is omitted", async () => {
+  const domain = createProbeDomain({
+    probeBaseUrl: "",
+    probeStatusPath: "/__probe/status",
+    probeResetPath: "/__probe/reset",
+    probeActuatePath: "/__probe/actuate",
+    probeCapturePath: "/__probe/capture",
+    probeWaitMaxRetries: 1,
+    probeWaitUnreachableRetryEnabled: false,
+    probeWaitUnreachableMaxRetries: 1,
+    getProbeRegistry: () => ({
+      configFileAbs: "C:\\probe-config.json",
+      activeProfile: "dev",
+      profileSource: "env",
+      probesById: new Map([
+        ["order-service", { id: "order-service", baseUrl: "http://127.0.0.1:9190", include: [], exclude: [] }],
+        ["auth-service", { id: "auth-service", baseUrl: "http://127.0.0.1:9191", include: [], exclude: [] }],
+      ]),
+    }),
+  });
+  const out = await domain.getStatus({
+    key: "com.example.social.post.app.controller.PostController#updatePost:122",
+  });
+  assert.equal(out.structuredContent.status, "probe_selection_failed");
+  assert.equal(out.structuredContent.reasonCode, "probe_id_required");
+  assert.equal(out.structuredContent.reasonMeta.probeCount, 2);
 });
 
 

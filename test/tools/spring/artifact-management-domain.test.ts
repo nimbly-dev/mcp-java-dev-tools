@@ -55,7 +55,6 @@ test("artifact_management probe_config read returns summary and artifact payload
       defaultProfile: "dev",
       profiles: {
         dev: {
-          defaultProbe: "gateway-service",
           probes: {
             "gateway-service": {
               baseUrl: "http://127.0.0.1:9196",
@@ -76,7 +75,7 @@ test("artifact_management probe_config read returns summary and artifact payload
       },
     });
     assert.equal(out.structuredContent.status, "ok");
-    assert.equal(out.structuredContent.defaultProbeId, "gateway-service");
+    assert.equal(out.structuredContent.implicitProbeId, "gateway-service");
     assert.equal(out.structuredContent.probeCount, 1);
     assert.equal(typeof out.structuredContent.artifact, "object");
   } finally {

@@ -39,7 +39,6 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: {
           "gateway-service": {
             baseUrl: "http://127.0.0.1:9196",
@@ -136,7 +135,7 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
       input: {},
     });
     assert.equal(probeValidate.structuredContent?.status, "ok");
-    assert.equal(probeValidate.structuredContent?.defaultProbeId, "gateway-service");
+    assert.equal(probeValidate.structuredContent?.implicitProbeId, "gateway-service");
 
     const probeRead = await callTool(mcp, "artifact_management", {
       artifactType: "probe_config",
@@ -153,7 +152,7 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
       input: {},
     });
     assert.equal(probeReload.structuredContent?.status, "reloaded");
-    assert.equal(probeReload.structuredContent?.defaultProbeId, "gateway-service");
+    assert.equal(probeReload.structuredContent?.implicitProbeId, "gateway-service");
 
     const planReadSummary = await callTool(mcp, "artifact_management", {
       artifactType: "regression_plan",
@@ -265,7 +264,6 @@ test("mcp IT: artifact_management run_result read honors explicit projectName in
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: {
           "gateway-service": {
             baseUrl: "http://127.0.0.1:9196",

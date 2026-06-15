@@ -97,7 +97,6 @@ test("mcp IT: execution_profile_export fails closed when project context is ambi
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },
@@ -147,7 +146,6 @@ test("mcp IT: execution_profile_export honors explicit projectName in multi-proj
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },

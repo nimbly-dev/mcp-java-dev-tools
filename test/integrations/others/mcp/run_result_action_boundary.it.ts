@@ -37,7 +37,6 @@ test("mcp IT: artifact_management run_result rejects generate action (execution 
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
       },
     },

@@ -26,6 +26,8 @@ Use this skill for operational management of `.mcpjvm/probe-config.json` and reg
 5. If required fields are missing, fail closed and report the exact missing fields.
 6. `workspaces[]` entries MUST use `root` (not `workspaceRoot`).
 7. Probe `baseUrl` MUST point to probe endpoint mapping (java-agent probe port), not application API `server.port`.
+8. `defaultProbe` MUST NOT be present in any profile.
+9. If a profile contains more than one probe, callers MUST use explicit `probeId` or `baseUrl`.
 
 ## Config Shape (Required)
 
@@ -34,7 +36,6 @@ Use this skill for operational management of `.mcpjvm/probe-config.json` and reg
   "defaultProfile": "dev",
   "profiles": {
     "dev": {
-      "defaultProbe": "gateway-service",
       "probes": {}
     }
   },
@@ -77,6 +78,18 @@ Notes:
    - change summary
    - any Fail-Closed validation errors
    - MCP run snippet
+
+## Selection Policy
+
+1. Exactly one probe in the active profile:
+   - implicit selection is allowed
+   - MCP outputs may expose `implicitProbeId`
+2. More than one probe in the active profile:
+   - do not rely on implicit selection
+   - callers must provide `probeId` or `baseUrl`
+3. If legacy `defaultProbe` is present:
+   - fail closed
+   - instruct removal from `probe-config.json`
 
 ## Probe Port Resolution Policy (Strict)
 

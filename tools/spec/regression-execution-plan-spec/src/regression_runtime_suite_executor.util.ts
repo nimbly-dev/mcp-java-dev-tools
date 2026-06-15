@@ -356,6 +356,14 @@ function validateSuiteManifest(input: unknown):
   if (typeof input.executionProfile !== "string" || input.executionProfile.trim().length === 0) {
     return { ok: false, reasonCode: "runtime_suite_invalid", requiredUserAction: ["Set non-empty executionProfile."] };
   }
+  const suiteType = typeof input.suiteType === "string" ? input.suiteType.trim() : "regression";
+  if (suiteType !== "regression") {
+    return {
+      ok: false,
+      reasonCode: "runtime_suite_invalid",
+      requiredUserAction: ["Set executionProfiles[].suiteType to regression for execution_orchestration."],
+    };
+  }
   if (input.executionPolicy !== "stop_on_fail" && input.executionPolicy !== "continue_on_fail") {
     return {
       ok: false,
@@ -473,6 +481,7 @@ function validateSuiteManifest(input: unknown):
     ok: true,
     manifest: {
       executionProfile: input.executionProfile.trim(),
+      suiteType: "regression",
       ...(typeof input.runtimeContextName === "string" && input.runtimeContextName.trim().length > 0
         ? { runtimeContextName: input.runtimeContextName.trim() }
         : {}),

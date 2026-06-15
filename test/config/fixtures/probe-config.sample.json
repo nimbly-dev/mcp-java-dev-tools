@@ -6,7 +6,6 @@
   ],
   "profiles": {
     "dev": {
-      "defaultProbe": "order-service",
       "global": {
         "allowNonWrappedExecutable": false,
         "probeLineSelectionMaxScanLines": 180,
@@ -30,7 +29,6 @@
       }
     },
     "prod": {
-      "defaultProbe": "order-service",
       "probes": {
         "order-service": {
           "baseUrl": "http://127.0.0.1:9390",
