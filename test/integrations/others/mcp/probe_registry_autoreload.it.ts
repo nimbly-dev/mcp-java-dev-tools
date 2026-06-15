@@ -41,14 +41,7 @@ function buildFixtureProbeRegistry(workspaceRootAbs: string): Record<string, unk
     defaultProfile: "dev",
     profiles: {
       dev: {
-        defaultProbe: "gateway-service",
         probes: {
-          "course-service": {
-            baseUrl: "http://127.0.0.1:9193",
-            include: ["io.javatab.microservices.core.course.**"],
-            exclude: [],
-            runtime: { platform: "spring-boot", port: 9001 },
-          },
           "gateway-service": {
             baseUrl: "http://127.0.0.1:9196",
             include: ["com.example.springcloud.gateway.**"],
@@ -91,13 +84,13 @@ test("mcp IT: artifact_management probe_config read tracks live edits and fail-c
     });
     assert.equal(initial.structuredContent?.status, "ok");
     assert.equal(initial.structuredContent?.activeProfile, "dev");
-    assert.equal(initial.structuredContent?.defaultProbeId, "gateway-service");
+    assert.equal(initial.structuredContent?.implicitProbeId, "gateway-service");
 
-    // 1) Valid edit should auto-reload and update defaultProbeId.
+    // 1) Valid edit should auto-reload and update Probe metadata.
     const updated = buildFixtureProbeRegistry(workspaceRootAbs) as {
-      profiles: { dev: { defaultProbe: string } };
+      profiles: { dev: { probes: { "gateway-service": { baseUrl: string } } } };
     };
-    updated.profiles.dev.defaultProbe = "course-service";
+    updated.profiles.dev.probes["gateway-service"].baseUrl = "http://127.0.0.1:9296";
     await fs.writeFile(configFileAbs, `${JSON.stringify(updated, null, 2)}\n`, "utf8");
 
     await waitFor(
@@ -109,7 +102,9 @@ test("mcp IT: artifact_management probe_config read tracks live edits and fail-c
         });
         return (
           listed.structuredContent?.status === "ok" &&
-          listed.structuredContent?.defaultProbeId === "course-service" &&
+          listed.structuredContent?.implicitProbeId === "gateway-service" &&
+          Array.isArray(listed.structuredContent?.probes) &&
+          listed.structuredContent?.probes[0]?.baseUrl === "http://127.0.0.1:9296" &&
           listed.structuredContent?.lastReloadStatus === "ok"
         );
       },
@@ -131,7 +126,7 @@ test("mcp IT: artifact_management probe_config read tracks live edits and fail-c
         });
         return (
           listed.structuredContent?.status === "ok" &&
-          listed.structuredContent?.defaultProbeId === "course-service" &&
+          listed.structuredContent?.implicitProbeId === "gateway-service" &&
           listed.structuredContent?.lastReloadStatus === "error" &&
           typeof listed.structuredContent?.lastReloadError === "string"
         );
@@ -158,7 +153,7 @@ test("mcp IT: artifact_management probe_config read tracks live edits and fail-c
         });
         return (
           listed.structuredContent?.status === "ok" &&
-          listed.structuredContent?.defaultProbeId === "gateway-service" &&
+          listed.structuredContent?.implicitProbeId === "gateway-service" &&
           listed.structuredContent?.lastReloadStatus === "ok"
         );
       },

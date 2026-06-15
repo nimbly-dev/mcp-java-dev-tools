@@ -19,18 +19,19 @@ async function fileExists(abs: string): Promise<boolean> {
   }
 }
 
-export async function resolveRegressionPlansRootAbs(
-  workspaceRootAbs: string,
-  projectName?: string,
-): Promise<string> {
-  const mcpjvmRoot = path.join(workspaceRootAbs, ".mcpjvm");
-  if (typeof projectName === "string" && projectName.trim().length > 0) {
-    const selected = projectName.trim();
+export async function resolvePlansRootAbs(args: {
+  workspaceRootAbs: string;
+  suiteType: "regression" | "performance";
+  projectName?: string;
+}): Promise<string> {
+  const mcpjvmRoot = path.join(args.workspaceRootAbs, ".mcpjvm");
+  if (typeof args.projectName === "string" && args.projectName.trim().length > 0) {
+    const selected = args.projectName.trim();
     const projectsJsonAbs = path.join(mcpjvmRoot, selected, "projects.json");
     if (!(await fileExists(projectsJsonAbs))) {
       throw new Error("project_artifact_missing");
     }
-    return path.join(mcpjvmRoot, selected, "plans", "regression");
+    return path.join(mcpjvmRoot, selected, "plans", args.suiteType);
   }
   const projectDirs = await dirNames(mcpjvmRoot);
   const withProjectsJson: string[] = [];
@@ -41,11 +42,22 @@ export async function resolveRegressionPlansRootAbs(
   if (withProjectsJson.length === 1) {
     const projectName = withProjectsJson[0];
     if (projectName) {
-      return path.join(mcpjvmRoot, projectName, "plans", "regression");
+      return path.join(mcpjvmRoot, projectName, "plans", args.suiteType);
     }
   }
   if (withProjectsJson.length === 0) {
     throw new Error("project_artifact_missing");
   }
   throw new Error("project_artifact_ambiguous");
+}
+
+export async function resolveRegressionPlansRootAbs(
+  workspaceRootAbs: string,
+  projectName?: string,
+): Promise<string> {
+  return resolvePlansRootAbs({
+    workspaceRootAbs,
+    suiteType: "regression",
+    ...(typeof projectName === "string" ? { projectName } : {}),
+  });
 }

@@ -410,6 +410,50 @@ test("readProjectArtifact fails closed when execution profile planName does not 
   }
 });
 
+test("readProjectArtifact validates performance execution profile plan refs against performance plan root", async () => {
+  const root = createTestTempDir("project-artifact-performance-plan-ref");
+  try {
+    const projectRoot = path.join(root, "workspace");
+    const out = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    const planRoot = path.join(root, ".mcpjvm", "my-project", "plans", "performance", "catalog-search-perf");
+    fs.mkdirSync(planRoot, { recursive: true });
+    fs.writeFileSync(path.join(planRoot, "metadata.json"), `${JSON.stringify({ specVersion: "0.1.0" }, null, 2)}\n`, "utf8");
+    fs.writeFileSync(path.join(planRoot, "contract.json"), `${JSON.stringify({ entrypoints: [] }, null, 2)}\n`, "utf8");
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(
+      out,
+      `${JSON.stringify(
+        {
+          workspaces: [
+            {
+              projectRoot,
+              executionProfiles: [
+                {
+                  executionProfile: "catalog-perf-smoke",
+                  suiteType: "performance",
+                  executionPolicy: "stop_on_fail",
+                  plans: [{ order: 1, planName: "catalog-search-perf" }],
+                },
+              ],
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const read = await readProjectArtifact(out);
+    assert.equal(read.ok, true);
+    if (read.ok) {
+      assert.equal(read.artifact.workspaces[0].executionProfiles?.[0].suiteType, "performance");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("validateProjectArtifact accepts sessionExport runtime defaults", () => {
   const result = validateProjectArtifact({
     workspaces: [

@@ -1,0 +1,4 @@
+interface:
+  display_name: "MCP Java Dev Tools Performance Plan Crafter"
+  short_description: "Create or update deterministic performance-plan Artifacts."
+  default_prompt: "Craft or refine a performance plan for the selected project."

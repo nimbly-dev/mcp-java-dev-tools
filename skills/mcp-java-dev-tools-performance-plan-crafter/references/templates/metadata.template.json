@@ -1,0 +1,7 @@
+{
+  "specVersion": "0.1.0",
+  "suiteType": "performance",
+  "execution": {
+    "intent": "performance"
+  }
+}

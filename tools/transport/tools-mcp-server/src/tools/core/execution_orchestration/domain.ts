@@ -2,12 +2,15 @@ import { loadConfigFromEnvAndArgs } from "@/config/server-config";
 import { createProbeDomain } from "@/tools/core/probe/domain";
 import { transportExecuteDomain } from "@/tools/core/transport_execute/domain";
 import { deriveNextActionCode } from "@/utils/failure_diagnostics.util";
+import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import { executePerformanceRuntimeSuite } from "@tools-regression-execution-plan-spec/performance_runtime_suite_executor.util";
 import {
   buildSuiteStatusArtifactRelPath,
   executeRegressionRuntimeSuite,
   readExecutionOrchestrationSuiteResult,
   writeExecutionOrchestrationSuiteResult,
 } from "@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util";
+import path from "node:path";
 
 function blockedResponse(args: {
   reasonCode: string;
@@ -139,50 +142,108 @@ export async function executionOrchestrationDomain(input: {
     }
   }
 
-  const suite = await executeRegressionRuntimeSuite({
-    workspaceRootAbs: input.workspaceRootAbs,
-    projectName,
-    executionProfile,
-    ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
-    ...(typeof maxPlansPerCall === "number" ? { maxPlansPerCall } : {}),
-    ...(priorSuite && Array.isArray(priorSuite.planRuns) ? { priorPlanRuns: priorSuite.planRuns } : {}),
-    ...(priorSuite && typeof priorSuite.nextPlanOrder === "number"
-      ? { startPlanOrder: priorSuite.nextPlanOrder }
-      : {}),
-    mcpInvoke: async ({ toolName, input: toolInput }) => {
-      if (toolName === "transport_execute") {
-        const result = await transportExecuteDomain({
-          protocol: "http",
-          request: toolInput.request as Record<string, unknown>,
-          wrappedOnly: toolInput.wrappedOnly !== false,
-          allowNonWrappedExecutable: cfg.probeRegistry?.allowNonWrappedExecutable ?? false,
+  const projectsFileAbs = path.join(input.workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
+  const projectArtifact = await readProjectArtifact(projectsFileAbs).catch(() => ({
+    ok: false as const,
+    reasonCode: "project_artifact_missing" as const,
+    errors: [`Create project artifact at ${projectsFileAbs}.`],
+  }));
+  if (!projectArtifact.ok) {
+    return blockedResponse({
+      reasonCode: projectArtifact.reasonCode,
+      reason: projectArtifact.reasonCode,
+      reasonMeta: {
+        projectName,
+        executionProfile,
+        requiredUserAction: projectArtifact.errors,
+      },
+    });
+  }
+  const workspace = projectArtifact.artifact.workspaces.find((entry) => entry.projectRoot === input.workspaceRootAbs);
+  if (!workspace) {
+    return blockedResponse({
+      reasonCode: "runtime_suite_missing",
+      reason: "runtime_suite_missing",
+      reasonMeta: {
+        projectName,
+        executionProfile,
+        requiredUserAction: ["Workspace entry not found for current projectRoot in projects.json."],
+      },
+    });
+  }
+  const profile = (workspace.executionProfiles ?? []).find((entry) => entry.executionProfile === executionProfile);
+  if (!profile) {
+    return blockedResponse({
+      reasonCode: "runtime_suite_missing",
+      reason: "runtime_suite_missing",
+      reasonMeta: {
+        projectName,
+        executionProfile,
+        requiredUserAction: [`Add executionProfiles entry '${executionProfile}' to projects.json.`],
+      },
+    });
+  }
+
+  const invokeSuiteTool = async ({ toolName, input: toolInput }: { toolName: string; input: Record<string, unknown> }) => {
+    if (toolName === "transport_execute") {
+      const result = await transportExecuteDomain({
+        protocol: "http",
+        request: toolInput.request as Record<string, unknown>,
+        wrappedOnly: toolInput.wrappedOnly !== false,
+        allowNonWrappedExecutable: cfg.probeRegistry?.allowNonWrappedExecutable ?? false,
+      });
+      return { structuredContent: result.structuredContent };
+    }
+    if (toolName === "probe") {
+      const action = toolInput.action;
+      const probeInput =
+        typeof toolInput.input === "object" && toolInput.input !== null && !Array.isArray(toolInput.input)
+          ? (toolInput.input as Record<string, unknown>)
+          : undefined;
+      if (action === "reset" && probeInput) {
+        const result = await probeDomain.reset(probeInput as Parameters<typeof probeDomain.reset>[0]);
+        return { structuredContent: result.structuredContent as Record<string, unknown> };
+      }
+      if (action === "wait_for_hit" && probeInput) {
+        const result = await probeDomain.waitForHit(probeInput as Parameters<typeof probeDomain.waitForHit>[0]);
+        return { structuredContent: result.structuredContent as Record<string, unknown> };
+      }
+    }
+    return {
+      structuredContent: {
+        status: "blocked_invalid",
+        reasonCode: "toolchain_unavailable",
+        requiredUserAction: [`Unsupported suite tool invocation: ${toolName}`],
+      },
+    };
+  };
+
+  const suite =
+    profile.suiteType === "performance"
+      ? await executePerformanceRuntimeSuite({
+          workspaceRootAbs: input.workspaceRootAbs,
+          projectName,
+          executionProfile,
+          ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
+          ...(typeof maxPlansPerCall === "number" ? { maxPlansPerCall } : {}),
+          ...(priorSuite && Array.isArray(priorSuite.planRuns) ? { priorPlanRuns: priorSuite.planRuns } : {}),
+          ...(priorSuite && typeof priorSuite.nextPlanOrder === "number"
+            ? { startPlanOrder: priorSuite.nextPlanOrder }
+            : {}),
+          mcpInvoke: invokeSuiteTool,
+        })
+      : await executeRegressionRuntimeSuite({
+          workspaceRootAbs: input.workspaceRootAbs,
+          projectName,
+          executionProfile,
+          ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
+          ...(typeof maxPlansPerCall === "number" ? { maxPlansPerCall } : {}),
+          ...(priorSuite && Array.isArray(priorSuite.planRuns) ? { priorPlanRuns: priorSuite.planRuns } : {}),
+          ...(priorSuite && typeof priorSuite.nextPlanOrder === "number"
+            ? { startPlanOrder: priorSuite.nextPlanOrder }
+            : {}),
+          mcpInvoke: invokeSuiteTool,
         });
-        return { structuredContent: result.structuredContent };
-      }
-      if (toolName === "probe") {
-        const action = toolInput.action;
-        const probeInput =
-          typeof toolInput.input === "object" && toolInput.input !== null && !Array.isArray(toolInput.input)
-            ? (toolInput.input as Record<string, unknown>)
-            : undefined;
-        if (action === "reset" && probeInput) {
-          const result = await probeDomain.reset(probeInput as Parameters<typeof probeDomain.reset>[0]);
-          return { structuredContent: result.structuredContent as Record<string, unknown> };
-        }
-        if (action === "wait_for_hit" && probeInput) {
-          const result = await probeDomain.waitForHit(probeInput as Parameters<typeof probeDomain.waitForHit>[0]);
-          return { structuredContent: result.structuredContent as Record<string, unknown> };
-        }
-      }
-      return {
-        structuredContent: {
-          status: "blocked_invalid",
-          reasonCode: "toolchain_unavailable",
-          requiredUserAction: [`Unsupported suite tool invocation: ${toolName}`],
-        },
-      };
-    },
-  });
 
   if ("reasonCode" in suite && suite.status === "blocked") {
     return blockedResponse({

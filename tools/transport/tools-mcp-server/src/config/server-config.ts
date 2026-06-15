@@ -90,11 +90,12 @@ export class ServerConfigLoader {
       CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES_MAX,
     );
 
-    const probeBaseUrl = this.registryDefaultBaseUrl(probeRegistry);
+    const envProbeBaseUrl = this.env(MCP_ENV.PROBE_BASE_URL)?.trim();
+    const probeBaseUrl = envProbeBaseUrl || this.registryImplicitBaseUrl(probeRegistry);
     if (!probeBaseUrl) {
       throw new Error(
-        "Missing required probe registry configuration. " +
-          "Create .mcpjvm/probe-config.json under the workspace (or a parent directory).",
+        `Missing required ${MCP_ENV.PROBE_BASE_URL} or implicit Probe route. ` +
+          "Set MCP_PROBE_BASE_URL, or configure exactly one Probe in the active probe profile.",
       );
     }
 
@@ -207,10 +208,11 @@ export class ServerConfigLoader {
     return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
   }
 
-  private registryDefaultBaseUrl(registry?: ProbeRegistry): string | undefined {
+  private registryImplicitBaseUrl(registry?: ProbeRegistry): string | undefined {
     if (!registry) return undefined;
-    const defaultProbe = registry.probesById.get(registry.defaultProbeId);
-    return defaultProbe?.baseUrl;
+    if (!registry.implicitProbeId) return undefined;
+    const probe = registry.probesById.get(registry.implicitProbeId);
+    return probe?.baseUrl;
   }
 
   private detectWorkspaceProbeConfigFile(workspaceRootAbs: string): string | undefined {

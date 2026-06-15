@@ -9,6 +9,7 @@ import type {
   RunPrerequisite,
   ExecutionProfileEntry,
   ExecutionProfilePlanEntry,
+  ExecutionProfileSuiteType,
   ExecutionProfileScriptRef,
   ProjectCommandEntry,
   ProjectRuntimeContext,
@@ -481,6 +482,11 @@ function normalizeExecutionProfile(input: unknown, index: number, errors: string
     errors.push(`workspaces[].executionProfiles[${index}].executionPolicy must be stop_on_fail|continue_on_fail`);
     return null;
   }
+  const suiteTypeRaw = asTrimmedString(input.suiteType) ?? "regression";
+  if (suiteTypeRaw !== "regression" && suiteTypeRaw !== "performance") {
+    errors.push(`workspaces[].executionProfiles[${index}].suiteType must be regression|performance`);
+    return null;
+  }
   if (!Array.isArray(input.plans) || input.plans.length === 0) {
     errors.push(`workspaces[].executionProfiles[${index}].plans[] is required`);
     return null;
@@ -514,6 +520,7 @@ function normalizeExecutionProfile(input: unknown, index: number, errors: string
     : [];
   return {
     executionProfile,
+    suiteType: suiteTypeRaw as ExecutionProfileSuiteType,
     ...(runtimeContextName ? { runtimeContextName } : {}),
     executionPolicy,
     ...(runtimeConfig ? { runtimeConfig } : {}),
@@ -709,16 +716,15 @@ export async function validateProjectArtifactReferenceIntegrity(args: {
   artifact: ProjectArtifact;
 }): Promise<ProjectArtifactValidationResult> {
   const errors: string[] = [];
-  const checks: Array<{ wi: number; pi: number; pli: number; planRootAbs: string }> = [];
+  const checks: Array<{ wi: number; pi: number; pli: number; suiteType: ExecutionProfileSuiteType; planRootAbs: string }> = [];
   const artifactRootAbs = path.dirname(args.projectsFileAbs);
-  const plansRootAbs = path.join(artifactRootAbs, "plans", "regression");
   args.artifact.workspaces.forEach((workspace, wi) => {
     const executionProfiles = Array.isArray(workspace.executionProfiles) ? workspace.executionProfiles : [];
     executionProfiles.forEach((profile, pi) => {
       const plans = Array.isArray(profile.plans) ? profile.plans : [];
       plans.forEach((plan, pli) => {
-        const planRootAbs = path.join(plansRootAbs, plan.planName);
-        checks.push({ wi, pi, pli, planRootAbs });
+        const planRootAbs = path.join(artifactRootAbs, "plans", profile.suiteType, plan.planName);
+        checks.push({ wi, pi, pli, suiteType: profile.suiteType, planRootAbs });
       });
     });
   });
@@ -728,7 +734,7 @@ export async function validateProjectArtifactReferenceIntegrity(args: {
     const hasContract = await fileExists(path.join(check.planRootAbs, "contract.json"));
     if (!hasPlanDir || !hasMetadata || !hasContract) {
       errors.push(
-        `workspaces[${check.wi}].executionProfiles[${check.pi}].plans[${check.pli}].planName must match an existing regression plan artifact`,
+        `workspaces[${check.wi}].executionProfiles[${check.pi}].plans[${check.pli}].planName must match an existing ${check.suiteType} plan artifact`,
       );
     }
   }

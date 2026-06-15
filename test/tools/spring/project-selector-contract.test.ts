@@ -589,7 +589,7 @@ test("route_synthesis infer_target uses probeId-specific baseUrl for runtime val
             configFileAbs: "C:\\repo\\.mcpjvm\\probe-config.json",
             activeProfile: "dev",
             profileSource: "workspace",
-            defaultProbeId: "default-service",
+            implicitProbeId: "default-service",
             allowNonWrappedExecutable: false,
             probesById: new Map([
               ["default-service", { id: "default-service", baseUrl: "http://127.0.0.1:9193", include: [], exclude: [] }],
@@ -687,7 +687,7 @@ test("route_synthesis create_recipe uses probeId-specific baseUrl for runtime ca
             configFileAbs: "C:\\repo\\.mcpjvm\\probe-config.json",
             activeProfile: "dev",
             profileSource: "workspace",
-            defaultProbeId: "default-service",
+            implicitProbeId: "default-service",
             allowNonWrappedExecutable: false,
             probesById: new Map([
               ["default-service", { id: "default-service", baseUrl: "http://127.0.0.1:9193", include: [], exclude: [] }],

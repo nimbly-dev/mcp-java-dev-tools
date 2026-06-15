@@ -91,7 +91,10 @@ async function main() {
 
   const currentBaseUrl = () => {
     if (!activeRegistry) return cfg.probeBaseUrl;
-    const probe = activeRegistry.probesById.get(activeRegistry.defaultProbeId);
+    const probe =
+      typeof activeRegistry.implicitProbeId === "string"
+        ? activeRegistry.probesById.get(activeRegistry.implicitProbeId)
+        : undefined;
     return probe?.baseUrl ?? cfg.probeBaseUrl;
   };
   const toRegistrySummary = (): ProbeRegistrySummary | undefined => {
@@ -154,7 +157,7 @@ async function main() {
             ? {
                 activeProfile: activeRegistry.activeProfile,
                 profileSource: activeRegistry.profileSource,
-                defaultProbeId: activeRegistry.defaultProbeId,
+                ...(activeRegistry.implicitProbeId ? { implicitProbeId: activeRegistry.implicitProbeId } : {}),
                 registryProbeCount: activeRegistry.probesById.size,
                 allowNonWrappedExecutable: activeRegistry.allowNonWrappedExecutable,
               }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "MCP Java Dev Tools Performance Suite"
+  short_description: "Run performance-suite Artifacts and profiles with strict line verification."
+  default_prompt: "Run the performance suite for the selected project and performance plan or profile."

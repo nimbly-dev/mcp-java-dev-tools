@@ -34,7 +34,6 @@ type ProbeGlobalConfig = {
 };
 
 type ProbeProfile = {
-  defaultProbe?: string;
   global?: ProbeGlobalConfig;
   probes?: Record<string, Record<string, unknown>>;
 };
@@ -55,7 +54,7 @@ export type ProbeRegistry = {
   configFileAbs: string;
   activeProfile: string;
   profileSource: "env" | "workspace" | "default";
-  defaultProbeId: string;
+  implicitProbeId?: string;
   probesById: Map<string, ProbeConfigEntry>;
   allowNonWrappedExecutable: boolean;
 };
@@ -70,7 +69,7 @@ export type ProbeRegistrySummary = {
   configFileAbs: string;
   activeProfile: string;
   profileSource: "env" | "workspace" | "default";
-  defaultProbeId: string;
+  implicitProbeId?: string;
   probeCount: number;
   allowNonWrappedExecutable: boolean;
   lastReloadAt?: string;
@@ -196,6 +195,11 @@ export function loadProbeRegistry(args: ProbeRegistryLoadArgs): ProbeRegistry {
   if (!profile) {
     throw new Error(`Probe profile '${profileName}' not found in probe registry configuration.`);
   }
+  if (Object.prototype.hasOwnProperty.call(profile, "defaultProbe")) {
+    throw new Error(
+      `Invalid probe registry config: profiles.${profileName}.defaultProbe is not supported. Remove it and use explicit probeId selection for multi-probe profiles.`,
+    );
+  }
 
   const global = profile.global ?? {};
   const allowNonWrappedExecutable = global.allowNonWrappedExecutable === true;
@@ -263,18 +267,13 @@ export function loadProbeRegistry(args: ProbeRegistryLoadArgs): ProbeRegistry {
     probesById.set(probeId, config);
   }
 
-  const defaultProbeId = profile.defaultProbe?.trim() || probeIds[0];
-  if (!defaultProbeId || !probesById.has(defaultProbeId)) {
-    throw new Error(
-      `Probe profile '${profileName}' has invalid defaultProbe '${profile.defaultProbe ?? ""}'.`,
-    );
-  }
+  const implicitProbeId = probeIds.length === 1 ? probeIds[0] : undefined;
 
   return {
     configFileAbs,
     activeProfile: profileName,
     profileSource,
-    defaultProbeId,
+    ...(implicitProbeId ? { implicitProbeId } : {}),
     probesById,
     allowNonWrappedExecutable,
   };
@@ -288,7 +287,7 @@ export function summarizeProbeRegistry(
     configFileAbs: registry.configFileAbs,
     activeProfile: registry.activeProfile,
     profileSource: registry.profileSource,
-    defaultProbeId: registry.defaultProbeId,
+    ...(registry.implicitProbeId ? { implicitProbeId: registry.implicitProbeId } : {}),
     probeCount: registry.probesById.size,
     allowNonWrappedExecutable: registry.allowNonWrappedExecutable,
     ...(reloadState?.lastReloadAt ? { lastReloadAt: reloadState.lastReloadAt } : {}),

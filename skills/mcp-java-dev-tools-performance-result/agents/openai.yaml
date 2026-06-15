@@ -1,0 +1,4 @@
+interface:
+  display_name: "MCP Java Dev Tools Performance Result"
+  short_description: "Render performance run Artifacts into deterministic summaries."
+  default_prompt: "Summarize the selected performance run Artifact."
