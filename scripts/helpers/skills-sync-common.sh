@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RETIRED_SKILL_NAME="mcp-java-dev-tools-repro-orchestration"
+RETIRED_SKILL_NAMES=(
+  "mcp-java-dev-tools-repro-orchestration"
+  "mcp-java-dev-tools-execution-profile-export"
+)
 MANAGED_SKILL_PREFIX="mcp-java-dev-tools-"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -252,12 +255,16 @@ sync_one_skill() {
 
 remove_retired_skill_if_present() {
   local skills_root="$1"
-  local retired_dir="$skills_root/$RETIRED_SKILL_NAME"
-  if [[ ! -d "$retired_dir" ]]; then
-    return
-  fi
-  echo "- Removing retired skill: $retired_dir"
-  replace_skill_dir "$retired_dir" "$skills_root"
+  local retired_name=""
+  local retired_dir=""
+  for retired_name in "${RETIRED_SKILL_NAMES[@]}"; do
+    retired_dir="$skills_root/$retired_name"
+    if [[ ! -d "$retired_dir" ]]; then
+      continue
+    fi
+    echo "- Removing retired skill: $retired_dir"
+    replace_skill_dir "$retired_dir" "$skills_root"
+  done
 }
 
 sync_client_skills() {

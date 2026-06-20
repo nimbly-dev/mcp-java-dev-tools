@@ -3,9 +3,16 @@ import type {
   ExportExecutionProfilePs1Result,
   ExecutionProfileExportManifest,
   ExecutionProfileExportPlanRun,
+  ExecutionProfileSuiteType,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_profile_export.model";
 
-export type { ExportExecutionProfilePs1Input, ExportExecutionProfilePs1Result, ExecutionProfileExportManifest, ExecutionProfileExportPlanRun };
+export type {
+  ExportExecutionProfilePs1Input,
+  ExportExecutionProfilePs1Result,
+  ExecutionProfileExportManifest,
+  ExecutionProfileExportPlanRun,
+  ExecutionProfileSuiteType,
+};
 
 export type RuntimeStartup = {
   id: string;

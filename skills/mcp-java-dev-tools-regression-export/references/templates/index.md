@@ -1,10 +1,10 @@
 # Templates Index
 
-Default template id: `execution_profile_export`
+Default template id: `regression_execution_profile_export`
 
 Registered templates:
 
-1. `execution_profile_export`
+1. `regression_execution_profile_export`
 
 Template root:
 

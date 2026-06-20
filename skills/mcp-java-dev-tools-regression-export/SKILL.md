@@ -1,21 +1,22 @@
 ---
-name: mcp-java-dev-tools-execution-profile-export
-description: "Export execution profiles to runnable artifacts (ps1, sh, postman). Use for export, share, replay, or handoff of regression execution flows."
+name: mcp-java-dev-tools-regression-export
+description: "Export regression execution profiles to runnable replay artifacts (ps1, sh, postman). Use for export, share, replay, or handoff of regression execution flows."
 ---
 
-# MCP JVM Execution Profile Export
+# MCP JVM Regression Export
 
-Use this skill to export execution replay artifacts from the current execution profile + regression plan state.
+Use this Skill Workflow to export replay artifacts from the current regression execution profile plus regression plan Artifact state.
 
 ## Scope Guard
 
-1. This skill exports replay artifacts only; it does not execute regression suites.
-2. If the user asks to run or execute regression suite (for example `run ... using executionProfile ...`), route to `mcp-java-dev-tools-regression-suite`.
+1. This Skill Workflow exports replay artifacts only; it does not execute regression suites.
+2. If the user asks to run or execute a regression suite, route to `mcp-java-dev-tools-regression-suite`.
 3. Do not satisfy regression execution prompts by generating replay export scripts.
+4. This Skill Workflow is for `suiteType=regression` only. If the selected execution profile is `suiteType=performance`, route to `mcp-java-dev-tools-performance-export`.
 
 ## Execution Mode
 
-This skill runs in three phases:
+This Skill Workflow runs in three phases:
 
 1. `Read`
 2. `Assemble`
@@ -46,8 +47,8 @@ Optional:
 3. `plan_name` (latest matching selector)
 4. `when` (date/time hint for nearest selector)
 5. `includeResolvedSecrets` (`false` default)
-6. `includeRuntimeStartup` (`true` default; may be overridden by projects.json sessionExport defaults)
-7. `includeHealthcheckGate` (`true` default; may be overridden by projects.json sessionExport defaults)
+6. `includeRuntimeStartup` (`true` default; may be overridden by `projects.json` session export defaults)
+7. `includeHealthcheckGate` (`true` default; may be overridden by `projects.json` session export defaults)
 8. `includeResolvedSecrets` must be supplied explicitly per request to enable secret export; `projects.json.sessionExport` must not auto-enable secret inclusion.
 
 ## Profile Selection
@@ -56,30 +57,30 @@ Resolve in this selector order:
 
 1. explicit `export_id` (label only)
 2. `execution_profile`
-3. `plan_name` (resolves containing profile)
+3. `plan_name` (resolves containing execution profile)
 4. `when` (optional label hint)
-5. default profile when no selector is provided
+5. default execution profile when no selector is provided
 
 ## Source of Truth
 
-Operational source for artifact lifecycle:
+Operational source for Artifact lifecycle:
 
 1. `artifact_management` MCP Tool:
    - `artifactType=project_context` (`read|validate|list`)
    - `artifactType=regression_plan` (`read|validate|list`)
    - `artifactType=execution_export` (`generate|read|list`)
 
-Artifact semantics/reference paths:
+Artifact references:
 
 1. `.mcpjvm/<project_name>/projects.json` (`executionProfiles`)
 2. `.mcpjvm/<project_name>/plans/regression/<plan>/contract.json`
 
-No runtime run artifact is required for default export behavior.
+No runtime run Artifact is required for default export behavior.
 
 ## Mode Router
 
-1. `mode=ps1` => emit PowerShell export package
-2. `mode=sh` => emit shell export package
+1. `mode=ps1` => emit PowerShell replay package
+2. `mode=sh` => emit shell replay package
 3. `mode=postman` => emit Postman collection package
 4. missing mode => fail closed (`execution_export_mode_required`)
 5. unknown mode => fail closed
@@ -87,8 +88,8 @@ No runtime run artifact is required for default export behavior.
 
 ## Determinism Rules
 
-1. Preserve execution order from profile plan order and contract step order.
-2. Do not invent steps absent from profile/contract source.
+1. Preserve execution order from execution profile plan order and contract step order.
+2. Do not invent steps absent from execution profile or contract source.
 3. Do not infer hidden runtime behavior.
 4. Keep output stable for the same input.
 5. Each export invocation emits a fresh one-off folder under `.mcpjvm/<project>/exports/<yyyy-mm-dd-uuid>/`.
@@ -97,7 +98,7 @@ No runtime run artifact is required for default export behavior.
    - `project.env`
    - `scripts/` when the selected execution profile references shared scripts
 7. `sh` and `ps1` exports must execute `executionProfiles[].scriptRefs[]` by phase (`preRuntime`, `postRuntime`, `postHealthcheck`, `prePlan`) and must pass the export-local `project.env` through script `envFileArg` when declared.
-8. `sh` and `ps1` exports must not scan `runtimeContexts[].startups[]` for token/auth helper scripts. Shared setup scripts belong in workspace-level `scripts[]` and are referenced by profile `scriptRefs[]`.
+8. `sh` and `ps1` exports must not scan `runtimeContexts[].startups[]` for token/auth helper scripts. Shared setup scripts belong in workspace-level `scripts[]` and are referenced by execution profile `scriptRefs[]`.
 
 ## Governance
 
@@ -109,11 +110,12 @@ No runtime run artifact is required for default export behavior.
 
 ## Fail-Closed Conditions
 
-1. no resolvable execution profile/plan selector
+1. no resolvable execution profile or plan selector
 2. invalid export source shape
-3. unsupported mode
-4. non-writable export destination
-5. one-off export folder creation failed
+3. selected execution profile is not `suiteType=regression`
+4. unsupported mode
+5. non-writable export destination
+6. one-off export folder creation failed
 
 Blocked response must include:
 

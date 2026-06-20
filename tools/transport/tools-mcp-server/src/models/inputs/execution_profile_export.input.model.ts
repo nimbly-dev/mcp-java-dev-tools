@@ -10,9 +10,12 @@ export const ExecutionProfileExportInputSchema = {
     .string()
     .optional()
     .describe("Execution profile name used to resolve export source from current project plan state."),
-  planName: z.string().optional().describe("Regression plan name used to resolve containing execution profile from current project plan state."),
+  planName: z
+    .string()
+    .optional()
+    .describe("Plan name used to resolve the containing execution profile from current project plan state."),
   when: z.string().optional().describe("Optional date/time hint used only for deterministic export labeling (ISO-8601 recommended)."),
-  mode: z.enum(["ps1", "sh", "postman"]).optional().describe("Export output mode."),
+  mode: z.enum(["ps1", "sh", "postman"]).optional().describe("Export output mode. Performance profiles support ps1 and sh only."),
   type: z
     .enum(["ps1", "sh", "postman"])
     .optional()

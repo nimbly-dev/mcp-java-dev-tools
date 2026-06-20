@@ -1,4 +1,11 @@
-import { exportExecutionProfilePostman, exportExecutionProfilePs1, exportExecutionProfileSh } from "@tools-export-execution-profile/index";
+import {
+  exportExecutionProfilePerformancePs1,
+  exportExecutionProfilePerformanceSh,
+  exportExecutionProfilePostman,
+  exportExecutionProfilePs1,
+  exportExecutionProfileSh,
+} from "@tools-export-execution-profile/index";
+import { loadExecutionProfileExportTarget } from "@tools-export-execution-profile/loaders/export_target.loader";
 import { resolveExportIdForExport } from "@tools-export-execution-profile/loaders/export_selector.loader";
 
 import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
@@ -128,7 +135,11 @@ export async function executionProfileExportDomain(input: {
       selectorInput.when = input.when;
     }
 
-    const resolvedExportId = await resolveExportIdForExport(selectorInput);
+    const selectedTarget = await loadExecutionProfileExportTarget(selectorInput);
+    const resolvedExportId =
+      selectedTarget.profile.suiteType === "performance"
+        ? selectedTarget.exportId
+        : await resolveExportIdForExport(selectorInput);
 
     const request: {
       workspaceRootAbs: string;
@@ -165,8 +176,28 @@ export async function executionProfileExportDomain(input: {
     let out:
       | Awaited<ReturnType<typeof exportExecutionProfilePs1>>
       | Awaited<ReturnType<typeof exportExecutionProfileSh>>
-      | Awaited<ReturnType<typeof exportExecutionProfilePostman>>;
-    if (selectedMode === "ps1") {
+      | Awaited<ReturnType<typeof exportExecutionProfilePostman>>
+      | Awaited<ReturnType<typeof exportExecutionProfilePerformancePs1>>
+      | Awaited<ReturnType<typeof exportExecutionProfilePerformanceSh>>;
+    if (selectedTarget.profile.suiteType === "performance" && selectedMode === "postman") {
+      return blockedResponse(
+        "performance_export_mode_unsupported",
+        "performance execution profile export supports ps1 and sh only; postman is not supported for workload replay",
+        {
+          suiteType: "performance",
+          acceptedModes: ["ps1", "sh"],
+          rejectedMode: selectedMode,
+          ...(typeof input.projectName === "string" ? { projectName: input.projectName.trim() } : {}),
+          executionProfile: selectedTarget.profile.executionProfile,
+        },
+      );
+    }
+
+    if (selectedMode === "ps1" && selectedTarget.profile.suiteType === "performance") {
+      out = await exportExecutionProfilePerformancePs1(request);
+    } else if (selectedMode === "sh" && selectedTarget.profile.suiteType === "performance") {
+      out = await exportExecutionProfilePerformanceSh(request);
+    } else if (selectedMode === "ps1") {
       out = await exportExecutionProfilePs1(request);
     } else if (selectedMode === "sh") {
       out = await exportExecutionProfileSh(request);
@@ -191,8 +222,9 @@ export async function executionProfileExportDomain(input: {
       resultType: "execution_profile_export",
       status: "ok",
       mode: selectedMode,
+      suiteType: selectedTarget.profile.suiteType,
       exportId: out.exportId,
-      ...(input.executionProfile ? { executionProfile: input.executionProfile } : {}),
+      executionProfile: selectedTarget.profile.executionProfile,
       exportDirAbs: out.exportDirAbs,
       output,
     };
@@ -223,7 +255,9 @@ export async function executionProfileExportDomain(input: {
       reason === "execution_profile_ambiguous" ||
       reason === "project_artifact_ambiguous" ||
       reason === "project_artifact_missing" ||
-      reason === "export_id_invalid"
+      reason === "export_id_invalid" ||
+      reason === "performance_profile_required" ||
+      reason === "performance_export_mode_unsupported"
     ) {
       reasonCode = reason;
     }
