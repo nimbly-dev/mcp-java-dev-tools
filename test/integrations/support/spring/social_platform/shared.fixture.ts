@@ -457,7 +457,6 @@ export async function startMcpClient(args: {
     cwd: repoRootAbs,
     env: {
       MCP_WORKSPACE_ROOT: args.workspaceRootAbs,
-      MCP_PROBE_BASE_URL: args.probeBaseUrl,
       ...(tempProbeConfig ? { MCP_PROBE_CONFIG_FILE: tempProbeConfig.fileAbs } : {}),
       ...(args.extraEnv ?? {}),
     },

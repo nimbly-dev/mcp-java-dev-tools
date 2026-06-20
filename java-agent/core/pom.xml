@@ -17,8 +17,10 @@
 
   <modules>
     <module>core-probe-runtime</module>
+    <module>core-probe-debug</module>
     <module>core-probe-instrumentation</module>
     <module>core-probe-control-http</module>
+    <module>core-probe-profiler</module>
     <module>core-probe</module>
     <module>core-entrypoint-mapper</module>
   </modules>

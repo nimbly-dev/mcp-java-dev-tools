@@ -38,7 +38,7 @@ test("loads from probe-config.json and applies fixed probe path defaults", () =>
     fs.mkdirSync(mcpjvmDir, { recursive: true });
     fs.copyFileSync(FIXTURE, path.join(mcpjvmDir, "probe-config.json"));
     const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", workspaceRoot]);
-    assert.equal(cfg.probeBaseUrl, "http://127.0.0.1:9190");
+    assert.equal(cfg.probeBaseUrl, "");
     assert.equal(cfg.probeStatusPath, CONFIG_DEFAULTS.PROBE_STATUS_PATH);
     assert.equal(cfg.probeResetPath, CONFIG_DEFAULTS.PROBE_RESET_PATH);
     assert.equal(cfg.probeCapturePath, CONFIG_DEFAULTS.PROBE_CAPTURE_PATH);
@@ -47,10 +47,9 @@ test("loads from probe-config.json and applies fixed probe path defaults", () =>
   }
 });
 
-test("missing probe-config fails closed and does not rely on MCP_PROBE_BASE_URL", () => {
+test("missing probe-config fails closed and does not rely on environment probe routing", () => {
   withEnv(
     {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
       [MCP_ENV.PROBE_CONFIG_FILE]: undefined,
       [MCP_ENV.WORKSPACE_ROOT]: undefined,
     },
@@ -60,7 +59,6 @@ test("missing probe-config fails closed and does not rely on MCP_PROBE_BASE_URL"
         (err: any) => {
           assert.ok(err instanceof Error);
           assert.match(err.message, /probe-config\.json/i);
-          assert.doesNotMatch(err.message, /MCP_PROBE_BASE_URL/);
           return true;
         },
       );
@@ -85,7 +83,7 @@ test("loads explicit probe registry from MCP_PROBE_CONFIG_FILE", () => {
       () => {
         const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
         assert.equal(cfg.workspaceRootSource, "env");
-        assert.equal(cfg.probeBaseUrl, "http://127.0.0.1:9190");
+        assert.equal(cfg.probeBaseUrl, "");
       },
     );
   } finally {
@@ -125,7 +123,7 @@ test("ignores stale absolute MCP_PROBE_CONFIG_FILE from another workspace when a
       () => {
         const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
         assert.equal(cfg.probeRegistry?.configFileAbs, path.join(workspaceMcpjvmDir, "probe-config.json"));
-        assert.equal(cfg.probeBaseUrl, "http://127.0.0.1:9190");
+        assert.equal(cfg.probeBaseUrl, "");
       },
     );
   } finally {

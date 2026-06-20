@@ -5,10 +5,36 @@ import type { RuntimeSuiteManifest, RuntimeSuiteRunResult } from "@tools-regress
 import { buildTimestampRunId } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
 import { resolvePlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 import { resolveProjectContextForRegression } from "@tools-regression-execution-plan-spec/regression_project_context.util";
+import { buildPerformanceMstaSummary } from "@tools-regression-execution-plan-spec/performance_msta_summary.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const SECRET_KEY_PATTERN = /(?:token|secret|password|authorization|api[-_]?key|bearer)/i;
+const SECRET_VALUE_PATTERN =
+  /(?:\bbearer\s+[a-z0-9\-._~+/]+=*|\bghp_[a-z0-9]+|\bsk-[a-z0-9]{12,}|\bapi[_-]?key\b|\bpassword\b)/i;
+
+function sanitizePersistedContext(value: unknown, parentPath: string | null = null): unknown {
+  if (typeof value === "string" && SECRET_VALUE_PATTERN.test(value)) {
+    return "[REDACTED]";
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizePersistedContext(item, parentPath));
+  }
+  if (!isRecord(value)) {
+    return value;
+  }
+  const output: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    const currentPath = parentPath ? `${parentPath}.${key}` : key;
+    if (SECRET_KEY_PATTERN.test(key) || SECRET_KEY_PATTERN.test(currentPath)) {
+      continue;
+    }
+    output[key] = sanitizePersistedContext(child, currentPath);
+  }
+  return output;
 }
 
 function asTrimmedString(value: unknown): string | undefined {
@@ -53,6 +79,18 @@ function toIso(value: Date | null): string | null {
 function delayMs(ms: number): Promise<void> {
   if (ms <= 0) return Promise.resolve();
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function logPerformancePhase(args: {
+  runId: string;
+  planName: string;
+  phase: string;
+  detail?: string;
+}): void {
+  const suffix = args.detail ? ` detail=${args.detail}` : "";
+  console.error(
+    `[perf-suite] ts=${new Date().toISOString()} runId=${args.runId} plan=${args.planName} phase=${args.phase}${suffix}`,
+  );
 }
 
 function percentile(values: number[], ratio: number): number {
@@ -101,6 +139,7 @@ type PerformancePlanContract = {
   observationTargets: {
     requiredLineHits: string[];
     optionalLineHits?: string[];
+    probeId?: string;
   };
   loadModel: {
     mode: "concurrency";
@@ -112,6 +151,24 @@ type PerformancePlanContract = {
     maxErrorRatePct: number;
     minThroughputPerSec: number;
     p95LatencyMs: number;
+  };
+  analysis?: {
+    executionTiming?: {
+      enabled: true;
+      provider: "async-profiler";
+      event?: string;
+      intervalNanos?: number;
+      outputFormat?: "jfr";
+    };
+    msta?: {
+      enabled: true;
+      mode?: "method_targets" | "target_plus_path";
+      methodTargets: Array<{
+        methodRef: string;
+      }>;
+      includePackages?: string[];
+      allowThirdPartyFrames?: boolean;
+    };
   };
 };
 
@@ -239,6 +296,7 @@ function parsePerformanceContract(
         .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
         .map((entry) => entry.trim())
     : [];
+  const probeId = asTrimmedString(observationTargets?.probeId);
   if (requiredLineHits.length === 0) {
     return {
       ok: false,
@@ -286,6 +344,16 @@ function parsePerformanceContract(
     };
   }
 
+  const executionTiming = resolveExecutionTiming(input);
+  const msta = resolveMsta(input);
+  if (msta && !executionTiming) {
+    return {
+      ok: false,
+      reasonCode: "performance_plan_invalid",
+      requiredUserAction: ["Set analysis.executionTiming when analysis.msta is enabled."],
+    };
+  }
+
   return {
     ok: true,
     contract: {
@@ -293,6 +361,7 @@ function parsePerformanceContract(
       observationTargets: {
         requiredLineHits,
         ...(optionalLineHits.length > 0 ? { optionalLineHits } : {}),
+        ...(probeId ? { probeId } : {}),
       },
       loadModel: {
         mode: "concurrency",
@@ -305,8 +374,83 @@ function parsePerformanceContract(
         minThroughputPerSec,
         p95LatencyMs,
       },
+      ...(executionTiming || msta
+        ? {
+            analysis: {
+              ...(executionTiming ? { executionTiming } : {}),
+              ...(msta ? { msta } : {}),
+            },
+          }
+        : {}),
     },
   };
+}
+
+function isProfilerDownloadSuccess(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const result = isRecord(value.result) ? value.result : null;
+  return result?.status === "downloaded";
+}
+
+function isProfilerDownloadNotReady(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const response = isRecord(value.response) ? value.response : null;
+  const responseJson = isRecord(response?.json) ? response?.json : null;
+  return response?.status === 404 && responseJson?.error === "profiler_output_not_found";
+}
+
+function resolveExecutionTiming(
+  input: Record<string, unknown>,
+): PerformancePlanContract["analysis"] extends { executionTiming?: infer T } ? T | undefined : never {
+  const analysis = isRecord(input.analysis) ? input.analysis : null;
+  const executionTiming = analysis && isRecord(analysis.executionTiming) ? analysis.executionTiming : null;
+  if (!executionTiming || executionTiming.enabled !== true) return undefined as never;
+  const provider = asTrimmedString(executionTiming.provider);
+  const event = asTrimmedString(executionTiming.event);
+  const intervalNanos = asPositiveInteger(executionTiming.intervalNanos);
+  const outputFormat = asTrimmedString(executionTiming.outputFormat);
+  if (provider !== "async-profiler") return undefined as never;
+  return {
+    enabled: true,
+    provider: "async-profiler",
+    ...(event ? { event } : {}),
+    ...(typeof intervalNanos === "number" ? { intervalNanos } : {}),
+    ...(outputFormat === "jfr" ? { outputFormat: "jfr" as const } : {}),
+  } as never;
+}
+
+function resolveMsta(
+  input: Record<string, unknown>,
+): PerformancePlanContract["analysis"] extends { msta?: infer T } ? T | undefined : never {
+  const analysis = isRecord(input.analysis) ? input.analysis : null;
+  const msta = analysis && isRecord(analysis.msta) ? analysis.msta : null;
+  if (!msta || msta.enabled !== true) return undefined as never;
+  const mode = asTrimmedString(msta.mode);
+  const rawTargets = Array.isArray(msta.methodTargets) ? msta.methodTargets : [];
+  const methodTargets = rawTargets
+    .map((entry) => {
+      if (typeof entry === "string") {
+        const methodRef = asTrimmedString(entry);
+        return methodRef ? { methodRef } : null;
+      }
+      if (!isRecord(entry)) return null;
+      const methodRef = asTrimmedString(entry.methodRef);
+      return methodRef ? { methodRef } : null;
+    })
+    .filter((entry): entry is { methodRef: string } => entry !== null);
+  if (methodTargets.length === 0) return undefined as never;
+  const includePackages = Array.isArray(msta.includePackages)
+    ? msta.includePackages
+        .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+        .map((entry) => entry.trim())
+    : [];
+  return {
+    enabled: true,
+    ...((mode === "method_targets" || mode === "target_plus_path") ? { mode } : {}),
+    methodTargets,
+    ...(includePackages.length > 0 ? { includePackages } : {}),
+    ...(typeof msta.allowThirdPartyFrames === "boolean" ? { allowThirdPartyFrames: msta.allowThirdPartyFrames } : {}),
+  } as never;
 }
 
 async function readJsonFile(absPath: string): Promise<unknown> {
@@ -501,7 +645,9 @@ async function executePerformancePlanWorkflow(
   const entrypoint = contract.entrypoints[0]!;
   const runId = buildTimestampRunId(new Date(), 1);
   const runDirAbs = path.join(planRootAbs, "runs", runId);
+  logPerformancePhase({ runId, planName: args.planName, phase: "run_dir_create_begin" });
   await fs.mkdir(runDirAbs, { recursive: true });
+  logPerformancePhase({ runId, planName: args.planName, phase: "run_dir_create_complete" });
   const projectContext = await resolveProjectContextForRegression({
     workspaceRootAbs: args.workspaceRootAbs,
     projectsFileAbs: path.join(args.workspaceRootAbs, ".mcpjvm", args.projectName, "projects.json"),
@@ -557,6 +703,8 @@ async function executePerformancePlanWorkflow(
     ...projectContext.contextPatch,
     ...(args.providedContext ?? {}),
   };
+  const persistedContext = sanitizePersistedContext(providedContext) as Record<string, unknown>;
+  logPerformancePhase({ runId, planName: args.planName, phase: "context_write_begin" });
   await fs.writeFile(
     path.join(runDirAbs, "context.resolved.json"),
     `${JSON.stringify(
@@ -564,14 +712,16 @@ async function executePerformancePlanWorkflow(
         resolvedAt: new Date().toISOString(),
         executionProfile: args.executionProfileName,
         suiteRunId: args.suiteRunId,
-        providedContext,
+        providedContext: persistedContext,
       },
       null,
       2,
     )}\n`,
     "utf8",
   );
+  logPerformancePhase({ runId, planName: args.planName, phase: "context_write_complete" });
 
+  logPerformancePhase({ runId, planName: args.planName, phase: "healthcheck_begin" });
   const health = await verifyHealthcheck({
     entrypoint,
     providedContext,
@@ -579,6 +729,12 @@ async function executePerformancePlanWorkflow(
       ? { requestTimeoutMs: args.runtimeConfigOverride.requestTimeoutMs }
       : {}),
     mcpInvoke: args.mcpInvoke,
+  });
+  logPerformancePhase({
+    runId,
+    planName: args.planName,
+    phase: "healthcheck_complete",
+    detail: health.ok ? "ok" : health.reasonCode,
   });
   if (!health.ok) {
     await fs.writeFile(
@@ -617,9 +773,13 @@ async function executePerformancePlanWorkflow(
   }
 
   for (const lineKey of contract.observationTargets.requiredLineHits) {
+    const resetInput: Record<string, unknown> = { key: lineKey };
+    if (typeof contract.observationTargets.probeId === "string") {
+      resetInput.probeId = contract.observationTargets.probeId;
+    }
     const reset = await args.mcpInvoke({
       toolName: "probe",
-      input: { action: "reset", input: { key: lineKey } },
+      input: { action: "reset", input: resetInput },
     });
     const resetReasonCode =
       isRecord(reset.structuredContent.result) && typeof reset.structuredContent.result.reasonCode === "string"
@@ -663,12 +823,39 @@ async function executePerformancePlanWorkflow(
   }
 
   const startedAt = new Date();
+  let profilerStartResult: Record<string, unknown> | undefined;
+  let profilerStopResult: Record<string, unknown> | undefined;
+  if (contract.analysis?.executionTiming?.enabled === true) {
+    const profilerSessionId = `${runId}-execution-timing`;
+    logPerformancePhase({ runId, planName: args.planName, phase: "profiler_start_begin" });
+    const profilerStart = await args.mcpInvoke({
+      toolName: "probe",
+      input: {
+        action: "profiler",
+        input: {
+          action: "start",
+          sessionId: profilerSessionId,
+          ...(typeof contract.observationTargets.probeId === "string"
+            ? { probeId: contract.observationTargets.probeId }
+            : {}),
+          ...(contract.analysis.executionTiming.event ? { event: contract.analysis.executionTiming.event } : {}),
+          ...(typeof contract.analysis.executionTiming.intervalNanos === "number"
+            ? { intervalNanos: contract.analysis.executionTiming.intervalNanos }
+            : {}),
+          outputFormat: contract.analysis.executionTiming.outputFormat ?? "jfr",
+        },
+      },
+    });
+    profilerStartResult = profilerStart.structuredContent;
+    logPerformancePhase({ runId, planName: args.planName, phase: "profiler_start_complete" });
+  }
   const deadlineEpochMs = Date.now() + contract.loadModel.durationSeconds * 1000;
   const latencies: number[] = [];
   let totalRequests = 0;
   let failedRequests = 0;
   let transportBlockedReasonCode: string | undefined;
   let transportBlockedMessage: string | undefined;
+  logPerformancePhase({ runId, planName: args.planName, phase: "workload_begin" });
 
   const worker = async () => {
     while (Date.now() < deadlineEpochMs && !transportBlockedReasonCode) {
@@ -721,19 +908,91 @@ async function executePerformancePlanWorkflow(
       })(),
     ),
   );
+  logPerformancePhase({
+    runId,
+    planName: args.planName,
+    phase: "workload_complete",
+    detail: `requests=${totalRequests} failures=${failedRequests}${transportBlockedReasonCode ? ` blocked=${transportBlockedReasonCode}` : ""}`,
+  });
   const endedAt = new Date();
+  if (contract.analysis?.executionTiming?.enabled === true) {
+    const profilerSessionId = `${runId}-execution-timing`;
+    const profilerOutputPath = path.join(runDirAbs, `execution-timing.${contract.analysis.executionTiming.outputFormat ?? "jfr"}`);
+    logPerformancePhase({ runId, planName: args.planName, phase: "profiler_stop_begin" });
+    const profilerStop = await args.mcpInvoke({
+      toolName: "probe",
+      input: {
+        action: "profiler",
+        input: {
+          action: "stop",
+          sessionId: profilerSessionId,
+          ...(typeof contract.observationTargets.probeId === "string"
+            ? { probeId: contract.observationTargets.probeId }
+            : {}),
+          outputFormat: contract.analysis.executionTiming.outputFormat ?? "jfr",
+        },
+      },
+    });
+    profilerStopResult = profilerStop.structuredContent;
+    logPerformancePhase({ runId, planName: args.planName, phase: "profiler_stop_complete" });
+    logPerformancePhase({ runId, planName: args.planName, phase: "profiler_download_begin" });
+    let profilerDownload = await args.mcpInvoke({
+      toolName: "probe",
+      input: {
+        action: "profiler",
+        input: {
+          action: "download",
+          sessionId: profilerSessionId,
+          ...(typeof contract.observationTargets.probeId === "string"
+            ? { probeId: contract.observationTargets.probeId }
+            : {}),
+          outputPath: profilerOutputPath,
+          outputFormat: contract.analysis.executionTiming.outputFormat ?? "jfr",
+        },
+      },
+    });
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      if (isProfilerDownloadSuccess(profilerDownload.structuredContent)) break;
+      if (!isProfilerDownloadNotReady(profilerDownload.structuredContent)) break;
+      await delayMs(250);
+      profilerDownload = await args.mcpInvoke({
+        toolName: "probe",
+        input: {
+          action: "profiler",
+          input: {
+            action: "download",
+            sessionId: profilerSessionId,
+            ...(typeof contract.observationTargets.probeId === "string"
+              ? { probeId: contract.observationTargets.probeId }
+              : {}),
+            outputPath: profilerOutputPath,
+            outputFormat: contract.analysis.executionTiming.outputFormat ?? "jfr",
+          },
+        },
+      });
+    }
+    logPerformancePhase({ runId, planName: args.planName, phase: "profiler_download_complete" });
+    if (isRecord(profilerStopResult)) {
+      profilerStopResult.download = profilerDownload.structuredContent;
+    }
+  }
 
   const requiredLineHitResults: Array<{ key: string; hit: boolean; reasonCode?: string }> = [];
   let strictLineBlockedReasonCode: string | undefined;
+  logPerformancePhase({ runId, planName: args.planName, phase: "strict_wait_begin" });
   for (const lineKey of contract.observationTargets.requiredLineHits) {
+    const waitInput: Record<string, unknown> = {
+      key: lineKey,
+      timeoutMs: Math.max(1000, contract.loadModel.durationSeconds * 1000),
+    };
+    if (typeof contract.observationTargets.probeId === "string") {
+      waitInput.probeId = contract.observationTargets.probeId;
+    }
     const out = await args.mcpInvoke({
       toolName: "probe",
       input: {
         action: "wait_for_hit",
-        input: {
-          key: lineKey,
-          timeoutMs: Math.max(1000, contract.loadModel.durationSeconds * 1000),
-        },
+        input: waitInput,
       },
     });
     const probeResult = isRecord(out.structuredContent.result) ? out.structuredContent.result : {};
@@ -748,8 +1007,45 @@ async function executePerformancePlanWorkflow(
       strictLineBlockedReasonCode = reasonCode;
     }
   }
+  logPerformancePhase({
+    runId,
+    planName: args.planName,
+    phase: "strict_wait_complete",
+    detail: strictLineBlockedReasonCode ?? "ok",
+  });
 
   const totalDurationMs = Math.max(1, endedAt.getTime() - startedAt.getTime());
+  logPerformancePhase({ runId, planName: args.planName, phase: "msta_begin" });
+  const mstaSummary =
+    contract.analysis?.executionTiming?.enabled === true
+      ? await buildPerformanceMstaSummary({
+          requiredLineHits: contract.observationTargets.requiredLineHits,
+          ...(contract.analysis?.msta?.methodTargets
+            ? { methodTargets: contract.analysis.msta.methodTargets.map((entry) => entry.methodRef) }
+            : {}),
+          ...(contract.analysis?.msta?.mode ? { mode: contract.analysis.msta.mode } : {}),
+          ...(contract.analysis?.executionTiming
+            ? {
+                provider: {
+                  name: contract.analysis.executionTiming.provider,
+                  ...(contract.analysis.executionTiming.event ? { event: contract.analysis.executionTiming.event } : {}),
+                  ...(contract.analysis.executionTiming.outputFormat
+                    ? { outputFormat: contract.analysis.executionTiming.outputFormat }
+                    : {}),
+                },
+              }
+            : {}),
+          durationMs: totalDurationMs,
+          ...(profilerStopResult ? { profilerStopResult } : {}),
+          runDirAbs,
+        })
+      : undefined;
+  logPerformancePhase({
+    runId,
+    planName: args.planName,
+    phase: "msta_complete",
+    detail: mstaSummary?.status ?? "disabled",
+  });
   const throughputPerSec = totalRequests / (totalDurationMs / 1000);
   const errorRatePct = totalRequests > 0 ? (failedRequests / totalRequests) * 100 : 100;
   const p95LatencyMs = percentile(latencies, 0.95);
@@ -784,6 +1080,7 @@ async function executePerformancePlanWorkflow(
         ? "pass"
         : "fail";
 
+  logPerformancePhase({ runId, planName: args.planName, phase: "execution_result_write_begin", detail: runStatus });
   await fs.writeFile(
     path.join(runDirAbs, "execution.result.json"),
     `${JSON.stringify(
@@ -801,6 +1098,8 @@ async function executePerformancePlanWorkflow(
         },
         thresholdResults,
         requiredLineHits: requiredLineHitResults,
+        ...(profilerStopResult ? { executionTiming: profilerStopResult } : {}),
+        ...(mstaSummary ? { msta: mstaSummary } : {}),
         ...(transportBlockedReasonCode ? { reasonCode: transportBlockedReasonCode, errorMessage: transportBlockedMessage } : {}),
         ...(strictLineBlockedReasonCode ? { reasonCode: strictLineBlockedReasonCode } : {}),
       },
@@ -809,6 +1108,8 @@ async function executePerformancePlanWorkflow(
     )}\n`,
     "utf8",
   );
+  logPerformancePhase({ runId, planName: args.planName, phase: "execution_result_write_complete" });
+  logPerformancePhase({ runId, planName: args.planName, phase: "evidence_write_begin" });
   await fs.writeFile(
     path.join(runDirAbs, "evidence.json"),
     `${JSON.stringify(
@@ -818,12 +1119,26 @@ async function executePerformancePlanWorkflow(
         loadModel: contract.loadModel,
         successCriteria: contract.successCriteria,
         requiredLineHits: requiredLineHitResults,
+        ...(contract.analysis ? { analysis: contract.analysis } : {}),
+        ...(profilerStartResult ? { profilerStart: profilerStartResult } : {}),
+        ...(profilerStopResult ? { profilerStop: profilerStopResult } : {}),
+        ...(mstaSummary ? { msta: mstaSummary } : {}),
       },
       null,
       2,
     )}\n`,
     "utf8",
   );
+  logPerformancePhase({ runId, planName: args.planName, phase: "evidence_write_complete" });
+  if (mstaSummary) {
+    logPerformancePhase({ runId, planName: args.planName, phase: "msta_artifact_write_begin" });
+    await fs.writeFile(
+      path.join(runDirAbs, "execution-timing.msta.json"),
+      `${JSON.stringify(mstaSummary, null, 2)}\n`,
+      "utf8",
+    );
+    logPerformancePhase({ runId, planName: args.planName, phase: "msta_artifact_write_complete" });
+  }
 
   return {
     status: "executed",

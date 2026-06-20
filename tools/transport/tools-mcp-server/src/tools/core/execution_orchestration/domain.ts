@@ -1,7 +1,8 @@
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
+import { CONFIG_DEFAULTS } from "@/config/defaults";
 import { createProbeDomain } from "@/tools/core/probe/domain";
-import { transportExecuteDomain } from "@/tools/core/transport_execute/domain";
 import { deriveNextActionCode } from "@/utils/failure_diagnostics.util";
+import { executeHttpTransportRequest } from "@/utils/transport_execute_http.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 import { executePerformanceRuntimeSuite } from "@tools-regression-execution-plan-spec/performance_runtime_suite_executor.util";
 import {
@@ -82,8 +83,9 @@ export async function executionOrchestrationDomain(input: {
     probeBaseUrl: cfg.probeBaseUrl,
     probeStatusPath: cfg.probeStatusPath,
     probeResetPath: cfg.probeResetPath,
-    probeActuatePath: "/__probe/actuate",
+    probeActuatePath: CONFIG_DEFAULTS.PROBE_ACTUATE_PATH,
     probeCapturePath: cfg.probeCapturePath,
+    probeProfilerPath: CONFIG_DEFAULTS.PROBE_PROFILER_PATH,
     probeWaitMaxRetries: cfg.probeWaitMaxRetries,
     probeWaitUnreachableRetryEnabled: cfg.probeWaitUnreachableRetryEnabled,
     probeWaitUnreachableMaxRetries: cfg.probeWaitUnreachableMaxRetries,
@@ -186,13 +188,22 @@ export async function executionOrchestrationDomain(input: {
 
   const invokeSuiteTool = async ({ toolName, input: toolInput }: { toolName: string; input: Record<string, unknown> }) => {
     if (toolName === "transport_execute") {
-      const result = await transportExecuteDomain({
-        protocol: "http",
-        request: toolInput.request as Record<string, unknown>,
-        wrappedOnly: toolInput.wrappedOnly !== false,
-        allowNonWrappedExecutable: cfg.probeRegistry?.allowNonWrappedExecutable ?? false,
-      });
-      return { structuredContent: result.structuredContent };
+      if (toolInput.wrappedOnly !== false && (cfg.probeRegistry?.allowNonWrappedExecutable ?? false)) {
+        return {
+          structuredContent: {
+            status: "blocked_invalid",
+            reasonCode: "wrapper_policy_violation",
+            requiredUserAction: [
+              "Disable non-wrapped executable transport in probe registry or do not require wrappedOnly execution.",
+            ],
+          },
+        };
+      }
+      return {
+        structuredContent: await executeHttpTransportRequest({
+          request: toolInput.request as Record<string, unknown>,
+        }),
+      };
     }
     if (toolName === "probe") {
       const action = toolInput.action;
@@ -206,6 +217,10 @@ export async function executionOrchestrationDomain(input: {
       }
       if (action === "wait_for_hit" && probeInput) {
         const result = await probeDomain.waitForHit(probeInput as Parameters<typeof probeDomain.waitForHit>[0]);
+        return { structuredContent: result.structuredContent as Record<string, unknown> };
+      }
+      if (action === "profiler" && probeInput) {
+        const result = await probeDomain.profiler(probeInput as Parameters<typeof probeDomain.profiler>[0]);
         return { structuredContent: result.structuredContent as Record<string, unknown> };
       }
     }

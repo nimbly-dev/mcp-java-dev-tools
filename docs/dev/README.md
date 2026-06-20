@@ -10,6 +10,7 @@ This section is for developers adding framework support — whether you're exten
 
 - [Creating Your Own Request Mappers](./creating-your-own-request-mappers/README.md)
 - [Creating Your Own Synthesizers](./creating-your-own-synthesizers/README.md)
+- Performance-suite and MSTA reliability baseline: [shared execution-plan spec](../specs/regression-execution-plan-spec/README.md#performance-suite-reliability-baseline)
 
 Both guides include runtime config examples for:
 - in-repo extensions

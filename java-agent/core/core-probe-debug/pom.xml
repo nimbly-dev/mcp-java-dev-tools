@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.nimbly</groupId>
+    <artifactId>mcp-java-dev-tools-agent-parent</artifactId>
+    <version>0.1.7</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>mcp-java-dev-tools-core-probe-debug</artifactId>
+  <packaging>jar</packaging>
+  <name>mcp-java-dev-tools-core-probe-debug</name>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.nimbly</groupId>
+      <artifactId>mcp-java-dev-tools-core-probe-runtime</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>enforce-probe-debug-layer-boundary</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <searchTransitive>true</searchTransitive>
+                  <excludes>
+                    <exclude>com.nimbly:mcp-java-dev-tools-agent</exclude>
+                    <exclude>com.nimbly:mcp-java-dev-tools-core-entrypoint-mapper</exclude>
+                    <exclude>com.nimbly:mcp-java-dev-tools-adapter-request-mapper-*</exclude>
+                    <exclude>com.nimbly:mcp-java-dev-tools-core-probe-profiler</exclude>
+                  </excludes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

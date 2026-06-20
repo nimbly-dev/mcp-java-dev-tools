@@ -17,4 +17,13 @@ public final class ProbeHttpRequests {
       Boolean returnBoolean,
       Long ttlMs
   ) {}
+
+  public record ProfilerRequest(
+      String action,
+      String sessionId,
+      String event,
+      Long intervalNanos,
+      String outputPath,
+      String outputFormat
+  ) {}
 }

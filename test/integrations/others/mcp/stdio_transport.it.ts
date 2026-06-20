@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -64,13 +67,40 @@ function getNonEmptyLines(buffer: string): string[] {
 test("mcp IT: stdio transport keeps stdout protocol-only and writes diagnostics to stderr", async () => {
   const stdoutChunks: string[] = [];
   const stderrChunks: string[] = [];
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-stdio-transport-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  await fs.mkdir(path.dirname(probeConfigAbs), { recursive: true });
+  await fs.writeFile(
+    probeConfigAbs,
+    `${JSON.stringify(
+      {
+        defaultProfile: "dev",
+        profiles: {
+          dev: {
+            probes: {
+              "post-app": {
+                baseUrl: "http://127.0.0.1:9191",
+                include: ["com.example.social.**"],
+                exclude: [],
+              },
+            },
+          },
+        },
+        workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
 
   const child = spawn(process.execPath, [mcpServerEntryAbs], {
     cwd: repoRootAbs,
     env: {
       ...process.env,
-      MCP_WORKSPACE_ROOT: repoRootAbs,
-      MCP_PROBE_BASE_URL: "http://127.0.0.1:9191",
+      MCP_WORKSPACE_ROOT: workspaceRootAbs,
+      MCP_PROBE_CONFIG_FILE: probeConfigAbs,
     },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
@@ -183,6 +213,7 @@ test("mcp IT: stdio transport keeps stdout protocol-only and writes diagnostics 
   } finally {
     child.stdin?.end();
     await forceStop(child);
+    await fs.rm(tmpRoot, { recursive: true, force: true });
   }
 });
 

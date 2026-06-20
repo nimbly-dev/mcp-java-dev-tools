@@ -1,9 +1,12 @@
 package com.nimbly.mcpjavadevtools.agent.bootstrap;
 
+import com.nimbly.mcpjavadevtools.agent.capture.ProbeCaptureStore;
 import com.nimbly.mcpjavadevtools.agent.config.AgentConfig;
 import com.nimbly.mcpjavadevtools.agent.control.http.ProbeHttpServer;
 import com.nimbly.mcpjavadevtools.agent.instrumentation.HitAdvice;
 import com.nimbly.mcpjavadevtools.agent.instrumentation.LineHitVisitor;
+import com.nimbly.mcpjavadevtools.agent.profiler.ProbeProfilerRegistry;
+import com.nimbly.mcpjavadevtools.agent.profiler.ProfilerPaths;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
@@ -27,7 +30,7 @@ public final class ProbeAgent {
     AgentConfig cfg = AgentConfig.fromAgentArgs(agentArgs);
     configureByteBuddyCompatibility(cfg);
     ProbeRuntime.configure(cfg.mode, cfg.actuatorId, cfg.actuateTargetKey, cfg.actuateReturnBoolean);
-    ProbeRuntime.configureCapture(
+    ProbeCaptureStore.configureCapture(
         cfg.captureEnabled,
         cfg.captureMaxKeys,
         cfg.captureMaxArgs,
@@ -36,7 +39,8 @@ public final class ProbeAgent {
         cfg.captureStoredMaxChars,
         cfg.captureRedactionMode
     );
-    ProbeRuntime.configureExecutionPathScope(cfg.includePatterns, cfg.excludePatterns);
+    ProbeCaptureStore.configureExecutionPathScope(cfg.includePatterns, cfg.excludePatterns);
+    ProbeProfilerRegistry.configureDefault(ProfilerPaths.resolveConfiguredOutputDirectory());
 
     try {
       ProbeHttpServer http = ProbeHttpServer.start(cfg.host, cfg.port);
@@ -45,6 +49,7 @@ public final class ProbeAgent {
       System.err.println("[probe-agent] reset path:  /__probe/reset");
       System.err.println("[probe-agent] actuate path:/__probe/actuate");
       System.err.println("[probe-agent] capture path:/__probe/capture?captureId=...");
+      System.err.println("[probe-agent] profiler path:/__probe/profiler");
       System.err.println("[probe-agent] mode: observe (runtime-wide actuation retired; use session-scoped probe_enable)");
       System.err.println("[probe-agent] captureEnabled: " + cfg.captureEnabled);
       System.err.println("[probe-agent] captureMaxKeys: " + cfg.captureMaxKeys);

@@ -87,6 +87,13 @@ public final class ProbeHttpPayloads {
       CaptureRecordPayload capture
   ) {}
 
+  public record ProfilerEnvelope(
+      String contractVersion,
+      boolean ok,
+      String action,
+      ProfilerPayload profiler
+  ) {}
+
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record ProbePayload(
       String key,
@@ -151,6 +158,21 @@ public final class ProbeHttpPayloads {
       Integer value,
       String source,
       double confidence
+  ) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record ProfilerPayload(
+      String status,
+      String provider,
+      boolean supported,
+      String sessionId,
+      Long startedAtEpochMs,
+      Long stoppedAtEpochMs,
+      String event,
+      Long intervalNanos,
+      String outputPath,
+      String outputFormat,
+      String detail
   ) {}
 
   public record CaptureRecordPayload(

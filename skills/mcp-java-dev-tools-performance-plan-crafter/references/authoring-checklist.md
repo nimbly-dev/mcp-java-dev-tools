@@ -8,6 +8,8 @@ Use this checklist before finalizing a crafted plan.
 2. Entrypoint transport facts are proven.
 3. `loadModel.mode` is supported.
 4. Threshold fields are explicit and measurable.
+5. If `analysis.msta.enabled=true`, at least one `methodTargets[].methodRef` is present.
+6. If `analysis.msta.enabled=true`, `analysis.executionTiming` is fully specified with supported values.
 
 ## Safety
 
@@ -19,6 +21,7 @@ Use this checklist before finalizing a crafted plan.
 1. `metadata.json` and `contract.json` both identify `performance`.
 2. `plan.md` mirrors `contract.json`.
 3. The observed Java target is represented by strict line keys, not duplicated class/method identity fields.
+4. MSTA method targets complement strict verification targets and do not replace them.
 
 ## Fail-Closed
 

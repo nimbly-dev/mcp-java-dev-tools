@@ -31,6 +31,7 @@ Single-call execution skill for performance plans.
 3. No phase skipping. Fail closed with deterministic reason and next action.
 4. `Strict Line Key` verification is mandatory for performance execution.
 5. `loadModel.mode` currently supports only `concurrency`.
+6. MSTA is optional performance evidence and does not replace required `Strict Line Key` proof.
 
 ## Branch Router
 
@@ -78,6 +79,7 @@ Load only the references needed for the current phase.
 5. Do not mix regression and performance plans in one execution profile.
 6. `Strict Line Key` proof is not optional in performance mode.
 7. Empty `requiredLineHits` is invalid and must fail closed before execution.
+8. `analysis.msta.enabled=true` requires a valid `analysis.executionTiming` block and explicit method targets.
 
 ## Context and Read Budget
 
@@ -106,6 +108,7 @@ Always align with:
    - `context.resolved.json`
    - `execution.result.json`
    - `evidence.json`
+   - optional `execution-timing.msta.json`
 4. Performance-plan `contract.json` is workload-centric, not step-centric.
 
 ## MCP-First and Wrapped Transport

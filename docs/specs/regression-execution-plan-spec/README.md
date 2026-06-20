@@ -81,3 +81,51 @@ Required tabular columns:
 - `unknown` (coverage state not deterministically available)
 
 `Memory (bytes)` MUST be included only when memory metrics are explicitly contract-defined.
+
+## Related Performance Spec
+
+Performance-suite MSTA evidence is defined separately in:
+
+- `performance-msta-evidence-model.md`
+
+That document is the normative contract for:
+
+- `analysis.executionTiming`
+- `analysis.msta`
+- `execution-timing.msta.json`
+
+## Performance Suite Reliability Baseline
+
+The current execution-plan and run-artifact model is also used by performance-suite Artifacts under:
+
+```text
+.mcpjvm/<project>/plans/performance/<plan>/
+```
+
+When discussing performance-suite reliability, contributors MUST separate deterministic execution evidence from MSTA timing evidence.
+
+### Reliability Classes
+
+- `High`: deterministic and directly measured by the runner or Probe
+- `Medium`: directionally useful but statistically interpreted
+- `Low`: not suitable for exact timing claims
+
+### Current Baseline
+
+- `workload execution status`: `High`
+- `threshold metrics` (`failedRequests`, `errorRatePct`, `throughputPerSec`, `p95LatencyMs`): `High`
+- `Strict Line Key` / `Line Hit` verification: `High`
+- `MSTA hotspot direction`: `Medium`
+- `MSTA exact per-method duration`: `Low`
+
+### Required Interpretation Rules
+
+- Performance-suite pass/fail status is production-usable for workload validation and strict target verification when the required `Line Hit` evidence is present.
+- MSTA output MUST be treated as directional performance evidence unless an explicit future contract adds confidence scoring or quantified overhead controls.
+- MSTA step timings MUST NOT be presented as exact exclusive method durations.
+- When observability frames dominate the sampled path, the output remains useful for hotspot direction but is not sufficient for precise business-method latency claims.
+
+### Contributor Guidance
+
+- Prefer `High` / `Medium` / `Low` reliability classes over invented percentages such as `70%` or `90%`.
+- If future work introduces quantitative confidence, it MUST be derived from measurable signals such as sample count, anchor coverage, repeatability, and observability-overhead share.

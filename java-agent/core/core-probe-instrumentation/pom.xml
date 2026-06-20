@@ -27,6 +27,11 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>com.nimbly</groupId>
+      <artifactId>mcp-java-dev-tools-core-probe-debug</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>net.bytebuddy</groupId>
       <artifactId>byte-buddy</artifactId>
     </dependency>
@@ -52,6 +57,7 @@
                     <exclude>com.nimbly:mcp-java-dev-tools-agent</exclude>
                     <exclude>com.nimbly:mcp-java-dev-tools-core-entrypoint-mapper</exclude>
                     <exclude>com.nimbly:mcp-java-dev-tools-adapter-request-mapper-*</exclude>
+                    <exclude>com.nimbly:mcp-java-dev-tools-core-probe-profiler</exclude>
                   </excludes>
                 </bannedDependencies>
               </rules>

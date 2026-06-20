@@ -1,6 +1,4 @@
 package com.nimbly.mcpjavadevtools.agent.runtime;
-
-import com.nimbly.mcpjavadevtools.agent.capture.ProbeCaptureStore;
 import com.nimbly.mcpjavadevtools.agent.runtime.model.ActuationState;
 import com.nimbly.mcpjavadevtools.agent.runtime.model.KeyStatus;
 import com.nimbly.mcpjavadevtools.agent.runtime.model.RuntimeState;
@@ -120,60 +118,10 @@ public final class ProbeRuntime {
     );
   }
 
-  public static void configureCapture(
-      boolean captureEnabled,
-      int captureMaxKeys,
-      int captureMaxArgs,
-      int captureMethodBufferSize,
-      int capturePreviewMaxChars,
-      int captureStoredMaxChars,
-      String captureRedactionMode
-  ) {
-    ProbeCaptureStore.configureCapture(
-        captureEnabled,
-        captureMaxKeys,
-        captureMaxArgs,
-        captureMethodBufferSize,
-        capturePreviewMaxChars,
-        captureStoredMaxChars,
-        captureRedactionMode
-    );
-  }
-
-  public static void configureExecutionPathScope(List<String> includePatterns, List<String> excludePatterns) {
-    ProbeCaptureStore.configureExecutionPathScope(includePatterns, excludePatterns);
-  }
-
   public static void hit(String key) {
     if (key == null || key.isEmpty()) return;
     COUNTS.computeIfAbsent(key, k -> new AtomicLong()).incrementAndGet();
     LAST_HIT_EPOCH_MS.computeIfAbsent(key, k -> new AtomicLong()).set(System.currentTimeMillis());
-  }
-
-  public static void captureByClassMethod(
-      String dottedClassName,
-      String methodName,
-      Object[] allArguments,
-      Object returnValue,
-      Throwable thrown,
-      long executionStartedAtEpoch,
-      long executionEndedAtEpoch,
-      long threadAllocatedBytesAtEnter
-  ) {
-    ProbeCaptureStore.captureByClassMethod(
-        dottedClassName,
-        methodName,
-        allArguments,
-        returnValue,
-        thrown,
-        executionStartedAtEpoch,
-        executionEndedAtEpoch,
-        threadAllocatedBytesAtEnter
-    );
-  }
-
-  public static long currentThreadAllocatedBytes() {
-    return ProbeCaptureStore.currentThreadAllocatedBytes();
   }
 
   public static void hitLineByClassMethod(String dottedClassName, String methodName, int lineNumber) {
@@ -299,7 +247,6 @@ public final class ProbeRuntime {
     if (key == null || key.isEmpty()) return;
     COUNTS.computeIfAbsent(key, k -> new AtomicLong()).set(0L);
     LAST_HIT_EPOCH_MS.computeIfAbsent(key, k -> new AtomicLong()).set(0L);
-    ProbeCaptureStore.resetByKey(key);
   }
 
   public static List<String> lineKeysForClass(String dottedClassName) {

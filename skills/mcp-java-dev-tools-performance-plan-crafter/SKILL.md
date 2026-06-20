@@ -50,6 +50,7 @@ If user input conflicts with these rules, fail closed and request clarification.
 8. `loadModel.durationSeconds` must be positive integer.
 9. `successCriteria` must define deterministic threshold fields only.
 10. No hardcoded secrets in any authored Artifact.
+11. If MSTA is enabled, `analysis.executionTiming` and `analysis.msta.methodTargets[]` must both be valid.
 
 ## Plan Authoring Workflow
 
@@ -94,6 +95,25 @@ Optional fields:
 1. `optionalLineHits[]`
 
 Do not require duplicated `className` or `method` fields when the strict line key already defines them.
+
+### 2a) Define MSTA targets when requested
+
+Use explicit method references only for timing-analysis focus.
+
+Required fields when enabled:
+
+1. `analysis.executionTiming.enabled=true`
+2. `analysis.executionTiming.provider=async-profiler`
+3. `analysis.executionTiming.outputFormat=jfr`
+4. `analysis.msta.enabled=true`
+5. `analysis.msta.methodTargets[].methodRef`
+
+Supported modes:
+
+1. `method_targets`
+2. `target_plus_path`
+
+Do not treat `methodTargets[]` as a replacement for required strict line verification.
 
 ### 3) Define entrypoints
 
@@ -159,6 +179,7 @@ Before finalizing, verify:
 4. load model fields are complete and supported
 5. success criteria are measurable and deterministic
 6. `plan.md` semantics match `contract.json`
+7. when MSTA is enabled, timing-analysis configuration and method targets are coherent
 
 ## Required Deliverables Per Craft Request
 

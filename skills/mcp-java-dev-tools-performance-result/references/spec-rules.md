@@ -12,6 +12,7 @@ Required:
 Optional:
 
 1. `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/context.resolved.json`
+2. `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/execution-timing.msta.json`
 
 ## Template Contract
 
@@ -29,9 +30,11 @@ Required rows or fields:
 4. `Throughput (/sec)`
 5. `P95 Latency (ms)`
 6. `Required Line Hits`
+7. `MSTA`
 
 ## Deterministic Rendering
 
 1. Missing optional fields render stable placeholders.
 2. No secret values may be rendered.
 3. Required line-hit status must map from Artifact evidence, not inference.
+4. MSTA status must map from persisted Artifact evidence, not profiler log inference.

@@ -22,6 +22,7 @@ export { ProbeStatusInputSchema } from "@/models/inputs/probe_status.input.model
 export { ProbeResetInputSchema } from "@/models/inputs/probe_reset.input.model";
 export { ProbeWaitHitInputSchema } from "@/models/inputs/probe_wait_hit.input.model";
 export { ProbeActuateInputSchema } from "@/models/inputs/probe_actuate.input.model";
+export { ProbeProfilerInputSchema } from "@/models/inputs/probe_profiler.input.model";
 export { TransportExecuteInputSchema } from "@/models/inputs/transport_execute.input.model";
 export { ExecutionProfileExportInputSchema } from "@/models/inputs/execution_profile_export.input.model";
 export { ArtifactManagementInputSchema } from "@/models/inputs/artifact_management";

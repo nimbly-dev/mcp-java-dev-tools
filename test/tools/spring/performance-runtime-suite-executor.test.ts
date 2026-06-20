@@ -1,9 +1,12 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
+const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
 const { executePerformanceRuntimeSuite } = require("@tools-regression-execution-plan-spec/performance_runtime_suite_executor.util");
+const { buildPerformanceMstaSummary } = require("@tools-regression-execution-plan-spec/performance_msta_summary.util");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
@@ -16,7 +19,28 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
-function writePerformancePlan(root: string, projectName: string, planName: string, baseUrl: string): void {
+function writePerformancePlan(
+  root: string,
+  projectName: string,
+  planName: string,
+  baseUrl: string,
+  options?: {
+    probeId?: string;
+    requiredLineHits?: string[];
+    executionTiming?: {
+      enabled: true;
+      provider: "async-profiler";
+      event?: string;
+      intervalNanos?: number;
+      outputFormat?: "jfr";
+    };
+    msta?: {
+      enabled: true;
+      mode?: "method_targets" | "target_plus_path";
+      methodTargets: Array<{ methodRef: string }>;
+    };
+  },
+): void {
   const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "performance", planName);
   writeJson(path.join(planRoot, "metadata.json"), {
     specVersion: "0.1.0",
@@ -40,7 +64,8 @@ function writePerformancePlan(root: string, projectName: string, planName: strin
       },
     ],
     observationTargets: {
-      requiredLineHits: ["com.example.catalog.CatalogService#search:42"],
+      requiredLineHits: options?.requiredLineHits ?? ["com.example.catalog.CatalogService#search:42"],
+      ...(typeof options?.probeId === "string" ? { probeId: options.probeId } : {}),
     },
     loadModel: {
       mode: "concurrency",
@@ -53,6 +78,14 @@ function writePerformancePlan(root: string, projectName: string, planName: strin
       minThroughputPerSec: 0.5,
       p95LatencyMs: 100,
     },
+    ...((options?.executionTiming || options?.msta)
+      ? {
+          analysis: {
+            ...(options?.executionTiming ? { executionTiming: options.executionTiming } : {}),
+            ...(options?.msta ? { msta: options.msta } : {}),
+          },
+        }
+      : {}),
   });
 }
 
@@ -228,6 +261,437 @@ test("executePerformanceRuntimeSuite supports profile scriptRefs through shared 
     assert.equal(out.planRuns.length, 1);
     assert.equal(out.planRuns[0].runStatus, "pass");
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executePerformanceRuntimeSuite redacts resolved secret context from persisted context artifact", async () => {
+  const root = createTestTempDir("performance-runtime-suite-context-redaction");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-secret-redaction";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              plans: [
+                {
+                  order: 1,
+                  planName: "catalog-search-perf",
+                  providedContext: {
+                    customHeader: "non-secret",
+                    nested: {
+                      authorization: "Bearer nested-secret",
+                      token: "remove-me",
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlan(root, projectName, "catalog-search-perf", "http://127.0.0.1:18082");
+
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 15,
+            },
+          };
+        }
+        if (toolName === "probe") {
+          if (input.action === "reset") {
+            return { structuredContent: { result: { reasonCode: "ok" } } };
+          }
+          if (input.action === "wait_for_hit") {
+            return { structuredContent: { result: { hit: true } } };
+          }
+        }
+        throw new Error(`unexpected tool invocation: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    const runDir = path.join(
+      root,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "performance",
+      "catalog-search-perf",
+      "runs",
+      String(out.planRuns[0].runId),
+    );
+    const context = JSON.parse(fs.readFileSync(path.join(runDir, "context.resolved.json"), "utf8"));
+    assert.equal(context.providedContext.customHeader, "non-secret");
+    assert.equal(context.providedContext["auth.bearer"], undefined);
+    assert.equal(context.providedContext.nested.authorization, undefined);
+    assert.equal(context.providedContext.nested.token, undefined);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executePerformanceRuntimeSuite propagates observationTargets.probeId to strict-line and profiler Probe calls", async () => {
+  const root = createTestTempDir("performance-runtime-suite-probe-id");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-msta";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              runtimeConfig: {
+                requestTimeoutMs: 250,
+              },
+              plans: [{ order: 1, planName: "catalog-search-perf" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlan(root, projectName, "catalog-search-perf", "http://127.0.0.1:18082", {
+      probeId: "catalog-service",
+      executionTiming: {
+        enabled: true,
+        provider: "async-profiler",
+        event: "cpu",
+        outputFormat: "jfr",
+      },
+    });
+
+    const probeCalls: Array<{ action: string; input: Record<string, unknown> }> = [];
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 15,
+            },
+          };
+        }
+        if (toolName === "probe") {
+          probeCalls.push({
+            action: String(input.action ?? ""),
+            input: ((input.input ?? {}) as Record<string, unknown>),
+          });
+          if (input.action === "reset") {
+            return { structuredContent: { result: { reasonCode: "ok" } } };
+          }
+          if (input.action === "profiler") {
+            const profilerInput = (input.input ?? {}) as Record<string, unknown>;
+            if (profilerInput.action === "download") {
+              return {
+                structuredContent: {
+                  result: {
+                    status: "downloaded",
+                    outputPath: String(profilerInput.outputPath ?? ""),
+                  },
+                },
+              };
+            }
+            return { structuredContent: { status: "ok" } };
+          }
+          if (input.action === "wait_for_hit") {
+            return { structuredContent: { result: { hit: true } } };
+          }
+        }
+        throw new Error(`unexpected tool invocation: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    const resetCall = probeCalls.find((entry) => entry.action === "reset");
+    const waitCall = probeCalls.find((entry) => entry.action === "wait_for_hit");
+    const profilerCalls = probeCalls.filter((entry) => entry.action === "profiler");
+    assert.ok(resetCall);
+    assert.ok(waitCall);
+    assert.equal(profilerCalls.length, 3);
+    assert.equal(resetCall?.input.probeId, "catalog-service");
+    assert.equal(waitCall?.input.probeId, "catalog-service");
+    assert.equal(profilerCalls[0]?.input.probeId, "catalog-service");
+    assert.equal(profilerCalls[1]?.input.probeId, "catalog-service");
+    assert.equal(profilerCalls[2]?.input.probeId, "catalog-service");
+    assert.equal(profilerCalls[2]?.input.action, "download");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executePerformanceRuntimeSuite persists first MSTA-oriented output when execution-timing JFR is readable", async () => {
+  const root = createTestTempDir("performance-runtime-suite-msta");
+  const javaFixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "msta-jfr-"));
+  try {
+    const sourceFile = path.join(javaFixtureDir, "JfrShape.java");
+    fs.writeFileSync(
+      sourceFile,
+      [
+        "public class JfrShape {",
+        "  public static void main(String[] args) throws Exception {",
+        "    long end = System.currentTimeMillis() + 3000L;",
+        "    long x = 0L;",
+        "    while (System.currentTimeMillis() < end) {",
+        "      x += controller();",
+        "    }",
+        "    System.out.println(x);",
+        "  }",
+        "  static long controller() { return service(); }",
+        "  static long service() { return helper() + helper(); }",
+        "  static long helper() { long sum = 0L; for (int i = 0; i < 10000; i++) sum += i; return sum; }",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const compiled = spawnSync("javac", [sourceFile], { windowsHide: true, encoding: "utf8" });
+    assert.equal(compiled.status, 0, compiled.stderr);
+    const jfrPath = path.join(javaFixtureDir, "execution-timing.jfr");
+    const recorded = spawnSync(
+      "java",
+      ["-Xint", `-XX:StartFlightRecording=filename=${jfrPath},dumponexit=true,settings=profile`, "-cp", javaFixtureDir, "JfrShape"],
+      { windowsHide: true, encoding: "utf8" },
+    );
+    assert.equal(recorded.status, 0, recorded.stderr);
+    assert.equal(fs.existsSync(jfrPath), true);
+
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-msta-read";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              runtimeConfig: {
+                requestTimeoutMs: 250,
+              },
+              plans: [{ order: 1, planName: "catalog-search-perf" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlan(root, projectName, "catalog-search-perf", "http://127.0.0.1:18082", {
+      probeId: "catalog-service",
+      requiredLineHits: ["JfrShape#controller:10"],
+      executionTiming: {
+        enabled: true,
+        provider: "async-profiler",
+        event: "cpu",
+        outputFormat: "jfr",
+      },
+      msta: {
+        enabled: true,
+        mode: "target_plus_path",
+        methodTargets: [{ methodRef: "JfrShape#controller" }],
+      },
+    });
+    const expectedJfrInRunDir = path.join(
+      root,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "performance",
+      "catalog-search-perf",
+      "runs",
+    );
+    let profilerDownloadAttempts = 0;
+
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 15,
+            },
+          };
+        }
+        if (toolName === "probe") {
+          if (input.action === "reset") {
+            return { structuredContent: { result: { reasonCode: "ok" } } };
+          }
+          if (input.action === "profiler") {
+            const profilerInput = (input.input ?? {}) as Record<string, unknown>;
+            if (profilerInput.action === "download") {
+              profilerDownloadAttempts += 1;
+              if (profilerDownloadAttempts === 1) {
+                return {
+                  structuredContent: {
+                    response: {
+                      status: 404,
+                      json: {
+                        error: "profiler_output_not_found",
+                      },
+                    },
+                    result: {
+                      status: "profiler_download_failed",
+                    },
+                  },
+                };
+              }
+              fs.copyFileSync(jfrPath, String(profilerInput.outputPath));
+              return {
+                structuredContent: {
+                  result: {
+                    status: "downloaded",
+                    outputPath: String(profilerInput.outputPath),
+                  },
+                },
+              };
+            }
+            return {
+              structuredContent: {
+                result: {
+                  status: "completed",
+                  outputPath: jfrPath,
+                },
+              },
+            };
+          }
+          if (input.action === "wait_for_hit") {
+            return { structuredContent: { result: { hit: true } } };
+          }
+        }
+        throw new Error(`unexpected tool invocation: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    const runDir = path.join(
+      root,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "performance",
+      "catalog-search-perf",
+      "runs",
+      String(out.planRuns[0].runId),
+    );
+    assert.equal(runDir.startsWith(expectedJfrInRunDir), true);
+    const mstaPath = path.join(runDir, "execution-timing.msta.json");
+    assert.equal(fs.existsSync(mstaPath), true);
+    assert.equal(fs.existsSync(path.join(runDir, "execution-timing.jfr")), true);
+    assert.equal(profilerDownloadAttempts >= 2, true);
+    const msta = JSON.parse(fs.readFileSync(mstaPath, "utf8"));
+    assert.equal(msta.status, "available");
+    assert.equal(msta.unit, "ms");
+    assert.equal(msta.provider.name, "async-profiler");
+    assert.equal(msta.provider.event, "cpu");
+    assert.equal(msta.mode, "target_plus_path");
+    assert.equal(Array.isArray(msta.methods), true);
+    assert.equal(msta.methods.length > 0, true);
+    assert.equal(msta.methods[0].methodRef, "JfrShape#controller");
+    assert.equal(Array.isArray(msta.methods[0].pathSteps), true);
+    assert.equal(msta.methods[0].pathSteps.length > 0, true);
+    assert.equal(Array.isArray(msta.targets), true);
+    assert.equal(msta.targets.length > 0, true);
+    assert.equal(Array.isArray(msta.targets[0].steps), true);
+    assert.equal(msta.targets[0].steps.length > 0, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(javaFixtureDir, { recursive: true, force: true });
+  }
+});
+
+test("buildPerformanceMstaSummary consumes profiler.WallClockSample events for MSTA anchoring", async () => {
+  const root = createTestTempDir("performance-msta-wall-clock");
+  const fakeJfrPath = path.join(root, "execution-timing.jfr");
+  const fakeBinDir = path.join(root, "fake-bin");
+  fs.mkdirSync(fakeBinDir, { recursive: true });
+  fs.writeFileSync(fakeJfrPath, "fake-jfr", "utf8");
+  fs.writeFileSync(
+    path.join(fakeBinDir, "jfr.js"),
+    [
+      "process.stdout.write(JSON.stringify({",
+      "  type: 'profiler.WallClockSample',",
+      "  samples: 7,",
+      "  frames: [",
+      "    'io.javatab.microservices.composite.course.MetricsController#hello',",
+      "    'io.javatab.microservices.util.http.ApiUtil#ok'",
+      "  ]",
+      "}) + '\\n');",
+    ].join("\n"),
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(fakeBinDir, "jfr.cmd"),
+    [
+      "@echo off",
+      "node \"%~dp0jfr.js\"",
+    ].join("\r\n"),
+    "utf8",
+  );
+
+  const previousPath = process.env.PATH ?? "";
+  const previousExtractor = process.env.MCP_JAVA_DEV_TOOLS_JFR_EXTRACTOR;
+  process.env.PATH = `${fakeBinDir}${path.delimiter}${previousPath}`;
+  process.env.MCP_JAVA_DEV_TOOLS_JFR_EXTRACTOR = path.join(fakeBinDir, "jfr.cmd");
+  try {
+    const summary = await buildPerformanceMstaSummary({
+      requiredLineHits: ["io.javatab.microservices.composite.course.MetricsController#hello:52"],
+      methodTargets: ["io.javatab.microservices.composite.course.MetricsController#hello"],
+      mode: "method_targets",
+      provider: {
+        name: "async-profiler",
+        event: "wall",
+        outputFormat: "jfr",
+      },
+      durationMs: 7000,
+      profilerStopResult: {
+        result: {
+          outputPath: fakeJfrPath,
+        },
+      },
+      runDirAbs: root,
+    });
+
+    assert.equal(summary.status, "available");
+    assert.deepEqual(summary.sourceEventTypes, ["profiler.WallClockSample"]);
+    assert.equal(summary.mode, "method_targets");
+    assert.equal(summary.methods.length, 1);
+    assert.equal(summary.methods[0].methodRef, "io.javatab.microservices.composite.course.MetricsController#hello");
+    assert.equal(summary.methods[0].samples, 7);
+    assert.equal(summary.methods[0].pathSteps[0].methodRef, "io.javatab.microservices.composite.course.MetricsController#hello");
+    assert.equal(summary.methods[0].pathSteps[0].samples, 7);
+  } finally {
+    process.env.PATH = previousPath;
+    if (typeof previousExtractor === "string") {
+      process.env.MCP_JAVA_DEV_TOOLS_JFR_EXTRACTOR = previousExtractor;
+    } else {
+      delete process.env.MCP_JAVA_DEV_TOOLS_JFR_EXTRACTOR;
+    }
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

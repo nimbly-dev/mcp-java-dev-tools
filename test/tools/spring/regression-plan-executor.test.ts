@@ -347,6 +347,75 @@ test("executeRegressionPlanWorkflow routes strict probe verification per target 
   }
 });
 
+test("executeRegressionPlanWorkflow infers apiBaseUrl from probe-config runtime.port when plan context omits it", async () => {
+  const root = createTestTempDir("plan-executor-probe-config-api-base");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "course-service-regression-spec";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", "probe-config.json"), {
+      defaultProfile: "dev",
+      workspaces: [{ root, profile: "dev" }],
+      profiles: {
+        dev: {
+          probes: {
+            "course-service": {
+              baseUrl: "http://127.0.0.1:9193",
+              include: ["x.**"],
+              exclude: [],
+              runtime: { platform: "spring-boot", port: 9101 },
+            },
+          },
+        },
+      },
+    });
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.CourseController", method: "create", sourceRoot: "src/main/java" } }],
+      prerequisites: [],
+      steps: [
+        {
+          order: 1,
+          id: "create_course",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/api/courses", body: { title: "Regression Course" } } },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    let capturedUrl;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        capturedUrl = (input.request as Record<string, unknown>).url;
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 201,
+            durationMs: 12,
+            bodyPreview: '{"id":123}',
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    assert.equal(capturedUrl, "http://127.0.0.1:9101/api/courses");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow skips step when condition evaluates false", async () => {
   const root = createTestTempDir("plan-executor-condition-skip");
   try {

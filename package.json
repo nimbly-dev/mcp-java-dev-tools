@@ -64,6 +64,7 @@
   "files": [
     "dist/**",
     "java-agent/core/core-probe/target/*.jar",
+    "java-agent/core/core-probe-profiler/src/main/java/**",
     "java-agent/core/core-entrypoint-mapper/target/*.jar",
     "java-agent/mappers-adapters/adapter-request-mapper-spring-http/target/*.jar",
     "README.md"

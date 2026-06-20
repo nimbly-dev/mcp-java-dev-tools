@@ -5,6 +5,8 @@ import com.nimbly.mcpjavadevtools.agent.capture.CaptureRecordView;
 import com.nimbly.mcpjavadevtools.agent.capture.CaptureValueView;
 import com.nimbly.mcpjavadevtools.agent.capture.ProbeCaptureStore;
 import com.nimbly.mcpjavadevtools.agent.control.http.model.ProbeHttpPayloads;
+import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStateSnapshot;
+import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopResult;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
 import com.nimbly.mcpjavadevtools.agent.runtime.RuntimePortSignal;
 import com.nimbly.mcpjavadevtools.agent.runtime.RuntimeStringSignal;
@@ -61,6 +63,44 @@ final class ProbeHttpMapper {
     return new ProbeHttpPayloads.CaptureEnvelope(
         contractVersion,
         buildCaptureRecordPayload(capture)
+    );
+  }
+
+  static ProbeHttpPayloads.ProfilerEnvelope buildProfilerStateEnvelope(
+      String contractVersion,
+      String action,
+      ProfilerStateSnapshot state
+  ) {
+    return new ProbeHttpPayloads.ProfilerEnvelope(
+        contractVersion,
+        true,
+        action,
+        buildProfilerStatePayload(state)
+    );
+  }
+
+  static ProbeHttpPayloads.ProfilerEnvelope buildProfilerStopEnvelope(
+      String contractVersion,
+      String action,
+      ProfilerStopResult result
+  ) {
+    return new ProbeHttpPayloads.ProfilerEnvelope(
+        contractVersion,
+        true,
+        action,
+        new ProbeHttpPayloads.ProfilerPayload(
+            result.status(),
+            result.provider(),
+            result.supported(),
+            result.sessionId(),
+            null,
+            result.stoppedAtEpochMs(),
+            null,
+            null,
+            result.outputPath(),
+            result.outputFormat(),
+            result.detail()
+        )
     );
   }
 
@@ -168,6 +208,22 @@ final class ProbeHttpMapper {
       return new ProbeHttpPayloads.RuntimePortSignalPayload(null, "runtime_introspection", 0.0);
     }
     return new ProbeHttpPayloads.RuntimePortSignalPayload(signal.value, signal.source, signal.confidence);
+  }
+
+  private static ProbeHttpPayloads.ProfilerPayload buildProfilerStatePayload(ProfilerStateSnapshot state) {
+    return new ProbeHttpPayloads.ProfilerPayload(
+        state.status(),
+        state.provider(),
+        state.supported(),
+        state.sessionId(),
+        state.startedAtEpochMs(),
+        null,
+        state.event(),
+        state.intervalNanos(),
+        state.outputPath(),
+        state.outputPath() == null ? null : "jfr",
+        state.detail()
+    );
   }
 
   private static ProbeHttpPayloads.CaptureRecordPayload buildCaptureRecordPayload(CaptureRecordView capture) {
