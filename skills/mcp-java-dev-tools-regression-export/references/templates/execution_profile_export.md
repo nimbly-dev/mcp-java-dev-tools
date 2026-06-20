@@ -1,4 +1,4 @@
-# Execution Profile Export Template
+# Regression Execution Profile Export Template
 
 Use this output structure:
 
@@ -19,4 +19,4 @@ Rules:
 2. `Warnings` must include `SENSITIVE EXPORT` when secrets are included.
 3. `Export Artifacts` must point to a fresh per-invocation package directory.
 4. `Required Inputs` must enumerate unresolved placeholders (for example `API_BASE_URL`, `${courseId}`) when present.
-5. Export wording must make it explicit that the package replays requests and does not itself persist fresh canonical regression execution artifacts.
+5. Export wording must make it explicit that the package replays requests and does not itself persist fresh canonical regression execution Artifacts.

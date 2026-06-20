@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# ============================================
+# PERFORMANCE PROFILE EXPORT
+# ============================================
+# exportId: <%= it.manifest.exportId %>
+# SuiteType: <%= it.manifest.suiteType ?? "performance" %>
+# ExecutionProfile: <%= it.manifest.executionProfile %>
+# ExecutionPolicy: <%= it.manifest.executionPolicy %>
+# SourceRunStatus: <%= it.manifest.runStatus %>
+# ReplayPackageType: <%= it.manifest.replayPackageType ?? "workload_replay_only" %>
+<% if (it.includeResolvedSecrets) { %>
+echo 'SENSITIVE EXPORT: includeResolvedSecrets=true' >&2
+<% } %>
+
+__MCPJVM_EXPORT_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+__MCPJVM_PROJECT_ENV="${__MCPJVM_EXPORT_SCRIPT_DIR}/project.env"
+__MCPJVM_WORKSPACE_ROOT="${__MCPJVM_EXPORT_SCRIPT_DIR}"
+while [ "${__MCPJVM_WORKSPACE_ROOT}" != "/" ] && [ ! -d "${__MCPJVM_WORKSPACE_ROOT}/.mcpjvm" ]; do
+  __MCPJVM_WORKSPACE_ROOT="$(dirname "${__MCPJVM_WORKSPACE_ROOT}")"
+done
+if [ ! -d "${__MCPJVM_WORKSPACE_ROOT}/.mcpjvm" ]; then
+  echo 'workspace_root_unresolved: place export under project workspace containing .mcpjvm' >&2
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo 'node_runtime_missing: performance export requires node on PATH' >&2
+  exit 1
+fi
+
+# ============================================
+# SECTION A: PREREQUISITES
+# ============================================
+<%= it.prerequisitesSection %>
+
+# ============================================
+# SECTION A2: PRE_RUNTIME_SCRIPTS
+# ============================================
+<%= it.preRuntimeScriptSection %>
+
+# ============================================
+# SECTION B: RUNTIME_STARTUP
+# ============================================
+<%= it.runtimeStartupSection %>
+
+# ============================================
+# SECTION B2: POST_RUNTIME_SCRIPTS
+# ============================================
+<%= it.postRuntimeScriptSection %>
+
+# ============================================
+# SECTION C: HEALTHCHECK_GATE
+# ============================================
+<%= it.healthcheckGateSection %>
+
+# ============================================
+# SECTION C1: POST_HEALTHCHECK_SCRIPTS
+# ============================================
+<%= it.postHealthcheckScriptSection %>
+
+# ============================================
+# SECTION C2: AUTH_BOOTSTRAP
+# ============================================
+<%= it.postStartupAuthSection %>
+
+# ============================================
+# SECTION C3: PRE_PLAN_SCRIPTS
+# ============================================
+<%= it.prePlanScriptSection %>
+
+# ============================================
+# SECTION D: WORKLOAD_REPLAY
+# ============================================
+node "${__MCPJVM_EXPORT_SCRIPT_DIR}/run-performance-profile.js" \
+  --bundle "${__MCPJVM_EXPORT_SCRIPT_DIR}/performance-export.bundle.json" \
+  --env-file "${__MCPJVM_PROJECT_ENV}" \
+  --export-dir "${__MCPJVM_EXPORT_SCRIPT_DIR}"
+
+echo 'Performance replay completed.'

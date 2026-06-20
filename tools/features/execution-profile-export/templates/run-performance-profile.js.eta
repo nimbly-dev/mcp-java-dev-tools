@@ -1,0 +1,553 @@
+#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+
+function parseArgs(argv) {
+  const out = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--bundle") out.bundlePath = argv[++i];
+    else if (arg === "--env-file") out.envFilePath = argv[++i];
+    else if (arg === "--export-dir") out.exportDir = argv[++i];
+  }
+  return out;
+}
+
+function fail(code, detail) {
+  const payload = { status: "blocked", reasonCode: code, detail };
+  process.stderr.write(`${JSON.stringify(payload, null, 2)}\n`);
+  process.exit(1);
+}
+
+function parseEnvFile(filePath) {
+  const env = {};
+  const text = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const index = trimmed.indexOf("=");
+    if (index <= 0) continue;
+    const key = trimmed.slice(0, index).trim();
+    const value = trimmed.slice(index + 1);
+    env[key] = value;
+  }
+  return env;
+}
+
+function toEnvKey(input) {
+  const raw = String(input).trim().replace(/^env[.:_-]/i, "");
+  const normalized = raw
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[^A-Za-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase();
+  const safe = normalized.length > 0 ? normalized : "REQUIRED_INPUT";
+  return /^[A-Z_]/.test(safe) ? safe : `V_${safe}`;
+}
+
+function substitutePlaceholders(value, context) {
+  if (typeof value === "string") {
+    return value.replace(/\$\{([^}]+)\}/g, (_full, key) => {
+      const envKey = toEnvKey(key);
+      if (typeof context[envKey] !== "string" || context[envKey].length === 0) {
+        throw new Error(`missing_context:${envKey}`);
+      }
+      return context[envKey];
+    });
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => substitutePlaceholders(entry, context));
+  }
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [key, child] of Object.entries(value)) {
+      out[key] = substitutePlaceholders(child, context);
+    }
+    return out;
+  }
+  return value;
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function errorDetail(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function blockedPlanResult(reasonCode, detail, extra) {
+  return {
+    status: "blocked",
+    runStatus: "blocked",
+    reasonCode,
+    detail,
+    ...(extra && typeof extra === "object" ? extra : {}),
+  };
+}
+
+async function probeReset(baseUrl, key) {
+  const response = await fetchWithTimeout(`${baseUrl.replace(/\/+$/, "")}/__probe/reset`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ key }),
+  }, 10000);
+  return response.ok;
+}
+
+async function probeWaitForHit(baseUrl, key, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const url = new URL(`${baseUrl.replace(/\/+$/, "")}/__probe/status`);
+    url.searchParams.set("key", key);
+    const response = await fetchWithTimeout(url.toString(), { method: "GET" }, 10000);
+    const json = await response.json().catch(() => ({}));
+    const probe = json && typeof json.probe === "object" && json.probe ? json.probe : json;
+    if (probe && typeof probe.hitCount === "number" && probe.hitCount > 0) {
+      return { hit: true };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return { hit: false, reasonCode: "timeout_no_inline_hit" };
+}
+
+async function profiler(baseUrl, input) {
+  const url = `${baseUrl.replace(/\/+$/, "")}/__probe/profiler`;
+  if (input.action === "download") {
+    const downloadUrl = new URL(url);
+    downloadUrl.searchParams.set("action", "download");
+    downloadUrl.searchParams.set("sessionId", input.sessionId);
+    const response = await fetchWithTimeout(downloadUrl.toString(), { method: "GET" }, 20000);
+    if (!response.ok) {
+      return { status: "profiler_download_failed", httpStatus: response.status };
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(input.outputPath, bytes);
+    return { status: "downloaded", outputPath: input.outputPath, bytesWritten: bytes.length };
+  }
+  const response = await fetchWithTimeout(url, {
+    method: input.action === "status" ? "GET" : "POST",
+    headers: input.action === "status" ? undefined : { "content-type": "application/json" },
+    body: input.action === "status" ? undefined : JSON.stringify(input),
+  }, 20000);
+  const json = await response.json().catch(() => ({}));
+  return json && typeof json.profiler === "object" && json.profiler ? json.profiler : { status: "profiler_response_invalid", response: json };
+}
+
+function percentile(values, ratio) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
+  return sorted[index] ?? 0;
+}
+
+async function executeRequest(spec, context, requestTimeoutMs) {
+  const baseUrl = substitutePlaceholders(spec.transport.baseUrl, context);
+  const requestPath = substitutePlaceholders(spec.request.path, context);
+  const url = new URL(
+    `${String(baseUrl).replace(/\/$/, "")}${String(requestPath).startsWith("/") ? "" : "/"}${String(requestPath)}`
+  );
+  if (spec.request.queryTemplate && typeof spec.request.queryTemplate === "object") {
+    const queryTemplate = substitutePlaceholders(spec.request.queryTemplate, context);
+    for (const [key, raw] of Object.entries(queryTemplate)) {
+      if (typeof raw === "undefined" || raw === null) continue;
+      url.searchParams.set(key, String(raw));
+    }
+  }
+  const headers = {
+    ...(spec.transport.defaultHeaders ?? {}),
+    ...(spec.request.headers ? substitutePlaceholders(spec.request.headers, context) : {}),
+  };
+  const bodyResolved = typeof spec.request.body === "undefined" ? undefined : substitutePlaceholders(spec.request.body, context);
+  const start = Date.now();
+  try {
+    const response = await fetchWithTimeout(url, {
+      method: String(spec.request.method).toUpperCase(),
+      headers,
+      ...(typeof bodyResolved === "undefined"
+        ? {}
+        : {
+            body:
+              typeof bodyResolved === "string" ? bodyResolved : JSON.stringify(bodyResolved),
+          }),
+    }, requestTimeoutMs);
+    await response.text();
+    return {
+      status: response.status >= 200 && response.status < 400 ? "pass" : "fail_http",
+      statusCode: response.status,
+      durationMs: Math.max(1, Date.now() - start),
+    };
+  } catch (error) {
+    return {
+      status: "blocked_runtime",
+      reasonCode: "transport_request_failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      durationMs: Math.max(1, Date.now() - start),
+    };
+  }
+}
+
+async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
+  const requestTimeoutMs = typeof runtimeConfig?.requestTimeoutMs === "number" ? runtimeConfig.requestTimeoutMs : 20000;
+  const entrypoint = plan.contract.entrypoints[0];
+  const context = { ...envContext, ...(plan.providedContext ?? {}) };
+  const probeBaseUrl = plan.probeBaseUrl;
+  if (!probeBaseUrl) {
+    return {
+      status: "blocked",
+      runStatus: "blocked",
+      reasonCode: "performance_probe_selection_missing",
+      failedStep: "probe_selection",
+      reasonMeta: {
+        planName: plan.planName,
+      },
+      requiredUserAction: ["Set observationTargets.probeId and ensure probe-config.json resolves a concrete Probe base URL at export time."],
+    };
+  }
+
+  if (entrypoint.transport.healthCheckPath) {
+    try {
+      const baseUrl = substitutePlaceholders(entrypoint.transport.baseUrl, context);
+      const healthcheckUrl = `${String(baseUrl).replace(/\/$/, "")}${String(entrypoint.transport.healthCheckPath).startsWith("/") ? "" : "/"}${String(entrypoint.transport.healthCheckPath)}`;
+      const healthcheckResponse = await fetchWithTimeout(healthcheckUrl, { method: "GET" }, requestTimeoutMs);
+      if (!(healthcheckResponse.status >= 200 && healthcheckResponse.status < 400)) {
+        return {
+          status: "blocked",
+          runStatus: "blocked",
+          reasonCode: "performance_healthcheck_failed",
+          failedStep: "healthcheck",
+          reasonMeta: {
+            healthcheckUrl,
+            httpStatus: healthcheckResponse.status,
+            planName: plan.planName,
+          },
+          requiredUserAction: [`Target healthcheck failed: ${healthcheckUrl}`],
+        };
+      }
+    } catch (error) {
+      return blockedPlanResult("performance_healthcheck_transport_failed", errorDetail(error), {
+        failedStep: "healthcheck",
+        reasonMeta: {
+          healthCheckPath: entrypoint.transport.healthCheckPath,
+          baseUrl: entrypoint.transport.baseUrl,
+          planName: plan.planName,
+        },
+      });
+    }
+  }
+
+  for (const key of plan.contract.observationTargets.requiredLineHits) {
+    try {
+      await probeReset(probeBaseUrl, key);
+    } catch (error) {
+      return blockedPlanResult("performance_probe_reset_failed", errorDetail(error), {
+        failedStep: "probe_reset",
+        failedStrictLineKey: key,
+        reasonMeta: {
+          probeBaseUrl,
+          strictLineKey: key,
+          planName: plan.planName,
+        },
+      });
+    }
+  }
+
+  let profilerStopResult;
+  let profilerStartResult;
+  if (plan.contract.analysis?.executionTiming?.enabled === true) {
+    const sessionId = `${plan.planName}-${Date.now()}`;
+    try {
+      const startResult = await profiler(probeBaseUrl, {
+        action: "start",
+        sessionId,
+        ...(plan.contract.analysis.executionTiming.event ? { event: plan.contract.analysis.executionTiming.event } : {}),
+        ...(typeof plan.contract.analysis.executionTiming.intervalNanos === "number"
+          ? { intervalNanos: plan.contract.analysis.executionTiming.intervalNanos }
+          : {}),
+        outputFormat: plan.contract.analysis.executionTiming.outputFormat ?? "jfr",
+      });
+      const activeProfilerSessionId =
+        typeof startResult.sessionId === "string" && startResult.sessionId.trim().length > 0
+          ? startResult.sessionId
+          : sessionId;
+      plan._profilerSessionId = activeProfilerSessionId;
+      plan._profilerStartResult = startResult;
+      profilerStartResult = startResult;
+    } catch (error) {
+      return blockedPlanResult("performance_profiler_start_failed", errorDetail(error), {
+        failedStep: "profiler_start",
+        reasonMeta: {
+          probeBaseUrl,
+          sessionId,
+          provider: "async-profiler",
+          event: plan.contract.analysis.executionTiming.event ?? "cpu",
+          planName: plan.planName,
+        },
+        executionTiming: {
+          status: "profiler_start_failed",
+          detail: errorDetail(error),
+        },
+      });
+    }
+  }
+
+  const latencies = [];
+  let totalRequests = 0;
+  let failedRequests = 0;
+  let blockedReasonCode;
+  const deadlineEpochMs = Date.now() + plan.contract.loadModel.durationSeconds * 1000;
+  const perWorkerDelayMs =
+    plan.contract.loadModel.concurrency > 1
+      ? Math.floor((plan.contract.loadModel.rampUpSeconds * 1000) / plan.contract.loadModel.concurrency)
+      : 0;
+
+  const worker = async () => {
+    while (Date.now() < deadlineEpochMs && !blockedReasonCode) {
+      const result = await executeRequest(entrypoint, context, requestTimeoutMs);
+      if (result.status === "pass" || result.status === "fail_http") {
+        totalRequests += 1;
+        latencies.push(result.durationMs);
+        if (result.status !== "pass") failedRequests += 1;
+        continue;
+      }
+      blockedReasonCode = result.reasonCode ?? "transport_request_failed";
+      return;
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: plan.contract.loadModel.concurrency }, async (_unused, index) => {
+      if (perWorkerDelayMs > 0 && index > 0) {
+        await new Promise((resolve) => setTimeout(resolve, perWorkerDelayMs * index));
+      }
+      await worker();
+    }),
+  );
+
+  if (plan.contract.analysis?.executionTiming?.enabled === true && plan._profilerSessionId) {
+    try {
+      profilerStopResult = await profiler(probeBaseUrl, {
+        action: "stop",
+        sessionId: plan._profilerSessionId,
+        outputFormat: plan.contract.analysis.executionTiming.outputFormat ?? "jfr",
+      });
+    } catch (error) {
+      return blockedPlanResult("performance_profiler_stop_failed", errorDetail(error), {
+        failedStep: "profiler_stop",
+        reasonMeta: {
+          probeBaseUrl,
+          sessionId: plan._profilerSessionId,
+          provider: "async-profiler",
+          planName: plan.planName,
+        },
+        executionTiming: {
+          ...(profilerStartResult ? { start: profilerStartResult } : {}),
+          status: "profiler_stop_failed",
+          detail: errorDetail(error),
+        },
+      });
+    }
+    const profilerOutputPath = path.join(runDirAbs, `${plan.planName}.execution-timing.${plan.contract.analysis.executionTiming.outputFormat ?? "jfr"}`);
+    try {
+      profilerStopResult.download = await profiler(probeBaseUrl, {
+        action: "download",
+        sessionId: plan._profilerSessionId,
+        outputPath: profilerOutputPath,
+      });
+    } catch (error) {
+      return blockedPlanResult("performance_profiler_download_failed", errorDetail(error), {
+        failedStep: "profiler_download",
+        reasonMeta: {
+          probeBaseUrl,
+          sessionId: plan._profilerSessionId,
+          outputPath: profilerOutputPath,
+          provider: "async-profiler",
+          planName: plan.planName,
+        },
+        executionTiming: {
+          ...(profilerStartResult ? { start: profilerStartResult } : {}),
+          ...(profilerStopResult ? { stop: profilerStopResult } : {}),
+          status: "profiler_download_failed",
+          detail: errorDetail(error),
+        },
+      });
+    }
+  }
+
+  const requiredLineHits = [];
+  let strictLineBlockedReasonCode;
+  for (const key of plan.contract.observationTargets.requiredLineHits) {
+    let waitResult;
+    try {
+      waitResult = await probeWaitForHit(probeBaseUrl, key, Math.max(1000, plan.contract.loadModel.durationSeconds * 1000));
+    } catch (error) {
+      waitResult = {
+        hit: false,
+        reasonCode: "performance_probe_wait_failed",
+        detail: errorDetail(error),
+        failedStep: "probe_wait",
+        reasonMeta: {
+          probeBaseUrl,
+          strictLineKey: key,
+          planName: plan.planName,
+        },
+      };
+    }
+    requiredLineHits.push({
+      key,
+      hit: waitResult.hit === true,
+      ...(waitResult.reasonCode ? { reasonCode: waitResult.reasonCode } : {}),
+      ...(waitResult.failedStep ? { failedStep: waitResult.failedStep } : {}),
+      ...(waitResult.reasonMeta ? { reasonMeta: waitResult.reasonMeta } : {}),
+    });
+    if (waitResult.hit !== true && waitResult.reasonCode && waitResult.reasonCode !== "timeout_no_inline_hit" && !strictLineBlockedReasonCode) {
+      strictLineBlockedReasonCode = waitResult.reasonCode;
+    }
+  }
+
+  const totalDurationMs = Math.max(1, plan.contract.loadModel.durationSeconds * 1000);
+  const throughputPerSec = totalRequests / (totalDurationMs / 1000);
+  const errorRatePct = totalRequests > 0 ? (failedRequests / totalRequests) * 100 : 100;
+  const p95LatencyMs = percentile(latencies, 0.95);
+  const thresholdResults = {
+    maxErrorRatePct: {
+      actual: Number(errorRatePct.toFixed(3)),
+      expectedMax: plan.contract.successCriteria.maxErrorRatePct,
+      pass: errorRatePct <= plan.contract.successCriteria.maxErrorRatePct,
+    },
+    minThroughputPerSec: {
+      actual: Number(throughputPerSec.toFixed(3)),
+      expectedMin: plan.contract.successCriteria.minThroughputPerSec,
+      pass: throughputPerSec >= plan.contract.successCriteria.minThroughputPerSec,
+    },
+    p95LatencyMs: {
+      actual: p95LatencyMs,
+      expectedMax: plan.contract.successCriteria.p95LatencyMs,
+      pass: p95LatencyMs <= plan.contract.successCriteria.p95LatencyMs,
+    },
+  };
+  const requiredLineHitsPass = !strictLineBlockedReasonCode && requiredLineHits.every((entry) => entry.hit === true);
+  const runStatus =
+    blockedReasonCode || strictLineBlockedReasonCode
+      ? "blocked"
+      : thresholdResults.maxErrorRatePct.pass &&
+          thresholdResults.minThroughputPerSec.pass &&
+          thresholdResults.p95LatencyMs.pass &&
+          requiredLineHitsPass
+        ? "pass"
+        : "fail";
+  return {
+    status: "executed",
+    runStatus,
+    metrics: {
+      totalRequests,
+      failedRequests,
+      errorRatePct: Number(errorRatePct.toFixed(3)),
+      throughputPerSec: Number(throughputPerSec.toFixed(3)),
+      p95LatencyMs,
+      durationMs: totalDurationMs,
+    },
+    thresholdResults,
+    requiredLineHits,
+    ...(blockedReasonCode ? { reasonCode: blockedReasonCode } : {}),
+    ...(strictLineBlockedReasonCode ? { strictLineBlockedReasonCode } : {}),
+    ...(blockedReasonCode
+      ? {
+          failedStep: "workload_execution",
+          reasonMeta: {
+            entrypointBaseUrl: entrypoint.transport.baseUrl,
+            requestPath: entrypoint.request.path,
+            planName: plan.planName,
+          },
+        }
+      : {}),
+    ...(strictLineBlockedReasonCode
+      ? {
+          failedStep: "strict_line_verification",
+          reasonMeta: {
+            probeBaseUrl,
+            strictLineKeys: plan.contract.observationTargets.requiredLineHits,
+            planName: plan.planName,
+          },
+        }
+      : {}),
+    ...(profilerStartResult || profilerStopResult
+      ? {
+          executionTiming: {
+            ...(profilerStartResult ? { start: profilerStartResult } : {}),
+            ...(profilerStopResult ? { stop: profilerStopResult } : {}),
+            ...(profilerStopResult?.download ? { download: profilerStopResult.download } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (!args.bundlePath || !args.envFilePath || !args.exportDir) {
+    fail("performance_export_args_invalid", "bundlePath, envFilePath, and exportDir are required");
+  }
+  const bundle = JSON.parse(fs.readFileSync(args.bundlePath, "utf8"));
+  const env = { ...parseEnvFile(args.envFilePath), ...process.env };
+  const runId = new Date().toISOString().replace(/[:.]/g, "-");
+  const runDirAbs = path.join(args.exportDir, "runs", runId);
+  fs.mkdirSync(runDirAbs, { recursive: true });
+
+  const planRuns = [];
+  let hasFail = false;
+  let hasBlocked = false;
+  for (const plan of [...bundle.plans].sort((a, b) => a.order - b.order)) {
+    let result;
+    try {
+      result = await runPlan(plan, env, bundle.runtimeConfig, runDirAbs);
+    } catch (error) {
+      result = blockedPlanResult("performance_plan_execution_failed", errorDetail(error));
+    }
+    planRuns.push({
+      order: plan.order,
+      planName: plan.planName,
+      status: result.status === "executed" ? "executed" : "blocked",
+      ...(result.runStatus ? { runStatus: result.runStatus } : {}),
+      ...(result.reasonCode ? { blockedReasonCode: result.reasonCode } : {}),
+      ...(result.failedStep ? { failedStep: result.failedStep } : {}),
+      ...(result.reasonMeta ? { reasonMeta: result.reasonMeta } : {}),
+    });
+    fs.writeFileSync(path.join(runDirAbs, `${plan.planName}.execution.result.json`), `${JSON.stringify(result, null, 2)}\n`, "utf8");
+    if (result.runStatus === "fail") hasFail = true;
+    if (result.runStatus === "blocked" || result.status !== "executed") hasBlocked = true;
+  }
+
+  const suiteStatus =
+    bundle.executionPolicy === "continue_on_fail"
+      ? hasFail || hasBlocked
+        ? "partial_fail"
+        : "pass"
+      : hasBlocked
+        ? "blocked"
+        : hasFail
+          ? "fail"
+          : "pass";
+  const summary = {
+    resultType: "performance_execution_profile_export_run",
+    exportId: bundle.exportId,
+    suiteType: "performance",
+    executionProfile: bundle.executionProfile,
+    executionPolicy: bundle.executionPolicy,
+    status: suiteStatus,
+    planRuns,
+  };
+  fs.writeFileSync(path.join(runDirAbs, "execution_orchestration.result.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+}
+
+main().catch((error) => {
+  fail("performance_export_runtime_failed", error instanceof Error ? error.message : String(error));
+});

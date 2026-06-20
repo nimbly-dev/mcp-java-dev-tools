@@ -1,0 +1,70 @@
+$ErrorActionPreference = 'Stop'
+# ============================================
+# PERFORMANCE PROFILE EXPORT
+# ============================================
+# exportId: <%= it.manifest.exportId %>
+# SuiteType: <%= it.manifest.suiteType ?? "performance" %>
+# ExecutionProfile: <%= it.manifest.executionProfile %>
+# ExecutionPolicy: <%= it.manifest.executionPolicy %>
+# SourceRunStatus: <%= it.manifest.runStatus %>
+# ReplayPackageType: <%= it.manifest.replayPackageType ?? "workload_replay_only" %>
+<% if (it.includeResolvedSecrets) { %>
+Write-Warning 'SENSITIVE EXPORT: includeResolvedSecrets=true'
+<% } %>
+
+$script:McpJvmExportScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$script:McpJvmProjectEnv = Join-Path $script:McpJvmExportScriptDir 'project.env'
+$script:McpJvmWorkspaceRoot = $script:McpJvmExportScriptDir
+while ($script:McpJvmWorkspaceRoot -and -not (Test-Path -LiteralPath (Join-Path $script:McpJvmWorkspaceRoot '.mcpjvm') -PathType Container)) {
+  $parent = Split-Path -Parent $script:McpJvmWorkspaceRoot
+  if ($parent -eq $script:McpJvmWorkspaceRoot) { break }
+  $script:McpJvmWorkspaceRoot = $parent
+}
+if (-not (Test-Path -LiteralPath (Join-Path $script:McpJvmWorkspaceRoot '.mcpjvm') -PathType Container)) {
+  throw 'workspace_root_unresolved: place export under project workspace containing .mcpjvm'
+}
+
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+  throw 'node_runtime_missing: performance export requires node on PATH'
+}
+
+# ============================================
+# SECTION A2: PRE_RUNTIME_SCRIPTS
+# ============================================
+<%= it.preRuntimeScriptSection %>
+
+# ============================================
+# SECTION B: RUNTIME_STARTUP
+# ============================================
+<%= it.runtimeStartupSection %>
+
+# ============================================
+# SECTION B2: POST_RUNTIME_SCRIPTS
+# ============================================
+<%= it.postRuntimeScriptSection %>
+
+# ============================================
+# SECTION C: HEALTHCHECK_GATE
+# ============================================
+<%= it.healthcheckGateSection %>
+
+# ============================================
+# SECTION C1: POST_HEALTHCHECK_SCRIPTS
+# ============================================
+<%= it.postHealthcheckScriptSection %>
+
+# ============================================
+# SECTION C3: PRE_PLAN_SCRIPTS
+# ============================================
+<%= it.prePlanScriptSection %>
+
+# ============================================
+# SECTION D: WORKLOAD_REPLAY
+# ============================================
+& node `
+  (Join-Path $script:McpJvmExportScriptDir 'run-performance-profile.js') `
+  '--bundle' (Join-Path $script:McpJvmExportScriptDir 'performance-export.bundle.json') `
+  '--env-file' $script:McpJvmProjectEnv `
+  '--export-dir' $script:McpJvmExportScriptDir
+
+Write-Host 'Performance replay completed.' -ForegroundColor Green

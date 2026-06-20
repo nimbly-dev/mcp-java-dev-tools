@@ -185,7 +185,27 @@ function renderWorkspaceBootstrapSection(input: { workspace: Record<string, unkn
   const lines: string[] = [];
   const reloadLines: string[] = [];
   reloadLines.push("  local force_refresh=\"${1:-}\"");
+  reloadLines.push("  local preserved_auth_bearer=\"${AUTH_BEARER:-}\"");
+  reloadLines.push("  local preserved_auth_bearer_token=\"${AUTH_BEARER_TOKEN:-}\"");
+  reloadLines.push("  local preserved_keycloak_base_url=\"${KEYCLOAK_BASE_URL:-}\"");
+  reloadLines.push("  local preserved_keycloak_client_id=\"${KEYCLOAK_CLIENT_ID:-}\"");
+  reloadLines.push("  local preserved_keycloak_client_secret=\"${KEYCLOAK_CLIENT_SECRET:-}\"");
+  reloadLines.push("  local preserved_keycloak_password=\"${KEYCLOAK_PASSWORD:-}\"");
+  reloadLines.push("  local preserved_keycloak_realm=\"${KEYCLOAK_REALM:-}\"");
+  reloadLines.push("  local preserved_keycloak_scope=\"${KEYCLOAK_SCOPE:-}\"");
+  reloadLines.push("  local preserved_keycloak_username=\"${KEYCLOAK_USERNAME:-}\"");
+  reloadLines.push("  local preserved_target_base_url=\"${TARGET_BASE_URL:-}\"");
   reloadLines.push("  if [ -f \"${__MCPJVM_PROJECT_ENV}\" ]; then set -a; . \"${__MCPJVM_PROJECT_ENV}\"; set +a; fi");
+  reloadLines.push("  if [ -n \"${preserved_auth_bearer}\" ]; then AUTH_BEARER=\"${preserved_auth_bearer}\"; fi");
+  reloadLines.push("  if [ -n \"${preserved_auth_bearer_token}\" ]; then AUTH_BEARER_TOKEN=\"${preserved_auth_bearer_token}\"; fi");
+  reloadLines.push("  if [ -n \"${preserved_keycloak_base_url}\" ]; then KEYCLOAK_BASE_URL=\"${preserved_keycloak_base_url}\"; fi");
+  reloadLines.push("  if [ -n \"${preserved_keycloak_client_id}\" ]; then KEYCLOAK_CLIENT_ID=\"${preserved_keycloak_client_id}\"; fi");
+  reloadLines.push("  if [ -n \"${preserved_keycloak_client_secret}\" ]; then KEYCLOAK_CLIENT_SECRET=\"${preserved_keycloak_client_secret}\"; fi");
+  reloadLines.push("  if [ -n \"${preserved_keycloak_password}\" ]; then KEYCLOAK_PASSWORD=\"${preserved_keycloak_password}\"; fi");
+  reloadLines.push("  if [ -n \"${preserved_keycloak_realm}\" ]; then KEYCLOAK_REALM=\"${preserved_keycloak_realm}\"; fi");
+  reloadLines.push("  if [ -n \"${preserved_keycloak_scope}\" ]; then KEYCLOAK_SCOPE=\"${preserved_keycloak_scope}\"; fi");
+  reloadLines.push("  if [ -n \"${preserved_keycloak_username}\" ]; then KEYCLOAK_USERNAME=\"${preserved_keycloak_username}\"; fi");
+  reloadLines.push("  if [ -n \"${preserved_target_base_url}\" ]; then TARGET_BASE_URL=\"${preserved_target_base_url}\"; fi");
   const vars = input.workspace?.variables;
   if (vars && typeof vars === "object" && !Array.isArray(vars)) {
     const varsRecord = vars as Record<string, unknown>;

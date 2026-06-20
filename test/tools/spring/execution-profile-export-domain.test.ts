@@ -99,6 +99,152 @@ function writePlanArtifact(root: string, planName: string, contract: Record<stri
   writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"), contract);
 }
 
+function writePerformanceProject(root: string): void {
+  const projectName = "test-performance-project";
+  writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: root,
+        executionProfiles: [
+          {
+            executionProfile: "type-performance-hello-suite",
+            suiteType: "performance",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName: "type-performance-hello" }],
+          },
+        ],
+      },
+    ],
+  });
+  writePerformancePlanContract(root, projectName, "type-performance-hello");
+}
+
+function writePerformancePlanContract(root: string, projectName: string, planName: string): void {
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "performance", planName, "metadata.json"), {
+    suiteType: "performance",
+    execution: { intent: "performance" },
+  });
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "performance", planName, "contract.json"), {
+    entrypoints: [
+      {
+        transport: {
+          protocol: "http",
+          baseUrl: "http://127.0.0.1:8080",
+          healthCheckPath: "/actuator/health",
+          wrappedOnly: true,
+        },
+        request: {
+          method: "GET",
+          path: "/api/metrics/hello",
+        },
+      },
+    ],
+    observationTargets: {
+      probeId: "composite-service",
+      requiredLineHits: ["io.example.MetricsController#hello:52"],
+    },
+    loadModel: {
+      mode: "concurrency",
+      concurrency: 10,
+      rampUpSeconds: 2,
+      durationSeconds: 30,
+    },
+    successCriteria: {
+      maxErrorRatePct: 1,
+      minThroughputPerSec: 5,
+      p95LatencyMs: 1200,
+    },
+    analysis: {
+      executionTiming: {
+        enabled: true,
+        provider: "async-profiler",
+        event: "wall",
+        outputFormat: "jfr",
+      },
+    },
+  });
+}
+
+function writePerformanceProjectWithExplicitProbeBaseUrl(root: string): void {
+  const projectName = "test-performance-project-explicit-probe";
+  writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: root,
+        executionProfiles: [
+          {
+            executionProfile: "type-performance-review-suite",
+            suiteType: "performance",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName: "type-performance-review-by-course" }],
+          },
+        ],
+      },
+    ],
+  });
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "performance", "type-performance-review-by-course", "metadata.json"), {
+    suiteType: "performance",
+    execution: { intent: "performance" },
+  });
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "performance", "type-performance-review-by-course", "contract.json"), {
+    targets: [
+      {
+        type: "class_method",
+        runtimeVerification: {
+          strictProbeKey: "io.example.ReviewService#getReviewsByCourseId:54",
+          probeId: "review-service",
+          baseUrl: "http://127.0.0.1:9194",
+        },
+      },
+    ],
+    entrypoints: [
+      {
+        transport: {
+          protocol: "http",
+          baseUrl: "http://127.0.0.1:9000",
+          healthCheckPath: "/actuator/health",
+          wrappedOnly: true,
+        },
+        request: {
+          method: "GET",
+          path: "/reviews?course=1",
+        },
+      },
+    ],
+    observationTargets: {
+      probeId: "review-service",
+      baseUrl: "http://127.0.0.1:9194",
+      requiredLineHits: ["io.example.ReviewService#getReviewsByCourseId:54"],
+    },
+    loadModel: {
+      mode: "concurrency",
+      concurrency: 10,
+      rampUpSeconds: 2,
+      durationSeconds: 30,
+    },
+    successCriteria: {
+      maxErrorRatePct: 1,
+      minThroughputPerSec: 5,
+      p95LatencyMs: 1200,
+    },
+  });
+}
+
+function writeProbeConfig(root: string): void {
+  writeJson(path.join(root, ".mcpjvm", "probe-config.json"), {
+    defaultProfile: "workspace-default",
+    profiles: {
+      "workspace-default": {
+        probes: {
+          "composite-service": {
+            baseUrl: "http://127.0.0.1:9195",
+          },
+        },
+      },
+    },
+  });
+}
+
 function writeSuiteRunResult(
   root: string,
   projectName: string,
@@ -322,6 +468,110 @@ test("executionProfileExportDomain resolves project ambiguity when projectName i
 
     assert.equal(out.structuredContent.status, "ok");
     assert.match(String(out.structuredContent.exportId ?? ""), /^20\d{6}-\d{6}-test-performance-contract-run$/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain exports performance replay package for sh mode", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-sh");
+  try {
+    writePerformanceProject(root);
+    writeProbeConfig(root);
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName: "test-performance-project",
+      executionProfile: "type-performance-hello-suite",
+      mode: "sh",
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.mode, "sh");
+    assert.equal(out.structuredContent.suiteType, "performance");
+    assert.match(String(out.structuredContent.exportId ?? ""), /^20\d{6}-\d{6}-type-performance-hello-suite$/);
+    const exportDirAbs = String(out.structuredContent.exportDirAbs ?? "");
+    assert.ok(fs.existsSync(path.join(exportDirAbs, "performance-export.bundle.json")));
+    assert.ok(fs.existsSync(path.join(exportDirAbs, "run-performance-profile.js")));
+    assert.match(String(out.structuredContent.output?.scriptPathAbs ?? ""), /run-performance-profile\.sh$/);
+    const scriptText = fs.readFileSync(String(out.structuredContent.output?.scriptPathAbs ?? ""), "utf8");
+    assert.match(scriptText, /__MCPJVM_WORKSPACE_ROOT=/);
+    assert.match(scriptText, /workspace_root_unresolved/);
+    const bundle = readJson(path.join(exportDirAbs, "performance-export.bundle.json"));
+    assert.equal(bundle.suiteType, "performance");
+    assert.equal(bundle.executionProfile, "type-performance-hello-suite");
+    assert.equal(bundle.plans[0].probeBaseUrl, "http://127.0.0.1:9195");
+    assert.equal(bundle.plans[0].contract.loadModel.mode, "concurrency");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain preserves explicit performance probe baseUrl when probe registry is unavailable", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-explicit-probe-base-url");
+  try {
+    writePerformanceProjectWithExplicitProbeBaseUrl(root);
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName: "test-performance-project-explicit-probe",
+      executionProfile: "type-performance-review-suite",
+      mode: "sh",
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.suiteType, "performance");
+    const exportDirAbs = String(out.structuredContent.exportDirAbs ?? "");
+    const bundle = readJson(path.join(exportDirAbs, "performance-export.bundle.json"));
+    assert.equal(bundle.plans[0].probeBaseUrl, "http://127.0.0.1:9194");
+    assert.equal(bundle.plans[0].contract.observationTargets.baseUrl, "http://127.0.0.1:9194");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain exports performance replay package for ps1 mode", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-ps1");
+  try {
+    writePerformanceProject(root);
+    writeProbeConfig(root);
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName: "test-performance-project",
+      executionProfile: "type-performance-hello-suite",
+      mode: "ps1",
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.mode, "ps1");
+    assert.equal(out.structuredContent.suiteType, "performance");
+    assert.match(String(out.structuredContent.output?.scriptPathAbs ?? ""), /run-performance-profile\.ps1$/);
+    assert.match(String(out.structuredContent.output?.readmePathAbs ?? ""), /README\.performance\.ps1\.md$/);
+    const readme = fs.readFileSync(String(out.structuredContent.output?.readmePathAbs ?? ""), "utf8");
+    assert.match(readme, /SuiteType: `performance`/);
+    assert.match(readme, /ReplayPackageType: `workload_replay_only`/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain fails closed for performance postman export", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-postman");
+  try {
+    writePerformanceProject(root);
+    writeProbeConfig(root);
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName: "test-performance-project",
+      executionProfile: "type-performance-hello-suite",
+      mode: "postman",
+    });
+
+    assert.equal(out.structuredContent.status, "performance_export_mode_unsupported");
+    assert.equal(out.structuredContent.reasonCode, "performance_export_mode_unsupported");
+    assert.equal(out.structuredContent.reasonMeta.suiteType, "performance");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
