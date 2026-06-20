@@ -1,5 +1,6 @@
 import { probeActuate as probeActuateUtil } from "@/utils/probe/probe_actuate.util";
 import { probeCaptureGet as probeCaptureGetUtil } from "@/utils/probe/probe_capture_get.util";
+import { probeProfiler as probeProfilerUtil } from "@/utils/probe/probe_profiler.util";
 import { probeReset as probeResetUtil } from "@/utils/probe/probe_reset.util";
 import { resolveProbeBaseUrl } from "@/utils/probe/probe_route_resolver.util";
 import { probeStatus as probeStatusUtil } from "@/utils/probe/probe_status.util";
@@ -17,6 +18,7 @@ export type ProbeDomainConfig = {
   probeResetPath: string;
   probeActuatePath: string;
   probeCapturePath: string;
+  probeProfilerPath: string;
   probeWaitMaxRetries: number;
   probeWaitUnreachableRetryEnabled: boolean;
   probeWaitUnreachableMaxRetries: number;
@@ -80,6 +82,18 @@ export type ProbeWaitForHitInput = {
   timeoutMs?: number | undefined;
   pollIntervalMs?: number | undefined;
   maxRetries?: number | undefined;
+};
+
+export type ProbeProfilerInput = {
+  action: "start" | "stop" | "reset" | "status" | "download";
+  sessionId?: string | undefined;
+  event?: string | undefined;
+  intervalNanos?: number | undefined;
+  outputPath?: string | undefined;
+  outputFormat?: "jfr" | undefined;
+  baseUrl?: string | undefined;
+  probeId?: string | undefined;
+  timeoutMs?: number | undefined;
 };
 
 function sanitizeRuntime(runtime: unknown): Record<string, unknown> | undefined {
@@ -392,6 +406,28 @@ export function createProbeDomain(cfg: ProbeDomainConfig) {
       args.unreachableRetryEnabled = cfg.probeWaitUnreachableRetryEnabled;
       args.unreachableMaxRetries = cfg.probeWaitUnreachableMaxRetries;
       return await probeWaitHitUtil(args);
+    },
+    profiler: async (input: ProbeProfilerInput) => {
+      const base = resolveProbeBaseUrl({
+        toolName: "probe",
+        defaultBaseUrl: cfg.probeBaseUrl,
+        ...(typeof input.probeId === "string" ? { probeId: input.probeId } : {}),
+        ...(typeof input.baseUrl === "string" ? { baseUrl: input.baseUrl } : {}),
+        ...(cfg.getProbeRegistry?.() ? { probeRegistry: cfg.getProbeRegistry?.() } : {}),
+      });
+      if (!base.ok) return base.response;
+      const args: Parameters<typeof probeProfilerUtil>[0] = {
+        action: input.action,
+        baseUrl: base.baseUrl,
+        profilerPath: cfg.probeProfilerPath,
+      };
+      if (typeof input.sessionId === "string") args.sessionId = input.sessionId;
+      if (typeof input.event === "string") args.event = input.event;
+      if (typeof input.intervalNanos === "number") args.intervalNanos = input.intervalNanos;
+      if (typeof input.outputPath === "string") args.outputPath = input.outputPath;
+      if (typeof input.outputFormat === "string") args.outputFormat = input.outputFormat;
+      if (typeof input.timeoutMs === "number") args.timeoutMs = input.timeoutMs;
+      return await probeProfilerUtil(args);
     },
   };
 }

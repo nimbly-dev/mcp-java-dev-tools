@@ -3,6 +3,7 @@ import * as z from "zod/v4";
 import { ProbeActuateInputSchema } from "@/models/inputs/probe_actuate.input.model";
 import { ProbeCaptureGetInputSchema } from "@/models/inputs/probe_capture_get.input.model";
 import { ProbeDiagnoseInputSchema } from "@/models/inputs/probe_diagnose.input.model";
+import { ProbeProfilerInputSchema } from "@/models/inputs/probe_profiler.input.model";
 import { ProbeResetInputSchema } from "@/models/inputs/probe_reset.input.model";
 import { ProbeStatusInputSchema } from "@/models/inputs/probe_status.input.model";
 import { ProbeWaitHitInputSchema } from "@/models/inputs/probe_wait_hit.input.model";
@@ -14,6 +15,7 @@ const ProbeResetPayloadSchema = z.object(ProbeResetInputSchema).strict();
 const ProbeWaitForHitPayloadSchema = z.object(ProbeWaitHitInputSchema).strict();
 const ProbeCapturePayloadSchema = z.object(ProbeCaptureGetInputSchema).strict();
 const ProbeActuatePayloadSchema = z.object(ProbeActuateInputSchema).strict();
+const ProbeProfilerPayloadSchema = z.object(ProbeProfilerInputSchema).strict();
 
 export const ProbeRequestSchema = z.discriminatedUnion("action", [
   z.object({
@@ -40,6 +42,10 @@ export const ProbeRequestSchema = z.discriminatedUnion("action", [
     action: z.literal("actuate"),
     input: ProbeActuatePayloadSchema,
   }),
+  z.object({
+    action: z.literal("profiler"),
+    input: ProbeProfilerPayloadSchema,
+  }),
 ]);
 
 export type ProbeRequest = z.infer<typeof ProbeRequestSchema>;
@@ -53,5 +59,6 @@ export const ProbeInputSchema = {
     ProbeWaitForHitPayloadSchema,
     ProbeCapturePayloadSchema,
     ProbeActuatePayloadSchema,
+    ProbeProfilerPayloadSchema,
   ]),
 } as const;

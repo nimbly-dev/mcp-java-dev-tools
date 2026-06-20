@@ -245,3 +245,66 @@ Expected fields:
   - `window`
   - `probeIds[]`
 
+## Performance-Suite Addendum
+
+Performance plans currently live under:
+
+```text
+.mcpjvm/<project>/plans/performance/<plan>/
+```
+
+### `metadata.json`
+
+Required fields:
+
+- `specVersion` (string): spec compatibility marker
+- `suiteType` (string): current value `performance`
+- `execution.intent` (string): current value `performance`
+
+### `contract.json`
+
+Required top-level sections:
+
+- `entrypoints[]`
+- `observationTargets.requiredLineHits[]`
+- `loadModel`
+- `successCriteria`
+
+#### `analysis.executionTiming` (optional unless MSTA enabled)
+
+- `enabled` (boolean)
+- `provider` (string): current supported value `async-profiler`
+- `event` (string, optional): provider-specific sampling event such as `cpu` or `wall`
+- `intervalNanos` (number, optional)
+- `outputFormat` (string): current supported value `jfr`
+
+#### `analysis.msta` (optional)
+
+- `enabled` (boolean)
+- `mode` (string, optional):
+  - `method_targets`
+  - `target_plus_path`
+- `methodTargets[]` (required when enabled)
+  - `methodRef` (string): `fully.qualified.Class#method`
+- `includePackages[]` (string[], optional): future-facing package inclusion hint
+- `allowThirdPartyFrames` (boolean, optional): future-facing frame inclusion hint
+
+Notes:
+
+- `observationTargets.requiredLineHits[]` remains the deterministic proof surface.
+- `analysis.msta.methodTargets[]` adds timing-analysis focus and does not replace required strict verification.
+
+### Run Artifacts
+
+Expected canonical run files:
+
+- `context.resolved.json`
+- `execution.result.json`
+- `evidence.json`
+
+Optional timing-analysis run file:
+
+- `execution-timing.msta.json`
+
+See `performance-msta-evidence-model.md` for the normative MSTA evidence contract and fail-closed statuses.
+

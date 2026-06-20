@@ -21,6 +21,7 @@ import {
   resolvePrerequisiteContext,
   resolveStepTransport,
 } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+import { inferPlanApiBaseUrlFromProbeConfig } from "@tools-regression-execution-plan-spec/regression_plan_base_url.util";
 import {
   deriveRunStatusFromStepOutcomes,
   evaluateStepExpectations,
@@ -300,6 +301,27 @@ function buildHttpPayload(args: {
   return transportHttp;
 }
 
+async function resolvePlanExecutionContext(args: {
+  workspaceRootAbs: string;
+  planName: string;
+  resolvedContext: Record<string, unknown>;
+}): Promise<Record<string, unknown>> {
+  if (typeof args.resolvedContext.apiBaseUrl === "string" && args.resolvedContext.apiBaseUrl.trim().length > 0) {
+    return args.resolvedContext;
+  }
+  const inferredApiBaseUrl = await inferPlanApiBaseUrlFromProbeConfig({
+    workspaceRootAbs: args.workspaceRootAbs,
+    planName: args.planName,
+  });
+  if (!inferredApiBaseUrl) {
+    return args.resolvedContext;
+  }
+  return {
+    ...args.resolvedContext,
+    apiBaseUrl: inferredApiBaseUrl,
+  };
+}
+
 function resolveCorrelationKeyValue(args: {
   correlation: PlanCorrelationPolicy;
   resolvedContext: Record<string, unknown>;
@@ -467,7 +489,11 @@ export async function executeRegressionPlanWorkflow(
   const adapter = createMcpWrappedTransportAdapter(args.mcpInvoke);
   const registry = createTransportRegistry([adapter]);
 
-  let resolvedContext = { ...resolvedContextInitial };
+  let resolvedContext = await resolvePlanExecutionContext({
+    workspaceRootAbs: args.workspaceRootAbs,
+    planName: args.planName,
+    resolvedContext: { ...resolvedContextInitial },
+  });
   const stepRows: RegressionRunStepResult[] = [];
   const stepOutputsByOrder: Record<number, Record<string, unknown>> = {};
   const stepEventTimesByOrder: Record<number, number> = {};

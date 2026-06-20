@@ -49,6 +49,7 @@ async function main() {
   const probeResetPath = cfg.probeResetPath;
   const probeActuatePath = CONFIG_DEFAULTS.PROBE_ACTUATE_PATH;
   const probeCapturePath = cfg.probeCapturePath;
+  const probeProfilerPath = CONFIG_DEFAULTS.PROBE_PROFILER_PATH;
 
   let activeRegistry = cfg.probeRegistry;
   let registryWatch: fs.FSWatcher | undefined;
@@ -150,6 +151,7 @@ async function main() {
           resetPath: probeResetPath,
           actuatePath: probeActuatePath,
           capturePath: probeCapturePath,
+          profilerPath: probeProfilerPath,
           waitMaxRetriesDefault: cfg.probeWaitMaxRetries,
           waitUnreachableRetryEnabled: cfg.probeWaitUnreachableRetryEnabled,
           waitUnreachableMaxRetries: cfg.probeWaitUnreachableMaxRetries,
@@ -214,6 +216,7 @@ async function main() {
     probeResetPath,
     probeActuatePath,
     probeCapturePath,
+    probeProfilerPath,
     probeWaitMaxRetries: cfg.probeWaitMaxRetries,
     probeWaitUnreachableRetryEnabled: cfg.probeWaitUnreachableRetryEnabled,
     probeWaitUnreachableMaxRetries: cfg.probeWaitUnreachableMaxRetries,

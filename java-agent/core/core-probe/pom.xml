@@ -29,12 +29,22 @@
     </dependency>
     <dependency>
       <groupId>com.nimbly</groupId>
+      <artifactId>mcp-java-dev-tools-core-probe-debug</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.nimbly</groupId>
       <artifactId>mcp-java-dev-tools-core-probe-instrumentation</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>com.nimbly</groupId>
       <artifactId>mcp-java-dev-tools-core-probe-control-http</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.nimbly</groupId>
+      <artifactId>mcp-java-dev-tools-core-probe-profiler</artifactId>
       <version>${project.version}</version>
     </dependency>
   </dependencies>

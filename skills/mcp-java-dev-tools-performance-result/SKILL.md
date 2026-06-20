@@ -38,6 +38,7 @@ Artifact semantics/reference paths:
 1. `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/execution.result.json`
 2. `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/evidence.json`
 3. optional `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/context.resolved.json`
+4. optional `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/execution-timing.msta.json`
 
 ## Template Routing
 
@@ -62,6 +63,17 @@ Use only these deterministic values for required line-hit coverage:
 2. `required_line_missed`
 3. `unknown`
 4. `n/a`
+
+## MSTA Rendering
+
+When the optional MSTA Artifact exists, render only persisted states:
+
+1. `available`
+2. `jfr_missing`
+3. `jfr_parse_failed`
+4. `no_anchor_samples`
+
+Do not infer MSTA availability from the presence of a raw JFR file alone.
 
 ## Governance and Redaction
 

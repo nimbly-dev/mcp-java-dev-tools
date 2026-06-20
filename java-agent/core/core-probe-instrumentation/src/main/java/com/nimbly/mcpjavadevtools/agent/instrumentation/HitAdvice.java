@@ -1,5 +1,6 @@
 package com.nimbly.mcpjavadevtools.agent.instrumentation;
 
+import com.nimbly.mcpjavadevtools.agent.capture.ProbeCaptureStore;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.implementation.bytecode.assign.Assigner;
@@ -9,7 +10,7 @@ public final class HitAdvice {
 
   @Advice.OnMethodEnter(suppress = Throwable.class)
   public static long onEnter(@Advice.Local("threadAllocatedBytesAtEnter") long threadAllocatedBytesAtEnter) {
-    threadAllocatedBytesAtEnter = ProbeRuntime.currentThreadAllocatedBytes();
+    threadAllocatedBytesAtEnter = ProbeCaptureStore.currentThreadAllocatedBytes();
     return System.currentTimeMillis();
   }
 
@@ -23,7 +24,7 @@ public final class HitAdvice {
       @Advice.Return(typing = Assigner.Typing.DYNAMIC) Object returnValue,
       @Advice.Thrown Throwable thrown
   ) {
-    ProbeRuntime.captureByClassMethod(
+    ProbeCaptureStore.captureByClassMethod(
         dottedClassName,
         methodName,
         allArguments,

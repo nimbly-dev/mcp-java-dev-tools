@@ -6,6 +6,11 @@ import com.nimbly.mcpjavadevtools.agent.contract.ContractVersion;
 import com.nimbly.mcpjavadevtools.agent.control.auth.ProbeAuth;
 import com.nimbly.mcpjavadevtools.agent.control.http.model.ProbeHttpPayloads;
 import com.nimbly.mcpjavadevtools.agent.control.http.model.ProbeHttpRequests;
+import com.nimbly.mcpjavadevtools.agent.profiler.ProbeProfilerRegistry;
+import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStartRequest;
+import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStateSnapshot;
+import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopRequest;
+import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopResult;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
 import com.nimbly.mcpjavadevtools.agent.runtime.model.ActuationState;
 import com.sun.net.httpserver.HttpExchange;
@@ -13,7 +18,10 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,6 +40,7 @@ public final class ProbeHttpServer {
     server.createContext("/__probe/reset", new ResetHandler());
     server.createContext("/__probe/actuate", new ActuateHandler());
     server.createContext("/__probe/capture", new CaptureHandler());
+    server.createContext("/__probe/profiler", new ProfilerHandler());
     server.setExecutor(null);
     server.start();
     return new ProbeHttpServer(server);
@@ -123,6 +132,7 @@ public final class ProbeHttpServer {
       if (hasKey) {
         String key = selectedKey.trim();
         ProbeRuntime.reset(key);
+        ProbeCaptureStore.resetByKey(key);
         ProbeHttpJson.writeJson(exchange, 200, ProbeHttpMapper.buildResetEnvelope(CONTRACT_VERSION, key));
         return;
       }
@@ -133,6 +143,7 @@ public final class ProbeHttpServer {
       List<ProbeHttpPayloads.ResetRow> rows = new ArrayList<>();
       for (String key : resolvedKeys) {
         ProbeRuntime.reset(key);
+        ProbeCaptureStore.resetByKey(key);
         rows.add(ProbeHttpMapper.buildResetRow(key));
       }
       ProbeHttpJson.writeJson(
@@ -265,6 +276,125 @@ public final class ProbeHttpServer {
       }
 
       ProbeHttpJson.writeJson(exchange, 200, ProbeHttpMapper.buildCaptureEnvelope(CONTRACT_VERSION, capture));
+    }
+  }
+
+  private static final class ProfilerHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      String method = exchange.getRequestMethod();
+      if ("GET".equalsIgnoreCase(method)) {
+        if (!ProbeAuth.authorizeObserve(exchange)) {
+          ProbeHttpJson.writeJson(exchange, 401, new ProbeHttpPayloads.ErrorEnvelope("unauthorized", "observe"));
+          return;
+        }
+        String action = ProbeHttpJson.queryParam(exchange.getRequestURI(), "action");
+        if ("download".equalsIgnoreCase(action)) {
+          String sessionId = ProbeHttpJson.queryParam(exchange.getRequestURI(), "sessionId");
+          streamProfilerOutput(exchange, sessionId);
+          return;
+        }
+        ProfilerStateSnapshot state = ProbeProfilerRegistry.active().state();
+        ProbeHttpJson.writeJson(
+            exchange,
+            200,
+            ProbeHttpMapper.buildProfilerStateEnvelope(CONTRACT_VERSION, "status", state)
+        );
+        return;
+      }
+      if (!"POST".equalsIgnoreCase(method)) {
+        ProbeHttpJson.writeJson(exchange, 405, new ProbeHttpPayloads.ErrorEnvelope("method_not_allowed", null));
+        return;
+      }
+      if (!ProbeAuth.authorizeActuate(exchange)) {
+        ProbeHttpJson.writeJson(exchange, 401, new ProbeHttpPayloads.ErrorEnvelope("unauthorized", "actuate"));
+        return;
+      }
+      ProbeHttpRequests.ProfilerRequest request =
+          ProbeHttpJson.readBodyJson(exchange.getRequestBody(), ProbeHttpRequests.ProfilerRequest.class);
+      String action = request.action() == null ? "" : request.action().trim().toLowerCase();
+      if ("start".equals(action)) {
+        ProfilerStateSnapshot state = ProbeProfilerRegistry.active().start(
+            new ProfilerStartRequest(
+                request.sessionId(),
+                request.event(),
+                request.intervalNanos(),
+                request.outputPath(),
+                request.outputFormat()
+            )
+        );
+        ProbeHttpJson.writeJson(
+            exchange,
+            200,
+            ProbeHttpMapper.buildProfilerStateEnvelope(CONTRACT_VERSION, "start", state)
+        );
+        return;
+      }
+      if ("stop".equals(action)) {
+        ProfilerStopResult result = ProbeProfilerRegistry.active().stop(
+            new ProfilerStopRequest(
+                request.sessionId(),
+                request.outputPath(),
+                request.outputFormat()
+            )
+        );
+        ProbeHttpJson.writeJson(
+            exchange,
+            200,
+            ProbeHttpMapper.buildProfilerStopEnvelope(CONTRACT_VERSION, "stop", result)
+        );
+        return;
+      }
+      if ("reset".equals(action)) {
+        ProfilerStateSnapshot state = ProbeProfilerRegistry.active().reset();
+        ProbeHttpJson.writeJson(
+            exchange,
+            200,
+            ProbeHttpMapper.buildProfilerStateEnvelope(CONTRACT_VERSION, "reset", state)
+        );
+        return;
+      }
+      if ("status".equals(action)) {
+        ProfilerStateSnapshot state = ProbeProfilerRegistry.active().state();
+        ProbeHttpJson.writeJson(
+            exchange,
+            200,
+            ProbeHttpMapper.buildProfilerStateEnvelope(CONTRACT_VERSION, "status", state)
+        );
+        return;
+      }
+      ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("invalid_action", null));
+    }
+
+    private static void streamProfilerOutput(HttpExchange exchange, String requestedSessionId) throws IOException {
+      ProfilerStateSnapshot state = ProbeProfilerRegistry.active().state();
+      if (state.outputPath() == null || state.outputPath().isBlank()) {
+        ProbeHttpJson.writeJson(exchange, 404, new ProbeHttpPayloads.ErrorEnvelope("profiler_output_missing", null));
+        return;
+      }
+      if (requestedSessionId != null && !requestedSessionId.isBlank()) {
+        String activeSessionId = state.sessionId();
+        if (activeSessionId == null || activeSessionId.isBlank() || !activeSessionId.equals(requestedSessionId.trim())) {
+          ProbeHttpJson.writeJson(exchange, 409, new ProbeHttpPayloads.ErrorEnvelope("profiler_session_mismatch", null));
+          return;
+        }
+      }
+      Path outputPath = Path.of(state.outputPath()).toAbsolutePath().normalize();
+      if (!Files.isRegularFile(outputPath)) {
+        ProbeHttpJson.writeJson(exchange, 404, new ProbeHttpPayloads.ErrorEnvelope("profiler_output_not_found", null));
+        return;
+      }
+      exchange.getResponseHeaders().set("content-type", "application/octet-stream");
+      exchange.getResponseHeaders().set(
+          "content-disposition",
+          "attachment; filename=\"" + outputPath.getFileName() + "\""
+      );
+      exchange.sendResponseHeaders(200, Files.size(outputPath));
+      try (InputStream input = Files.newInputStream(outputPath)) {
+        input.transferTo(exchange.getResponseBody());
+      } finally {
+        exchange.close();
+      }
     }
   }
 }

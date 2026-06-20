@@ -90,16 +90,17 @@ export class ServerConfigLoader {
       CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES_MAX,
     );
 
-    const envProbeBaseUrl = this.env(MCP_ENV.PROBE_BASE_URL)?.trim();
-    const probeBaseUrl = envProbeBaseUrl || this.registryImplicitBaseUrl(probeRegistry);
-    if (!probeBaseUrl) {
+    const implicitProbeBaseUrl = this.registryImplicitBaseUrl(probeRegistry);
+    const probeBaseUrl = implicitProbeBaseUrl || "";
+    if (!probeRegistry) {
       throw new Error(
-        `Missing required ${MCP_ENV.PROBE_BASE_URL} or implicit Probe route. ` +
-          "Set MCP_PROBE_BASE_URL, or configure exactly one Probe in the active probe profile.",
+        "Missing required probe-config.json Probe registry. " +
+          "Create .mcpjvm/probe-config.json or set MCP_PROBE_CONFIG_FILE to a valid Probe registry file.",
       );
     }
-
-    this.validateProbeBaseUrl(probeBaseUrl);
+    if (probeBaseUrl) {
+      this.validateProbeBaseUrl(probeBaseUrl);
+    }
 
     return {
       workspaceRootAbs,
@@ -159,13 +160,12 @@ export class ServerConfigLoader {
       parsed = new URL(probeBaseUrl);
     } catch {
       throw new Error(
-        `Invalid ${MCP_ENV.PROBE_BASE_URL}='${probeBaseUrl}'. ` +
-          "Use full URL format like http://127.0.0.1:9193",
+        `Invalid Probe base URL '${probeBaseUrl}'. Use full URL format like http://127.0.0.1:9193.`,
       );
     }
     if (!parsed.port) {
       throw new Error(
-        `${MCP_ENV.PROBE_BASE_URL} must include an explicit probe port (example: http://127.0.0.1:9193). ` +
+        `Probe base URL must include an explicit probe port (example: http://127.0.0.1:9193). ` +
           "If unknown, ask the user which service probe port is currently mapped.",
       );
     }

@@ -20,7 +20,7 @@ export const ProbeStatusInputSchema = {
   baseUrl: z
     .string()
     .optional()
-    .describe("Override probe base URL (default from MCP_PROBE_BASE_URL)."),
+    .describe("Optional direct Probe base URL override. Prefer probeId or Probe registry resolution."),
   probeId: z
     .string()
     .min(1)

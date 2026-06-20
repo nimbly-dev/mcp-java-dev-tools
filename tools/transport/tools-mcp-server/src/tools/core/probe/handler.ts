@@ -11,6 +11,7 @@ export type ProbeHandlerConfig = {
   probeResetPath: string;
   probeActuatePath: string;
   probeCapturePath: string;
+  probeProfilerPath: string;
   probeWaitMaxRetries: number;
   probeWaitUnreachableRetryEnabled: boolean;
   probeWaitUnreachableMaxRetries: number;
@@ -60,6 +61,8 @@ export function registerProbeTools(server: McpServer, cfg: ProbeHandlerConfig): 
           return await domain.getStatus(parsed.data.input);
         case "wait_for_hit":
           return await domain.waitForHit(parsed.data.input);
+        case "profiler":
+          return await domain.profiler(parsed.data.input);
       }
     },
   );

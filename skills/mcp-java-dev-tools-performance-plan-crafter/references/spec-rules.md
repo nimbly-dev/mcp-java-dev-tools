@@ -50,6 +50,31 @@ This file defines the normative rules used by the craft skill.
 - `minThroughputPerSec`: required number `> 0`
 - `p95LatencyMs`: required number `> 0`
 
+### analysis.executionTiming
+
+Optional unless `analysis.msta.enabled=true`.
+
+- `enabled`: must be `true` when present for active timing capture
+- `provider`: current supported value `async-profiler`
+- `event`: optional provider-specific sampling event such as `cpu` or `wall`
+- `intervalNanos`: optional positive integer sampling interval
+- `outputFormat`: current supported value `jfr`
+
+### analysis.msta
+
+Optional.
+
+When present and enabled:
+
+- `enabled`: must be `true`
+- `mode`: optional; supported values:
+  - `method_targets`
+  - `target_plus_path`
+- `methodTargets[]`: required non-empty array
+  - `methodRef`: required `fully.qualified.Class#method`
+
+Do not author `analysis.msta.enabled=true` without a valid `analysis.executionTiming` block.
+
 ## plan.md (required)
 
 Required sections:
