@@ -26,6 +26,7 @@ function writePerformancePlan(
   baseUrl: string,
   options?: {
     probeId?: string;
+    workloadProvider?: Record<string, unknown>;
     requiredLineHits?: string[];
     executionTiming?: {
       enabled: true;
@@ -67,6 +68,7 @@ function writePerformancePlan(
       requiredLineHits: options?.requiredLineHits ?? ["com.example.catalog.CatalogService#search:42"],
       ...(typeof options?.probeId === "string" ? { probeId: options.probeId } : {}),
     },
+    ...(options?.workloadProvider ? { workloadProvider: options.workloadProvider } : {}),
     loadModel: {
       mode: "concurrency",
       concurrency: 1,
@@ -260,6 +262,173 @@ test("executePerformanceRuntimeSuite supports profile scriptRefs through shared 
     assert.equal(out.status, "pass");
     assert.equal(out.planRuns.length, 1);
     assert.equal(out.planRuns[0].runStatus, "pass");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executePerformanceRuntimeSuite runs workloadProvider=jmeter generated_http and persists JMeter artifacts", async () => {
+  const root = createTestTempDir("performance-runtime-suite-jmeter");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-jmeter";
+    const fakeJmeterHome = path.join(root, "fake-jmeter");
+    const fakeJmeterBin = path.join(fakeJmeterHome, "bin");
+    fs.mkdirSync(fakeJmeterBin, { recursive: true });
+    const fakeRunnerJs = path.join(fakeJmeterBin, "fake-jmeter.js");
+    fs.writeFileSync(
+      fakeRunnerJs,
+      [
+        "const fs = require('node:fs');",
+        "const path = require('node:path');",
+        "const args = process.argv.slice(2);",
+        "const jmx = args[args.indexOf('-t') + 1];",
+        "const jtl = args[args.indexOf('-l') + 1];",
+        "const log = args[args.indexOf('-j') + 1];",
+        "if (!jmx || !jtl || !log) process.exit(2);",
+        "const xml = fs.readFileSync(jmx, 'utf8');",
+        "if (!xml.includes('HTTPSamplerProxy')) process.exit(3);",
+        "fs.writeFileSync(jtl, [",
+        "  'timeStamp,elapsed,label,responseCode,responseMessage,threadName,success,url',",
+        "  '1,10,HTTP Request,200,OK,thread-1,true,http://127.0.0.1:18082/work',",
+        "  '2,20,HTTP Request,200,OK,thread-1,true,http://127.0.0.1:18082/work',",
+        "  '3,30,HTTP Request,500,Server Error,thread-1,false,http://127.0.0.1:18082/work'",
+        "].join('\\n'));",
+        "fs.writeFileSync(log, 'fake-jmeter-ok\\n');",
+      ].join("\n"),
+      "utf8",
+    );
+    if (process.platform === "win32") {
+      fs.writeFileSync(path.join(fakeJmeterBin, "jmeter.bat"), `@echo off\r\nnode "${fakeRunnerJs}" %*\r\n`, "utf8");
+    } else {
+      const shellPath = path.join(fakeJmeterBin, "jmeter");
+      fs.writeFileSync(shellPath, `#!/bin/sh\nnode "${fakeRunnerJs}" "$@"\n`, "utf8");
+      fs.chmodSync(shellPath, 0o755);
+    }
+
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "continue_on_fail",
+              runtimeConfig: {
+                requestTimeoutMs: 250,
+              },
+              plans: [{ order: 1, planName: "catalog-search-perf" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlan(root, projectName, "catalog-search-perf", "http://127.0.0.1:18082", {
+      probeId: "catalog-service",
+      workloadProvider: {
+        type: "jmeter",
+        mode: "generated_http",
+        options: {
+          installationPath: fakeJmeterHome,
+        },
+      },
+    });
+
+    let transportCalls = 0;
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          transportCalls += 1;
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 15,
+            },
+          };
+        }
+        if (toolName === "probe") {
+          if (input.action === "reset") {
+            return { structuredContent: { result: { reasonCode: "ok" } } };
+          }
+          if (input.action === "wait_for_hit") {
+            return { structuredContent: { result: { hit: true } } };
+          }
+        }
+        throw new Error(`unexpected tool invocation: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "partial_fail");
+    assert.equal(out.planRuns[0].runStatus, "fail");
+    assert.equal(transportCalls, 0);
+    const runDir = path.join(
+      root,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "performance",
+      "catalog-search-perf",
+      "runs",
+      String(out.planRuns[0].runId),
+    );
+    const execution = JSON.parse(fs.readFileSync(path.join(runDir, "execution.result.json"), "utf8"));
+    assert.equal(execution.status, "fail");
+    assert.equal(execution.workloadProvider.type, "jmeter");
+    assert.equal(execution.workloadProviderArtifacts.jmxPathAbs.endsWith("workload.jmeter.jmx"), true);
+    assert.equal(execution.metrics.totalRequests, 3);
+    assert.equal(execution.metrics.failedRequests, 1);
+    assert.equal(fs.existsSync(path.join(runDir, "workload.jmeter.jmx")), true);
+    assert.equal(fs.existsSync(path.join(runDir, "workload.jmeter.jtl")), true);
+    assert.equal(fs.existsSync(path.join(runDir, "workload.jmeter.log")), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executePerformanceRuntimeSuite blocks invalid workloadProvider for JMeter", async () => {
+  const root = createTestTempDir("performance-runtime-suite-jmeter-invalid");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-jmeter-invalid";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "catalog-search-perf" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlan(root, projectName, "catalog-search-perf", "http://127.0.0.1:18082", {
+      workloadProvider: {
+        type: "jmeter",
+        mode: "custom_jmx",
+      },
+    });
+
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async () => {
+        throw new Error("unexpected tool invocation");
+      },
+    });
+
+    assert.equal(out.status, "blocked");
+    assert.equal(out.planRuns[0].status, "blocked");
+    assert.equal(out.planRuns[0].blockedReasonCode, "performance_workload_provider_invalid");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

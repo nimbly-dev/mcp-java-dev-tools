@@ -87,12 +87,18 @@ Required tabular columns:
 Performance-suite MSTA evidence is defined separately in:
 
 - `performance-msta-evidence-model.md`
+- `performance-workload-provider-model.md`
 
 That document is the normative contract for:
 
 - `analysis.executionTiming`
 - `analysis.msta`
 - `execution-timing.msta.json`
+
+The workload-provider document is the normative contract for:
+
+- `workloadProvider`
+- `builtin` versus `jmeter` workload execution ownership
 
 ## Performance Suite Reliability Baseline
 

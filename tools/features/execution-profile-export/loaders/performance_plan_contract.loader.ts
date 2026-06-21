@@ -22,6 +22,20 @@ export type PerformanceExportEntrypoint = {
 
 export type PerformanceExportPlanContract = {
   entrypoints: PerformanceExportEntrypoint[];
+  workloadProvider:
+    | {
+        type: "builtin";
+      }
+    | {
+        type: "jmeter";
+        mode: "generated_http";
+        options?: {
+          installationPath?: string;
+          emitJmx?: boolean;
+          emitJtl?: boolean;
+          emitLog?: boolean;
+        };
+      };
   observationTargets: {
     requiredLineHits: string[];
     optionalLineHits?: string[];
@@ -58,6 +72,40 @@ function parseRuntimeVerification(value: unknown): { probeId?: string; baseUrl?:
   return {
     ...(probeId ? { probeId } : {}),
     ...(baseUrl ? { baseUrl } : {}),
+  };
+}
+
+function parseWorkloadProvider(
+  value: unknown,
+): PerformanceExportPlanContract["workloadProvider"] | null {
+  if (!isRecord(value)) {
+    return { type: "builtin" };
+  }
+  const type = asString(value.type);
+  if (!type || type === "builtin") {
+    return { type: "builtin" };
+  }
+  if (type !== "jmeter") {
+    return null;
+  }
+  if (asString(value.mode) !== "generated_http") {
+    return null;
+  }
+  const options = isRecord(value.options) ? value.options : null;
+  const installationPath = asString(options?.installationPath);
+  return {
+    type: "jmeter",
+    mode: "generated_http",
+    ...(options
+      ? {
+          options: {
+            ...(installationPath ? { installationPath } : {}),
+            ...(typeof options.emitJmx === "boolean" ? { emitJmx: options.emitJmx } : {}),
+            ...(typeof options.emitJtl === "boolean" ? { emitJtl: options.emitJtl } : {}),
+            ...(typeof options.emitLog === "boolean" ? { emitLog: options.emitLog } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -126,6 +174,8 @@ export async function loadPerformancePlanContract(input: {
       return null;
     }
     const analysis = isRecord(parsed.analysis) ? parsed.analysis : null;
+    const workloadProvider = parseWorkloadProvider(parsed.workloadProvider);
+    if (!workloadProvider) return null;
     const executionTiming = analysis && isRecord(analysis.executionTiming) ? analysis.executionTiming : null;
     const healthCheckPath = asString(rawEntrypoint.transport.healthCheckPath);
     const defaultHeaders = parseStringRecord(rawEntrypoint.transport.defaultHeaders);
@@ -156,6 +206,7 @@ export async function loadPerformancePlanContract(input: {
           },
         },
       ],
+      workloadProvider,
       observationTargets: {
         requiredLineHits,
         ...(optionalLineHits.length > 0 ? { optionalLineHits } : {}),

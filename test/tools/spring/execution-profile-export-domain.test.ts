@@ -165,6 +165,51 @@ function writePerformancePlanContract(root: string, projectName: string, planNam
   });
 }
 
+function writePerformanceJmeterPlanContract(root: string, projectName: string, planName: string): void {
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "performance", planName, "metadata.json"), {
+    suiteType: "performance",
+    execution: { intent: "performance" },
+  });
+  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "performance", planName, "contract.json"), {
+    entrypoints: [
+      {
+        transport: {
+          protocol: "http",
+          baseUrl: "http://127.0.0.1:8080",
+          healthCheckPath: "/actuator/health",
+          wrappedOnly: true,
+        },
+        request: {
+          method: "GET",
+          path: "/api/metrics/hello",
+        },
+      },
+    ],
+    workloadProvider: {
+      type: "jmeter",
+      mode: "generated_http",
+      options: {
+        installationPath: "C:/tools/apache-jmeter-5.6.3",
+      },
+    },
+    observationTargets: {
+      probeId: "composite-service",
+      requiredLineHits: ["io.example.MetricsController#hello:52"],
+    },
+    loadModel: {
+      mode: "concurrency",
+      concurrency: 10,
+      rampUpSeconds: 2,
+      durationSeconds: 30,
+    },
+    successCriteria: {
+      maxErrorRatePct: 1,
+      minThroughputPerSec: 5,
+      p95LatencyMs: 1200,
+    },
+  });
+}
+
 function writePerformanceProjectWithExplicitProbeBaseUrl(root: string): void {
   const projectName = "test-performance-project-explicit-probe";
   writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
@@ -572,6 +617,42 @@ test("executionProfileExportDomain fails closed for performance postman export",
     assert.equal(out.structuredContent.status, "performance_export_mode_unsupported");
     assert.equal(out.structuredContent.reasonCode, "performance_export_mode_unsupported");
     assert.equal(out.structuredContent.reasonMeta.suiteType, "performance");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain fails closed for performance replay export when workloadProvider=jmeter", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-jmeter-unsupported");
+  try {
+    const projectName = "test-performance-project";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile: "type-performance-jmeter-suite",
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "type-performance-jmeter" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformanceJmeterPlanContract(root, projectName, "type-performance-jmeter");
+    writeProbeConfig(root);
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile: "type-performance-jmeter-suite",
+      mode: "sh",
+    });
+
+    assert.equal(out.structuredContent.status, "performance_export_workload_provider_unsupported");
+    assert.equal(out.structuredContent.reasonCode, "performance_export_workload_provider_unsupported");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

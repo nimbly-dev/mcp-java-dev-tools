@@ -260,6 +260,8 @@ export async function executionProfileExportDomain(input: {
       reason === "performance_export_mode_unsupported"
     ) {
       reasonCode = reason;
+    } else if (reason.startsWith("performance_export_workload_provider_unsupported:")) {
+      reasonCode = "performance_export_workload_provider_unsupported";
     }
     return blockedResponse(reasonCode, reason, {
       ...(input.exportId ? { exportId: input.exportId } : {}),
