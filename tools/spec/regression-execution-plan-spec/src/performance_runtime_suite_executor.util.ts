@@ -7,6 +7,11 @@ import { resolvePlansRootAbs } from "@tools-regression-execution-plan-spec/regre
 import { resolveProjectContextForRegression } from "@tools-regression-execution-plan-spec/regression_project_context.util";
 import { buildPerformanceMstaSummary } from "@tools-regression-execution-plan-spec/performance_msta_summary.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import {
+  runJmeterGeneratedHttpWorkload,
+  type JmeterWorkloadProvider,
+  type PerformanceWorkloadProvider,
+} from "@tools-performance-workload-jmeter/index";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -136,6 +141,7 @@ type PerformanceEntrypoint = {
 
 type PerformancePlanContract = {
   entrypoints: PerformanceEntrypoint[];
+  workloadProvider: PerformanceWorkloadProvider;
   observationTargets: {
     requiredLineHits: string[];
     optionalLineHits?: string[];
@@ -346,6 +352,10 @@ function parsePerformanceContract(
 
   const executionTiming = resolveExecutionTiming(input);
   const msta = resolveMsta(input);
+  const workloadProvider = resolveWorkloadProvider(input);
+  if (!workloadProvider.ok) {
+    return workloadProvider;
+  }
   if (msta && !executionTiming) {
     return {
       ok: false,
@@ -358,6 +368,7 @@ function parsePerformanceContract(
     ok: true,
     contract: {
       entrypoints: parsedEntrypoints,
+      workloadProvider: workloadProvider.provider,
       observationTargets: {
         requiredLineHits,
         ...(optionalLineHits.length > 0 ? { optionalLineHits } : {}),
@@ -379,6 +390,59 @@ function parsePerformanceContract(
             analysis: {
               ...(executionTiming ? { executionTiming } : {}),
               ...(msta ? { msta } : {}),
+            },
+          }
+        : {}),
+    },
+  };
+}
+
+function resolveWorkloadProvider(
+  input: Record<string, unknown>,
+): { ok: true; provider: PerformanceWorkloadProvider } | { ok: false; reasonCode: string; requiredUserAction: string[] } {
+  const rawProvider = isRecord(input.workloadProvider) ? input.workloadProvider : null;
+  if (!rawProvider) {
+    return {
+      ok: true,
+      provider: { type: "builtin" },
+    };
+  }
+  const type = asTrimmedString(rawProvider.type);
+  if (type === "builtin") {
+    return {
+      ok: true,
+      provider: { type: "builtin" },
+    };
+  }
+  if (type !== "jmeter") {
+    return {
+      ok: false,
+      reasonCode: "performance_workload_provider_invalid",
+      requiredUserAction: ["Set workloadProvider.type to builtin or jmeter."],
+    };
+  }
+  const mode = asTrimmedString(rawProvider.mode);
+  if (mode !== "generated_http") {
+    return {
+      ok: false,
+      reasonCode: "performance_workload_provider_invalid",
+      requiredUserAction: ["Set workloadProvider.mode=generated_http when workloadProvider.type=jmeter."],
+    };
+  }
+  const options = isRecord(rawProvider.options) ? rawProvider.options : null;
+  const installationPath = asTrimmedString(options?.installationPath);
+  return {
+    ok: true,
+    provider: {
+      type: "jmeter",
+      mode: "generated_http",
+      ...(options
+        ? {
+            options: {
+              ...(installationPath ? { installationPath } : {}),
+              ...(typeof options.emitJmx === "boolean" ? { emitJmx: options.emitJmx } : {}),
+              ...(typeof options.emitJtl === "boolean" ? { emitJtl: options.emitJtl } : {}),
+              ...(typeof options.emitLog === "boolean" ? { emitLog: options.emitLog } : {}),
             },
           }
         : {}),
@@ -825,6 +889,13 @@ async function executePerformancePlanWorkflow(
   const startedAt = new Date();
   let profilerStartResult: Record<string, unknown> | undefined;
   let profilerStopResult: Record<string, unknown> | undefined;
+  let workloadProviderArtifacts:
+    | {
+        jmxPathAbs?: string;
+        jtlPathAbs?: string;
+        logPathAbs?: string;
+      }
+    | undefined;
   if (contract.analysis?.executionTiming?.enabled === true) {
     const profilerSessionId = `${runId}-execution-timing`;
     logPerformancePhase({ runId, planName: args.planName, phase: "profiler_start_begin" });
@@ -856,58 +927,111 @@ async function executePerformancePlanWorkflow(
   let transportBlockedReasonCode: string | undefined;
   let transportBlockedMessage: string | undefined;
   logPerformancePhase({ runId, planName: args.planName, phase: "workload_begin" });
-
-  const worker = async () => {
-    while (Date.now() < deadlineEpochMs && !transportBlockedReasonCode) {
-      const resolved = await buildTransportRequest({
-        entrypoint,
-        providedContext,
-        ...(typeof args.runtimeConfigOverride?.requestTimeoutMs === "number"
-          ? { requestTimeoutMs: args.runtimeConfigOverride.requestTimeoutMs }
-          : {}),
+  if (contract.workloadProvider.type === "jmeter") {
+    const resolved = await buildTransportRequest({
+      entrypoint,
+      providedContext,
+      ...(typeof args.runtimeConfigOverride?.requestTimeoutMs === "number"
+        ? { requestTimeoutMs: args.runtimeConfigOverride.requestTimeoutMs }
+        : {}),
+    });
+    if ("error" in resolved) {
+      transportBlockedReasonCode = "performance_plan_invalid";
+      transportBlockedMessage = resolved.error;
+    } else {
+      const jmeterRequest: {
+        method: string;
+        url: string;
+        headers?: Record<string, string>;
+        body?: unknown;
+        timeoutMs?: number;
+      } = {
+        method: String(resolved.request.method ?? "GET"),
+        url: String(resolved.request.url ?? ""),
+      };
+      const resolvedHeaders = isRecord(resolved.request.headers) ? parseStringRecord(resolved.request.headers) : undefined;
+      if (resolvedHeaders) {
+        jmeterRequest.headers = resolvedHeaders;
+      }
+      if ("body" in resolved.request) {
+        jmeterRequest.body = resolved.request.body;
+      }
+      if (typeof resolved.request.timeoutMs === "number") {
+        jmeterRequest.timeoutMs = resolved.request.timeoutMs;
+      }
+      const jmeterResult = await runJmeterGeneratedHttpWorkload({
+        provider: contract.workloadProvider as JmeterWorkloadProvider,
+        request: jmeterRequest,
+        loadModel: contract.loadModel,
+        runDirAbs,
+        planName: args.planName,
       });
-      if ("error" in resolved) {
-        transportBlockedReasonCode = "performance_plan_invalid";
-        transportBlockedMessage = resolved.error;
+      workloadProviderArtifacts = jmeterResult.artifacts;
+      if (jmeterResult.status === "blocked") {
+        transportBlockedReasonCode = jmeterResult.reasonCode;
+        transportBlockedMessage = jmeterResult.requiredUserAction.join(" ");
+      } else {
+        totalRequests = jmeterResult.metrics.totalRequests;
+        failedRequests = jmeterResult.metrics.failedRequests;
+        latencies.push(...jmeterResult.metrics.latenciesMs);
+      }
+    }
+  } else {
+    const worker = async () => {
+      while (Date.now() < deadlineEpochMs && !transportBlockedReasonCode) {
+        const resolved = await buildTransportRequest({
+          entrypoint,
+          providedContext,
+          ...(typeof args.runtimeConfigOverride?.requestTimeoutMs === "number"
+            ? { requestTimeoutMs: args.runtimeConfigOverride.requestTimeoutMs }
+            : {}),
+        });
+        if ("error" in resolved) {
+          transportBlockedReasonCode = "performance_plan_invalid";
+          transportBlockedMessage = resolved.error;
+          return;
+        }
+        const out = await args.mcpInvoke({
+          toolName: "transport_execute",
+          input: {
+            request: resolved.request,
+            wrappedOnly: resolved.wrappedOnly,
+          },
+        });
+        const status = asTrimmedString(out.structuredContent.status);
+        const durationMs =
+          typeof out.structuredContent.durationMs === "number" ? Math.max(1, Math.round(out.structuredContent.durationMs)) : 1;
+        if (status === "pass" || status === "fail_http") {
+          totalRequests += 1;
+          latencies.push(durationMs);
+          if (status !== "pass") failedRequests += 1;
+          continue;
+        }
+        transportBlockedReasonCode =
+          typeof out.structuredContent.reasonCode === "string" ? out.structuredContent.reasonCode : "transport_request_failed";
+        transportBlockedMessage =
+          typeof out.structuredContent.errorMessage === "string"
+            ? out.structuredContent.errorMessage
+            : "performance transport execution failed";
         return;
       }
-      const out = await args.mcpInvoke({
-        toolName: "transport_execute",
-        input: {
-          request: resolved.request,
-          wrappedOnly: resolved.wrappedOnly,
-        },
-      });
-      const status = asTrimmedString(out.structuredContent.status);
-      const durationMs = typeof out.structuredContent.durationMs === "number" ? Math.max(1, Math.round(out.structuredContent.durationMs)) : 1;
-      if (status === "pass" || status === "fail_http") {
-        totalRequests += 1;
-        latencies.push(durationMs);
-        if (status !== "pass") failedRequests += 1;
-        continue;
-      }
-      transportBlockedReasonCode =
-        typeof out.structuredContent.reasonCode === "string" ? out.structuredContent.reasonCode : "transport_request_failed";
-      transportBlockedMessage =
-        typeof out.structuredContent.errorMessage === "string" ? out.structuredContent.errorMessage : "performance transport execution failed";
-      return;
-    }
-  };
+    };
 
-  const perWorkerDelayMs =
-    contract.loadModel.concurrency > 1
-      ? Math.floor((contract.loadModel.rampUpSeconds * 1000) / contract.loadModel.concurrency)
-      : 0;
-  await Promise.all(
-    Array.from({ length: contract.loadModel.concurrency }, (_value, index) =>
-      (async () => {
-        if (perWorkerDelayMs > 0 && index > 0) {
-          await delayMs(perWorkerDelayMs * index);
-        }
-        await worker();
-      })(),
-    ),
-  );
+    const perWorkerDelayMs =
+      contract.loadModel.concurrency > 1
+        ? Math.floor((contract.loadModel.rampUpSeconds * 1000) / contract.loadModel.concurrency)
+        : 0;
+    await Promise.all(
+      Array.from({ length: contract.loadModel.concurrency }, (_value, index) =>
+        (async () => {
+          if (perWorkerDelayMs > 0 && index > 0) {
+            await delayMs(perWorkerDelayMs * index);
+          }
+          await worker();
+        })(),
+      ),
+    );
+  }
   logPerformancePhase({
     runId,
     planName: args.planName,
@@ -1098,6 +1222,8 @@ async function executePerformancePlanWorkflow(
         },
         thresholdResults,
         requiredLineHits: requiredLineHitResults,
+        workloadProvider: contract.workloadProvider,
+        ...(workloadProviderArtifacts ? { workloadProviderArtifacts } : {}),
         ...(profilerStopResult ? { executionTiming: profilerStopResult } : {}),
         ...(mstaSummary ? { msta: mstaSummary } : {}),
         ...(transportBlockedReasonCode ? { reasonCode: transportBlockedReasonCode, errorMessage: transportBlockedMessage } : {}),
@@ -1115,9 +1241,11 @@ async function executePerformancePlanWorkflow(
     `${JSON.stringify(
       {
         entrypoint,
+        workloadProvider: contract.workloadProvider,
         observationTargets: contract.observationTargets,
         loadModel: contract.loadModel,
         successCriteria: contract.successCriteria,
+        ...(workloadProviderArtifacts ? { workloadProviderArtifacts } : {}),
         requiredLineHits: requiredLineHitResults,
         ...(contract.analysis ? { analysis: contract.analysis } : {}),
         ...(profilerStartResult ? { profilerStart: profilerStartResult } : {}),

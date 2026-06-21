@@ -79,6 +79,9 @@ async function buildBundlePlans(input: {
     if (!contract) {
       throw new Error(`performance_export_plan_invalid:${plan.planName}`);
     }
+    if (contract.workloadProvider.type === "jmeter") {
+      throw new Error(`performance_export_workload_provider_unsupported:${plan.planName}:jmeter`);
+    }
     const probeBaseUrl =
       contract.observationTargets.baseUrl ??
       (await resolveProbeBaseUrlForExport({
