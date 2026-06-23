@@ -39,6 +39,7 @@ Current scope:
 - HTTP entrypoints only
 - generated `.jmx` from the canonical performance plan
 - non-GUI execution only
+- exported `.jmx` remains importable in local Apache JMeter
 
 JMeter remains the workload engine only. The suite still owns threshold evaluation, strict verification, and persisted run results.
 
@@ -92,6 +93,12 @@ These are supporting artifacts. Canonical suite verdicts still come from:
 - `execution.result.json`
 - `evidence.json`
 
+When a performance execution profile is exported in `ps1` or `sh` mode and the selected plan uses `workloadProvider.type=jmeter`, the export package may also contain:
+
+- `artifacts/jmeter/<plan>.workload.jmeter.jmx`
+
+That exported `.jmx` is an interoperability artifact for local Apache JMeter import/open, while the wrapper scripts remain replay executors.
+
 ## Compatibility Rules
 
 - MSTA remains transport-neutral.
@@ -101,6 +108,7 @@ These are supporting artifacts. Canonical suite verdicts still come from:
 ## Non-Goals In Current Scope
 
 - custom `.jmx` as the canonical plan source
+- reverse import of existing `.jmx` into MCP performance plan form
 - JMeter UI as authoritative execution mode
 - non-HTTP JMeter samplers
 - JMeter-native pass/fail replacing performance-suite thresholds

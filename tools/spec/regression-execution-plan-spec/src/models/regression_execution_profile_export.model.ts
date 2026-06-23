@@ -68,4 +68,5 @@ export type ExportExecutionProfilePs1Result = {
   exportDirAbs: string;
   scriptPathAbs: string;
   readmePathAbs?: string;
+  jmeterArtifactPathsAbs?: string[];
 };

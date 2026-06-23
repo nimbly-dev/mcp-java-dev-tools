@@ -15,6 +15,16 @@ import { registerExecutionProfileExportTool } from "@/tools/core/execution_profi
 import { registerArtifactManagementTool } from "@/tools/core/artifact_management/handler";
 import { registerExecutionOrchestrationTool } from "@/tools/core/execution_orchestration/handler";
 
+function resolveBuildFingerprint(): string {
+  const distServerAbs = path.resolve(__dirname, "../../../../server.js");
+  try {
+    const stat = fs.statSync(distServerAbs);
+    return `dist-server-mtime:${stat.mtime.toISOString()}`;
+  } catch {
+    return "dist-server-mtime:unknown";
+  }
+}
+
 function resolveServerVersion(): string {
   const fromEnv = process.env.MCP_JAVA_DEV_TOOLS_VERSION;
   if (typeof fromEnv === "string" && fromEnv.trim().length > 0) {
@@ -44,6 +54,7 @@ function resolveServerVersion(): string {
 
 async function main() {
   const serverVersion = resolveServerVersion();
+  const buildFingerprint = resolveBuildFingerprint();
   const cfg = loadConfigFromEnvAndArgs(process.argv);
   const probeStatusPath = cfg.probeStatusPath;
   const probeResetPath = cfg.probeResetPath;
@@ -134,6 +145,51 @@ async function main() {
     version: serverVersion,
   });
 
+  let shutdownStarted = false;
+  let startupComplete = false;
+  let parentMonitor: NodeJS.Timeout | undefined;
+  const shutdown = (reason: string) => {
+    if (shutdownStarted) {
+      return;
+    }
+    shutdownStarted = true;
+    if (registryReloadTimer) clearTimeout(registryReloadTimer);
+    registryWatch?.close();
+    if (parentMonitor) clearInterval(parentMonitor);
+    console.error(`mcp-java-dev-tools shutdown: ${reason}`);
+    setImmediate(() => process.exit(0));
+  };
+
+  const parentPid =
+    typeof process.ppid === "number" && Number.isInteger(process.ppid) && process.ppid > 1
+      ? process.ppid
+      : undefined;
+  if (process.stdin && typeof process.stdin.on === "function") {
+    process.stdin.on("end", () => {
+      if (startupComplete) {
+        shutdown("stdin_end");
+      }
+    });
+    process.stdin.on("close", () => {
+      if (startupComplete) {
+        shutdown("stdin_close");
+      }
+    });
+  }
+  process.on("disconnect", () => shutdown("ipc_disconnect"));
+  process.on("SIGINT", () => shutdown("sigint"));
+  process.on("SIGTERM", () => shutdown("sigterm"));
+  if (typeof parentPid === "number") {
+    parentMonitor = setInterval(() => {
+      try {
+        process.kill(parentPid, 0);
+      } catch {
+        shutdown("parent_exit");
+      }
+    }, 2_000);
+    parentMonitor.unref();
+  }
+
   server.registerResource(
     "status",
     "mcp-java-dev-tools://status",
@@ -143,6 +199,9 @@ async function main() {
         ok: true,
         name: "mcp-java-dev-tools",
         version: serverVersion,
+        buildFingerprint,
+        pid: process.pid,
+        ...(typeof parentPid === "number" ? { ppid: parentPid } : {}),
         workspaceRoot: cfg.workspaceRootAbs,
         workspaceRootSource: cfg.workspaceRootSource,
         probe: {
@@ -195,6 +254,10 @@ async function main() {
         ok: true,
         serverTime: new Date().toISOString(),
         version: serverVersion,
+        buildFingerprint,
+        pid: process.pid,
+        ...(typeof parentPid === "number" ? { ppid: parentPid } : {}),
+        workspaceRoot: cfg.workspaceRootAbs,
       };
       return {
         content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
@@ -239,9 +302,10 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  startupComplete = true;
   setupRegistryWatcher();
   console.error(
-    `mcp-java-dev-tools ${serverVersion} running (stdio). workspaceRoot=${cfg.workspaceRootAbs} probeBaseUrl=${currentBaseUrl()}`,
+    `mcp-java-dev-tools ${serverVersion} running (stdio). workspaceRoot=${cfg.workspaceRootAbs} probeBaseUrl=${currentBaseUrl()} build=${buildFingerprint} pid=${process.pid}${typeof parentPid === "number" ? ` ppid=${parentPid}` : ""}`,
   );
 }
 

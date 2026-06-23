@@ -16,6 +16,11 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+function writeJsonWithBom(filePath: string, payload: Record<string, unknown>): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `\ufeff${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
 function writeProject(root: string): void {
   const projectName = "test-project";
   writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
@@ -304,6 +309,42 @@ function writeSuiteRunResult(
 
 function readJson(filePath: string): any {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function writeFakeJmeterInstallation(root: string): string {
+  const fakeJmeterHome = path.join(root, "fake-jmeter");
+  const fakeJmeterBin = path.join(fakeJmeterHome, "bin");
+  fs.mkdirSync(fakeJmeterBin, { recursive: true });
+  const fakeRunnerJs = path.join(fakeJmeterBin, "fake-jmeter.js");
+  fs.writeFileSync(
+    fakeRunnerJs,
+    [
+      "const fs = require('node:fs');",
+      "const args = process.argv.slice(2);",
+      "const jmx = args[args.indexOf('-t') + 1];",
+      "const jtl = args[args.indexOf('-l') + 1];",
+      "const log = args[args.indexOf('-j') + 1];",
+      "if (!jmx || !jtl || !log) process.exit(2);",
+      "const xml = fs.readFileSync(jmx, 'utf8');",
+      "if (!xml.includes('HTTPSamplerProxy')) process.exit(3);",
+      "fs.writeFileSync(jtl, [",
+      "  'timeStamp,elapsed,label,responseCode,responseMessage,threadName,success,url',",
+      "  '1,10,HTTP Request,200,OK,thread-1,true,http://127.0.0.1:8080/api/metrics/hello',",
+      "  '2,20,HTTP Request,200,OK,thread-1,true,http://127.0.0.1:8080/api/metrics/hello',",
+      "  '3,30,HTTP Request,200,OK,thread-1,true,http://127.0.0.1:8080/api/metrics/hello'",
+      "].join('\\n'));",
+      "fs.writeFileSync(log, 'fake-jmeter-ok\\n');",
+    ].join("\n"),
+    "utf8",
+  );
+  if (process.platform === "win32") {
+    fs.writeFileSync(path.join(fakeJmeterBin, "jmeter.bat"), `@echo off\r\nnode "${fakeRunnerJs}" %*\r\n`, "utf8");
+  } else {
+    const shellPath = path.join(fakeJmeterBin, "jmeter");
+    fs.writeFileSync(shellPath, `#!/bin/sh\nnode "${fakeRunnerJs}" "$@"\n`, "utf8");
+    fs.chmodSync(shellPath, 0o755);
+  }
+  return fakeJmeterHome;
 }
 
 test("executionProfileExportDomain resolves executionProfile and creates a fresh sh export", async () => {
@@ -622,8 +663,8 @@ test("executionProfileExportDomain fails closed for performance postman export",
   }
 });
 
-test("executionProfileExportDomain fails closed for performance replay export when workloadProvider=jmeter", async () => {
-  const root = createTestTempDir("execution-profile-export-domain-performance-jmeter-unsupported");
+test("executionProfileExportDomain exports JMeter-compatible performance replay package for sh mode", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-jmeter-sh");
   try {
     const projectName = "test-performance-project";
     writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
@@ -651,9 +692,407 @@ test("executionProfileExportDomain fails closed for performance replay export wh
       mode: "sh",
     });
 
-    assert.equal(out.structuredContent.status, "performance_export_workload_provider_unsupported");
-    assert.equal(out.structuredContent.reasonCode, "performance_export_workload_provider_unsupported");
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.mode, "sh");
+    assert.equal(out.structuredContent.suiteType, "performance");
+    const exportDirAbs = String(out.structuredContent.exportDirAbs ?? "");
+    const bundle = readJson(path.join(exportDirAbs, "performance-export.bundle.json"));
+    assert.equal(bundle.plans[0].contract.workloadProvider.type, "jmeter");
+    assert.equal(bundle.plans[0].contract.workloadProvider.mode, "generated_http");
+    assert.equal(
+      bundle.plans[0].exportedArtifacts.jmxPathRel,
+      "artifacts/jmeter/type-performance-jmeter.workload.jmeter.jmx",
+    );
+    const jmxPathAbs = path.join(exportDirAbs, "artifacts", "jmeter", "type-performance-jmeter.workload.jmeter.jmx");
+    assert.equal(fs.existsSync(jmxPathAbs), true);
+    const jmxText = fs.readFileSync(jmxPathAbs, "utf8");
+    assert.match(jmxText, /<jmeterTestPlan/);
+    assert.match(jmxText, /GET http:\/\/127\.0\.0\.1:8080\/api\/metrics\/hello/);
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain fails closed when performance export probe binding cannot be resolved", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-probe-binding-missing");
+  try {
+    const appRoot = path.join(root, "app-workspace");
+    const projectName = "test-performance-project";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: appRoot,
+          executionProfiles: [
+            {
+              executionProfile: "type-performance-hello-suite",
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "type-performance-hello" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlanContract(root, projectName, "type-performance-hello");
+    writeJson(path.join(appRoot, ".mcpjvm", "probe-config.json"), {
+      defaultProfile: "workspace-default",
+      profiles: {
+        "workspace-default": {
+          probes: {
+            "different-probe": {
+              baseUrl: "http://127.0.0.1:9195",
+            },
+          },
+        },
+      },
+      workspaces: [
+        {
+          root: appRoot,
+          profile: "workspace-default",
+        },
+      ],
+    });
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile: "type-performance-hello-suite",
+      mode: "sh",
+    });
+
+    assert.equal(out.structuredContent.status, "performance_export_probe_binding_missing");
+    assert.equal(out.structuredContent.reasonCode, "performance_export_probe_binding_missing");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain resolves performance probe baseUrl from selected project workspace root", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-probe-workspace-root");
+  try {
+    const appRoot = path.join(root, "app-workspace");
+    const projectName = "test-performance-project";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: appRoot,
+          executionProfiles: [
+            {
+              executionProfile: "type-performance-hello-suite",
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "type-performance-hello" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlanContract(root, projectName, "type-performance-hello");
+    writeJson(path.join(appRoot, ".mcpjvm", "probe-config.json"), {
+      defaultProfile: "workspace-default",
+      profiles: {
+        "workspace-default": {
+          probes: {
+            "composite-service": {
+              baseUrl: "http://127.0.0.1:9195",
+            },
+          },
+        },
+      },
+      workspaces: [
+        {
+          root: appRoot,
+          profile: "workspace-default",
+        },
+      ],
+    });
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile: "type-performance-hello-suite",
+      mode: "sh",
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    const exportDirAbs = String(out.structuredContent.exportDirAbs ?? "");
+    const bundle = readJson(path.join(exportDirAbs, "performance-export.bundle.json"));
+    assert.equal(bundle.plans[0].probeBaseUrl, "http://127.0.0.1:9195");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain resolves performance probe baseUrl when probe-config.json has utf8 bom", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-probe-bom");
+  try {
+    const appRoot = path.join(root, "app-workspace");
+    const projectName = "test-performance-project";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: appRoot,
+          executionProfiles: [
+            {
+              executionProfile: "type-performance-hello-suite",
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "type-performance-hello" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlanContract(root, projectName, "type-performance-hello");
+    writeJsonWithBom(path.join(appRoot, ".mcpjvm", "probe-config.json"), {
+      defaultProfile: "workspace-default",
+      profiles: {
+        "workspace-default": {
+          probes: {
+            "composite-service": {
+              baseUrl: "http://127.0.0.1:9195",
+            },
+          },
+        },
+      },
+      workspaces: [
+        {
+          root: appRoot,
+          profile: "workspace-default",
+        },
+      ],
+    });
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile: "type-performance-hello-suite",
+      mode: "sh",
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    const exportDirAbs = String(out.structuredContent.exportDirAbs ?? "");
+    const bundle = readJson(path.join(exportDirAbs, "performance-export.bundle.json"));
+    assert.equal(bundle.plans[0].probeBaseUrl, "http://127.0.0.1:9195");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionProfileExportDomain exports JMeter-compatible performance replay package for ps1 mode", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-jmeter-ps1");
+  try {
+    const projectName = "test-performance-project";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile: "type-performance-jmeter-suite",
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "type-performance-jmeter" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformanceJmeterPlanContract(root, projectName, "type-performance-jmeter");
+    writeProbeConfig(root);
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile: "type-performance-jmeter-suite",
+      mode: "ps1",
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.mode, "ps1");
+    const exportDirAbs = String(out.structuredContent.exportDirAbs ?? "");
+    const jmxPathAbs = path.join(exportDirAbs, "artifacts", "jmeter", "type-performance-jmeter.workload.jmeter.jmx");
+    assert.equal(fs.existsSync(jmxPathAbs), true);
+    assert.match(String(out.structuredContent.output?.scriptPathAbs ?? ""), /run-performance-profile\.ps1$/);
+    const readme = fs.readFileSync(String(out.structuredContent.output?.readmePathAbs ?? ""), "utf8");
+    assert.match(readme, /## JMeter Artifacts/);
+    assert.match(readme, /artifacts\/jmeter\/type-performance-jmeter\.workload\.jmeter\.jmx/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("exported performance replay runner executes JMeter-backed package end-to-end", async () => {
+  const root = createTestTempDir("execution-profile-export-domain-performance-jmeter-runner");
+  const http = require("node:http");
+  const startServer = async (handler: (req: any, res: any) => void) => {
+    const server = http.createServer(handler);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("server_address_unavailable");
+    }
+    return {
+      server,
+      port: address.port,
+      close: async () => {
+        await new Promise<void>((resolve, reject) => server.close((error: Error | undefined) => (error ? reject(error) : resolve())));
+      },
+    };
+  };
+  let appServer: { close: () => Promise<void>; port: number } | null = null;
+  let probeServer: { close: () => Promise<void>; port: number } | null = null;
+  try {
+    const projectName = "test-performance-project";
+    const fakeJmeterHome = writeFakeJmeterInstallation(root);
+    appServer = await startServer((req: any, res: any) => {
+      if (req.url === "/actuator/health") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end('{"status":"UP"}');
+        return;
+      }
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.end("ok");
+    });
+    probeServer = await startServer((req: any, res: any) => {
+      if (req.url === "/__probe/reset" && req.method === "POST") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end('{"result":{"reasonCode":"ok"}}');
+        return;
+      }
+      if (typeof req.url === "string" && req.url.startsWith("/__probe/status")) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end('{"probe":{"hitCount":1}}');
+        return;
+      }
+      res.writeHead(404, { "content-type": "application/json" });
+      res.end('{"error":"not_found"}');
+    });
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile: "type-performance-jmeter-suite",
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "type-performance-jmeter" }],
+            },
+          ],
+        },
+      ],
+    });
+    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "performance", "type-performance-jmeter", "metadata.json"), {
+      suiteType: "performance",
+      execution: { intent: "performance" },
+    });
+    writeJson(path.join(root, ".mcpjvm", projectName, "plans", "performance", "type-performance-jmeter", "contract.json"), {
+      entrypoints: [
+        {
+          transport: {
+            protocol: "http",
+            baseUrl: `http://127.0.0.1:${appServer.port}`,
+            healthCheckPath: "/actuator/health",
+            wrappedOnly: true,
+          },
+          request: {
+            method: "GET",
+            path: "/api/metrics/hello",
+          },
+        },
+      ],
+      workloadProvider: {
+        type: "jmeter",
+        mode: "generated_http",
+        options: {
+          installationPath: fakeJmeterHome,
+        },
+      },
+      observationTargets: {
+        baseUrl: `http://127.0.0.1:${probeServer.port}`,
+        requiredLineHits: ["io.example.MetricsController#hello:52"],
+      },
+      loadModel: {
+        mode: "concurrency",
+        concurrency: 10,
+        rampUpSeconds: 2,
+        durationSeconds: 30,
+      },
+      successCriteria: {
+        maxErrorRatePct: 1,
+        minThroughputPerSec: 0.05,
+        p95LatencyMs: 1200,
+      },
+    });
+
+    const out = await executionProfileExportDomain({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile: "type-performance-jmeter-suite",
+      mode: "sh",
+    });
+
+    const exportDirAbs = String(out.structuredContent.exportDirAbs ?? "");
+    const bundlePathAbs = path.join(exportDirAbs, "performance-export.bundle.json");
+    const envFilePathAbs = path.join(exportDirAbs, "project.env");
+    const runnerPathAbs = path.join(exportDirAbs, "run-performance-profile.js");
+    const result = await new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
+      const child = require("node:child_process").spawn(
+        process.execPath,
+        [
+          runnerPathAbs,
+          "--bundle",
+          bundlePathAbs,
+          "--env-file",
+          envFilePathAbs,
+          "--export-dir",
+          exportDirAbs,
+        ],
+        {
+          cwd: exportDirAbs,
+          env: {
+            ...process.env,
+            MCP_JAVA_DEV_TOOLS_JMETER_HOME: fakeJmeterHome,
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true,
+        },
+      );
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      child.on("close", (code: number | null) => {
+        resolve({ status: code, stdout, stderr });
+      });
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const summary = JSON.parse(String(result.stdout).trim());
+    assert.equal(summary.status, "pass");
+    const runsRootAbs = path.join(exportDirAbs, "runs");
+    const runIds = fs.readdirSync(runsRootAbs);
+    assert.equal(runIds.length, 1);
+    const runDirAbs = path.join(runsRootAbs, runIds[0]);
+    const planResult = readJson(path.join(runDirAbs, "type-performance-jmeter.execution.result.json"));
+    assert.equal(planResult.runStatus, "pass");
+    assert.equal(planResult.metrics.totalRequests, 3);
+    assert.equal(planResult.workloadProvider.type, "jmeter");
+    assert.equal(fs.existsSync(planResult.workloadProviderArtifacts.jmxPathAbs), true);
+    assert.equal(fs.existsSync(planResult.workloadProviderArtifacts.jtlPathAbs), true);
+    assert.equal(fs.existsSync(planResult.workloadProviderArtifacts.logPathAbs), true);
+  } finally {
+    if (appServer) {
+      await appServer.close();
+    }
+    if (probeServer) {
+      await probeServer.close();
+    }
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

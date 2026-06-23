@@ -13,22 +13,29 @@ import type {
 } from "@tools-export-execution-profile/models/execution_profile_export.model";
 import { resolveExportDefaults } from "@tools-export-execution-profile/policy/export_defaults.policy";
 import { renderEtaTemplate } from "@tools-export-execution-profile/renderers/eta.renderer";
+import {
+  emitPerformanceExportJmeterArtifacts,
+  type PerformanceExportBundlePlan,
+} from "@tools-export-execution-profile/performance_jmeter_export.util";
+import { assertPerformanceExportProbeBindingsResolved } from "@tools-export-execution-profile/performance_export_probe_binding.util";
 import { buildReadmeTemplateModel } from "@tools-export-execution-profile/renderers/readme.renderer";
 import { preparePs1ExportPackage } from "@tools-export-execution-profile/sections/ps1/export_package.section";
 import { buildPs1HealthcheckSection } from "@tools-export-execution-profile/sections/ps1/healthcheck.section";
 import { buildPs1RuntimeStartupSection } from "@tools-export-execution-profile/sections/ps1/runtime_startup.section";
 import { resolveOneOffExportDir } from "@tools-export-execution-profile/sections/shared/oneoff_export_dir.util";
 
-type PerformanceBundlePlan = {
-  order: number;
-  planName: string;
-  providedContext?: Record<string, unknown>;
-  probeBaseUrl?: string;
-  contract: Awaited<ReturnType<typeof loadPerformancePlanContract>> extends infer T ? Exclude<T, null> : never;
-};
-
 function joinLines(lines: string[]): string {
   return lines.join("\n");
+}
+
+function collectJmeterArtifactPathsAbs(
+  exportDirAbs: string,
+  bundlePlans: PerformanceExportBundlePlan[],
+): string[] {
+  return bundlePlans
+    .map((plan) => plan.exportedArtifacts?.jmxPathRel)
+    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+    .map((entry) => path.join(exportDirAbs, entry));
 }
 
 function resolveDefaults(input: {
@@ -65,11 +72,11 @@ function buildManifest(input: {
 }
 
 async function buildBundlePlans(input: {
-  workspaceRootAbs: string;
+  probeWorkspaceRootAbs: string;
   target: Awaited<ReturnType<typeof loadExecutionProfileExportTarget>>;
-}): Promise<PerformanceBundlePlan[]> {
+}): Promise<PerformanceExportBundlePlan[]> {
   const plansRootAbs = path.join(input.target.projectRootAbs, "plans", "performance");
-  const out: PerformanceBundlePlan[] = [];
+  const out: PerformanceExportBundlePlan[] = [];
   for (const plan of input.target.profile.plans) {
     const contract = await loadPerformancePlanContract({
       plansRootAbs,
@@ -78,13 +85,10 @@ async function buildBundlePlans(input: {
     if (!contract) {
       throw new Error(`performance_export_plan_invalid:${plan.planName}`);
     }
-    if (contract.workloadProvider.type === "jmeter") {
-      throw new Error(`performance_export_workload_provider_unsupported:${plan.planName}:jmeter`);
-    }
     const probeBaseUrl =
       contract.observationTargets.baseUrl ??
       (await resolveProbeBaseUrlForExport({
-        workspaceRootAbs: input.workspaceRootAbs,
+        workspaceRootAbs: input.probeWorkspaceRootAbs,
         ...(contract.observationTargets.probeId ? { probeId: contract.observationTargets.probeId } : {}),
       }));
     out.push({
@@ -121,10 +125,17 @@ export async function exportExecutionProfilePerformancePs1(
   const exportDirAbs = resolveOneOffExportDir(target.projectRootAbs, new Date());
   await fs.mkdir(exportDirAbs, { recursive: true });
 
-  const bundlePlans = await buildBundlePlans({
-    workspaceRootAbs: input.workspaceRootAbs,
-    target,
+  const bundlePlans = await emitPerformanceExportJmeterArtifacts({
+    exportDirAbs,
+    bundlePlans: await buildBundlePlans({
+      probeWorkspaceRootAbs:
+        typeof target.workspace.projectRoot === "string" && target.workspace.projectRoot.trim().length > 0
+          ? target.workspace.projectRoot.trim()
+          : input.workspaceRootAbs,
+      target,
+    }),
   });
+  assertPerformanceExportProbeBindingsResolved(bundlePlans);
   const manifest = buildManifest({
     exportId: target.exportId,
     executionProfile: target.profile.executionProfile,
@@ -156,6 +167,7 @@ export async function exportExecutionProfilePerformancePs1(
     executionProfile: target.profile.executionProfile,
     includeResolvedSecrets,
   });
+  const jmeterArtifactPathsAbs = collectJmeterArtifactPathsAbs(exportDirAbs, bundlePlans);
 
   await fs.writeFile(
     path.join(exportDirAbs, "performance-export.bundle.json"),
@@ -194,7 +206,12 @@ export async function exportExecutionProfilePerformancePs1(
   });
   const readmeText = await renderEtaTemplate({
     templateFileName: "README.execution-profile-export.md.eta",
-    data: buildReadmeTemplateModel({ manifest, defaults, includeResolvedSecrets }),
+    data: buildReadmeTemplateModel({
+      manifest,
+      defaults,
+      includeResolvedSecrets,
+      jmeterArtifactPathsRel: jmeterArtifactPathsAbs.map((artifact) => path.relative(exportDirAbs, artifact).replace(/\\/g, "/")),
+    }),
   });
 
   const scriptPathAbs = path.join(exportDirAbs, "run-performance-profile.ps1");
@@ -207,5 +224,6 @@ export async function exportExecutionProfilePerformancePs1(
     exportDirAbs,
     scriptPathAbs,
     readmePathAbs,
+    ...(jmeterArtifactPathsAbs.length > 0 ? { jmeterArtifactPathsAbs } : {}),
   };
 }
