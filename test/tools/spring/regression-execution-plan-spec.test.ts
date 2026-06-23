@@ -495,7 +495,7 @@ test("preflight blocks when step condition uses forward step reference", () => {
   assert.equal(result.reasonCode, "step_condition_forward_reference");
 });
 
-test("preflight blocks unsupported {{key}} transport placeholder syntax before execution", () => {
+test("preflight accepts compatible {{key}} transport placeholder syntax before execution", () => {
   const contract = baseContract({
     steps: [
       {
@@ -522,12 +522,11 @@ test("preflight blocks unsupported {{key}} transport placeholder syntax before e
     providedContext: { "auth.bearer": "ok" },
     targetCandidateCount: 1,
   });
-  assert.equal(result.status, "blocked_invalid");
-  assert.equal(result.reasonCode, "transport_placeholder_syntax_invalid");
-  assert.match(result.requiredUserAction[0], /canonical \$\{key\} syntax/);
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
 });
 
-test("preflight blocks unsupported spaced {{ key }} transport placeholder syntax before execution", () => {
+test("preflight accepts compatible spaced {{ key }} transport placeholder syntax before execution", () => {
   const contract = baseContract({
     steps: [
       {
@@ -551,11 +550,11 @@ test("preflight blocks unsupported spaced {{ key }} transport placeholder syntax
     providedContext: { "auth.bearer": "ok" },
     targetCandidateCount: 1,
   });
-  assert.equal(result.status, "blocked_invalid");
-  assert.equal(result.reasonCode, "transport_placeholder_syntax_invalid");
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
 });
 
-test("preflight blocks unsupported nested {{key}} placeholder syntax inside transport body", () => {
+test("preflight accepts compatible nested {{key}} placeholder syntax inside transport body", () => {
   const contract = baseContract({
     steps: [
       {
@@ -582,8 +581,68 @@ test("preflight blocks unsupported nested {{key}} placeholder syntax inside tran
     providedContext: { "auth.bearer": "ok" },
     targetCandidateCount: 1,
   });
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
+});
+
+test("preflight accepts compatible triple-brace {{{key}}} transport placeholder syntax before execution", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            url: "{{{targetBaseUrl}}}/api/v1/posts",
+            headers: {
+              Authorization: "Bearer {{{auth.bearer}}}",
+            },
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
+});
+
+test("preflight blocks malformed transport placeholder syntax with field diagnostics", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            url: "{{ targetBaseUrl }/api/v1/posts",
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
   assert.equal(result.status, "blocked_invalid");
   assert.equal(result.reasonCode, "transport_placeholder_syntax_invalid");
+  assert.match(result.requiredUserAction[0], /transport\.http\.url/);
 });
 
 test("preflight still accepts canonical ${key} placeholder syntax in nested transport fields", () => {
@@ -620,5 +679,60 @@ test("preflight still accepts canonical ${key} placeholder syntax in nested tran
   });
   assert.equal(result.status, "ready");
   assert.equal(result.reasonCode, "ok");
+});
+
+test("resolveStepTransport resolves both ${key} and {{key}} placeholder forms deterministically", () => {
+  const step = {
+    order: 1,
+    id: "create_post",
+    targetRef: 0,
+    protocol: "http",
+    transport: {
+      http: {
+        method: "POST",
+        pathTemplate: "{{ apiBaseUrl }}/api/v1/posts/${postId}",
+        headers: {
+          Authorization: "Bearer {{ auth.bearer }}",
+        },
+        query: {
+          tenantId: "${ tenantId }",
+        },
+      },
+    },
+  };
+  const resolved = resolveStepTransport(step, {
+    apiBaseUrl: "http://127.0.0.1:8080",
+    tenantId: "tenant-social-001",
+    postId: "post-22",
+    "auth.bearer": "token-123",
+  });
+  assert.equal(resolved.http.pathTemplate, "http://127.0.0.1:8080/api/v1/posts/post-22");
+  assert.equal(resolved.http.headers.Authorization, "Bearer token-123");
+  assert.equal(resolved.http.query.tenantId, "tenant-social-001");
+});
+
+test("resolveStepTransport resolves triple-brace {{{key}}} placeholder form deterministically", () => {
+  const step = {
+    order: 1,
+    id: "create_post",
+    targetRef: 0,
+    protocol: "http",
+    transport: {
+      http: {
+        method: "GET",
+        url: "{{{ apiBaseUrl }}}/api/v1/posts/{{{ postId }}}",
+        headers: {
+          Authorization: "Bearer {{{ auth.bearer }}}",
+        },
+      },
+    },
+  };
+  const resolved = resolveStepTransport(step, {
+    apiBaseUrl: "http://127.0.0.1:8080",
+    postId: "post-22",
+    "auth.bearer": "token-123",
+  });
+  assert.equal(resolved.http.url, "http://127.0.0.1:8080/api/v1/posts/post-22");
+  assert.equal(resolved.http.headers.Authorization, "Bearer token-123");
 });
 

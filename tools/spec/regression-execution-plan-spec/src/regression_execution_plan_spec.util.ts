@@ -319,17 +319,62 @@ function validateStepConditions(
   return { ok: true };
 }
 
-function containsUnsupportedTransportPlaceholder(value: unknown): boolean {
-  if (typeof value === "string") {
-    return /\{\{\s*[A-Za-z0-9_.-]+\s*\}\}/.test(value);
+type InvalidTransportPlaceholder = {
+  fieldPath: string;
+  invalidToken: string;
+};
+
+function normalizePlaceholderSyntaxInString(value: string): {
+  normalized: string;
+  invalidToken?: string;
+} {
+  const normalizedTripleBrace = value.replace(/\{\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}\}/g, (_match, key: string) => `\${${key.trim()}}`);
+  const normalizedDoubleBrace = normalizedTripleBrace.replace(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, key: string) => `\${${key.trim()}}`);
+  const normalized = normalizedDoubleBrace.replace(/\$\{\s*([A-Za-z0-9_.-]+)\s*\}/g, (_match, key: string) => `\${${key.trim()}}`);
+  const invalidMatch = normalized.match(/\{\{\{|\}\}\}|\{\{|\}\}|\$\{\s*\}|\$\{[^}]*$/);
+  if (invalidMatch) {
+    return {
+      normalized,
+      invalidToken: invalidMatch[0],
+    };
   }
-  if (Array.isArray(value)) {
-    return value.some((entry) => containsUnsupportedTransportPlaceholder(entry));
+  return { normalized };
+}
+
+function findInvalidTransportPlaceholder(args: {
+  value: unknown;
+  fieldPath: string;
+}): InvalidTransportPlaceholder | null {
+  if (typeof args.value === "string") {
+    const normalized = normalizePlaceholderSyntaxInString(args.value);
+    if (typeof normalized.invalidToken === "string") {
+      return {
+        fieldPath: args.fieldPath,
+        invalidToken: normalized.invalidToken,
+      };
+    }
+    return null;
   }
-  if (isRecord(value)) {
-    return Object.values(value).some((entry) => containsUnsupportedTransportPlaceholder(entry));
+  if (Array.isArray(args.value)) {
+    for (let index = 0; index < args.value.length; index += 1) {
+      const invalid = findInvalidTransportPlaceholder({
+        value: args.value[index],
+        fieldPath: `${args.fieldPath}[${index}]`,
+      });
+      if (invalid) return invalid;
+    }
+    return null;
   }
-  return false;
+  if (isRecord(args.value)) {
+    for (const [key, entry] of Object.entries(args.value)) {
+      const invalid = findInvalidTransportPlaceholder({
+        value: entry,
+        fieldPath: `${args.fieldPath}.${key}`,
+      });
+      if (invalid) return invalid;
+    }
+  }
+  return null;
 }
 
 function validateTransportPlaceholderSyntax(
@@ -342,12 +387,16 @@ function validateTransportPlaceholderSyntax(
       requiredUserAction: string[];
     } {
   for (const step of steps) {
-    if (containsUnsupportedTransportPlaceholder(step.transport)) {
+    const invalid = findInvalidTransportPlaceholder({
+      value: step.transport,
+      fieldPath: "transport",
+    });
+    if (invalid) {
       return {
         ok: false,
         reasonCode: "transport_placeholder_syntax_invalid",
         requiredUserAction: [
-          `Replace unsupported {{key}} placeholder syntax in step '${step.id}' transport fields with canonical \${key} syntax.`,
+          `Fix malformed placeholder syntax in step '${step.id}' at '${invalid.fieldPath}' (token='${invalid.invalidToken}'). Supported transport placeholder forms are \${key} and {{key}}.`,
         ],
       };
     }
@@ -761,7 +810,11 @@ export function resolvePrerequisiteContext(
 
 function deepResolveValue(value: unknown, context: Record<string, unknown>): unknown {
   if (typeof value === "string") {
-    return value.replace(/\$\{([^}]+)\}/g, (_match, key) => {
+    const normalized = normalizePlaceholderSyntaxInString(value);
+    if (typeof normalized.invalidToken === "string") {
+      throw new Error(`invalid_placeholder:${normalized.invalidToken}`);
+    }
+    return normalized.normalized.replace(/\$\{([^}]+)\}/g, (_match, key) => {
       const resolved = context[key];
       if (typeof resolved === "undefined" || resolved === null) {
         throw new Error(`missing_context:${key}`);

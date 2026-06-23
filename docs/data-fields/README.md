@@ -320,6 +320,8 @@ Postman mode operator recovery guidance:
 - `postman_export_blocked` with `reasonMeta.cause=url_unrunnable`: ensure final URL is absolute (`http(s)://...`) or Postman base-variable rooted (`{{var}}/...`), not path-only.
 
 Postman variable normalization policy:
+- Regression-plan Artifact authoring remains canonical `${var}`.
+- Execution resolution accepts compatibility aliases `{{var}}` and `{{{var}}}` for externally-authored/imported plans and normalizes them before prerequisite resolution.
 - Exporter normalizes `${var}` placeholders to `{{var}}` for URL, headers, and body fields.
 - Exporter emits referenced Postman variables into `environment.values` deterministically so Runner can resolve them.
 - Exporter applies contract prerequisite string defaults into `environment.values` when keys are referenced.
