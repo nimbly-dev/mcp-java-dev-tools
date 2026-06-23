@@ -83,6 +83,224 @@ function errorDetail(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function renderHeaderManager(headers) {
+  if (!headers || Object.keys(headers).length === 0) {
+    return "";
+  }
+  const items = Object.entries(headers)
+    .map(
+      ([name, value]) => `              <elementProp name="${escapeXml(name)}" elementType="Header">
+                <stringProp name="Header.name">${escapeXml(name)}</stringProp>
+                <stringProp name="Header.value">${escapeXml(value)}</stringProp>
+              </elementProp>`
+    )
+    .join("\n");
+  return `        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+${items}
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>`;
+}
+
+function renderGeneratedHttpJmx(args) {
+  const serializedBody =
+    typeof args.request.body === "undefined"
+      ? ""
+      : typeof args.request.body === "string"
+        ? args.request.body
+        : JSON.stringify(args.request.body);
+  const hasBody = serializedBody.length > 0;
+  const timeoutMs =
+    typeof args.request.timeoutMs === "number" && args.request.timeoutMs > 0
+      ? String(args.request.timeoutMs)
+      : "";
+  const bodyBlock = hasBody
+    ? `          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">${escapeXml(serializedBody)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>`
+    : `          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="${escapeXml(args.planName)}" enabled="true">
+      <stringProp name="TestPlan.comments"></stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+      <stringProp name="TestPlan.user_define_classpath"></stringProp>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Performance Threads" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${String(args.loadModel.concurrency)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${String(args.loadModel.rampUpSeconds)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${String(args.loadModel.durationSeconds)}</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+${renderHeaderManager(args.request.headers)}
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="${escapeXml(args.request.method)} ${escapeXml(args.request.url)}" enabled="true">
+${bodyBlock}
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${escapeXml(args.request.url)}</stringProp>
+          <stringProp name="HTTPSampler.method">${escapeXml(args.request.method)}</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout">${timeoutMs}</stringProp>
+          <stringProp name="HTTPSampler.response_timeout">${timeoutMs}</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
+`;
+}
+
+function parseCsvLine(line) {
+  const values = [];
+  let current = "";
+  let inQuotes = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (char === "," && !inQuotes) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  values.push(current);
+  return values;
+}
+
+async function collectJmeterJtlMetrics(jtlPathAbs) {
+  const text = fs.readFileSync(jtlPathAbs, "utf8");
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length < 2) {
+    return null;
+  }
+  const headers = parseCsvLine(lines[0]);
+  const rows = lines.slice(1).map((line) => {
+    const values = parseCsvLine(line);
+    const row = {};
+    for (let index = 0; index < headers.length; index += 1) {
+      const header = headers[index];
+      if (typeof header === "string" && header.length > 0) {
+        row[header] = values[index] ?? "";
+      }
+    }
+    return row;
+  });
+  const latenciesMs = rows
+    .map((row) => Number(row.elapsed))
+    .filter((value) => Number.isFinite(value) && value >= 0)
+    .map((value) => Math.max(1, Math.round(value)));
+  if (latenciesMs.length === 0) {
+    return null;
+  }
+  const failedRequests = rows.reduce((count, row) => count + (row.success === "true" ? 0 : 1), 0);
+  return {
+    totalRequests: rows.length,
+    failedRequests,
+    latenciesMs,
+  };
+}
+
+function fileExists(filePath) {
+  return fs.existsSync(filePath);
+}
+
+function resolveJmeterExecutable(installationPath) {
+  const candidates = [];
+  const configuredHome =
+    typeof installationPath === "string" && installationPath.trim().length > 0
+      ? installationPath.trim()
+      : typeof process.env.MCP_JAVA_DEV_TOOLS_JMETER_HOME === "string" &&
+          process.env.MCP_JAVA_DEV_TOOLS_JMETER_HOME.trim().length > 0
+        ? process.env.MCP_JAVA_DEV_TOOLS_JMETER_HOME.trim()
+        : undefined;
+
+  if (configuredHome) {
+    if (process.platform === "win32") {
+      candidates.push(path.join(configuredHome, "bin", "jmeter.bat"));
+      candidates.push(path.join(configuredHome, "bin", "jmeter.cmd"));
+    } else {
+      candidates.push(path.join(configuredHome, "bin", "jmeter"));
+    }
+  }
+
+  const pathEntries = String(process.env.PATH ?? "")
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  for (const entry of pathEntries) {
+    if (process.platform === "win32") {
+      candidates.push(path.join(entry, "jmeter.bat"));
+      candidates.push(path.join(entry, "jmeter.cmd"));
+      candidates.push(path.join(entry, "jmeter.exe"));
+    } else {
+      candidates.push(path.join(entry, "jmeter"));
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (fileExists(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 function blockedPlanResult(reasonCode, detail, extra) {
   return {
     status: "blocked",
@@ -148,7 +366,7 @@ function percentile(values, ratio) {
   return sorted[index] ?? 0;
 }
 
-async function executeRequest(spec, context, requestTimeoutMs) {
+function resolveEntrypointRequest(spec, context) {
   const baseUrl = substitutePlaceholders(spec.transport.baseUrl, context);
   const requestPath = substitutePlaceholders(spec.request.path, context);
   const url = new URL(
@@ -166,16 +384,26 @@ async function executeRequest(spec, context, requestTimeoutMs) {
     ...(spec.request.headers ? substitutePlaceholders(spec.request.headers, context) : {}),
   };
   const bodyResolved = typeof spec.request.body === "undefined" ? undefined : substitutePlaceholders(spec.request.body, context);
+  return {
+    method: String(spec.request.method).toUpperCase(),
+    url: url.toString(),
+    headers,
+    ...(typeof bodyResolved === "undefined" ? {} : { body: bodyResolved }),
+  };
+}
+
+async function executeRequest(spec, context, requestTimeoutMs) {
+  const resolvedRequest = resolveEntrypointRequest(spec, context);
   const start = Date.now();
   try {
-    const response = await fetchWithTimeout(url, {
-      method: String(spec.request.method).toUpperCase(),
-      headers,
-      ...(typeof bodyResolved === "undefined"
+    const response = await fetchWithTimeout(resolvedRequest.url, {
+      method: resolvedRequest.method,
+      headers: resolvedRequest.headers,
+      ...(!("body" in resolvedRequest)
         ? {}
         : {
             body:
-              typeof bodyResolved === "string" ? bodyResolved : JSON.stringify(bodyResolved),
+              typeof resolvedRequest.body === "string" ? resolvedRequest.body : JSON.stringify(resolvedRequest.body),
           }),
     }, requestTimeoutMs);
     await response.text();
@@ -192,6 +420,121 @@ async function executeRequest(spec, context, requestTimeoutMs) {
       durationMs: Math.max(1, Date.now() - start),
     };
   }
+}
+
+async function runJmeterGeneratedHttpWorkload(plan, spec, context, runDirAbs, requestTimeoutMs) {
+  const resolvedRequest = resolveEntrypointRequest(spec, context);
+  const installationPath = plan.contract.workloadProvider.options?.installationPath;
+  const executable = resolveJmeterExecutable(installationPath);
+  const jmxPathAbs = path.join(runDirAbs, `${plan.planName}.workload.jmeter.jmx`);
+  const jtlPathAbs = path.join(runDirAbs, `${plan.planName}.workload.jmeter.jtl`);
+  const logPathAbs = path.join(runDirAbs, `${plan.planName}.workload.jmeter.log`);
+
+  fs.writeFileSync(
+    jmxPathAbs,
+    renderGeneratedHttpJmx({
+      request: {
+        ...resolvedRequest,
+        timeoutMs: requestTimeoutMs,
+      },
+      loadModel: plan.contract.loadModel,
+      planName: plan.planName,
+    }),
+    "utf8"
+  );
+
+  if (!executable) {
+    return {
+      status: "blocked",
+      reasonCode: "performance_jmeter_missing",
+      requiredUserAction: [
+        "Install Apache JMeter locally or set workloadProvider.options.installationPath / MCP_JAVA_DEV_TOOLS_JMETER_HOME.",
+      ],
+      artifacts: {
+        jmxPathAbs,
+        jtlPathAbs,
+        logPathAbs,
+      },
+    };
+  }
+
+  const argsList = [
+    "-n",
+    "-t",
+    jmxPathAbs,
+    "-l",
+    jtlPathAbs,
+    "-j",
+    logPathAbs,
+    "-Jjmeter.save.saveservice.output_format=csv",
+    "-Jjmeter.save.saveservice.print_field_names=true",
+    "-Jjmeter.save.saveservice.timestamp_format=ms",
+    "-Jjmeter.save.saveservice.time=true",
+    "-Jjmeter.save.saveservice.timestamp=true",
+    "-Jjmeter.save.saveservice.success=true",
+    "-Jjmeter.save.saveservice.label=true",
+    "-Jjmeter.save.saveservice.response_code=true",
+    "-Jjmeter.save.saveservice.response_message=true",
+    "-Jjmeter.save.saveservice.thread_name=true",
+    "-Jjmeter.save.saveservice.url=true",
+  ];
+
+  const exitCode = await new Promise((resolve) => {
+    const child = require("node:child_process").spawn(executable, argsList, {
+      cwd: runDirAbs,
+      env: process.env,
+      windowsHide: true,
+      shell: process.platform === "win32",
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", () => resolve(-1));
+    child.on("close", (code) => {
+      if (stderr.trim().length > 0 && !fileExists(logPathAbs)) {
+        fs.writeFileSync(logPathAbs, stderr, "utf8");
+      }
+      resolve(typeof code === "number" ? code : -1);
+    });
+  });
+
+  if (exitCode !== 0) {
+    return {
+      status: "blocked",
+      reasonCode: "performance_jmeter_execution_failed",
+      requiredUserAction: ["Inspect workload.jmeter.log and workload.jmeter.jmx, then rerun the replay package."],
+      artifacts: {
+        jmxPathAbs,
+        jtlPathAbs,
+        logPathAbs,
+      },
+    };
+  }
+
+  const metrics = fileExists(jtlPathAbs) ? await collectJmeterJtlMetrics(jtlPathAbs) : null;
+  if (!metrics) {
+    return {
+      status: "blocked",
+      reasonCode: "performance_jmeter_results_missing",
+      requiredUserAction: ["Ensure the JMeter CLI writes a readable CSV JTL result file and rerun."],
+      artifacts: {
+        jmxPathAbs,
+        jtlPathAbs,
+        logPathAbs,
+      },
+    };
+  }
+
+  return {
+    status: "completed",
+    metrics,
+    artifacts: {
+      jmxPathAbs,
+      jtlPathAbs,
+      logPathAbs,
+    },
+  };
 }
 
 async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
@@ -308,28 +651,41 @@ async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
       ? Math.floor((plan.contract.loadModel.rampUpSeconds * 1000) / plan.contract.loadModel.concurrency)
       : 0;
 
-  const worker = async () => {
-    while (Date.now() < deadlineEpochMs && !blockedReasonCode) {
-      const result = await executeRequest(entrypoint, context, requestTimeoutMs);
-      if (result.status === "pass" || result.status === "fail_http") {
-        totalRequests += 1;
-        latencies.push(result.durationMs);
-        if (result.status !== "pass") failedRequests += 1;
-        continue;
-      }
-      blockedReasonCode = result.reasonCode ?? "transport_request_failed";
-      return;
+  let workloadProviderArtifacts;
+  if (plan.contract.workloadProvider && plan.contract.workloadProvider.type === "jmeter") {
+    const jmeterResult = await runJmeterGeneratedHttpWorkload(plan, entrypoint, context, runDirAbs, requestTimeoutMs);
+    workloadProviderArtifacts = jmeterResult.artifacts;
+    if (jmeterResult.status === "blocked") {
+      blockedReasonCode = jmeterResult.reasonCode;
+    } else {
+      totalRequests = jmeterResult.metrics.totalRequests;
+      failedRequests = jmeterResult.metrics.failedRequests;
+      latencies.push(...jmeterResult.metrics.latenciesMs);
     }
-  };
-
-  await Promise.all(
-    Array.from({ length: plan.contract.loadModel.concurrency }, async (_unused, index) => {
-      if (perWorkerDelayMs > 0 && index > 0) {
-        await new Promise((resolve) => setTimeout(resolve, perWorkerDelayMs * index));
+  } else {
+    const worker = async () => {
+      while (Date.now() < deadlineEpochMs && !blockedReasonCode) {
+        const result = await executeRequest(entrypoint, context, requestTimeoutMs);
+        if (result.status === "pass" || result.status === "fail_http") {
+          totalRequests += 1;
+          latencies.push(result.durationMs);
+          if (result.status !== "pass") failedRequests += 1;
+          continue;
+        }
+        blockedReasonCode = result.reasonCode ?? "transport_request_failed";
+        return;
       }
-      await worker();
-    }),
-  );
+    };
+
+    await Promise.all(
+      Array.from({ length: plan.contract.loadModel.concurrency }, async (_unused, index) => {
+        if (perWorkerDelayMs > 0 && index > 0) {
+          await new Promise((resolve) => setTimeout(resolve, perWorkerDelayMs * index));
+        }
+        await worker();
+      }),
+    );
+  }
 
   if (plan.contract.analysis?.executionTiming?.enabled === true && plan._profilerSessionId) {
     try {
@@ -487,6 +843,8 @@ async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
           },
         }
       : {}),
+    ...(plan.contract.workloadProvider ? { workloadProvider: plan.contract.workloadProvider } : {}),
+    ...(workloadProviderArtifacts ? { workloadProviderArtifacts } : {}),
   };
 }
 

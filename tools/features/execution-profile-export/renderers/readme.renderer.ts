@@ -7,6 +7,7 @@ export type ReadmeTemplateInput = {
   manifest: ExecutionProfileExportManifest;
   defaults: ExportRuntimeDefaults;
   includeResolvedSecrets: boolean;
+  jmeterArtifactPathsRel?: string[];
 };
 
 export function buildReadmeTemplateModel(input: ReadmeTemplateInput): Record<string, unknown> {
@@ -57,6 +58,7 @@ export function buildReadmeTemplateModel(input: ReadmeTemplateInput): Record<str
     includeResolvedSecrets: input.includeResolvedSecrets,
     includeRuntimeStartup: input.defaults.includeRuntimeStartup,
     includeHealthcheckGate: input.defaults.includeHealthcheckGate,
+    jmeterArtifactPathsRel: input.jmeterArtifactPathsRel ?? [],
     planLines: orderedPlanLines,
     planOrderMarkdown: orderedPlanLines.map((line) => `1. ${line}`).join("\n"),
     redactedSecretsGuidance: input.includeResolvedSecrets ? "" : redactedSecretsGuidance,

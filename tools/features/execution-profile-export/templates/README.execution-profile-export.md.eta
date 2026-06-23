@@ -14,6 +14,14 @@
 
 <%= it.planOrderMarkdown %>
 
+<% if (Array.isArray(it.jmeterArtifactPathsRel) && it.jmeterArtifactPathsRel.length > 0) { %>
+## JMeter Artifacts
+
+<% it.jmeterArtifactPathsRel.forEach(function(artifact) { %>
+- `<%= artifact %>`
+<% }) %>
+<% } %>
+
 ## Usage
 
 1. Open `<%= it.scriptFileName %>`.

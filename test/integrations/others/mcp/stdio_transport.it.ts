@@ -114,14 +114,6 @@ test("mcp IT: stdio transport keeps stdout protocol-only and writes diagnostics 
   });
 
   try {
-    await waitFor(
-      () => stderrChunks.join("").includes("running (stdio)"),
-      {
-        timeoutMs: 10_000,
-        failureMessage: `server did not write startup diagnostics to stderr.\n${stderrChunks.join("")}`,
-      },
-    );
-
     const initialize = JSON.stringify({
       jsonrpc: "2.0",
       id: 1,
@@ -152,11 +144,13 @@ test("mcp IT: stdio transport keeps stdout protocol-only and writes diagnostics 
     child.stdin?.write(`${listTools}\n`);
 
     await waitFor(
-      () => getNonEmptyLines(stdoutChunks.join("")).length >= 2,
+      () =>
+        getNonEmptyLines(stdoutChunks.join("")).length >= 2 &&
+        stderrChunks.join("").includes("running (stdio)"),
       {
         timeoutMs: 10_000,
         failureMessage:
-          `server did not emit expected stdout JSON-RPC responses.\n` +
+          `server did not emit expected stdout JSON-RPC responses or stderr startup diagnostics.\n` +
           `STDOUT:\n${stdoutChunks.join("")}\nSTDERR:\n${stderrChunks.join("")}`,
       },
     );
@@ -212,6 +206,78 @@ test("mcp IT: stdio transport keeps stdout protocol-only and writes diagnostics 
     assert.equal(joinedStderr.includes("running (stdio)"), true);
   } finally {
     child.stdin?.end();
+    await forceStop(child);
+    await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("mcp IT: stdio server exits after stdin closes", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-stdio-shutdown-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  await fs.mkdir(path.dirname(probeConfigAbs), { recursive: true });
+  await fs.writeFile(
+    probeConfigAbs,
+    `${JSON.stringify(
+      {
+        defaultProfile: "dev",
+        profiles: {
+          dev: {
+            probes: {
+              "post-app": {
+                baseUrl: "http://127.0.0.1:9191",
+                include: ["com.example.social.**"],
+                exclude: [],
+              },
+            },
+          },
+        },
+        workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const child = spawn(process.execPath, [mcpServerEntryAbs], {
+    cwd: repoRootAbs,
+    env: {
+      ...process.env,
+      MCP_WORKSPACE_ROOT: workspaceRootAbs,
+      MCP_PROBE_CONFIG_FILE: probeConfigAbs,
+    },
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+
+  const stderrChunks: string[] = [];
+  child.stderr?.on("data", (chunk) => {
+    stderrChunks.push(String(chunk));
+  });
+
+  try {
+    await waitFor(
+      () => stderrChunks.join("").includes("running (stdio)"),
+      {
+        timeoutMs: 10_000,
+        failureMessage: `server did not start.\n${stderrChunks.join("")}`,
+      },
+    );
+
+    child.stdin?.end();
+
+    await waitFor(
+      () => child.exitCode !== null,
+      {
+        timeoutMs: 10_000,
+        failureMessage: `server did not exit after stdin closed.\n${stderrChunks.join("")}`,
+      },
+    );
+
+    assert.equal(child.exitCode, 0);
+    assert.equal(stderrChunks.join("").includes("shutdown: stdin_"), true);
+  } finally {
     await forceStop(child);
     await fs.rm(tmpRoot, { recursive: true, force: true });
   }

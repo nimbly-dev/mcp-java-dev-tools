@@ -3,6 +3,13 @@ import path from "node:path";
 
 import { asString, isRecord } from "@tools-export-execution-profile/common";
 
+function stripUtf8Bom(raw: string): string {
+  if (raw.charCodeAt(0) === 0xfeff) {
+    return raw.slice(1);
+  }
+  return raw;
+}
+
 export async function resolveProbeBaseUrlForExport(args: {
   workspaceRootAbs: string;
   probeId?: string;
@@ -13,7 +20,7 @@ export async function resolveProbeBaseUrlForExport(args: {
   const configPathAbs = path.join(args.workspaceRootAbs, ".mcpjvm", "probe-config.json");
   try {
     const text = await fs.readFile(configPathAbs, "utf8");
-    const parsed = JSON.parse(text) as unknown;
+    const parsed = JSON.parse(stripUtf8Bom(text)) as unknown;
     if (!isRecord(parsed)) return undefined;
     const profiles = isRecord(parsed.profiles) ? parsed.profiles : undefined;
     if (!profiles) return undefined;

@@ -210,6 +210,9 @@ export async function executionProfileExportDomain(input: {
       output = {
         scriptPathAbs: out.scriptPathAbs,
         ...("readmePathAbs" in out && out.readmePathAbs ? { readmePathAbs: out.readmePathAbs } : {}),
+        ...("jmeterArtifactPathsAbs" in out && Array.isArray(out.jmeterArtifactPathsAbs) && out.jmeterArtifactPathsAbs.length > 0
+          ? { jmeterArtifactPathsAbs: out.jmeterArtifactPathsAbs }
+          : {}),
       };
     } else {
       output = {
@@ -262,6 +265,8 @@ export async function executionProfileExportDomain(input: {
       reasonCode = reason;
     } else if (reason.startsWith("performance_export_workload_provider_unsupported:")) {
       reasonCode = "performance_export_workload_provider_unsupported";
+    } else if (reason.startsWith("performance_export_probe_binding_missing:")) {
+      reasonCode = "performance_export_probe_binding_missing";
     }
     return blockedResponse(reasonCode, reason, {
       ...(input.exportId ? { exportId: input.exportId } : {}),
