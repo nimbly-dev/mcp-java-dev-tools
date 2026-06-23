@@ -234,7 +234,7 @@ test("mcp IT: execution_orchestration execute does not fail with project_artifac
   }
 });
 
-test("mcp IT: execution_orchestration fails closed on unsupported transport placeholder syntax before creating a run", async () => {
+test("mcp IT: execution_orchestration accepts compatible {{key}} transport placeholder syntax and reaches plan execution", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-placeholder-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-performance";
@@ -250,6 +250,12 @@ test("mcp IT: execution_orchestration fails closed on unsupported transport plac
     planName,
   );
   const runRootAbs = path.join(planRootAbs, "runs");
+  const appServer = http.createServer((req, res) => {
+    res.statusCode = req.headers.authorization === "Bearer seeded-token" ? 200 : 401;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ ok: res.statusCode === 200 }));
+  });
+  const appPort = await listen(appServer);
 
   await writeJson(probeConfigAbs, {
     defaultProfile: "dev",
@@ -286,7 +292,14 @@ test("mcp IT: execution_orchestration fails closed on unsupported transport plac
         required: true,
         secret: false,
         provisioning: "user_input",
-        default: "http://127.0.0.1:8080",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+      {
+        key: "auth.bearer",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: "seeded-token",
       },
     ],
     steps: [
@@ -302,9 +315,12 @@ test("mcp IT: execution_orchestration fails closed on unsupported transport plac
             body: {
               nested: ["{{targetBaseUrl}}"],
             },
+            headers: {
+              Authorization: "Bearer {{ auth.bearer }}",
+            },
           },
         },
-        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
       },
     ],
   });
@@ -326,15 +342,16 @@ test("mcp IT: execution_orchestration fails closed on unsupported transport plac
     });
 
     assert.equal(out.structuredContent?.resultType, "execution_orchestration");
-    assert.equal(out.structuredContent?.status, "blocked");
     const planRuns = Array.isArray(out.structuredContent?.planRuns)
       ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
       : [];
     assert.equal(planRuns.length, 1);
-    assert.equal(planRuns[0]?.status, "blocked");
-    assert.equal(planRuns[0]?.blockedReasonCode, "transport_placeholder_syntax_invalid");
-    assert.equal(fssync.existsSync(runRootAbs), false);
+    assert.equal(planRuns[0]?.status, "executed");
+    assert.notEqual(planRuns[0]?.blockedReasonCode, "transport_placeholder_syntax_invalid");
+    assert.equal(typeof planRuns[0]?.runId, "string");
+    assert.equal(fssync.existsSync(runRootAbs), true);
   } finally {
+    appServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
       await fs.rm(tmpRoot, { recursive: true, force: true });
