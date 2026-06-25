@@ -569,6 +569,56 @@ test("executeRegressionRuntimeSuite does not redact explicit providedContext ove
   }
 });
 
+test("executeRegressionRuntimeSuite records redaction metadata when secret prerequisites were resolved", async () => {
+  const root = createTestTempDir("runtime-suite-secret-redaction-meta");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "plan-auth";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "core-secret-redaction-meta",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName, providedContext: { "auth.bearer": "runtime-secret-token" } }],
+            },
+          ],
+        },
+      ],
+    });
+    writeAuthPlan(root, projectName, planName, "/auth");
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-secret-redaction-meta",
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const req = input.request as Record<string, unknown>;
+        const headers = req.headers as Record<string, unknown>;
+        assert.equal(headers.Authorization, "Bearer runtime-secret-token");
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 7, bodyPreview: "{}" } };
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    const runsRoot = path.join(planRoot, "runs");
+    const runIds = fs.readdirSync(runsRoot);
+    assert.equal(runIds.length, 1);
+    const context = JSON.parse(fs.readFileSync(path.join(runsRoot, runIds[0], "context.resolved.json"), "utf8"));
+    assert.deepEqual(context.redaction, {
+      resolvedSecretKeyCount: 1,
+      resolvedSecretKeysOmitted: ["auth.bearer"],
+    });
+    assert.equal(context["auth.bearer"], undefined);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite applies runtimeConfig retryMax override", async () => {
   const root = createTestTempDir("runtime-suite-runtime-config");
   let attempts = 0;

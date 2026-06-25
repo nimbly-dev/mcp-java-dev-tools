@@ -10,6 +10,10 @@ import type {
 } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
 import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 import { correlateEvents } from "@tools-regression-execution-plan-spec/regression_correlation.util";
+import {
+  buildResolvedSecretRedactionMeta,
+  sanitizeSuitePersistedContext,
+} from "@tools-regression-execution-plan-spec/suite_context_redaction.util";
 
 export type {
   CorrelationIndexRebuildResult,
@@ -22,9 +26,6 @@ export type {
 
 const RUN_ID_PATTERN =
   /^(?:\d{2}-\d{2}-\d{4}-\d{2}-\d{2}-\d{2}(?:AM|PM)|\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_\d{2}|\d{10,})$/;
-const SECRET_KEY_PATTERN = /(?:token|secret|password|authorization|api[-_]?key|bearer)/i;
-const SECRET_VALUE_PATTERN =
-  /(?:\bbearer\s+[a-z0-9\-._~+/]+=*|\bghp_[a-z0-9]+|\bsk-[a-z0-9]{12,}|\bapi[_-]?key\b|\bpassword\b)/i;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -36,33 +37,6 @@ function stripRedundantResolvedContextFields(
   const next = { ...input };
   delete next.scope;
   return next;
-}
-
-function sanitizeByKey(
-  value: unknown,
-  explicitSecretPaths: Set<string>,
-  parentPath: string | null = null,
-): unknown {
-  if (typeof value === "string" && SECRET_VALUE_PATTERN.test(value)) {
-    return "[REDACTED]";
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeByKey(item, explicitSecretPaths, parentPath));
-  }
-  if (!isRecord(value)) {
-    return value;
-  }
-  const output: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value)) {
-    const currentPath = parentPath ? `${parentPath}.${key}` : key;
-    const isExplicitSecret = explicitSecretPaths.has(key) || explicitSecretPaths.has(currentPath);
-    const isPatternSecret = SECRET_KEY_PATTERN.test(key);
-    if (isExplicitSecret || isPatternSecret) {
-      continue;
-    }
-    output[key] = sanitizeByKey(child, explicitSecretPaths, currentPath);
-  }
-  return output;
 }
 
 function normalizeDiscoveryEvidence(discovery: unknown): unknown {
@@ -556,6 +530,10 @@ export async function writeRegressionRunArtifacts(
 
   const explicitSecretPaths = new Set(args.secretContextKeys ?? []);
   const now = args.now ?? new Date();
+  const resolvedSecretRedactionMeta = buildResolvedSecretRedactionMeta({
+    resolvedContext: args.resolvedContext,
+    explicitSecretPaths,
+  });
 
   const contextResolvedPathAbs = path.join(runDirAbs, "context.resolved.json");
   const executionResultPathAbs = path.join(runDirAbs, "execution.result.json");
@@ -563,16 +541,17 @@ export async function writeRegressionRunArtifacts(
   const correlationDirAbs = path.join(runDirAbs, "correlation");
   const correlationPathAbs = path.join(correlationDirAbs, "correlation.json");
 
-  const contextResolvedPayload = sanitizeByKey(
+  const contextResolvedPayload = sanitizeSuitePersistedContext(
     {
       resolvedAt: now.toISOString(),
       ...(args.planRef ? { planRef: args.planRef } : {}),
+      ...(resolvedSecretRedactionMeta ? { redaction: resolvedSecretRedactionMeta } : {}),
       ...stripRedundantResolvedContextFields(args.resolvedContext),
     },
     explicitSecretPaths,
   ) as Record<string, unknown>;
 
-  const executionResultPayload = sanitizeByKey(
+  const executionResultPayload = sanitizeSuitePersistedContext(
     {
       ...args.executionResult,
       ...(args.planRef ? { planRef: args.planRef } : {}),
@@ -583,7 +562,7 @@ export async function writeRegressionRunArtifacts(
     explicitSecretPaths,
   ) as Record<string, unknown>;
 
-  const evidencePayload = sanitizeByKey(
+  const evidencePayload = sanitizeSuitePersistedContext(
     {
       ...normalizeEvidencePayload(args.evidence),
       ...(args.planRef ? { planRef: args.planRef } : {}),
@@ -607,7 +586,7 @@ export async function writeRegressionRunArtifacts(
       });
   if (correlation) {
     await fs.mkdir(correlationDirAbs, { recursive: true });
-    const correlationPayload = sanitizeByKey(
+    const correlationPayload = sanitizeSuitePersistedContext(
       normalizeCorrelationPayload(correlation),
       explicitSecretPaths,
     ) as Record<string, unknown>;

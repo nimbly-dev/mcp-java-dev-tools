@@ -42,10 +42,16 @@ Required fields:
 
 - `resolvedAt` (ISO-8601 string)
 
+Optional fields:
+
+- `redaction.resolvedSecretKeyCount` (number)
+- `redaction.resolvedSecretKeysOmitted` (string array)
+
 Rules:
 
 - non-secret resolved values MAY be persisted (for example `tenantId`, `postId`)
 - secret values MUST NOT be persisted
+- when one or more secret context keys were resolved for the run, `redaction.resolvedSecretKeysOmitted` SHOULD list the omitted keys so operators can distinguish successful secret injection from context-resolution failure
 - auth metadata MAY be persisted as presence-only:
   - `auth.scheme`
   - `auth.provided`

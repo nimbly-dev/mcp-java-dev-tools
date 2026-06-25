@@ -474,6 +474,10 @@ test("mcp IT: execution_orchestration resolves project contextBindings from env-
     const contextResolved = JSON.parse(
       await fs.readFile(path.join(runRootAbs, runIds[0]!, "context.resolved.json"), "utf8"),
     ) as Record<string, unknown>;
+    assert.deepEqual(contextResolved.redaction, {
+      resolvedSecretKeyCount: 2,
+      resolvedSecretKeysOmitted: ["apiBaseUrl", "tenantId"],
+    });
     assert.equal(contextResolved.apiBaseUrl, undefined);
     assert.equal(contextResolved.tenantId, undefined);
   } finally {
