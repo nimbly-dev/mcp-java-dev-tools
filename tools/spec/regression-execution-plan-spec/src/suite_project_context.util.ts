@@ -28,6 +28,7 @@ export type ProjectContextResolutionResult =
   | {
       status: "ok";
       contextPatch: Record<string, unknown>;
+      secretContextKeys: string[];
       runtimeContextName?: string;
     }
   | {
@@ -1096,6 +1097,7 @@ export async function resolveProjectContextForRegression(
   const contextPatch: Record<string, unknown> = {
     "runtime.requestTimeoutMs": resolveWorkspaceRequestTimeoutMs(effectiveWorkspace, 20_000),
   };
+  const secretContextKeys = new Set<string>();
 
   if (selectedRuntimeContext) {
     contextPatch["runtime.context.name"] = selectedRuntimeContext.name;
@@ -1374,11 +1376,38 @@ export async function resolveProjectContextForRegression(
       };
     }
     contextPatch["auth.bearer"] = bearer;
+    secretContextKeys.add("auth.bearer");
+  }
+
+  const contextBindings = effectiveWorkspace.variables?.contextBindings;
+  if (contextBindings) {
+    const missingEnvKeys: string[] = [];
+    for (const [contextKey, envKey] of Object.entries(contextBindings)) {
+      const value = effectiveEnv[envKey];
+      if (!value || value.trim().length === 0) {
+        missingEnvKeys.push(envKey);
+        continue;
+      }
+      contextPatch[contextKey] = value;
+      secretContextKeys.add(contextKey);
+    }
+    if (missingEnvKeys.length > 0) {
+      const uniqueMissing = [...new Set(missingEnvKeys)].sort((a, b) => a.localeCompare(b));
+      return {
+        status: "blocked",
+        reasonCode: "env_key_missing",
+        missing: uniqueMissing,
+        checks: profileScriptChecks,
+        nextAction: `Set ${uniqueMissing.join(", ")} in .env or environment and retry.`,
+        requiredUserAction: uniqueMissing.map((envKey) => `Set env key '${envKey}' before running regression.`),
+      };
+    }
   }
 
   return {
     status: "ok",
     contextPatch,
+    secretContextKeys: [...secretContextKeys].sort((a, b) => a.localeCompare(b)),
     ...(selectedRuntimeContextName ? { runtimeContextName: selectedRuntimeContextName } : {}),
   };
 }

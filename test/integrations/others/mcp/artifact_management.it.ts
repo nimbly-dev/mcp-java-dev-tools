@@ -208,6 +208,50 @@ test("mcp IT: artifact_management project_context validate fails closed on missi
   }
 });
 
+test("mcp IT: artifact_management project_context upsert fails closed on unsupported workspace variable mappings and does not persist artifact", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-unsupported-vars-upsert-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project";
+  const projectsFileAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9191",
+    });
+
+    const out = await callTool(mcp, "artifact_management", {
+      artifactType: "project_context",
+      action: "upsert",
+      input: {
+        projectName,
+        payload: {
+          workspaces: [
+            {
+              projectRoot: workspaceRootAbs,
+              variables: {
+                bearerTokenEnv: "AUTH_BEARER_TOKEN",
+                tenantIdEnv: "TENANT_ID",
+                baseUrlEnv: "BASE_URL",
+              },
+            },
+          ],
+        },
+      },
+    });
+    assert.equal(out.structuredContent?.status, "project_artifact_invalid");
+    assert.equal(out.structuredContent?.reasonCode, "project_artifact_invalid");
+    assert.match(String(out.structuredContent?.reason ?? ""), /variables\.tenantIdEnv is unsupported/i);
+    assert.equal(fssync.existsSync(projectsFileAbs), false);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
 test("mcp IT: artifact_management project_context validate returns root inspection for canonical selector inputs", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-root-validate-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");

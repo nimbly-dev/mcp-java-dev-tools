@@ -11,7 +11,7 @@ import type {
 import { buildReplayPreflight } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
 import { resolvePrerequisiteContext } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
 import { resolveStepTransport } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
-import { resolveProjectContextForRegression } from "@tools-regression-execution-plan-spec/regression_project_context.util";
+import { resolveProjectContextForRegression } from "@tools-regression-execution-plan-spec/suite_project_context.util";
 
 export type DiscoveryOutcome =
   | "resolved"
@@ -276,6 +276,7 @@ function resolveProbeBaseUrl(args: {
 export type BuildReplayPreflightWithDiscoveryResult = {
   preflight: PreflightResult;
   resolvedContext: Record<string, unknown>;
+  secretContextKeys: string[];
   discovery: ResolveDiscoverablePrerequisitesResult | null;
 };
 
@@ -511,6 +512,7 @@ export async function buildReplayPreflightWithDiscovery(
   args: BuildReplayPreflightWithDiscoveryArgs,
 ): Promise<BuildReplayPreflightWithDiscoveryResult> {
   let mergedProvidedContext = { ...args.providedContext };
+  let secretContextKeys: string[] = [];
   let projectContextArg: BuildPreflightArgs["projectContext"] | undefined;
   const strictProbeBasesForConvergence: string[] = [];
   if (args.metadata.execution.probeVerification) {
@@ -533,6 +535,8 @@ export async function buildReplayPreflightWithDiscovery(
         ...projectContext.contextPatch,
         ...mergedProvidedContext,
       };
+      const overriddenKeys = new Set(Object.keys(args.providedContext));
+      secretContextKeys = projectContext.secretContextKeys.filter((key) => !overriddenKeys.has(key));
     } else {
       projectContextArg = {
         status: "blocked",
@@ -599,6 +603,7 @@ export async function buildReplayPreflightWithDiscovery(
     return {
       preflight: initialPreflight,
       resolvedContext: { ...mergedProvidedContext },
+      secretContextKeys,
       discovery: null,
     };
   }
@@ -631,6 +636,7 @@ export async function buildReplayPreflightWithDiscovery(
     return {
       preflight: blockedPreflight,
       resolvedContext: mergedContext,
+      secretContextKeys,
       discovery,
     };
   }
@@ -665,6 +671,7 @@ export async function buildReplayPreflightWithDiscovery(
           },
         }),
         resolvedContext: mergedContext,
+        secretContextKeys,
         discovery,
       };
     }
@@ -672,6 +679,7 @@ export async function buildReplayPreflightWithDiscovery(
   return {
     preflight: finalPreflight,
     resolvedContext: mergedContext,
+    secretContextKeys,
     discovery,
   };
 }

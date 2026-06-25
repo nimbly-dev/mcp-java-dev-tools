@@ -3,8 +3,9 @@ import { promises as fs } from "node:fs";
 
 import type { RuntimeSuiteManifest, RuntimeSuiteRunResult } from "@tools-regression-execution-plan-spec/models/regression_runtime_suite.model";
 import { buildTimestampRunId } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+import { deepResolvePlaceholderValue } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
 import { resolvePlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
-import { resolveProjectContextForRegression } from "@tools-regression-execution-plan-spec/regression_project_context.util";
+import { resolveProjectContextForRegression } from "@tools-regression-execution-plan-spec/suite_project_context.util";
 import { buildPerformanceMstaSummary } from "@tools-regression-execution-plan-spec/performance_msta_summary.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 import {
@@ -21,12 +22,16 @@ const SECRET_KEY_PATTERN = /(?:token|secret|password|authorization|api[-_]?key|b
 const SECRET_VALUE_PATTERN =
   /(?:\bbearer\s+[a-z0-9\-._~+/]+=*|\bghp_[a-z0-9]+|\bsk-[a-z0-9]{12,}|\bapi[_-]?key\b|\bpassword\b)/i;
 
-function sanitizePersistedContext(value: unknown, parentPath: string | null = null): unknown {
+function sanitizePersistedContext(
+  value: unknown,
+  parentPath: string | null = null,
+  explicitSecretPaths: Set<string> = new Set<string>(),
+): unknown {
   if (typeof value === "string" && SECRET_VALUE_PATTERN.test(value)) {
     return "[REDACTED]";
   }
   if (Array.isArray(value)) {
-    return value.map((item) => sanitizePersistedContext(item, parentPath));
+    return value.map((item) => sanitizePersistedContext(item, parentPath, explicitSecretPaths));
   }
   if (!isRecord(value)) {
     return value;
@@ -34,10 +39,15 @@ function sanitizePersistedContext(value: unknown, parentPath: string | null = nu
   const output: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value)) {
     const currentPath = parentPath ? `${parentPath}.${key}` : key;
-    if (SECRET_KEY_PATTERN.test(key) || SECRET_KEY_PATTERN.test(currentPath)) {
+    if (
+      explicitSecretPaths.has(key) ||
+      explicitSecretPaths.has(currentPath) ||
+      SECRET_KEY_PATTERN.test(key) ||
+      SECRET_KEY_PATTERN.test(currentPath)
+    ) {
       continue;
     }
-    output[key] = sanitizePersistedContext(child, currentPath);
+    output[key] = sanitizePersistedContext(child, currentPath, explicitSecretPaths);
   }
   return output;
 }
@@ -52,29 +62,6 @@ function asPositiveInteger(value: unknown): number | undefined {
 
 function asNonNegativeInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
-}
-
-function deepResolveValue(value: unknown, context: Record<string, unknown>): unknown {
-  if (typeof value === "string") {
-    return value.replace(/\$\{([^}]+)\}/g, (_match, key) => {
-      const resolved = context[key];
-      if (typeof resolved === "undefined" || resolved === null) {
-        throw new Error(`missing_context:${key}`);
-      }
-      return String(resolved);
-    });
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => deepResolveValue(item, context));
-  }
-  if (value && typeof value === "object") {
-    const output: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      output[k] = deepResolveValue(v, context);
-    }
-    return output;
-  }
-  return value;
 }
 
 function toIso(value: Date | null): string | null {
@@ -584,8 +571,8 @@ async function buildTransportRequest(args: {
   requestTimeoutMs?: number;
 }): Promise<{ request: Record<string, unknown>; wrappedOnly: boolean } | { error: string }> {
   try {
-    const requestSpec = deepResolveValue(args.entrypoint.request, args.providedContext) as Record<string, unknown>;
-    const transportSpec = deepResolveValue(args.entrypoint.transport, args.providedContext) as Record<string, unknown>;
+    const requestSpec = deepResolvePlaceholderValue(args.entrypoint.request, args.providedContext) as Record<string, unknown>;
+    const transportSpec = deepResolvePlaceholderValue(args.entrypoint.transport, args.providedContext) as Record<string, unknown>;
     const baseUrl = asTrimmedString(transportSpec.baseUrl);
     const method = asTrimmedString(requestSpec.method);
     const requestPath = asTrimmedString(requestSpec.path);
@@ -767,7 +754,11 @@ async function executePerformancePlanWorkflow(
     ...projectContext.contextPatch,
     ...(args.providedContext ?? {}),
   };
-  const persistedContext = sanitizePersistedContext(providedContext) as Record<string, unknown>;
+  const persistedContext = sanitizePersistedContext(
+    providedContext,
+    null,
+    new Set(projectContext.secretContextKeys),
+  ) as Record<string, unknown>;
   logPerformancePhase({ runId, planName: args.planName, phase: "context_write_begin" });
   await fs.writeFile(
     path.join(runDirAbs, "context.resolved.json"),

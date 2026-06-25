@@ -9,6 +9,10 @@ import type {
   PlanStep,
   PreflightResult,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import {
+  deepResolvePlaceholderValue,
+  normalizePlaceholderSyntaxInString,
+} from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
 
 export type {
   BuildPreflightArgs,
@@ -323,23 +327,6 @@ type InvalidTransportPlaceholder = {
   fieldPath: string;
   invalidToken: string;
 };
-
-function normalizePlaceholderSyntaxInString(value: string): {
-  normalized: string;
-  invalidToken?: string;
-} {
-  const normalizedTripleBrace = value.replace(/\{\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}\}/g, (_match, key: string) => `\${${key.trim()}}`);
-  const normalizedDoubleBrace = normalizedTripleBrace.replace(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, key: string) => `\${${key.trim()}}`);
-  const normalized = normalizedDoubleBrace.replace(/\$\{\s*([A-Za-z0-9_.-]+)\s*\}/g, (_match, key: string) => `\${${key.trim()}}`);
-  const invalidMatch = normalized.match(/\{\{\{|\}\}\}|\{\{|\}\}|\$\{\s*\}|\$\{[^}]*$/);
-  if (invalidMatch) {
-    return {
-      normalized,
-      invalidToken: invalidMatch[0],
-    };
-  }
-  return { normalized };
-}
 
 function findInvalidTransportPlaceholder(args: {
   value: unknown;
@@ -808,35 +795,8 @@ export function resolvePrerequisiteContext(
   return resolved;
 }
 
-function deepResolveValue(value: unknown, context: Record<string, unknown>): unknown {
-  if (typeof value === "string") {
-    const normalized = normalizePlaceholderSyntaxInString(value);
-    if (typeof normalized.invalidToken === "string") {
-      throw new Error(`invalid_placeholder:${normalized.invalidToken}`);
-    }
-    return normalized.normalized.replace(/\$\{([^}]+)\}/g, (_match, key) => {
-      const resolved = context[key];
-      if (typeof resolved === "undefined" || resolved === null) {
-        throw new Error(`missing_context:${key}`);
-      }
-      return String(resolved);
-    });
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => deepResolveValue(item, context));
-  }
-  if (value && typeof value === "object") {
-    const output: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      output[k] = deepResolveValue(v, context);
-    }
-    return output;
-  }
-  return value;
-}
-
 export function resolveStepTransport(step: PlanStep, context: Record<string, unknown>): Record<string, unknown> {
-  return deepResolveValue(step.transport, context) as Record<string, unknown>;
+  return deepResolvePlaceholderValue(step.transport, context) as Record<string, unknown>;
 }
 
 function readByPath(input: Record<string, unknown>, path: string): unknown {

@@ -6,7 +6,7 @@ const test = require("node:test");
 
 const {
   resolveProjectContextForRegression,
-} = require("@tools-regression-execution-plan-spec/regression_project_context.util");
+} = require("@tools-regression-execution-plan-spec/suite_project_context.util");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
@@ -60,10 +60,51 @@ test("resolveProjectContextForRegression resolves auth.bearer from env key refer
     assert.equal(out.status, "ok");
     if (out.status === "ok") {
       assert.equal(out.contextPatch["auth.bearer"], "runtime-token-value");
+      assert.deepEqual(out.secretContextKeys, ["auth.bearer"]);
       assert.equal(out.runtimeContextName, "terminal-cli");
       assert.equal(out.contextPatch["runtime.context.mode"], "terminal");
       assert.equal(out.contextPatch["runtime.autoStart"], false);
       assert.equal(out.contextPatch["runtime.autoStopOnFinish"], true);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectContextForRegression resolves generic contextBindings from env key references", async () => {
+  const root = createTestTempDir("project-context-bindings");
+  try {
+    const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    writeJson(projects, {
+      workspaces: [
+        {
+          projectRoot: root,
+          variables: {
+            contextBindings: {
+              apiBaseUrl: "BASE_URL",
+              tenantId: "TENANT_ID",
+            },
+          },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        },
+      ],
+    });
+
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projects,
+      env: {
+        BASE_URL: "http://127.0.0.1:8080",
+        TENANT_ID: "tenant-social-001",
+      },
+      healthChecksEnabled: false,
+    });
+
+    assert.equal(out.status, "ok");
+    if (out.status === "ok") {
+      assert.equal(out.contextPatch.apiBaseUrl, "http://127.0.0.1:8080");
+      assert.equal(out.contextPatch.tenantId, "tenant-social-001");
+      assert.deepEqual(out.secretContextKeys, ["apiBaseUrl", "tenantId"]);
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

@@ -56,7 +56,11 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
         "keycloakClientIdEnv": "KEYCLOAK_CLIENT_ID",
         "keycloakClientSecretEnv": "KEYCLOAK_CLIENT_SECRET",
         "keycloakUsernameEnv": "KEYCLOAK_USERNAME",
-        "keycloakPasswordEnv": "KEYCLOAK_PASSWORD"
+        "keycloakPasswordEnv": "KEYCLOAK_PASSWORD",
+        "contextBindings": {
+          "apiBaseUrl": "BASE_URL",
+          "tenantId": "TENANT_ID"
+        }
       },
       "runtimeContexts": [
         {

@@ -128,6 +128,7 @@ export type ProjectWorkspaceEntry = {
     keycloakClientSecretEnv?: string;
     keycloakUsernameEnv?: string;
     keycloakPasswordEnv?: string;
+    contextBindings?: Record<string, string>;
   };
   runtimeContexts?: ProjectRuntimeContext[];
   scripts?: ProjectScriptEntry[];

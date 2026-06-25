@@ -212,6 +212,41 @@ test("artifact_management project_context validate fails closed when execution p
   }
 });
 
+test("artifact_management project_context upsert fails closed on unsupported workspace variable mappings and does not persist artifact", async () => {
+  const root = createTestTempDir("artifact-management-project-upsert-unsupported-vars");
+  const projectsFileAbs = path.join(root, ".mcpjvm", "alpha", "projects.json");
+  try {
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "upsert",
+        input: {
+          projectName: "alpha",
+          payload: {
+            workspaces: [
+              {
+                projectRoot: root,
+                variables: {
+                  bearerTokenEnv: "AUTH_BEARER_TOKEN",
+                  tenantIdEnv: "TENANT_ID",
+                  baseUrlEnv: "BASE_URL",
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.status, "project_artifact_invalid");
+    assert.equal(out.structuredContent.reasonCode, "project_artifact_invalid");
+    assert.match(String(out.structuredContent.reason ?? ""), /variables\.tenantIdEnv is unsupported/i);
+    assert.equal(fs.existsSync(projectsFileAbs), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("artifact_management project_context validate returns root inspection for matching projectName and projectRootAbs", async () => {
   const root = createTestTempDir("artifact-management-project-validate-root");
   try {

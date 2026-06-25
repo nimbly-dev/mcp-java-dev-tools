@@ -689,7 +689,12 @@ export async function executeRegressionPlanWorkflow(
     ...(typeof args.suiteRunId === "string" ? { suiteRunId: args.suiteRunId } : {}),
     planRef: { name: args.planName, path: planRootAbs },
     resolvedContext,
-    secretContextKeys: contract.prerequisites.filter((entry) => entry.secret).map((entry) => entry.key),
+    secretContextKeys: [
+      ...new Set([
+        ...contract.prerequisites.filter((entry) => entry.secret).map((entry) => entry.key),
+        ...preflightWithDiscovery.secretContextKeys,
+      ]),
+    ],
     executionResult,
     evidence: {
       targetResolution: contract.targets.map((target, idx) => ({

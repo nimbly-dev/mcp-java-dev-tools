@@ -344,6 +344,167 @@ test("executeRegressionRuntimeSuite continue_on_fail blocks whole suite on share
   }
 });
 
+test("executeRegressionRuntimeSuite resolves project contextBindings into transport context and redacts env-sourced values from persisted context", async () => {
+  const root = createTestTempDir("runtime-suite-context-bindings");
+  try {
+    const projectName = "petclinic-regression";
+    const envFile = path.join(root, ".mcpjvm", projectName, ".env");
+    fs.mkdirSync(path.dirname(envFile), { recursive: true });
+    fs.writeFileSync(envFile, "BASE_URL=http://127.0.0.1:9301\nTENANT_ID=tenant-social-001\n", "utf8");
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: {
+            contextBindings: {
+              apiBaseUrl: "BASE_URL",
+              tenantId: "TENANT_ID",
+            },
+          },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "core-context-bindings",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "plan-bound" }],
+            },
+          ],
+        },
+      ],
+    });
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "plan-bound");
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: {
+        intent: "regression",
+        probeVerification: false,
+        pinStrictProbeKey: false,
+        discoveryPolicy: "allow_discoverable_prerequisites",
+      },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" } }],
+      prerequisites: [
+        { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input" },
+        { key: "tenantId", required: true, secret: false, provisioning: "user_input" },
+      ],
+      steps: [
+        {
+          order: 1,
+          id: "step_1",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/api/v2/tenant/${tenantId}/tags" } },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-context-bindings",
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const req = input.request as Record<string, unknown>;
+        assert.equal(req.url, "http://127.0.0.1:9301/api/v2/tenant/tenant-social-001/tags");
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 7, bodyPreview: "{}" } };
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    const runsRoot = path.join(planRoot, "runs");
+    const runIds = fs.readdirSync(runsRoot);
+    assert.equal(runIds.length, 1);
+    const context = JSON.parse(fs.readFileSync(path.join(runsRoot, runIds[0], "context.resolved.json"), "utf8"));
+    assert.equal(context.apiBaseUrl, undefined);
+    assert.equal(context.tenantId, undefined);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionRuntimeSuite does not redact explicit providedContext overrides for env-backed bindings", async () => {
+  const root = createTestTempDir("runtime-suite-context-bindings-override");
+  try {
+    const projectName = "petclinic-regression";
+    const envFile = path.join(root, ".mcpjvm", projectName, ".env");
+    fs.mkdirSync(path.dirname(envFile), { recursive: true });
+    fs.writeFileSync(envFile, "TENANT_ID=tenant-from-env\n", "utf8");
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", "plan-bound");
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: {
+            contextBindings: {
+              tenantId: "TENANT_ID",
+            },
+          },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "core-context-bindings-override",
+              executionPolicy: "stop_on_fail",
+              plans: [
+                {
+                  order: 1,
+                  planName: "plan-bound",
+                  providedContext: { tenantId: "tenant-override" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: {
+        intent: "regression",
+        probeVerification: false,
+        pinStrictProbeKey: false,
+        discoveryPolicy: "allow_discoverable_prerequisites",
+      },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "tenantId", required: true, secret: false, provisioning: "user_input" }],
+      steps: [
+        {
+          order: 1,
+          id: "step_1",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", url: "http://127.0.0.1/tenant/${tenantId}" } },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-context-bindings-override",
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const req = input.request as Record<string, unknown>;
+        assert.equal(req.url, "http://127.0.0.1/tenant/tenant-override");
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 7, bodyPreview: "{}" } };
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    const runsRoot = path.join(planRoot, "runs");
+    const runIds = fs.readdirSync(runsRoot);
+    assert.equal(runIds.length, 1);
+    const context = JSON.parse(fs.readFileSync(path.join(runsRoot, runIds[0], "context.resolved.json"), "utf8"));
+    assert.equal(context.tenantId, "tenant-override");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite applies runtimeConfig retryMax override", async () => {
   const root = createTestTempDir("runtime-suite-runtime-config");
   let attempts = 0;

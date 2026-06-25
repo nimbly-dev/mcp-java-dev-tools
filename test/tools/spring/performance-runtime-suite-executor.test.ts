@@ -198,6 +198,119 @@ test("executePerformanceRuntimeSuite executes a performance plan and persists ru
   }
 });
 
+test("executePerformanceRuntimeSuite resolves compatibility placeholder aliases in performance entrypoints", async () => {
+  const root = createTestTempDir("performance-runtime-suite-placeholder-alias");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-placeholder-alias";
+    const planName = "catalog-search-perf";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              runtimeConfig: {
+                requestTimeoutMs: 250,
+              },
+              plans: [
+                {
+                  order: 1,
+                  planName,
+                  providedContext: {
+                    perfBaseUrl: "http://127.0.0.1:18082",
+                    tenantId: "tenant-social-001",
+                    "auth.bearer": "token-123",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "performance", planName);
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "0.1.0",
+      suiteType: "performance",
+      execution: {
+        intent: "performance",
+      },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      entrypoints: [
+        {
+          transport: {
+            protocol: "http",
+            baseUrl: "{{ perfBaseUrl }}",
+            wrappedOnly: true,
+          },
+          request: {
+            method: "GET",
+            path: "/work/{{{tenantId}}}",
+            headers: {
+              Authorization: "Bearer {{auth.bearer}}",
+            },
+          },
+        },
+      ],
+      observationTargets: {
+        requiredLineHits: ["com.example.catalog.CatalogService#search:42"],
+      },
+      loadModel: {
+        mode: "concurrency",
+        concurrency: 1,
+        rampUpSeconds: 0,
+        durationSeconds: 1,
+      },
+      successCriteria: {
+        maxErrorRatePct: 0,
+        minThroughputPerSec: 0.5,
+        p95LatencyMs: 100,
+      },
+    });
+
+    let transportCalls = 0;
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          transportCalls += 1;
+          const request = (input.request ?? {}) as Record<string, unknown>;
+          assert.equal(request.url, "http://127.0.0.1:18082/work/tenant-social-001");
+          assert.equal((request.headers as Record<string, unknown>).Authorization, "Bearer token-123");
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 15,
+            },
+          };
+        }
+        if (toolName === "probe") {
+          if (input.action === "reset") {
+            return { structuredContent: { result: { reasonCode: "ok" } } };
+          }
+          if (input.action === "wait_for_hit") {
+            return { structuredContent: { result: { hit: true } } };
+          }
+        }
+        throw new Error(`unexpected tool invocation: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    assert.equal(transportCalls > 0, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executePerformanceRuntimeSuite supports profile scriptRefs through shared project-context resolution", async () => {
   const root = createTestTempDir("performance-runtime-suite-script-refs");
   try {
