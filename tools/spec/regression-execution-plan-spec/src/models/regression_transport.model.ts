@@ -10,6 +10,7 @@ export type TransportExecutionResult = {
   headers?: Record<string, string>;
   bodyPreview?: string;
   reasonCode?: string;
+  reasonMeta?: Record<string, unknown>;
   errorMessage?: string;
 };
 

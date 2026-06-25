@@ -31,10 +31,36 @@ function toBodyPreview(value: string): string {
   return trimmed.slice(0, 2048);
 }
 
-function validateHttpPayload(payload: Record<string, unknown>): HttpTransportRequest | null {
+function validateHttpPayload(payload: Record<string, unknown>): {
+  ok: true;
+  request: HttpTransportRequest;
+} | {
+  ok: false;
+  reasonMeta: Record<string, unknown>;
+} {
   const method = asString(payload.method);
   const url = asString(payload.url);
-  if (!method || !url) return null;
+  if (!method || !url) {
+    const pathTemplate = asString(payload.pathTemplate);
+    const missingFields = [
+      ...(method ? [] : ["method"]),
+      ...(url ? [] : ["url"]),
+    ];
+    const cause =
+      !url && pathTemplate
+        ? (/^https?:\/\//i.test(pathTemplate.trim())
+            ? "absolute_path_template_not_promoted"
+            : "api_base_url_missing_for_path_template")
+        : (!url ? "url_missing" : "method_missing");
+    return {
+      ok: false,
+      reasonMeta: {
+        missingFields,
+        cause,
+        ...(pathTemplate ? { pathTemplate } : {}),
+      },
+    };
+  }
   const headers: Record<string, string> = {};
   if (isRecord(payload.headers)) {
     for (const [k, v] of Object.entries(payload.headers)) {
@@ -43,11 +69,14 @@ function validateHttpPayload(payload: Record<string, unknown>): HttpTransportReq
     }
   }
   return {
-    method: method.toUpperCase(),
-    url,
-    ...(Object.keys(headers).length > 0 ? { headers } : {}),
-    ...(asString(payload.body) ? { body: asString(payload.body)! } : {}),
-    ...(asNumber(payload.timeoutMs) ? { timeoutMs: asNumber(payload.timeoutMs)! } : {}),
+    ok: true,
+    request: {
+      method: method.toUpperCase(),
+      url,
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      ...(asString(payload.body) ? { body: asString(payload.body)! } : {}),
+      ...(asNumber(payload.timeoutMs) ? { timeoutMs: asNumber(payload.timeoutMs)! } : {}),
+    },
   };
 }
 
@@ -102,13 +131,14 @@ export function createMcpWrappedTransportAdapter(mcpInvoke: McpToolInvoker): Tra
     protocol: "http",
     async execute(input: TransportExecuteInput): Promise<TransportExecutionResult> {
       const parsed = validateHttpPayload(input.payload);
-      if (!parsed) {
+      if (!parsed.ok) {
         return {
           status: "blocked_invalid",
           protocol: "http",
           durationMs: 1,
           reasonCode: "http_payload_invalid",
-          errorMessage: "http transport requires method and url",
+          reasonMeta: parsed.reasonMeta,
+          errorMessage: `http transport missing required field(s): ${String(parsed.reasonMeta.missingFields ?? []).replace(/,/g, ", ")}`,
         };
       }
 
@@ -116,7 +146,7 @@ export function createMcpWrappedTransportAdapter(mcpInvoke: McpToolInvoker): Tra
         toolName: "transport_execute",
         input: {
           protocol: "http",
-          request: parsed,
+          request: parsed.request,
           options: { wrappedOnly: true },
         },
       });
