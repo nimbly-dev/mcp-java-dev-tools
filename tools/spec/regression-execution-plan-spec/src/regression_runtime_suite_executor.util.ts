@@ -138,7 +138,22 @@ function asPersistedPlanRunResult(value: unknown): RuntimeSuiteRunResult["planRu
     status: value.status,
     ...(typeof value.runStatus === "string" ? { runStatus: value.runStatus } : {}),
     ...(typeof value.blockedReasonCode === "string" ? { blockedReasonCode: value.blockedReasonCode } : {}),
+    ...(isRecord(value.blockedReasonMeta) ? { blockedReasonMeta: value.blockedReasonMeta } : {}),
     ...(typeof value.runId === "string" ? { runId: value.runId } : {}),
+  };
+}
+
+function resolveBlockedPlanDetail(executionResult: Record<string, unknown>): {
+  blockedReasonCode?: string;
+  blockedReasonMeta?: Record<string, unknown>;
+} {
+  const steps = Array.isArray(executionResult.steps) ? executionResult.steps : [];
+  const blockedStep = steps.find((entry) => isRecord(entry) && entry.status === "blocked_runtime") ??
+    steps.find((entry) => isRecord(entry) && entry.status === "blocked_dependency");
+  if (!isRecord(blockedStep)) return {};
+  return {
+    ...(typeof blockedStep.reasonCode === "string" ? { blockedReasonCode: blockedStep.reasonCode } : {}),
+    ...(isRecord(blockedStep.reasonMeta) ? { blockedReasonMeta: blockedStep.reasonMeta } : {}),
   };
 }
 
@@ -667,6 +682,7 @@ export async function executeRegressionRuntimeSuite(
       planName: plan.planName,
       status: "executed",
       runStatus: run.runStatus,
+      ...(run.runStatus === "blocked" ? resolveBlockedPlanDetail(run.executionResult as unknown as Record<string, unknown>) : {}),
       runId: run.runId,
     });
     await collectSuiteCorrelationSession({

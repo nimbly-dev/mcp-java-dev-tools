@@ -37,6 +37,7 @@ export type RuntimeSuitePlanRunResult = {
   status: "executed" | "blocked" | "skipped";
   runStatus?: "pass" | "fail" | "blocked";
   blockedReasonCode?: string;
+  blockedReasonMeta?: Record<string, unknown>;
   runId?: string;
 };
 

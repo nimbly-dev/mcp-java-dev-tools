@@ -54,6 +54,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function resolveTransportReasonMeta(transport: { reasonMeta?: Record<string, unknown> }): Record<string, unknown> | undefined {
+  return transport.reasonMeta && Object.keys(transport.reasonMeta).length > 0 ? transport.reasonMeta : undefined;
+}
+
 export type ExecuteRegressionPlanWorkflowArgs = {
   workspaceRootAbs: string;
   projectName?: string;
@@ -640,6 +644,7 @@ export async function executeRegressionPlanWorkflow(
       statusCode: transport.statusCode ?? 0,
       assertions: evalResult.assertions,
       reasonCode: transport.reasonCode,
+      ...(resolveTransportReasonMeta(transport) ? { reasonMeta: resolveTransportReasonMeta(transport) } : {}),
       ...(typeof step.when === "undefined"
         ? {}
         : {

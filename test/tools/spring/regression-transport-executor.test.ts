@@ -56,6 +56,21 @@ test("mcp wrapped transport adapter fails closed for invalid payload", async () 
   });
   assert.equal(result.status, "blocked_invalid");
   assert.equal(result.reasonCode, "http_payload_invalid");
+  assert.deepEqual(result.reasonMeta?.missingFields, ["url"]);
+  assert.equal(result.reasonMeta?.cause, "url_missing");
+});
+
+test("mcp wrapped transport adapter reports apiBaseUrl synthesis gap for relative pathTemplate without url", async () => {
+  const adapter = createMcpWrappedTransportAdapter(async () => ({ structuredContent: {} }));
+  const result = await adapter.execute({
+    protocol: "http",
+    payload: { method: "GET", pathTemplate: "/api/v1/posts" },
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "http_payload_invalid");
+  assert.deepEqual(result.reasonMeta?.missingFields, ["url"]);
+  assert.equal(result.reasonMeta?.cause, "api_base_url_missing_for_path_template");
+  assert.equal(result.reasonMeta?.pathTemplate, "/api/v1/posts");
 });
 
 test("mcp wrapped transport adapter fails closed when wrapper response is missing", async () => {
