@@ -27,6 +27,7 @@ export type PreflightReasonCode =
   | "step_order_non_sequential"
   | "transport_protocol_mismatch"
   | "transport_placeholder_syntax_invalid"
+  | "plan_context_key_noncanonical"
   | "target_ambiguous"
   | "strict_probe_key_invalid"
   | "invalid_discoverable_prerequisite"

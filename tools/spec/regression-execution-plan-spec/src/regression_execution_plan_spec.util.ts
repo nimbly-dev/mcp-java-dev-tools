@@ -13,6 +13,7 @@ import {
   deepResolvePlaceholderValue,
   normalizePlaceholderSyntaxInString,
 } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
+import { validateCanonicalPlanContextKeys } from "@tools-regression-execution-plan-spec/suite_context_key_validation.util";
 
 export type {
   BuildPreflightArgs,
@@ -673,6 +674,18 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
       reasonCode: transportPlaceholderValidation.reasonCode,
       ...emptyPreflightDetails(),
       requiredUserAction: transportPlaceholderValidation.requiredUserAction,
+    };
+  }
+  const canonicalContextKeyValidation = validateCanonicalPlanContextKeys({
+    prerequisites: contract.prerequisites,
+    steps: contract.steps,
+  });
+  if (!canonicalContextKeyValidation.ok) {
+    return {
+      status: "blocked_invalid",
+      reasonCode: canonicalContextKeyValidation.reasonCode,
+      ...emptyPreflightDetails(),
+      requiredUserAction: canonicalContextKeyValidation.requiredUserAction,
     };
   }
   const correlationValidation = validateCorrelationPolicy(contract.correlation);

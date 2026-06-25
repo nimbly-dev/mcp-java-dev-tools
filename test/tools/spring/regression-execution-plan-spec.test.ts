@@ -526,6 +526,68 @@ test("preflight accepts compatible {{key}} transport placeholder syntax before e
   assert.equal(result.reasonCode, "ok");
 });
 
+test("preflight blocks raw env-style prerequisite keys and requires canonical context keys", () => {
+  const contract = baseContract({
+    prerequisites: [{ key: "AUTH_BEARER_TOKEN", required: true, secret: true, provisioning: "user_input" }],
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            url: "http://127.0.0.1/api/v1/posts",
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: {},
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "plan_context_key_noncanonical");
+  assert.match(result.requiredUserAction[0], /AUTH_BEARER_TOKEN/);
+});
+
+test("preflight blocks raw env-style transport placeholder keys and requires canonical context keys", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            url: "http://127.0.0.1/api/v1/posts",
+            headers: {
+              Authorization: "Bearer {{AUTH_BEARER_TOKEN}}",
+            },
+          },
+        },
+        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "plan_context_key_noncanonical");
+  assert.match(result.requiredUserAction[0], /AUTH_BEARER_TOKEN/);
+});
+
 test("preflight accepts compatible spaced {{ key }} transport placeholder syntax before execution", () => {
   const contract = baseContract({
     steps: [

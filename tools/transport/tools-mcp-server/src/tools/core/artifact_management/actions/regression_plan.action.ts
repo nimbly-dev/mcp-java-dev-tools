@@ -4,6 +4,7 @@ import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "@/tools/core/artifact_management/shared/fail_closed.util";
 import { readJsonFile, writeJsonFile } from "@/tools/core/artifact_management/shared/json_io.util";
 import { resolveProjectName } from "@/tools/core/artifact_management/shared/project_resolution.util";
+import { validateCanonicalPlanContextKeys } from "@tools-regression-execution-plan-spec/suite_context_key_validation.util";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -56,6 +57,13 @@ function collectUnsupportedStepProtocols(contract: Record<string, unknown>): Arr
     out.push({ stepId, protocol });
   }
   return out;
+}
+
+function validateCanonicalContractShape(contract: Record<string, unknown>) {
+  return validateCanonicalPlanContextKeys({
+    prerequisites: Array.isArray(contract.prerequisites) ? (contract.prerequisites as any[]) : [],
+    steps: Array.isArray(contract.steps) ? (contract.steps as any[]) : [],
+  });
 }
 
 export async function handleRegressionPlanArtifact(
@@ -194,6 +202,20 @@ export async function handleRegressionPlanArtifact(
         },
       });
     }
+    const canonical = validateCanonicalContractShape(contract);
+    if (!canonical.ok) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: canonical.reasonCode,
+        reason: "regression plan uses non-canonical context keys",
+        reasonMeta: {
+          artifactType: request.artifactType,
+          action: request.action,
+          projectName,
+          planName,
+          requiredUserAction: canonical.requiredUserAction,
+        },
+      });
+    }
     return okArtifactResponse({
       resultType: "artifact",
       status: "ok",
@@ -211,8 +233,41 @@ export async function handleRegressionPlanArtifact(
       reasonMeta: { artifactType: request.artifactType, action: request.action, projectName, planName },
     });
   }
+  const contractPayload =
+    request.input.payload.contract && typeof request.input.payload.contract === "object" && !Array.isArray(request.input.payload.contract)
+      ? (request.input.payload.contract as Record<string, unknown>)
+      : {};
+  const unsupported = collectUnsupportedStepProtocols(contractPayload);
+  if (unsupported.length > 0) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: "transport_protocol_mismatch",
+      reason: "regression plan contains step protocol not supported by execution_orchestration",
+      reasonMeta: {
+        artifactType: request.artifactType,
+        action: request.action,
+        projectName,
+        planName,
+        allowedProtocols: ["http"],
+        unsupportedSteps: unsupported,
+      },
+    });
+  }
+  const canonical = validateCanonicalContractShape(contractPayload);
+  if (!canonical.ok) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: canonical.reasonCode,
+      reason: "regression plan uses non-canonical context keys",
+      reasonMeta: {
+        artifactType: request.artifactType,
+        action: request.action,
+        projectName,
+        planName,
+        requiredUserAction: canonical.requiredUserAction,
+      },
+    });
+  }
   await writeJsonFile(path.join(planRoot, "metadata.json"), request.input.payload.metadata ?? {});
-  await writeJsonFile(path.join(planRoot, "contract.json"), request.input.payload.contract ?? {});
+  await writeJsonFile(path.join(planRoot, "contract.json"), contractPayload);
   if (typeof request.input.payload.plan === "string") {
     await fs.writeFile(path.join(planRoot, "plan.md"), request.input.payload.plan, "utf8");
   }
