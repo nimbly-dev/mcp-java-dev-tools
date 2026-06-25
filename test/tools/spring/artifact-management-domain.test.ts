@@ -397,6 +397,117 @@ test("artifact_management regression_plan validate fails closed when step protoc
   }
 });
 
+test("artifact_management regression_plan validate fails closed when plan uses non-canonical env-style keys", async () => {
+  const root = createTestTempDir("artifact-management-regression-validate-noncanonical");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    writeJson(path.join(root, ".mcpjvm", "alpha", "plans", "regression", "p1", "metadata.json"), {
+      execution: { intent: "regression" },
+    });
+    writeJson(path.join(root, ".mcpjvm", "alpha", "plans", "regression", "p1", "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [
+        {
+          key: "AUTH_BEARER_TOKEN",
+          required: true,
+          secret: true,
+          provisioning: "user_input",
+        },
+      ],
+      steps: [
+        {
+          order: 1,
+          id: "secure_call",
+          targetRef: 0,
+          protocol: "http",
+          transport: {
+            http: {
+              method: "GET",
+              url: "http://127.0.0.1:8080/secure",
+              headers: { Authorization: "Bearer {{AUTH_BEARER_TOKEN}}" },
+            },
+          },
+          expect: [{ id: "e1", actualPath: "status", operator: "field_equals", expected: "ok" }],
+        },
+      ],
+    });
+
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "regression_plan",
+        action: "validate",
+        input: { projectName: "alpha", planName: "p1" },
+      },
+    });
+
+    assert.equal(out.structuredContent.status, "plan_context_key_noncanonical");
+    assert.equal(out.structuredContent.reasonCode, "plan_context_key_noncanonical");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management regression_plan upsert fails closed when payload uses non-canonical env-style keys", async () => {
+  const root = createTestTempDir("artifact-management-regression-upsert-noncanonical");
+  const contractAbs = path.join(root, ".mcpjvm", "alpha", "plans", "regression", "p1", "contract.json");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "regression_plan",
+        action: "upsert",
+        input: {
+          projectName: "alpha",
+          planName: "p1",
+          payload: {
+            metadata: { execution: { intent: "regression" } },
+            contract: {
+              targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+              prerequisites: [
+                {
+                  key: "AUTH_BEARER_TOKEN",
+                  required: true,
+                  secret: true,
+                  provisioning: "user_input",
+                },
+              ],
+              steps: [
+                {
+                  order: 1,
+                  id: "secure_call",
+                  targetRef: 0,
+                  protocol: "http",
+                  transport: {
+                    http: {
+                      method: "GET",
+                      url: "http://127.0.0.1:8080/secure",
+                      headers: { Authorization: "Bearer {{AUTH_BEARER_TOKEN}}" },
+                    },
+                  },
+                  expect: [{ id: "e1", actualPath: "status", operator: "field_equals", expected: "ok" }],
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    assert.equal(out.structuredContent.status, "plan_context_key_noncanonical");
+    assert.equal(out.structuredContent.reasonCode, "plan_context_key_noncanonical");
+    assert.equal(fs.existsSync(contractAbs), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("artifact_management regression_plan read supports windowable prerequisites and steps sections", async () => {
   const root = createTestTempDir("artifact-management-regression-windowed-read");
   try {
