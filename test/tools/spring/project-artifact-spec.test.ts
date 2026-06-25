@@ -87,6 +87,71 @@ test("validateProjectArtifact fails closed when legacy auth field is present", (
   }
 });
 
+test("validateProjectArtifact fails closed when workspace variables contain unsupported env mappings", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        variables: {
+          bearerTokenEnv: "AUTH_BEARER_TOKEN",
+          tenantIdEnv: "TENANT_ID",
+          baseUrlEnv: "BASE_URL",
+        },
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /variables\.tenantIdEnv is unsupported/);
+    assert.match(result.errors.join("\n"), /variables\.baseUrlEnv is unsupported/);
+  }
+});
+
+test("validateProjectArtifact accepts workspace variables.contextBindings env mappings", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        variables: {
+          bearerTokenEnv: "AUTH_BEARER_TOKEN",
+          contextBindings: {
+            apiBaseUrl: "BASE_URL",
+            tenantId: "TENANT_ID",
+          },
+        },
+      },
+    ],
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.artifact.workspaces[0].variables?.contextBindings?.apiBaseUrl, "BASE_URL");
+    assert.equal(result.artifact.workspaces[0].variables?.contextBindings?.tenantId, "TENANT_ID");
+  }
+});
+
+test("validateProjectArtifact fails closed when workspace variables.contextBindings uses reserved runtime keys", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        variables: {
+          contextBindings: {
+            "runtime.requestTimeoutMs": "REQ_TIMEOUT_MS",
+            "probeBaseUrl": "PROBE_BASE_URL",
+          },
+        },
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /contextBindings\.runtime\.requestTimeoutMs is reserved/);
+    assert.match(result.errors.join("\n"), /contextBindings\.probeBaseUrl is reserved/);
+  }
+});
+
 test("validateProjectArtifact fails closed when runtime context mode is invalid", () => {
   const result = validateProjectArtifact({
       workspaces: [

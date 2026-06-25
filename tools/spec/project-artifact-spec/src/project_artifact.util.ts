@@ -557,7 +557,13 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
       "keycloakUsernameEnv",
       "keycloakPasswordEnv",
     ] as const;
+    const allowedEnvFields = new Set<string>(envFields);
     const normalizedVariables: NonNullable<ProjectWorkspaceEntry["variables"]> = {};
+    for (const key of Object.keys(input.variables)) {
+      if (!allowedEnvFields.has(key) && key !== "bearerToken" && key !== "contextBindings") {
+        errors.push(`workspaces[${index}].variables.${key} is unsupported`);
+      }
+    }
     for (const field of envFields) {
       const envKey = asTrimmedString(input.variables[field]) ?? undefined;
       if (envKey && !/^[A-Z_][A-Z0-9_]*$/.test(envKey)) {
@@ -569,6 +575,38 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
     }
     if ("bearerToken" in input.variables) {
       errors.push(`workspaces[${index}].variables.bearerToken is forbidden; use bearerTokenEnv`);
+    }
+    if ("contextBindings" in input.variables) {
+      if (!isRecord(input.variables.contextBindings)) {
+        errors.push(`workspaces[${index}].variables.contextBindings must be object`);
+      } else {
+        const normalizedBindings: Record<string, string> = {};
+        for (const rawKey of Object.keys(input.variables.contextBindings).sort((a, b) => a.localeCompare(b))) {
+          const contextKey = rawKey.trim();
+          if (contextKey.length === 0) {
+            errors.push(`workspaces[${index}].variables.contextBindings has empty key`);
+            continue;
+          }
+          if (contextKey.startsWith("runtime.") || contextKey === "probeBaseUrl" || contextKey.startsWith("probe.")) {
+            errors.push(`workspaces[${index}].variables.contextBindings.${contextKey} is reserved`);
+            continue;
+          }
+          const envKey = asTrimmedString(input.variables.contextBindings[rawKey]) ?? undefined;
+          if (!envKey || !/^[A-Z_][A-Z0-9_]*$/.test(envKey)) {
+            errors.push(`workspaces[${index}].variables.contextBindings.${contextKey} must be ENV_KEY format`);
+            continue;
+          }
+          normalizedBindings[contextKey] = envKey;
+        }
+        if (normalizedBindings["auth.bearer"] && normalizedVariables.bearerTokenEnv) {
+          errors.push(
+            `workspaces[${index}].variables.contextBindings.auth.bearer duplicates bearerTokenEnv; use one auth mapping only`,
+          );
+        }
+        if (Object.keys(normalizedBindings).length > 0) {
+          normalizedVariables.contextBindings = normalizedBindings;
+        }
+      }
     }
     variables = Object.keys(normalizedVariables).length > 0 ? normalizedVariables : undefined;
   }
