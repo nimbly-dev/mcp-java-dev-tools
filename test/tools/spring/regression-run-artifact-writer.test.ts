@@ -160,6 +160,8 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
       path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-course-review-aggregate-smoke", "runs", runId),
     );
     assert.equal(context.resolvedAt, "2026-04-19T08:01:26.000Z");
+    assert.equal(context.redaction.resolvedSecretKeyCount, 1);
+    assert.deepEqual(context.redaction.resolvedSecretKeysOmitted, ["auth.bearer"]);
     assert.equal(context.tenantId, "tenant-social-001");
     assert.equal(typeof context.scope, "undefined");
     assert.equal(typeof context["auth.bearer"], "undefined");

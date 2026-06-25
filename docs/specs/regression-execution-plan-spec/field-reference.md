@@ -190,6 +190,7 @@ Examples:
 - extracted IDs (`postId`)
 - resolved non-secret keys (`tenantId`)
 - metadata timestamps
+- redaction metadata (`redaction.resolvedSecretKeysOmitted`) proving that secret prerequisites were resolved but intentionally omitted from the Artifact
 
 ## `.mcpjvm/regression/<plan>/runs/<run_id>/execution.result.json`
 

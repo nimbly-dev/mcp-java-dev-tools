@@ -6,6 +6,10 @@ import { buildTimestampRunId } from "@tools-regression-execution-plan-spec/regre
 import { deepResolvePlaceholderValue } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
 import { resolvePlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 import { resolveProjectContextForRegression } from "@tools-regression-execution-plan-spec/suite_project_context.util";
+import {
+  buildResolvedSecretRedactionMeta,
+  sanitizeSuitePersistedContext,
+} from "@tools-regression-execution-plan-spec/suite_context_redaction.util";
 import { buildPerformanceMstaSummary } from "@tools-regression-execution-plan-spec/performance_msta_summary.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 import {
@@ -16,40 +20,6 @@ import {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-const SECRET_KEY_PATTERN = /(?:token|secret|password|authorization|api[-_]?key|bearer)/i;
-const SECRET_VALUE_PATTERN =
-  /(?:\bbearer\s+[a-z0-9\-._~+/]+=*|\bghp_[a-z0-9]+|\bsk-[a-z0-9]{12,}|\bapi[_-]?key\b|\bpassword\b)/i;
-
-function sanitizePersistedContext(
-  value: unknown,
-  parentPath: string | null = null,
-  explicitSecretPaths: Set<string> = new Set<string>(),
-): unknown {
-  if (typeof value === "string" && SECRET_VALUE_PATTERN.test(value)) {
-    return "[REDACTED]";
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizePersistedContext(item, parentPath, explicitSecretPaths));
-  }
-  if (!isRecord(value)) {
-    return value;
-  }
-  const output: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value)) {
-    const currentPath = parentPath ? `${parentPath}.${key}` : key;
-    if (
-      explicitSecretPaths.has(key) ||
-      explicitSecretPaths.has(currentPath) ||
-      SECRET_KEY_PATTERN.test(key) ||
-      SECRET_KEY_PATTERN.test(currentPath)
-    ) {
-      continue;
-    }
-    output[key] = sanitizePersistedContext(child, currentPath, explicitSecretPaths);
-  }
-  return output;
 }
 
 function asTrimmedString(value: unknown): string | undefined {
@@ -754,11 +724,12 @@ async function executePerformancePlanWorkflow(
     ...projectContext.contextPatch,
     ...(args.providedContext ?? {}),
   };
-  const persistedContext = sanitizePersistedContext(
-    providedContext,
-    null,
-    new Set(projectContext.secretContextKeys),
-  ) as Record<string, unknown>;
+  const explicitSecretPaths = new Set(projectContext.secretContextKeys);
+  const persistedContext = sanitizeSuitePersistedContext(providedContext, explicitSecretPaths) as Record<string, unknown>;
+  const resolvedSecretRedactionMeta = buildResolvedSecretRedactionMeta({
+    resolvedContext: providedContext,
+    explicitSecretPaths,
+  });
   logPerformancePhase({ runId, planName: args.planName, phase: "context_write_begin" });
   await fs.writeFile(
     path.join(runDirAbs, "context.resolved.json"),
@@ -767,6 +738,7 @@ async function executePerformancePlanWorkflow(
         resolvedAt: new Date().toISOString(),
         executionProfile: args.executionProfileName,
         suiteRunId: args.suiteRunId,
+        ...(resolvedSecretRedactionMeta ? { redaction: resolvedSecretRedactionMeta } : {}),
         providedContext: persistedContext,
       },
       null,

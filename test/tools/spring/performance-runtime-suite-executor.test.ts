@@ -552,10 +552,15 @@ test("executePerformanceRuntimeSuite redacts resolved secret context from persis
   try {
     const projectName = "petclinic-performance";
     const executionProfile = "catalog-perf-secret-redaction";
+    const envFile = path.join(root, ".mcpjvm", projectName, ".env");
+    fs.mkdirSync(path.dirname(envFile), { recursive: true });
+    fs.writeFileSync(envFile, "AUTH_BEARER_TOKEN=perf-secret-token\n", "utf8");
     writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
       workspaces: [
         {
           projectRoot: root,
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
           executionProfiles: [
             {
               executionProfile,
@@ -619,6 +624,10 @@ test("executePerformanceRuntimeSuite redacts resolved secret context from persis
       String(out.planRuns[0].runId),
     );
     const context = JSON.parse(fs.readFileSync(path.join(runDir, "context.resolved.json"), "utf8"));
+    assert.deepEqual(context.redaction, {
+      resolvedSecretKeyCount: 1,
+      resolvedSecretKeysOmitted: ["auth.bearer"],
+    });
     assert.equal(context.providedContext.customHeader, "non-secret");
     assert.equal(context.providedContext["auth.bearer"], undefined);
     assert.equal(context.providedContext.nested.authorization, undefined);
