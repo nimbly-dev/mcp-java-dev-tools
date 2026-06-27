@@ -636,6 +636,7 @@ export async function executeRegressionPlanWorkflow(
       httpFailure: transport.status === "fail_http",
       dependencyBlocked: transport.status === "blocked_invalid" || transport.status === "blocked_runtime",
     });
+    const transportReasonMeta = resolveTransportReasonMeta(transport);
     stepRows.push({
       order: step.order,
       id: step.id,
@@ -643,8 +644,8 @@ export async function executeRegressionPlanWorkflow(
       durationMs: transport.durationMs,
       statusCode: transport.statusCode ?? 0,
       assertions: evalResult.assertions,
-      reasonCode: transport.reasonCode,
-      ...(resolveTransportReasonMeta(transport) ? { reasonMeta: resolveTransportReasonMeta(transport) } : {}),
+      ...(evalResult.status === "pass" || !transport.reasonCode ? {} : { reasonCode: transport.reasonCode }),
+      ...(evalResult.status === "pass" || !transportReasonMeta ? {} : { reasonMeta: transportReasonMeta }),
       ...(typeof step.when === "undefined"
         ? {}
         : {
@@ -666,7 +667,7 @@ export async function executeRegressionPlanWorkflow(
 
   const ended = new Date();
   const runStatus = deriveRunStatusFromStepOutcomes({
-    stepOutcomes: stepRows.map((row) => ({ status: row.status as any, required: true })),
+    stepOutcomes: stepRows.map((row) => ({ status: row.status as any })),
     hardRuntimeBlocker,
   });
   const executionResult: RegressionRunExecutionResult = {

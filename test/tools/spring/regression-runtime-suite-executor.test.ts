@@ -140,6 +140,36 @@ function writeAuthPlan(root: string, projectName: string, planName: string, rout
   });
 }
 
+function writeSadPathPlan(root: string, projectName: string, planName: string, routePath: string): void {
+  const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+  writeJson(path.join(planRoot, "metadata.json"), {
+    specVersion: "1.0.0",
+    execution: {
+      intent: "regression",
+      probeVerification: false,
+      pinStrictProbeKey: false,
+      discoveryPolicy: "allow_discoverable_prerequisites",
+    },
+  });
+  writeJson(path.join(planRoot, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" } }],
+    prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+    steps: [
+      {
+        order: 1,
+        id: "step_1",
+        targetRef: 0,
+        protocol: "http",
+        transport: { http: { method: "GET", pathTemplate: routePath } },
+        expect: [
+          { id: "http-not-found", actualPath: "response.statusCode", operator: "field_equals", expected: 404 },
+          { id: "body-reason", actualPath: "response.body", operator: "contains", expected: "missing" },
+        ],
+      },
+    ],
+  });
+}
+
 test("executeRegressionRuntimeSuite enforces stop_on_fail and skips remaining plans", async () => {
   const root = createTestTempDir("runtime-suite-stop");
   try {
@@ -232,6 +262,49 @@ test("executeRegressionRuntimeSuite continue_on_fail returns partial_fail and co
     assert.equal(out.status, "partial_fail");
     assert.equal(out.planRuns[0].status, "executed");
     assert.equal(out.planRuns[1].status, "executed");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionRuntimeSuite passes plan with intentional non-2xx sad-path assertions", async () => {
+  const root = createTestTempDir("runtime-suite-sad-path-pass");
+  try {
+    const projectName = "petclinic-regression";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "sad-path-check",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "plan-not-found" }],
+            },
+          ],
+        },
+      ],
+    });
+    writeSadPathPlan(root, projectName, "plan-not-found", "/missing");
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "sad-path-check",
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const req = input.request as Record<string, unknown>;
+        const url = String(req.url ?? "");
+        assert.equal(url.includes("/missing"), true);
+        return {
+          structuredContent: { status: "fail_http", statusCode: 404, durationMs: 9, bodyPreview: "{\"reason\":\"missing\"}" },
+        };
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    assert.equal(out.planRuns[0].status, "executed");
+    assert.equal(out.planRuns[0].runStatus, "pass");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
