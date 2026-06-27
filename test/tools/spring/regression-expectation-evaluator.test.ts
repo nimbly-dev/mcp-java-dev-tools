@@ -107,19 +107,48 @@ test("evaluateStepExpectations prefers dependency/http failures over assertion p
   assert.equal(dependencyBlocked.status, "blocked_dependency");
 
   const httpFailed = evaluateStepExpectations({
-    stepResult: { status: "pass" },
+    stepResult: { status: "fail", response: { statusCode: 500 } },
     httpFailure: true,
     dependencyBlocked: false,
     expectations: [
       {
-        id: "status-pass",
-        actualPath: "status",
-        operator: "outcome_status",
-        expected: "pass",
+        id: "http-error-optional",
+        actualPath: "response.statusCode",
+        operator: "field_equals",
+        expected: 500,
+        required: false,
       },
     ],
   });
   assert.equal(httpFailed.status, "fail_http");
+});
+
+test("evaluateStepExpectations treats expected non-2xx response as pass when required assertions succeed", () => {
+  const evaluated = evaluateStepExpectations({
+    stepResult: {
+      status: "fail",
+      response: { statusCode: 404, body: "{\"error\":\"missing\"}" },
+    },
+    httpFailure: true,
+    dependencyBlocked: false,
+    expectations: [
+      {
+        id: "http-not-found",
+        actualPath: "response.statusCode",
+        operator: "field_equals",
+        expected: 404,
+      },
+      {
+        id: "body-has-error",
+        actualPath: "response.body",
+        operator: "contains",
+        expected: "missing",
+      },
+    ],
+  });
+
+  assert.equal(evaluated.status, "pass");
+  assert.equal(evaluated.assertions.every((entry: { status: string }) => entry.status === "pass"), true);
 });
 
 test("deriveRunStatusFromStepOutcomes maps continue-on-fail policy deterministically", () => {

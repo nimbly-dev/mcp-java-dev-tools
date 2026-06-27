@@ -234,16 +234,21 @@ export function evaluateStepExpectations(args: {
   if (args.dependencyBlocked) {
     return { assertions, status: "blocked_dependency" };
   }
-  if (args.httpFailure) {
-    return { assertions, status: "fail_http" };
-  }
-
   const requiredAssertions = assertions.filter((entry) => entry.required);
   if (requiredAssertions.some((entry) => entry.status === "blocked_invalid")) {
     return { assertions, status: "blocked_runtime" };
   }
   if (requiredAssertions.some((entry) => entry.status === "fail")) {
     return { assertions, status: "fail_assertion" };
+  }
+  if (args.httpFailure) {
+    // If the plan supplied at least one required expectation and all required
+    // expectations passed, treat the non-2xx response as an intentional sad-path
+    // assertion rather than a transport-level failure.
+    return {
+      assertions,
+      status: requiredAssertions.length > 0 ? "pass" : "fail_http",
+    };
   }
   return { assertions, status: "pass" };
 }

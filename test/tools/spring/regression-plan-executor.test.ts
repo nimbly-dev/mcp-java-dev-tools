@@ -416,6 +416,66 @@ test("executeRegressionPlanWorkflow infers apiBaseUrl from probe-config runtime.
   }
 });
 
+test("executeRegressionPlanWorkflow passes intentional non-2xx sad-path step when required assertions match", async () => {
+  const root = createTestTempDir("plan-executor-sad-path-http");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "missing-entity-check";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.VisitsController", method: "readMissing", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "read_missing_visit",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/visits/404" } },
+          expect: [
+            { id: "http-not-found", actualPath: "response.statusCode", operator: "field_equals", expected: 404 },
+            { id: "body-reason", actualPath: "response.body", operator: "contains", expected: "missing" },
+          ],
+        },
+      ],
+    });
+
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        return {
+          structuredContent: {
+            status: "fail_http",
+            statusCode: 404,
+            durationMs: 11,
+            bodyPreview: "{\"reason\":\"missing\"}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "pass");
+      assert.equal(out.executionResult.steps[0].status, "pass");
+      assert.equal(out.executionResult.steps[0].statusCode, 404);
+      assert.equal(out.executionResult.steps[0].reasonCode, undefined);
+      assert.equal(out.executionResult.steps[0].reasonMeta, undefined);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow skips step when condition evaluates false", async () => {
   const root = createTestTempDir("plan-executor-condition-skip");
   try {
