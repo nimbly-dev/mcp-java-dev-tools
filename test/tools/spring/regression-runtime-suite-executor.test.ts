@@ -6,8 +6,10 @@ const test = require("node:test");
 
 const { executeRegressionRuntimeSuite } = require("@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util");
 
+const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
+
 function createTestTempDir(prefix: string): string {
-  const base = path.join(process.cwd(), "test", ".tmp");
+  const base = path.join(REPO_ROOT, "test", ".tmp");
   fs.mkdirSync(base, { recursive: true });
   return fs.mkdtempSync(path.join(base, `${prefix}-`));
 }
@@ -789,6 +791,9 @@ test("executeRegressionRuntimeSuite runs shared scriptRefs and reloads env befor
               args: ["scripts/write-token.js"],
               appdir: ".",
               envFileArg: "--env-file",
+              env: {
+                PATH: path.join(root, "missing-path"),
+              },
             },
           ],
           executionProfiles: [

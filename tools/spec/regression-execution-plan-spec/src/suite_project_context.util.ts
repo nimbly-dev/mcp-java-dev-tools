@@ -422,6 +422,13 @@ function resolveScriptCommandArgs(args: {
   return renderedArgs;
 }
 
+function resolveScriptCommand(command: string): string {
+  if (command === "node") {
+    return process.execPath;
+  }
+  return command;
+}
+
 async function executeSharedScriptsForPhase(args: {
   scripts: ResolvedProfileScript[];
   phase: ProjectScriptPhase;
@@ -460,7 +467,7 @@ async function executeSharedScriptsForPhase(args: {
       envFileAbs,
     });
     const result = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
-      const child = spawn(script.command, scriptArgs, {
+      const child = spawn(resolveScriptCommand(script.command), scriptArgs, {
         cwd,
         env: { ...process.env, ...currentEnv, ...(script.env ?? {}) },
         windowsHide: true,
@@ -778,7 +785,7 @@ async function executeRunPrerequisites(args: {
       let command = "";
       let cmdArgs: string[] = [];
       if (script.command === "node") {
-        command = "node";
+        command = process.execPath;
         cmdArgs = [scriptAbs, ...(script.args ?? [])];
       } else if (script.command === "python") {
         command = "python";

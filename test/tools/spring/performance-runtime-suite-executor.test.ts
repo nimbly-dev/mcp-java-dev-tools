@@ -8,8 +8,10 @@ const test = require("node:test");
 const { executePerformanceRuntimeSuite } = require("@tools-regression-execution-plan-spec/performance_runtime_suite_executor.util");
 const { buildPerformanceMstaSummary } = require("@tools-regression-execution-plan-spec/performance_msta_summary.util");
 
+const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
+
 function createTestTempDir(prefix: string): string {
-  const base = path.join(process.cwd(), "test", ".tmp");
+  const base = path.join(REPO_ROOT, "test", ".tmp");
   fs.mkdirSync(base, { recursive: true });
   return fs.mkdtempSync(path.join(base, `${prefix}-`));
 }
@@ -327,6 +329,9 @@ test("executePerformanceRuntimeSuite supports profile scriptRefs through shared 
               command: "node",
               args: ["-e", "process.exit(0)"],
               appdir: ".",
+              env: {
+                PATH: path.join(root, "missing-path"),
+              },
             },
           ],
           executionProfiles: [
@@ -916,7 +921,7 @@ test("executePerformanceRuntimeSuite persists first MSTA-oriented output when ex
   }
 });
 
-test("buildPerformanceMstaSummary consumes profiler.WallClockSample events for MSTA anchoring", async () => {
+test("buildPerformanceMstaSummary consumes profiler.WallClockSample events for MSTA anchoring", { concurrency: false }, async () => {
   const root = createTestTempDir("performance-msta-wall-clock");
   const fakeJfrPath = path.join(root, "execution-timing.jfr");
   const fakeBinDir = path.join(root, "fake-bin");
@@ -940,14 +945,12 @@ test("buildPerformanceMstaSummary consumes profiler.WallClockSample events for M
     path.join(fakeBinDir, "jfr.cmd"),
     [
       "@echo off",
-      "node \"%~dp0jfr.js\"",
+      `"${process.execPath}" "%~dp0jfr.js"`,
     ].join("\r\n"),
     "utf8",
   );
 
-  const previousPath = process.env.PATH ?? "";
   const previousExtractor = process.env.MCP_JAVA_DEV_TOOLS_JFR_EXTRACTOR;
-  process.env.PATH = `${fakeBinDir}${path.delimiter}${previousPath}`;
   process.env.MCP_JAVA_DEV_TOOLS_JFR_EXTRACTOR = path.join(fakeBinDir, "jfr.cmd");
   try {
     const summary = await buildPerformanceMstaSummary({
@@ -977,7 +980,6 @@ test("buildPerformanceMstaSummary consumes profiler.WallClockSample events for M
     assert.equal(summary.methods[0].pathSteps[0].methodRef, "io.javatab.microservices.composite.course.MetricsController#hello");
     assert.equal(summary.methods[0].pathSteps[0].samples, 7);
   } finally {
-    process.env.PATH = previousPath;
     if (typeof previousExtractor === "string") {
       process.env.MCP_JAVA_DEV_TOOLS_JFR_EXTRACTOR = previousExtractor;
     } else {

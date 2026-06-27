@@ -151,6 +151,35 @@ test("evaluateStepExpectations treats expected non-2xx response as pass when req
   assert.equal(evaluated.assertions.every((entry: { status: string }) => entry.status === "pass"), true);
 });
 
+test("evaluateStepExpectations supports array index notation in actualPath", () => {
+  const evaluated = evaluateStepExpectations({
+    stepResult: {
+      response: {
+        bodyJson: {
+          names: [
+            { locale: "*", value: "Test" },
+            { locale: "en", value: "Test EN" },
+          ],
+        },
+      },
+    },
+    httpFailure: false,
+    dependencyBlocked: false,
+    expectations: [
+      {
+        id: "first-name-value",
+        actualPath: "response.bodyJson.names[0].value",
+        operator: "field_equals",
+        expected: "Test",
+      },
+    ],
+  });
+
+  assert.equal(evaluated.status, "pass");
+  assert.equal(evaluated.assertions[0].status, "pass");
+  assert.equal(evaluated.assertions[0].actual, "Test");
+});
+
 test("deriveRunStatusFromStepOutcomes maps continue-on-fail policy deterministically", () => {
   assert.equal(
     deriveRunStatusFromStepOutcomes({

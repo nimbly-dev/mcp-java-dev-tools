@@ -476,6 +476,86 @@ test("executeRegressionPlanWorkflow passes intentional non-2xx sad-path step whe
   }
 });
 
+test("executeRegressionPlanWorkflow supports array index notation in expectations and extracts", async () => {
+  const root = createTestTempDir("plan-executor-array-paths");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "array-body-regression";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.CourseController", method: "list", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "read_names",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/names" } },
+          extract: [{ from: "response.bodyJson.names[0].value", as: "primaryName" }],
+          expect: [
+            { id: "first-value", actualPath: "response.bodyJson.names[0].value", operator: "field_equals", expected: "Test" },
+          ],
+        },
+        {
+          order: 2,
+          id: "verify_extracted_name",
+          targetRef: 0,
+          protocol: "http",
+          when: { left: "context.primaryName", op: "equals", right: "Test" },
+          transport: { http: { method: "GET", pathTemplate: "/verify" } },
+          expect: [{ id: "outcome_ok_2", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    let calls = 0;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        calls += 1;
+        if (calls === 1) {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 8,
+              bodyPreview: "{\"names\":[{\"locale\":\"*\",\"value\":\"Test\"},{\"locale\":\"en\",\"value\":\"Test EN\"}]}",
+            },
+          };
+        }
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 7,
+            bodyPreview: "{\"ok\":true}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(calls, 2);
+      assert.equal(out.runStatus, "pass");
+      assert.equal(out.executionResult.steps[0].status, "pass");
+      assert.equal(out.executionResult.steps[1].status, "pass");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow skips step when condition evaluates false", async () => {
   const root = createTestTempDir("plan-executor-condition-skip");
   try {
