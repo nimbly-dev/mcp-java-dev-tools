@@ -439,6 +439,23 @@ test("applyStepExtract writes extracted values into next-step context", () => {
   assert.equal(next.postId, "post-998");
 });
 
+test("applyStepExtract supports array index notation in extract paths", () => {
+  const initial = { tenantId: "tenant-social-001" };
+  const output = {
+    response: {
+      bodyJson: {
+        names: [
+          { locale: "*", value: "Test" },
+          { locale: "en", value: "Test EN" },
+        ],
+      },
+    },
+  };
+  const next = applyStepExtract(output, [{ from: "response.bodyJson.names[0].value", as: "primaryName" }], initial);
+  assert.equal(next.tenantId, "tenant-social-001");
+  assert.equal(next.primaryName, "Test");
+});
+
 test("buildTimestampRunId produces sortable timestamp-based run id", () => {
   const runId = buildTimestampRunId(new Date(2026, 3, 17, 21, 42, 11), 1);
   assert.equal(runId, "04-17-2026-09-42-11PM");

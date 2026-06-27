@@ -622,6 +622,139 @@ test("mcp IT: execution_orchestration passes intentional non-2xx sad-path assert
   }
 });
 
+test("mcp IT: execution_orchestration supports array index notation in response body assertions", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-array-path-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-array-path";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "array-assertion-regression";
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
+  const runRootAbs = path.join(planRootAbs, "runs");
+  const appServer = http.createServer((req, res) => {
+    if (req.url === "/api/names") {
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ names: [{ locale: "*", value: "Test" }] }));
+      return;
+    }
+    res.statusCode = 404;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ reason: "missing route" }));
+  });
+  const appPort = await listen(appServer);
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        executionProfiles: [
+          {
+            executionProfile: "array-path-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "array_lookup",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "GET",
+            pathTemplate: "/api/names",
+          },
+        },
+        expect: [
+          { id: "first-name-value", actualPath: "response.bodyJson.names[0].value", operator: "field_equals", expected: "Test" },
+        ],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "array-path-run",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "pass");
+    const planRuns = Array.isArray(out.structuredContent?.planRuns)
+      ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 1);
+    assert.equal(planRuns[0]?.status, "executed");
+    assert.equal(planRuns[0]?.runStatus, "pass");
+    assert.equal(fssync.existsSync(runRootAbs), true);
+
+    const runIds = await fs.readdir(runRootAbs);
+    assert.equal(runIds.length, 1);
+    const executionResult = JSON.parse(
+      await fs.readFile(path.join(runRootAbs, runIds[0]!, "execution.result.json"), "utf8"),
+    ) as { steps?: Array<Record<string, unknown>>; status?: string };
+    assert.equal(executionResult.status, "pass");
+    assert.equal(executionResult.steps?.[0]?.status, "pass");
+    const assertions = Array.isArray(executionResult.steps?.[0]?.assertions)
+      ? (executionResult.steps?.[0]?.assertions as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(assertions[0]?.status, "pass");
+    assert.equal(assertions[0]?.actual, "Test");
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
 test("mcp IT: execution_orchestration surfaces blockedReasonMeta for http_payload_invalid when apiBaseUrl is missing for pathTemplate synthesis", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-http-payload-meta-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");

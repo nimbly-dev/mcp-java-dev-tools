@@ -26,6 +26,7 @@ import {
   deriveRunStatusFromStepOutcomes,
   evaluateStepExpectations,
 } from "@tools-regression-execution-plan-spec/regression_expectation_evaluator.util";
+import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
 import {
   createMcpWrappedTransportAdapter,
   createTransportRegistry,
@@ -90,16 +91,6 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
-function readByPath(input: Record<string, unknown>, pathKey: string): unknown {
-  const segments = pathKey.split(".");
-  let cursor: unknown = input;
-  for (const segment of segments) {
-    if (!cursor || typeof cursor !== "object" || Array.isArray(cursor)) return undefined;
-    cursor = (cursor as Record<string, unknown>)[segment];
-  }
-  return cursor;
-}
-
 function tryParseJson(value: string): unknown {
   try {
     return JSON.parse(value);
@@ -122,7 +113,7 @@ function resolveConditionLeftValue(args: {
   if (args.left.startsWith("context.")) {
     return {
       ok: true,
-      actual: readByPath(args.context, args.left.slice("context.".length)),
+      actual: readValueByPath(args.context, args.left.slice("context.".length)),
     };
   }
   const stepMatch = args.left.match(/^step\[(\d+)\]\.(.+)$/);
@@ -146,7 +137,7 @@ function resolveConditionLeftValue(args: {
   }
   return {
     ok: true,
-    actual: readByPath(stepOutput, pathAfter),
+    actual: readValueByPath(stepOutput, pathAfter),
   };
 }
 
@@ -352,7 +343,7 @@ function resolveCorrelationKeyValue(args: {
     const stepOutput = args.stepOutputsByOrder[order];
     if (!stepOutput) continue;
     if (source.type === "header") {
-      const headers = asRecord(readByPath(stepOutput, "response.headers"));
+      const headers = asRecord(readValueByPath(stepOutput, "response.headers"));
       if (!headers) continue;
       const headerName = source.path.trim().toLowerCase();
       for (const [key, value] of Object.entries(headers)) {
@@ -364,17 +355,17 @@ function resolveCorrelationKeyValue(args: {
     }
 
     if (source.type === "json_path") {
-      const parsedBody = readByPath(stepOutput, "response.bodyJson");
+      const parsedBody = readValueByPath(stepOutput, "response.bodyJson");
       const parsedBodyRecord = asRecord(parsedBody);
       if (parsedBodyRecord) {
-        const value = readByPath(parsedBodyRecord, source.path.trim());
+        const value = readValueByPath(parsedBodyRecord, source.path.trim());
         const textValue = asString(value);
         if (textValue) return textValue;
       }
       continue;
     }
 
-    const value = readByPath(stepOutput, source.path.trim());
+    const value = readValueByPath(stepOutput, source.path.trim());
     const textValue = asString(value);
     if (textValue) return textValue;
   }
@@ -407,7 +398,7 @@ function buildPlanCorrelationEvidence(args: {
     const stepOutput = args.stepOutputsByOrder[step.order];
     const timestampEpochMs = args.stepEventTimesByOrder[step.order];
     if (!stepOutput || typeof timestampEpochMs !== "number") continue;
-    if (asString(readByPath(stepOutput, "status")) !== "pass") continue;
+    if (asString(readValueByPath(stepOutput, "status")) !== "pass") continue;
     const target = args.contract.targets[step.targetRef];
     const probeId =
       asString(target?.runtimeVerification?.probeId) ??

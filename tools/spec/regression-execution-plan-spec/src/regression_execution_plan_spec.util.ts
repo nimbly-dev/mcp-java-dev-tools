@@ -13,6 +13,7 @@ import {
   deepResolvePlaceholderValue,
   normalizePlaceholderSyntaxInString,
 } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
+import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
 import { validateCanonicalPlanContextKeys } from "@tools-regression-execution-plan-spec/suite_context_key_validation.util";
 
 export type {
@@ -812,16 +813,6 @@ export function resolveStepTransport(step: PlanStep, context: Record<string, unk
   return deepResolvePlaceholderValue(step.transport, context) as Record<string, unknown>;
 }
 
-function readByPath(input: Record<string, unknown>, path: string): unknown {
-  const segments = path.split(".");
-  let cursor: unknown = input;
-  for (const segment of segments) {
-    if (!cursor || typeof cursor !== "object") return undefined;
-    cursor = (cursor as Record<string, unknown>)[segment];
-  }
-  return cursor;
-}
-
 export function applyStepExtract(
   output: Record<string, unknown>,
   extract: Array<{ from: string; as: string }> | undefined,
@@ -830,7 +821,7 @@ export function applyStepExtract(
   if (!extract?.length) return context;
   const next = { ...context };
   for (const mapping of extract) {
-    const value = readByPath(output, mapping.from);
+    const value = readValueByPath(output, mapping.from);
     if (typeof value !== "undefined") next[mapping.as] = value;
   }
   return next;

@@ -5,6 +5,7 @@ import type {
   PlanStepExpectationOperator,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import type { RegressionRunStatus } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
+import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
 
 export type StepExecutionOutcomeStatus =
   | "pass"
@@ -55,20 +56,6 @@ function withOptionalMessage<T extends Record<string, unknown>>(base: T, message
     return { ...base, message };
   }
   return base;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readByPath(input: Record<string, unknown>, path: string): unknown {
-  const segments = path.split(".");
-  let cursor: unknown = input;
-  for (const segment of segments) {
-    if (!isRecord(cursor)) return undefined;
-    cursor = cursor[segment];
-  }
-  return cursor;
 }
 
 function evaluatePredicate(args: {
@@ -180,7 +167,7 @@ export function evaluateStepExpectations(args: {
 
   for (const expectation of args.expectations) {
     const required = expectation.required !== false;
-    const actual = readByPath(args.stepResult, expectation.actualPath);
+    const actual = readValueByPath(args.stepResult, expectation.actualPath);
     if (typeof actual === "undefined") {
       assertions.push(
         withOptionalMessage({
