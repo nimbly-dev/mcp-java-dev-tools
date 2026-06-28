@@ -435,6 +435,13 @@ function buildPlanCorrelationEvidence(args: {
   };
 }
 
+function isStepRequired(step: PlanStep | undefined): boolean {
+  if (!step || !Array.isArray(step.expect) || step.expect.length === 0) {
+    return true;
+  }
+  return step.expect.some((expectation) => expectation.required !== false);
+}
+
 export async function executeRegressionPlanWorkflow(
   args: ExecuteRegressionPlanWorkflowArgs,
 ): Promise<ExecuteRegressionPlanWorkflowResult> {
@@ -624,7 +631,7 @@ export async function executeRegressionPlanWorkflow(
     const evalResult = evaluateStepExpectations({
       stepResult: stepEnvelope,
       expectations: step.expect,
-      httpFailure: transport.status === "fail_http",
+      transportFailure: transport.status === "fail_http",
       dependencyBlocked: transport.status === "blocked_invalid" || transport.status === "blocked_runtime",
     });
     const transportReasonMeta = resolveTransportReasonMeta(transport);
@@ -658,7 +665,10 @@ export async function executeRegressionPlanWorkflow(
 
   const ended = new Date();
   const runStatus = deriveRunStatusFromStepOutcomes({
-    stepOutcomes: stepRows.map((row) => ({ status: row.status as any })),
+    stepOutcomes: stepRows.map((row) => ({
+      status: row.status as any,
+      required: isStepRequired(contract.steps.find((step) => step.order === row.order && step.id === row.id)),
+    })),
     hardRuntimeBlocker,
   });
   const executionResult: RegressionRunExecutionResult = {

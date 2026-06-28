@@ -489,10 +489,10 @@ test("mcp IT: execution_orchestration resolves project contextBindings from env-
   }
 });
 
-test("mcp IT: execution_orchestration passes intentional non-2xx sad-path assertions and persists clean step artifacts", async () => {
+test("mcp IT: execution_orchestration passes transport-failure contract-matched assertions and persists clean step artifacts", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-sad-path-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
-  const projectName = "test-project-sad-path";
+  const projectName = "petclinic-regression";
   const projectRootAbs = workspaceRootAbs;
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
   const planName = "missing-resource-regression";
@@ -613,6 +613,149 @@ test("mcp IT: execution_orchestration passes intentional non-2xx sad-path assert
     assert.equal(executionResult.steps?.[0]?.statusCode, 404);
     assert.equal(executionResult.steps?.[0]?.reasonCode, undefined);
     assert.equal(executionResult.steps?.[0]?.reasonMeta, undefined);
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("mcp IT: execution_orchestration keeps optional-only transport-failure step failures out of overall run status", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-sad-path-optional-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "petclinic-regression";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "missing-resource-optional-regression";
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
+  const runRootAbs = path.join(planRootAbs, "runs");
+  const appServer = http.createServer((req, res) => {
+    if (req.url === "/api/missing-resource") {
+      res.statusCode = 500;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ reason: "unexpected route" }));
+      return;
+    }
+    res.statusCode = 404;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ reason: "missing route" }));
+  });
+  const appPort = await listen(appServer);
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        executionProfiles: [
+          {
+            executionProfile: "sad-path-optional-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "missing_resource_optional",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "GET",
+            pathTemplate: "/api/missing-resource",
+          },
+        },
+        expect: [
+          {
+            id: "status_not_found_optional",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 404,
+            required: false,
+          },
+          {
+            id: "body_reason_missing_optional",
+            actualPath: "response.body",
+            operator: "contains",
+            expected: "missing",
+            required: false,
+          },
+        ],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "sad-path-optional-run",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "pass");
+    const planRuns = Array.isArray(out.structuredContent?.planRuns)
+      ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 1);
+    assert.equal(planRuns[0]?.status, "executed");
+    assert.equal(planRuns[0]?.runStatus, "pass");
+    assert.equal(fssync.existsSync(runRootAbs), true);
+
+    const runIds = await fs.readdir(runRootAbs);
+    assert.equal(runIds.length, 1);
+    const executionResult = JSON.parse(
+      await fs.readFile(path.join(runRootAbs, runIds[0]!, "execution.result.json"), "utf8"),
+    ) as { steps?: Array<Record<string, unknown>>; status?: string };
+    assert.equal(executionResult.status, "pass");
+    assert.equal(Array.isArray(executionResult.steps), true);
+    assert.equal(executionResult.steps?.[0]?.status, "fail_assertion");
+    assert.equal(executionResult.steps?.[0]?.statusCode, 500);
   } finally {
     appServer.close();
     await mcp?.close();

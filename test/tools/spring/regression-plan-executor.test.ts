@@ -416,7 +416,7 @@ test("executeRegressionPlanWorkflow infers apiBaseUrl from probe-config runtime.
   }
 });
 
-test("executeRegressionPlanWorkflow passes intentional non-2xx sad-path step when required assertions match", async () => {
+test("executeRegressionPlanWorkflow passes transport-failure step when authored assertions match", async () => {
   const root = createTestTempDir("plan-executor-sad-path-http");
   try {
     const projectName = "petclinic-regression";
@@ -470,6 +470,181 @@ test("executeRegressionPlanWorkflow passes intentional non-2xx sad-path step whe
       assert.equal(out.executionResult.steps[0].statusCode, 404);
       assert.equal(out.executionResult.steps[0].reasonCode, undefined);
       assert.equal(out.executionResult.steps[0].reasonMeta, undefined);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow treats optional-only transport-failure step as non-required in run status", async () => {
+  const root = createTestTempDir("plan-executor-sad-path-optional");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "missing-entity-optional-check";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.VisitsController", method: "readMissing", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "read_missing_visit_optional",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/visits/404" } },
+          expect: [
+            { id: "http-not-found", actualPath: "response.statusCode", operator: "field_equals", expected: 404, required: false },
+            { id: "body-reason", actualPath: "response.body", operator: "contains", expected: "missing", required: false },
+          ],
+        },
+      ],
+    });
+
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        return {
+          structuredContent: {
+            status: "fail_http",
+            statusCode: 404,
+            durationMs: 9,
+            bodyPreview: "{\"reason\":\"missing\"}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "pass");
+      assert.equal(out.executionResult.steps[0].status, "pass");
+      assert.equal(out.executionResult.steps[0].assertions.every((entry: { status: string }) => entry.status === "pass"), true);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow does not fail overall run for optional-only transport-failure mismatch", async () => {
+  const root = createTestTempDir("plan-executor-sad-path-optional-mismatch");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "missing-entity-optional-mismatch";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.VisitsController", method: "readMissing", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "read_missing_visit_optional_mismatch",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/visits/404" } },
+          expect: [
+            { id: "http-not-found", actualPath: "response.statusCode", operator: "field_equals", expected: 404, required: false },
+            { id: "body-reason", actualPath: "response.body", operator: "contains", expected: "missing", required: false },
+          ],
+        },
+      ],
+    });
+
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        return {
+          structuredContent: {
+            status: "fail_http",
+            statusCode: 500,
+            durationMs: 9,
+            bodyPreview: "{\"reason\":\"unexpected\"}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "pass");
+      assert.equal(out.executionResult.steps[0].status, "fail_assertion");
+      assert.equal(out.executionResult.steps[0].assertions.some((entry: { status: string }) => entry.status === "fail"), true);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow fails overall run when a required step has any authored expectation mismatch", async () => {
+  const root = createTestTempDir("plan-executor-transport-failure-mixed-mismatch");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "missing-entity-mixed-mismatch";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.VisitsController", method: "readMissing", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "read_missing_visit_mixed_mismatch",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", pathTemplate: "/visits/404" } },
+          expect: [
+            { id: "http-not-found", actualPath: "response.statusCode", operator: "field_equals", expected: 404 },
+            { id: "body-reason", actualPath: "response.body", operator: "contains", expected: "missing", required: false },
+          ],
+        },
+      ],
+    });
+
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        return {
+          structuredContent: {
+            status: "fail_http",
+            statusCode: 404,
+            durationMs: 9,
+            bodyPreview: "{\"reason\":\"unexpected\"}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "fail");
+      assert.equal(out.executionResult.steps[0].status, "fail_assertion");
+      assert.equal(out.executionResult.steps[0].assertions[0].status, "pass");
+      assert.equal(out.executionResult.steps[0].assertions[1].status, "fail");
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
