@@ -73,6 +73,75 @@ test("mcp wrapped transport adapter reports apiBaseUrl synthesis gap for relativ
   assert.equal(result.reasonMeta?.pathTemplate, "/api/v1/posts");
 });
 
+test("mcp wrapped transport adapter preserves both missing fields when method and url are absent", async () => {
+  const adapter = createMcpWrappedTransportAdapter(async () => ({ structuredContent: {} }));
+  const result = await adapter.execute({
+    protocol: "http",
+    payload: { path: "/api/v1/posts" },
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "http_payload_invalid");
+  assert.deepEqual(result.reasonMeta?.missingFields, ["method", "url"]);
+  assert.equal(result.reasonMeta?.cause, "api_base_url_missing_for_path");
+  assert.equal(result.reasonMeta?.path, "/api/v1/posts");
+});
+
+test("mcp wrapped transport adapter composes baseUrl and path when url is absent", async () => {
+  let capturedRequest: Record<string, unknown> | undefined;
+  const adapter = createMcpWrappedTransportAdapter(async ({ input }: { toolName: string; input: Record<string, unknown> }) => {
+    const request = input.request;
+    assert.equal(typeof request, "object");
+    assert.notEqual(request, null);
+    assert.equal(Array.isArray(request), false);
+    capturedRequest = request as Record<string, unknown>;
+    return {
+      structuredContent: {
+        status: "pass",
+        statusCode: 200,
+        durationMs: 9,
+        bodyPreview: "{\"ok\":true}",
+      },
+    };
+  });
+  const result = await adapter.execute({
+    protocol: "http",
+    payload: { method: "GET", apiBaseUrl: "http://localhost:9001", path: "/api/courses/42" },
+  });
+
+  assert.equal(result.status, "pass");
+  assert.notEqual(capturedRequest, undefined);
+  if (!capturedRequest) {
+    throw new Error("captured request missing");
+  }
+  assert.equal(capturedRequest.url, "http://localhost:9001/api/courses/42");
+});
+
+test("mcp wrapped transport adapter reports baseUrl synthesis gap for relative path without url", async () => {
+  const adapter = createMcpWrappedTransportAdapter(async () => ({ structuredContent: {} }));
+  const result = await adapter.execute({
+    protocol: "http",
+    payload: { method: "GET", path: "/api/v1/posts" },
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "http_payload_invalid");
+  assert.deepEqual(result.reasonMeta?.missingFields, ["url"]);
+  assert.equal(result.reasonMeta?.cause, "api_base_url_missing_for_path");
+  assert.equal(result.reasonMeta?.path, "/api/v1/posts");
+});
+
+test("mcp wrapped transport adapter preserves fail-closed absolute pathTemplate without url", async () => {
+  const adapter = createMcpWrappedTransportAdapter(async () => ({ structuredContent: {} }));
+  const result = await adapter.execute({
+    protocol: "http",
+    payload: { method: "GET", pathTemplate: "http://localhost:9001/api/v1/posts" },
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "http_payload_invalid");
+  assert.deepEqual(result.reasonMeta?.missingFields, ["url"]);
+  assert.equal(result.reasonMeta?.cause, "absolute_path_template_not_promoted");
+  assert.equal(result.reasonMeta?.pathTemplate, "http://localhost:9001/api/v1/posts");
+});
+
 test("mcp wrapped transport adapter fails closed when wrapper response is missing", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({}));
   const result = await adapter.execute({

@@ -997,6 +997,125 @@ test("mcp IT: execution_orchestration surfaces blockedReasonMeta for http_payloa
   }
 });
 
+test("mcp IT: execution_orchestration composes baseUrl prerequisite with transport path when url is absent", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-base-url-path-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "petclinic-regression";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "base-url-path-regression";
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
+  const runRootAbs = path.join(planRootAbs, "runs");
+  const appServer = http.createServer((req, res) => {
+    res.statusCode = req.url === "/resource/abc-123" ? 200 : 404;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ ok: res.statusCode === 200 }));
+  });
+  const appPort = await listen(appServer);
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        executionProfiles: [
+          {
+            executionProfile: "base-url-path-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [
+      {
+        key: "baseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+      {
+        key: "id",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: "abc-123",
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "read_resource",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "GET",
+            path: "/resource/${id}",
+          },
+        },
+        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "base-url-path-run",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "pass");
+    const planRuns = Array.isArray(out.structuredContent?.planRuns)
+      ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 1);
+    assert.equal(planRuns[0]?.status, "executed");
+    assert.equal(planRuns[0]?.runStatus, "pass");
+    assert.equal(fssync.existsSync(runRootAbs), true);
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
 test("mcp IT: execution_orchestration continue_on_fail stops after suite-level env blocker and creates no runs", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-suite-block-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
