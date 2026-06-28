@@ -19,7 +19,7 @@ test("evaluateStepExpectations returns pass when all required expectations pass"
         },
       },
     },
-    httpFailure: false,
+    transportFailure: false,
     dependencyBlocked: false,
     expectations: [
       {
@@ -54,7 +54,7 @@ test("evaluateStepExpectations returns fail_assertion when required predicate fa
       status: "pass",
       transport: { status_code: 500 },
     },
-    httpFailure: false,
+    transportFailure: false,
     dependencyBlocked: false,
     expectations: [
       {
@@ -75,7 +75,7 @@ test("evaluateStepExpectations returns blocked_runtime on invalid expectation ma
     stepResult: {
       status: "pass",
     },
-    httpFailure: false,
+    transportFailure: false,
     dependencyBlocked: false,
     expectations: [
       {
@@ -90,10 +90,10 @@ test("evaluateStepExpectations returns blocked_runtime on invalid expectation ma
   assert.equal(evaluated.assertions[0].reasonCode, "actual_path_missing");
 });
 
-test("evaluateStepExpectations prefers dependency/http failures over assertion pass", () => {
+test("evaluateStepExpectations prefers dependency or transport failures over assertion pass", () => {
   const dependencyBlocked = evaluateStepExpectations({
     stepResult: { status: "pass" },
-    httpFailure: false,
+    transportFailure: false,
     dependencyBlocked: true,
     expectations: [
       {
@@ -108,7 +108,7 @@ test("evaluateStepExpectations prefers dependency/http failures over assertion p
 
   const httpFailed = evaluateStepExpectations({
     stepResult: { status: "fail", response: { statusCode: 500 } },
-    httpFailure: true,
+    transportFailure: true,
     dependencyBlocked: false,
     expectations: [
       {
@@ -120,16 +120,16 @@ test("evaluateStepExpectations prefers dependency/http failures over assertion p
       },
     ],
   });
-  assert.equal(httpFailed.status, "fail_http");
+  assert.equal(httpFailed.status, "pass");
 });
 
-test("evaluateStepExpectations treats expected non-2xx response as pass when required assertions succeed", () => {
+test("evaluateStepExpectations treats transport failures as pass when authored assertions succeed", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {
       status: "fail",
       response: { statusCode: 404, body: "{\"error\":\"missing\"}" },
     },
-    httpFailure: true,
+    transportFailure: true,
     dependencyBlocked: false,
     expectations: [
       {
@@ -151,6 +151,36 @@ test("evaluateStepExpectations treats expected non-2xx response as pass when req
   assert.equal(evaluated.assertions.every((entry: { status: string }) => entry.status === "pass"), true);
 });
 
+test("evaluateStepExpectations fails step when any authored assertion fails on transport failure", () => {
+  const evaluated = evaluateStepExpectations({
+    stepResult: {
+      status: "fail",
+      response: { statusCode: 404, body: "{\"error\":\"unexpected\"}" },
+    },
+    transportFailure: true,
+    dependencyBlocked: false,
+    expectations: [
+      {
+        id: "http-not-found",
+        actualPath: "response.statusCode",
+        operator: "field_equals",
+        expected: 404,
+      },
+      {
+        id: "body-has-missing",
+        actualPath: "response.body",
+        operator: "contains",
+        expected: "missing",
+        required: false,
+      },
+    ],
+  });
+
+  assert.equal(evaluated.status, "fail_assertion");
+  assert.equal(evaluated.assertions[0].status, "pass");
+  assert.equal(evaluated.assertions[1].status, "fail");
+});
+
 test("evaluateStepExpectations supports array index notation in actualPath", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {
@@ -163,7 +193,7 @@ test("evaluateStepExpectations supports array index notation in actualPath", () 
         },
       },
     },
-    httpFailure: false,
+    transportFailure: false,
     dependencyBlocked: false,
     expectations: [
       {
@@ -198,6 +228,13 @@ test("deriveRunStatusFromStepOutcomes maps continue-on-fail policy deterministic
   assert.equal(
     deriveRunStatusFromStepOutcomes({
       hardRuntimeBlocker: false,
+      stepOutcomes: [{ status: "pass" }, { status: "fail_http", required: false }],
+    }),
+    "pass",
+  );
+  assert.equal(
+    deriveRunStatusFromStepOutcomes({
+      hardRuntimeBlocker: false,
       stepOutcomes: [{ status: "pass" }, { status: "blocked_dependency" }],
     }),
     "fail",
@@ -210,4 +247,3 @@ test("deriveRunStatusFromStepOutcomes maps continue-on-fail policy deterministic
     "pass",
   );
 });
-
