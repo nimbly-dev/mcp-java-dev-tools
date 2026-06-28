@@ -404,6 +404,23 @@ test("resolvePrerequisiteContext prefers provided values and falls back to defau
   assert.equal(resolved["auth.bearer"], "runtime-token");
 });
 
+test("resolvePrerequisiteContext normalizes legacy baseUrl to canonical apiBaseUrl", () => {
+  const resolved = resolvePrerequisiteContext(
+    [
+      {
+        key: "baseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: "http://127.0.0.1:8082",
+      },
+    ],
+    {},
+  );
+  assert.equal(resolved.baseUrl, "http://127.0.0.1:8082");
+  assert.equal(resolved.apiBaseUrl, "http://127.0.0.1:8082");
+});
+
 test("resolveStepTransport replaces context placeholders deterministically", () => {
   const step = {
     order: 1,

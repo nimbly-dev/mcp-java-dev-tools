@@ -13,6 +13,7 @@ import {
   deepResolvePlaceholderValue,
   normalizePlaceholderSyntaxInString,
 } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
+import { normalizeHttpContextAliases } from "@tools-regression-execution-plan-spec/suite_http_request.util";
 import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
 import { validateCanonicalPlanContextKeys } from "@tools-regression-execution-plan-spec/suite_context_key_validation.util";
 
@@ -806,7 +807,7 @@ export function resolvePrerequisiteContext(
       resolved[prerequisite.key] = prerequisite.default;
     }
   }
-  return resolved;
+  return normalizeHttpContextAliases(resolved);
 }
 
 export function resolveStepTransport(step: PlanStep, context: Record<string, unknown>): Record<string, unknown> {

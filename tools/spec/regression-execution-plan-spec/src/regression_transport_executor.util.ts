@@ -5,6 +5,10 @@ import type {
   TransportExecutionResult,
   TransportProtocol,
 } from "@tools-regression-execution-plan-spec/models/regression_transport.model";
+import {
+  resolveHttpUrlMissingReasonMeta,
+  synthesizeHttpUrl,
+} from "@tools-regression-execution-plan-spec/suite_http_request.util";
 
 type McpToolInvoker = (args: {
   toolName: string;
@@ -39,25 +43,32 @@ function validateHttpPayload(payload: Record<string, unknown>): {
   reasonMeta: Record<string, unknown>;
 } {
   const method = asString(payload.method);
-  const url = asString(payload.url);
+  const url =
+    asString(payload.url) ??
+    synthesizeHttpUrl({
+      url: payload.url,
+      apiBaseUrl: payload.apiBaseUrl,
+      pathTemplate: payload.pathTemplate,
+      path: payload.path,
+    });
   if (!method || !url) {
-    const pathTemplate = asString(payload.pathTemplate);
     const missingFields = [
       ...(method ? [] : ["method"]),
       ...(url ? [] : ["url"]),
     ];
-    const cause =
-      !url && pathTemplate
-        ? (/^https?:\/\//i.test(pathTemplate.trim())
-            ? "absolute_path_template_not_promoted"
-            : "api_base_url_missing_for_path_template")
-        : (!url ? "url_missing" : "method_missing");
+    const urlReasonMeta = !url
+      ? resolveHttpUrlMissingReasonMeta({
+          pathTemplate: payload.pathTemplate,
+          path: payload.path,
+        })
+      : undefined;
     return {
       ok: false,
       reasonMeta: {
         missingFields,
-        cause,
-        ...(pathTemplate ? { pathTemplate } : {}),
+        cause: method ? (urlReasonMeta?.cause ?? "url_missing") : (!url ? (urlReasonMeta?.cause ?? "url_missing") : "method_missing"),
+        ...(urlReasonMeta?.pathTemplate ? { pathTemplate: urlReasonMeta.pathTemplate } : {}),
+        ...(urlReasonMeta?.path ? { path: urlReasonMeta.path } : {}),
       },
     };
   }

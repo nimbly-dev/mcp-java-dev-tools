@@ -416,6 +416,62 @@ test("executeRegressionPlanWorkflow infers apiBaseUrl from probe-config runtime.
   }
 });
 
+test("executeRegressionPlanWorkflow composes url from baseUrl prerequisite and transport path", async () => {
+  const root = createTestTempDir("plan-executor-base-url-path");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "base-url-path-regression";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.CourseController", method: "read", sourceRoot: "src/main/java" } }],
+      prerequisites: [
+        { key: "baseUrl", required: true, secret: false, provisioning: "user_input", default: "http://127.0.0.1:8082" },
+        { key: "resourceId", required: true, secret: false, provisioning: "user_input", default: "42" },
+      ],
+      steps: [
+        {
+          order: 1,
+          id: "read_course",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", path: "/api/courses/${resourceId}" } },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    let capturedUrl;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        capturedUrl = (input.request as Record<string, unknown>).url;
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 8,
+            bodyPreview: "{\"ok\":true}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    assert.equal(capturedUrl, "http://127.0.0.1:8082/api/courses/42");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow passes transport-failure step when authored assertions match", async () => {
   const root = createTestTempDir("plan-executor-sad-path-http");
   try {
@@ -725,6 +781,77 @@ test("executeRegressionPlanWorkflow supports array index notation in expectation
       assert.equal(out.runStatus, "pass");
       assert.equal(out.executionResult.steps[0].status, "pass");
       assert.equal(out.executionResult.steps[1].status, "pass");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow does not promote extracted baseUrl into apiBaseUrl", async () => {
+  const root = createTestTempDir("plan-executor-extracted-base-url-no-promotion");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "extracted-base-url-no-promotion";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.CourseController", method: "list", sourceRoot: "src/main/java" } }],
+      prerequisites: [],
+      steps: [
+        {
+          order: 1,
+          id: "discover_business_base_url",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", url: "http://localhost:8082/bootstrap" } },
+          extract: [{ from: "response.bodyJson.baseUrl", as: "baseUrl" }],
+          expect: [{ id: "outcome_ok_1", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+        {
+          order: 2,
+          id: "must_fail_closed_without_canonical_api_base_url",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", path: "/verify" } },
+          expect: [{ id: "outcome_fail", actualPath: "status", operator: "outcome_status", expected: "fail" }],
+        },
+      ],
+    });
+
+    const seenRequests: string[] = [];
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        seenRequests.push(String(request.url));
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 8,
+            bodyPreview: "{\"baseUrl\":\"https://business.example.test\"}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.deepEqual(seenRequests, ["http://localhost:8082/bootstrap"]);
+      assert.equal(out.runStatus, "blocked");
+      assert.equal(out.executionResult.steps[0].status, "pass");
+      assert.equal(out.executionResult.steps[1].status, "blocked_dependency");
+      assert.equal(out.executionResult.steps[1].reasonCode, "http_payload_invalid");
+      assert.deepEqual(out.executionResult.steps[1].reasonMeta?.missingFields, ["url"]);
+      assert.equal(out.executionResult.steps[1].reasonMeta?.cause, "api_base_url_missing_for_path");
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

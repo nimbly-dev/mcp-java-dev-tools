@@ -26,6 +26,10 @@ import {
   deriveRunStatusFromStepOutcomes,
   evaluateStepExpectations,
 } from "@tools-regression-execution-plan-spec/regression_expectation_evaluator.util";
+import {
+  normalizeHttpContextAliases,
+  synthesizeHttpUrl,
+} from "@tools-regression-execution-plan-spec/suite_http_request.util";
 import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
 import {
   createMcpWrappedTransportAdapter,
@@ -268,13 +272,13 @@ function buildHttpPayload(args: {
       ? { ...(args.resolvedTransport.http as Record<string, unknown>) }
       : {};
   if (!transportHttp.method) transportHttp.method = "GET";
-  if (!transportHttp.url) {
-    const base = asString(args.context.apiBaseUrl);
-    const pathTemplate = asString(transportHttp.pathTemplate);
-    if (base && pathTemplate) {
-      transportHttp.url = `${base.replace(/\/$/, "")}${pathTemplate.startsWith("/") ? "" : "/"}${pathTemplate}`;
-    }
-  }
+  const synthesizedUrl = synthesizeHttpUrl({
+    url: transportHttp.url,
+    apiBaseUrl: args.context.apiBaseUrl,
+    pathTemplate: transportHttp.pathTemplate,
+    path: transportHttp.path,
+  });
+  if (synthesizedUrl) transportHttp.url = synthesizedUrl;
   if (typeof transportHttp.body === "object" && transportHttp.body !== null && !Array.isArray(transportHttp.body)) {
     transportHttp.body = JSON.stringify(transportHttp.body);
     const headers =
@@ -301,20 +305,21 @@ async function resolvePlanExecutionContext(args: {
   planName: string;
   resolvedContext: Record<string, unknown>;
 }): Promise<Record<string, unknown>> {
-  if (typeof args.resolvedContext.apiBaseUrl === "string" && args.resolvedContext.apiBaseUrl.trim().length > 0) {
-    return args.resolvedContext;
+  const normalizedContext = normalizeHttpContextAliases(args.resolvedContext);
+  if (typeof normalizedContext.apiBaseUrl === "string" && normalizedContext.apiBaseUrl.trim().length > 0) {
+    return normalizedContext;
   }
   const inferredApiBaseUrl = await inferPlanApiBaseUrlFromProbeConfig({
     workspaceRootAbs: args.workspaceRootAbs,
     planName: args.planName,
   });
   if (!inferredApiBaseUrl) {
-    return args.resolvedContext;
+    return normalizedContext;
   }
-  return {
-    ...args.resolvedContext,
+  return normalizeHttpContextAliases({
+    ...normalizedContext,
     apiBaseUrl: inferredApiBaseUrl,
-  };
+  });
 }
 
 function resolveCorrelationKeyValue(args: {
@@ -480,13 +485,13 @@ export async function executeRegressionPlanWorkflow(
   const runId = buildTimestampRunId(now, 1);
   const startedAt = now.toISOString();
 
-  const resolvedContextInitial = {
+  const resolvedContextInitial = normalizeHttpContextAliases({
     ...preflightWithDiscovery.resolvedContext,
     ...resolvePrerequisiteContext(
       contract.prerequisites,
       preflightWithDiscovery.resolvedContext,
     ),
-  };
+  });
 
   const adapter = createMcpWrappedTransportAdapter(args.mcpInvoke);
   const registry = createTransportRegistry([adapter]);
