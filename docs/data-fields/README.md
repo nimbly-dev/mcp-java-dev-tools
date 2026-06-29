@@ -408,6 +408,12 @@ Typed request envelope examples:
 | `completedPlanCount` | Number of cumulative plans already persisted for the suite run. | `execution_orchestration` | false | `1` |
 | `correlations` | Optional suite-level cross-plan correlation summary for completed runs. | `execution_orchestration` | false | `[{"correlationSessionId":"order-flow","status":"ok","reasonCode":"ok","keyType":"traceId","contributingPlans":["producer-plan","consumer-plan"]}]` |
 
+HTTP transport diagnostics notes:
+- `http_payload_invalid` may include `reasonMeta.missingFields` with one or more missing required transport fields.
+- `http_payload_invalid` may include `reasonMeta.cause` for deterministic URL-assembly failures such as `url_missing`, `api_base_url_missing_for_path_template`, `api_base_url_missing_for_path`, `absolute_path_template_not_promoted`, or `absolute_path_not_promoted`.
+- When present, `reasonMeta.pathTemplate` or `reasonMeta.path` identifies the authored relative or absolute request target involved in URL synthesis failure.
+- Regression-plan authoring remains canonical on `apiBaseUrl`; legacy initial prerequisite `baseUrl` is compatibility-only and must not be treated as a new canonical context key.
+
 ## Skill-Orchestrated Route Pushback (`mcp-java-dev-tools-line-probe-run`, `mcp-java-dev-tools-regression-suite`)
 
 These fields are emitted by orchestration summaries in skill-guided runs when probe route resolution cannot be proven uniquely.

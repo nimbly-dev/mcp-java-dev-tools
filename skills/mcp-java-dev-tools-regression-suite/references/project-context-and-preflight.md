@@ -17,6 +17,11 @@
    - when `projects.json` defines `runtimeContexts`, startup/restart must follow that context contract.
    - do not bypass with ad-hoc terminal commands outside `runtimeContexts` guidance.
    - if startup contract is incomplete for the selected context, fail closed and return `needs_user_input`.
+6. HTTP context compatibility boundary:
+   - `apiBaseUrl` is the canonical HTTP base-URL context key.
+   - initial prerequisite/project-context `baseUrl` may be bridged into `apiBaseUrl` for legacy compatibility.
+   - do not author new plans against `baseUrl`; prefer `apiBaseUrl`.
+   - do not treat extracted runtime fields named `baseUrl` as transport configuration.
 
 ## Discovery-First Orchestration
 
@@ -25,6 +30,7 @@
 3. Merge context precedence: user-provided > discovered > non-secret defaults.
 4. Re-run preflight.
 5. Prompt user only for remaining unresolved required fields.
+6. For HTTP steps with no explicit `transport.http.url`, compose from canonical base URL plus `pathTemplate` or `path` only when canonical base-URL context is present; otherwise fail closed with transport diagnostics.
 
 ## Needs User Input Contract
 

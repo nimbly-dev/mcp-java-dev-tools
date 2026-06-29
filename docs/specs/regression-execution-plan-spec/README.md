@@ -28,6 +28,16 @@ A few intentional constraints that apply across all regression plans:
 - **Fail-closed** — ambiguous or incomplete required context stops execution rather than guessing
 - **No hardcoded secrets** — credentials must never appear in plan artifacts
 
+## HTTP Context Rules
+
+- `apiBaseUrl` remains the canonical regression-plan context key for HTTP base-URL resolution.
+- Legacy prerequisite key `baseUrl` is accepted only as an initial-context compatibility alias and is normalized to `apiBaseUrl` before HTTP transport execution.
+- Authors SHOULD prefer `apiBaseUrl` in new contracts, examples, and generated plans.
+- Runtime-extracted fields named `baseUrl` are treated as ordinary business data and MUST NOT be promoted into canonical transport context.
+- For HTTP transport authoring, relative request targets may be expressed with either `transport.http.pathTemplate` or `transport.http.path`.
+- When `transport.http.url` is absent, runtime URL synthesis is fail-closed: execution composes `apiBaseUrl + pathTemplate/path` only when canonical base-URL context is available.
+- Absolute values placed in `transport.http.pathTemplate` or `transport.http.path` are not silently promoted to `url`.
+
 ## Writing `plan.md`
 
 Plans use a fixed vocabulary to keep steps unambiguous and machine-parseable.
