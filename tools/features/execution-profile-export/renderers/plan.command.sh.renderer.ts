@@ -21,10 +21,10 @@ function renderExtractLines(step: PlanStep, responseVar: string): string[] {
       continue;
     }
     const from = mapping.from.trim();
-    if (!from.startsWith("response.body.")) {
+    if (!from.startsWith("response.bodyJson.")) {
       continue;
     }
-    const fieldPath = from.slice("response.body.".length);
+    const fieldPath = from.slice("response.bodyJson.".length);
     if (!fieldPath) continue;
     const envKey = toShellEnvKey(mapping.as);
     lines.push(`${envKey}="$(extract_json_field "$${responseVar}" "${fieldPath}")"`);

@@ -102,6 +102,11 @@ Validation rule:
 
 - `extract[].from`: output path to read from current step result
 - `extract[].as`: context key to store for subsequent steps
+- Canonical structured extraction path: `response.bodyJson.*`
+- `response.bodyJson` is the parsed JSON object when the response body is valid JSON.
+- `response.body` is raw response text.
+- `response.body` MAY be used for plain-text assertions or text matching, but it is not the canonical path for JSON-field extraction.
+- Contracts, examples, exporters, and orchestrator flows SHOULD use `response.bodyJson.*` for JSON field extraction to avoid ambiguity between text and structured content.
 
 `when` semantics:
 

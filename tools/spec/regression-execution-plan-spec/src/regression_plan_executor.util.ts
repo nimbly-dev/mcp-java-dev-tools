@@ -593,13 +593,14 @@ export async function executeRegressionPlanWorkflow(
       payload,
       registry,
     });
+    const responseBody = transport.bodyText ?? transport.bodyPreview ?? "";
     const stepEnvelope: Record<string, unknown> = {
       status: transport.status === "pass" ? "pass" : "fail",
       response: {
         statusCode: transport.statusCode ?? 0,
-        body: transport.bodyPreview ?? "",
+        body: responseBody,
         ...(transport.headers ? { headers: transport.headers } : {}),
-        ...(typeof transport.bodyPreview === "string" ? { bodyJson: tryParseJson(transport.bodyPreview) } : {}),
+        ...(typeof responseBody === "string" ? { bodyJson: tryParseJson(responseBody) } : {}),
       },
       transport: {
         durationMs: transport.durationMs,

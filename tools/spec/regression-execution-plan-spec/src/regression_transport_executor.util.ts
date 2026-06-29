@@ -113,6 +113,7 @@ function mapMcpStructuredToResult(
   const statusCode = asNumber(structuredContent.statusCode);
   const reasonCode = asString(structuredContent.reasonCode);
   const errorMessage = asString(structuredContent.errorMessage);
+  const bodyTextRaw = asString(structuredContent.body);
   const bodyPreviewRaw = asString(structuredContent.bodyPreview);
 
   const headersRaw = structuredContent.headers;
@@ -132,6 +133,7 @@ function mapMcpStructuredToResult(
     ...(typeof statusCode === "number" ? { statusCode } : {}),
     ...(reasonCode ? { reasonCode } : {}),
     ...(errorMessage ? { errorMessage } : {}),
+    ...(bodyTextRaw ? { bodyText: bodyTextRaw } : {}),
     ...(bodyPreviewRaw ? { bodyPreview: toBodyPreview(bodyPreviewRaw) } : {}),
     ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
   };

@@ -59,6 +59,7 @@ export async function transportExecuteDomain(args: {
 
   const structuredContent = await executeHttpTransportRequest({
     request: args.request,
+    includeBody: false,
   });
   return {
     content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],

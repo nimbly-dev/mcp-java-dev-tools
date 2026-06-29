@@ -57,6 +57,7 @@ function elapsedMs(startEpochMs: number): number {
 
 export async function executeHttpTransportRequest(args: {
   request: Record<string, unknown>;
+  includeBody?: boolean;
 }): Promise<Record<string, unknown>> {
   const startEpochMs = Date.now();
   const method = asString(args.request.method);
@@ -117,6 +118,7 @@ export async function executeHttpTransportRequest(args: {
       statusCode: response.status,
       durationMs: elapsedMs(startEpochMs),
       headers: Object.fromEntries(response.headers.entries()),
+      ...(args.includeBody === true ? { body: text } : {}),
       bodyPreview: toBodyPreview(text),
     };
   } catch (error) {

@@ -202,6 +202,7 @@ export async function executionOrchestrationDomain(input: {
       return {
         structuredContent: await executeHttpTransportRequest({
           request: toolInput.request as Record<string, unknown>,
+          includeBody: true,
         }),
       };
     }

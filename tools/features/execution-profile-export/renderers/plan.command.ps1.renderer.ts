@@ -119,8 +119,8 @@ function renderExtractLines(step: PlanStep, responseVar: string): string[] {
   for (const mapping of step.extract) {
     if (!mapping || typeof mapping.from !== "string" || typeof mapping.as !== "string") continue;
     const from = mapping.from.trim();
-    if (!from.startsWith("response.body.")) continue;
-    const fieldPath = from.slice("response.body.".length);
+    if (!from.startsWith("response.bodyJson.")) continue;
+    const fieldPath = from.slice("response.bodyJson.".length);
     if (!fieldPath) continue;
     const envKey = toShellEnvKey(mapping.as);
     lines.push(`[Environment]::SetEnvironmentVariable('${envKey}', (Extract-JsonField $${responseVar} '${escapePsSingleQuoted(fieldPath)}'), 'Process')`);

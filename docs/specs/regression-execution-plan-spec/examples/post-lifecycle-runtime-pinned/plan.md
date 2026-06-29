@@ -17,7 +17,7 @@ Validate create/update lifecycle with strict pinned runtime verification targets
 ## Steps
 
 1. Executes `create_post` using `POST /api/v1/posts`.
-2. Captures `response.body.id` as `postId`.
+2. Captures `response.bodyJson.id` as `postId`.
 3. Uses `postId` in `PUT /api/v1/posts/${postId}`.
 4. Executes `update_post`.
 5. Verifies pinned strict probe keys for both steps.
@@ -28,4 +28,9 @@ Validate create/update lifecycle with strict pinned runtime verification targets
 2. Returns `200` for `update_post`.
 3. Passes probe verification for pinned keys.
 4. Passes overall plan result.
+
+## Notes
+
+- Canonical JSON extraction path: `response.bodyJson.*`
+- Use `response.body` only when the contract intentionally needs raw response text.
 
