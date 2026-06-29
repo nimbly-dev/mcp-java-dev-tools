@@ -38,6 +38,7 @@ test("transport_execute executes wrapped http request successfully", async () =>
     });
     assert.equal(out.structuredContent.status, "pass");
     assert.equal(out.structuredContent.statusCode, 200);
+    assert.equal("body" in out.structuredContent, false);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

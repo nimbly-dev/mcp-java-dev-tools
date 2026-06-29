@@ -135,6 +135,77 @@ test("executeRegressionPlanWorkflow serializes object HTTP body for wrapped tran
   }
 });
 
+test("executeRegressionPlanWorkflow extracts response.bodyJson.id from full response body beyond preview length", async () => {
+  const root = createTestTempDir("plan-executor-full-body-extract");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "favorites-lifecycle-full-body-extract";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.FavoritesController", method: "create", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "favoriteId", required: false, secret: false, provisioning: "user_input", default: "_pending_extract_" }],
+      steps: [
+        {
+          order: 1,
+          id: "create_favorite",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", url: "http://localhost:8082/favorites", body: { name: "alpha" } } },
+          extract: [{ from: "response.bodyJson.id", as: "favoriteId" }],
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 201 }],
+        },
+        {
+          order: 2,
+          id: "read_favorite",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", url: "http://localhost:8082/favorites/${favoriteId}" } },
+          expect: [{ id: "ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        },
+      ],
+    });
+
+    const largeBody = JSON.stringify({
+      id: "5a4ddf25-ea48-4e46-828b-bbc79ab6da7f",
+      filler: "x".repeat(3000),
+    });
+    const seenUrls: string[] = [];
+    let calls = 0;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        seenUrls.push(String(request.url));
+        calls += 1;
+        if (calls === 1) {
+          return { structuredContent: { status: "pass", statusCode: 201, durationMs: 10, body: largeBody, bodyPreview: largeBody.slice(0, 2048) } };
+        }
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 8, body: "{\"ok\":true}", bodyPreview: "{\"ok\":true}" } };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "pass");
+      assert.deepEqual(seenUrls, [
+        "http://localhost:8082/favorites",
+        "http://localhost:8082/favorites/5a4ddf25-ea48-4e46-828b-bbc79ab6da7f",
+      ]);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow applies workspace requestTimeoutMs to wrapped transport when step timeout is absent", async () => {
   const root = createTestTempDir("plan-executor-timeout-default");
   try {

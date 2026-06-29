@@ -8,6 +8,7 @@ export type TransportExecutionResult = {
   statusCode?: number;
   durationMs: number;
   headers?: Record<string, string>;
+  bodyText?: string;
   bodyPreview?: string;
   reasonCode?: string;
   reasonMeta?: Record<string, unknown>;

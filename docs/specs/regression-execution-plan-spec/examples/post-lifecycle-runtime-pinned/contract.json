@@ -62,7 +62,7 @@
       },
       "extract": [
         {
-          "from": "response.body.id",
+          "from": "response.bodyJson.id",
           "as": "postId"
         }
       ],

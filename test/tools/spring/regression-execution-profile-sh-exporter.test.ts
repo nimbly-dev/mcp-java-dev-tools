@@ -164,6 +164,66 @@ test("exportExecutionProfileSh writes deterministic script from export manifest"
   }
 });
 
+test("exportExecutionProfileSh supports array-index bodyJson extract paths in replay helpers", async () => {
+  const root = createTestTempDir("execution-profile-sh-export-array-extract");
+  try {
+    const projectName = "petclinic-regression";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile: "regression-test-run",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "plan-a" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePlanArtifact(root, projectName, "plan-a", {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [{ key: "primaryName", required: false, secret: false, provisioning: "user_input" }],
+      steps: [
+        {
+          order: 1,
+          id: "read_names",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", url: "http://127.0.0.1:9001/names" } },
+          extract: [{ from: "response.bodyJson.names[0].value", as: "primaryName" }],
+          expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
+        },
+      ],
+    });
+
+    await writeExecutionProfileExport({
+      workspaceRootAbs: root,
+      exportId: "session-array-sh",
+      generatedAt: new Date("2026-05-16T11:00:00.000Z"),
+      startedAt: new Date("2026-05-16T10:59:00.000Z"),
+      endedAt: new Date("2026-05-16T11:00:00.000Z"),
+      executionProfile: "regression-test-run",
+      executionPolicy: "stop_on_fail",
+      runStatus: "pass",
+      planRuns: [{ order: 1, planName: "plan-a", status: "executed", runStatus: "pass", runId: "run-a" }],
+    });
+
+    const out = await exportExecutionProfileSh({ workspaceRootAbs: root, exportId: "session-array-sh" });
+    const script = fs.readFileSync(out.scriptPathAbs, "utf8");
+
+    assert.match(script, /extract_json_field/);
+    assert.match(script, /names\[0\]\.value/);
+    assert.match(script, /segments\.append\(int\(index\)\)/);
+    assert.match(script, /isinstance\(seg, int\) and isinstance\(node, list\)/);
+    assert.match(script, /if command -v node >/);
+    assert.match(script, /extract_json_field_requires_python3_or_node_for_complex_path/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("exportExecutionProfileSh writes sh export as one-off artifact under exports date-uuid folder", async () => {
   const root = createTestTempDir("execution-profile-sh-export-unique");
   try {

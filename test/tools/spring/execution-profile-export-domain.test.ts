@@ -1529,7 +1529,7 @@ test("executionProfileExportDomain supports derived required prerequisite via po
           targetRef: 0,
           protocol: "http",
           transport: { http: { method: "POST", url: "http://127.0.0.1:9001/api/courses", body: { title: "x" } } },
-          extract: [{ from: "response.body.courseId", as: "courseId" }],
+          extract: [{ from: "response.bodyJson.courseId", as: "courseId" }],
           expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
         },
         {

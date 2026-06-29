@@ -139,6 +139,65 @@ test("exportExecutionProfilePs1 writes deterministic script and readme from expo
   }
 });
 
+test("exportExecutionProfilePs1 supports array-index bodyJson extract paths in replay helpers", async () => {
+  const root = createTestTempDir("execution-profile-ps1-array-extract");
+  try {
+    const projectName = "petclinic-regression";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile: "regression-test-run",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "plan-a" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    writePlanArtifact(root, projectName, "plan-a", {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [{ key: "primaryName", required: false, secret: false, provisioning: "user_input" }],
+      steps: [
+        {
+          order: 1,
+          id: "read_names",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", url: "http://127.0.0.1:9001/names" } },
+          extract: [{ from: "response.bodyJson.names[0].value", as: "primaryName" }],
+          expect: [{ id: "e1", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
+        },
+      ],
+    });
+
+    await writeExecutionProfileExport({
+      workspaceRootAbs: root,
+      exportId: "Export-ps1-array",
+      generatedAt: new Date("2026-05-16T11:00:00.000Z"),
+      startedAt: new Date("2026-05-16T10:59:00.000Z"),
+      endedAt: new Date("2026-05-16T11:00:00.000Z"),
+      executionProfile: "regression-test-run",
+      executionPolicy: "stop_on_fail",
+      runStatus: "pass",
+      planRuns: [{ order: 1, planName: "plan-a", status: "executed", runStatus: "pass", runId: "run-a" }],
+    });
+
+    const out = await exportExecutionProfilePs1({ workspaceRootAbs: root, exportId: "Export-ps1-array" });
+    const script = fs.readFileSync(out.scriptPathAbs, "utf8");
+
+    assert.match(script, /names\[0\]\.value/);
+    assert.match(script, /\$remaining -match '\^\\\[\(\\d\+\)\\\]\(\.\*\)\$'/);
+    assert.match(script, /\$node -isnot \[System\.Collections\.IList\]/);
+    assert.match(script, /\$node = \$node\[\$index\]/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("exportExecutionProfilePs1 emits native PowerShell HTTP requests without curl JSON mangling", async () => {
   const root = createTestTempDir("execution-profile-ps1-endpoint");
   try {

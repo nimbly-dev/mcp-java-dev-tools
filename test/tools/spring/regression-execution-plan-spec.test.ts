@@ -446,12 +446,13 @@ test("applyStepExtract writes extracted values into next-step context", () => {
   const initial = { tenantId: "tenant-social-001" };
   const output = {
     response: {
-      body: {
+      body: "{\"id\":\"post-998\"}",
+      bodyJson: {
         id: "post-998",
       },
     },
   };
-  const next = applyStepExtract(output, [{ from: "response.body.id", as: "postId" }], initial);
+  const next = applyStepExtract(output, [{ from: "response.bodyJson.id", as: "postId" }], initial);
   assert.equal(next.tenantId, "tenant-social-001");
   assert.equal(next.postId, "post-998");
 });
