@@ -24,3 +24,5 @@ Optional timing-analysis Artifact files:
 2. `execution-timing.msta.json`
 
 When `execution-timing.msta.json` exists, it is the canonical persisted MSTA evidence Artifact for the run.
+When it does not exist, `execution.result.json` and `evidence.json` MUST remain the canonical source for `msta.status`,
+including `not_configured` and `disabled`.

@@ -38,3 +38,6 @@ Required rows or fields:
 2. No secret values may be rendered.
 3. Required line-hit status must map from Artifact evidence, not inference.
 4. MSTA status must map from persisted Artifact evidence, not profiler log inference.
+5. `not_configured` maps to `MSTA: n/a (not configured)`.
+6. `disabled` maps to `MSTA: n/a (disabled)`.
+7. Enablement guidance MAY be added only for `not_configured` and `disabled` states.

@@ -312,5 +312,20 @@ Optional timing-analysis run file:
 
 - `execution-timing.msta.json`
 
+Persisted `msta.status` values in `execution.result.json` and `evidence.json`:
+
+- `not_configured`
+- `disabled`
+- `available`
+- `jfr_missing`
+- `jfr_parse_failed`
+- `no_anchor_samples`
+
+Notes:
+
+- `not_configured` means `analysis.msta` is absent in `contract.json`.
+- `disabled` means `analysis.msta.enabled=false` is explicit in `contract.json`.
+- `execution-timing.msta.json` remains optional and is reserved for materialized timing-analysis output or fail-closed timing-analysis results.
+
 See `performance-msta-evidence-model.md` for the normative MSTA evidence contract and fail-closed statuses.
 

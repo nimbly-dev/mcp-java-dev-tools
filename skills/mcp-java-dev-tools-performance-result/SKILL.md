@@ -66,14 +66,24 @@ Use only these deterministic values for required line-hit coverage:
 
 ## MSTA Rendering
 
-When the optional MSTA Artifact exists, render only persisted states:
+Render only persisted states:
 
 1. `available`
-2. `jfr_missing`
-3. `jfr_parse_failed`
-4. `no_anchor_samples`
+2. `not_configured`
+3. `disabled`
+4. `jfr_missing`
+5. `jfr_parse_failed`
+6. `no_anchor_samples`
 
-Do not infer MSTA availability from the presence of a raw JFR file alone.
+When `status=not_configured`, render `MSTA: n/a (not configured)` and add a one-line note pointing to `analysis.msta`.
+
+When `status=disabled`, render `MSTA: n/a (disabled)`.
+
+Optional guidance for `not_configured` and `disabled`:
+
+- `To enable MSTA for a future run, set analysis.msta.enabled=true and provide a valid analysis.executionTiming block.`
+
+Do not infer MSTA availability from a missing Artifact file or from the presence of a raw JFR file alone.
 
 ## Governance and Redaction
 

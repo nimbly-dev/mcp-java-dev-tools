@@ -10,7 +10,10 @@ import {
   buildResolvedSecretRedactionMeta,
   sanitizeSuitePersistedContext,
 } from "@tools-regression-execution-plan-spec/suite_context_redaction.util";
-import { buildPerformanceMstaSummary } from "@tools-regression-execution-plan-spec/performance_msta_summary.util";
+import {
+  buildPerformanceMstaSummary,
+  type PerformanceMstaSummary,
+} from "@tools-regression-execution-plan-spec/performance_msta_summary.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 import {
   runJmeterGeneratedHttpWorkload,
@@ -135,6 +138,14 @@ type PerformancePlanContract = {
   };
 };
 
+type PersistedPerformanceMstaSummary =
+  | PerformanceMstaSummary
+  | {
+      status: "not_configured" | "disabled";
+    };
+
+type PerformanceMstaConfigState = PersistedPerformanceMstaSummary["status"];
+
 type PerformancePlanMetadata = {
   specVersion?: string;
   suiteType: "performance";
@@ -185,7 +196,11 @@ function parseStringRecord(value: unknown): Record<string, string> | undefined {
 
 function parsePerformanceContract(
   input: unknown,
-): { ok: true; contract: PerformancePlanContract } | { ok: false; reasonCode: string; requiredUserAction: string[] } {
+): {
+  ok: true;
+  contract: PerformancePlanContract;
+  mstaConfigState: PerformanceMstaConfigState;
+} | { ok: false; reasonCode: string; requiredUserAction: string[] } {
   if (!isRecord(input)) {
     return {
       ok: false,
@@ -308,10 +323,19 @@ function parsePerformanceContract(
   }
 
   const executionTiming = resolveExecutionTiming(input);
+  const mstaValidationError = validateMstaConfig(input);
   const msta = resolveMsta(input);
+  const mstaConfigState = resolveMstaConfigState(input);
   const workloadProvider = resolveWorkloadProvider(input);
   if (!workloadProvider.ok) {
     return workloadProvider;
+  }
+  if (mstaValidationError) {
+    return {
+      ok: false,
+      reasonCode: "performance_plan_invalid",
+      requiredUserAction: mstaValidationError,
+    };
   }
   if (msta && !executionTiming) {
     return {
@@ -351,6 +375,7 @@ function parsePerformanceContract(
           }
         : {}),
     },
+    mstaConfigState,
   };
 }
 
@@ -472,6 +497,58 @@ function resolveMsta(
     ...(includePackages.length > 0 ? { includePackages } : {}),
     ...(typeof msta.allowThirdPartyFrames === "boolean" ? { allowThirdPartyFrames: msta.allowThirdPartyFrames } : {}),
   } as never;
+}
+
+function resolveRawMstaConfig(input: Record<string, unknown>): unknown {
+  const analysis = isRecord(input.analysis) ? input.analysis : null;
+  return analysis ? analysis.msta : undefined;
+}
+
+function validateMstaConfig(input: Record<string, unknown>): string[] | undefined {
+  const rawMsta = resolveRawMstaConfig(input);
+  if (typeof rawMsta === "undefined") return undefined;
+  if (!isRecord(rawMsta)) {
+    return ["Set analysis.msta as an object when MSTA configuration is present."];
+  }
+  if (rawMsta.enabled === false) {
+    return undefined;
+  }
+  if (rawMsta.enabled !== true) {
+    return ["Set analysis.msta.enabled=true or remove analysis.msta when MSTA is not configured."];
+  }
+  const rawTargets = Array.isArray(rawMsta.methodTargets) ? rawMsta.methodTargets : [];
+  const hasMethodRef = rawTargets.some((entry) => {
+    if (typeof entry === "string") return entry.trim().length > 0;
+    if (!isRecord(entry)) return false;
+    return typeof entry.methodRef === "string" && entry.methodRef.trim().length > 0;
+  });
+  if (!hasMethodRef) {
+    return ["Set analysis.msta.methodTargets[] with at least one methodRef when analysis.msta is enabled."];
+  }
+  if ("mode" in rawMsta && typeof rawMsta.mode !== "undefined" && rawMsta.mode !== "method_targets" && rawMsta.mode !== "target_plus_path") {
+    return ["Set analysis.msta.mode to method_targets or target_plus_path when provided."];
+  }
+  return undefined;
+}
+
+function resolveMstaConfigState(input: Record<string, unknown>): PerformanceMstaConfigState {
+  const rawMsta = resolveRawMstaConfig(input);
+  if (typeof rawMsta === "undefined") return "not_configured";
+  if (isRecord(rawMsta) && rawMsta.enabled === false) return "disabled";
+  return "available";
+}
+
+function buildPersistedMstaSummary(args: {
+  mstaConfigState: PerformanceMstaConfigState;
+  materializedSummary?: PerformanceMstaSummary;
+}): PersistedPerformanceMstaSummary {
+  if (args.materializedSummary) {
+    return args.materializedSummary;
+  }
+  if (args.mstaConfigState === "disabled") {
+    return { status: "disabled" };
+  }
+  return { status: "not_configured" };
 }
 
 async function readJsonFile(absPath: string): Promise<unknown> {
@@ -663,6 +740,7 @@ async function executePerformancePlanWorkflow(
   }
 
   const contract = contractParsed.contract;
+  const mstaConfigState = contractParsed.mstaConfigState;
   const entrypoint = contract.entrypoints[0]!;
   const runId = buildTimestampRunId(new Date(), 1);
   const runDirAbs = path.join(planRootAbs, "runs", runId);
@@ -1103,7 +1181,7 @@ async function executePerformancePlanWorkflow(
 
   const totalDurationMs = Math.max(1, endedAt.getTime() - startedAt.getTime());
   logPerformancePhase({ runId, planName: args.planName, phase: "msta_begin" });
-  const mstaSummary =
+  const materializedMstaSummary =
     contract.analysis?.executionTiming?.enabled === true
       ? await buildPerformanceMstaSummary({
           requiredLineHits: contract.observationTargets.requiredLineHits,
@@ -1127,11 +1205,15 @@ async function executePerformancePlanWorkflow(
           runDirAbs,
         })
       : undefined;
+  const mstaSummary = buildPersistedMstaSummary({
+    mstaConfigState,
+    ...(materializedMstaSummary ? { materializedSummary: materializedMstaSummary } : {}),
+  });
   logPerformancePhase({
     runId,
     planName: args.planName,
     phase: "msta_complete",
-    detail: mstaSummary?.status ?? "disabled",
+    detail: mstaSummary.status,
   });
   const throughputPerSec = totalRequests / (totalDurationMs / 1000);
   const errorRatePct = totalRequests > 0 ? (failedRequests / totalRequests) * 100 : 100;
@@ -1188,7 +1270,7 @@ async function executePerformancePlanWorkflow(
         workloadProvider: contract.workloadProvider,
         ...(workloadProviderArtifacts ? { workloadProviderArtifacts } : {}),
         ...(profilerStopResult ? { executionTiming: profilerStopResult } : {}),
-        ...(mstaSummary ? { msta: mstaSummary } : {}),
+        msta: mstaSummary,
         ...(transportBlockedReasonCode ? { reasonCode: transportBlockedReasonCode, errorMessage: transportBlockedMessage } : {}),
         ...(strictLineBlockedReasonCode ? { reasonCode: strictLineBlockedReasonCode } : {}),
       },
@@ -1213,7 +1295,7 @@ async function executePerformancePlanWorkflow(
         ...(contract.analysis ? { analysis: contract.analysis } : {}),
         ...(profilerStartResult ? { profilerStart: profilerStartResult } : {}),
         ...(profilerStopResult ? { profilerStop: profilerStopResult } : {}),
-        ...(mstaSummary ? { msta: mstaSummary } : {}),
+        msta: mstaSummary,
       },
       null,
       2,
@@ -1221,7 +1303,12 @@ async function executePerformancePlanWorkflow(
     "utf8",
   );
   logPerformancePhase({ runId, planName: args.planName, phase: "evidence_write_complete" });
-  if (mstaSummary) {
+  if (
+    mstaSummary.status === "available" ||
+    mstaSummary.status === "jfr_missing" ||
+    mstaSummary.status === "jfr_parse_failed" ||
+    mstaSummary.status === "no_anchor_samples"
+  ) {
     logPerformancePhase({ runId, planName: args.planName, phase: "msta_artifact_write_begin" });
     await fs.writeFile(
       path.join(runDirAbs, "execution-timing.msta.json"),
