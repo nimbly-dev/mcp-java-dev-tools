@@ -102,6 +102,17 @@ When MSTA materialization succeeds, the run directory SHOULD contain:
 
 The same `msta` object MAY also be embedded into `execution.result.json` and `evidence.json`.
 
+When MSTA is not configured for the run, or is explicitly disabled, `execution.result.json` and `evidence.json`
+MUST still persist an `msta.status` value so result consumers can distinguish configuration intent without inferring
+from a missing Artifact file.
+
+Non-materialized persisted run-result states:
+
+- `not_configured`: `analysis.msta` is absent for the run
+- `disabled`: `analysis.msta.enabled=false` is explicit in the run contract
+
+These states apply to run-result Artifacts only. They do not require `execution-timing.msta.json` to exist.
+
 ### Available Result Shape
 
 ```json

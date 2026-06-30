@@ -38,9 +38,9 @@ function writePerformancePlan(
       outputFormat?: "jfr";
     };
     msta?: {
-      enabled: true;
+      enabled?: boolean;
       mode?: "method_targets" | "target_plus_path";
-      methodTargets: Array<{ methodRef: string }>;
+      methodTargets?: Array<{ methodRef: string }>;
     };
   },
 ): void {
@@ -195,6 +195,280 @@ test("executePerformanceRuntimeSuite executes a performance plan and persists ru
     assert.equal(execution.status, "pass");
     assert.equal(execution.metrics.failedRequests, 0);
     assert.equal(execution.requiredLineHits[0].hit, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executePerformanceRuntimeSuite persists MSTA status as not_configured when analysis.msta is absent", async () => {
+  const root = createTestTempDir("performance-runtime-suite-msta-not-configured");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-no-msta";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              runtimeConfig: {
+                requestTimeoutMs: 250,
+              },
+              plans: [{ order: 1, planName: "catalog-search-perf" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlan(root, projectName, "catalog-search-perf", "http://127.0.0.1:18082");
+
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 15,
+            },
+          };
+        }
+        if (toolName === "probe") {
+          if (input.action === "reset") {
+            return { structuredContent: { result: { reasonCode: "ok" } } };
+          }
+          if (input.action === "wait_for_hit") {
+            return { structuredContent: { result: { hit: true } } };
+          }
+        }
+        throw new Error(`unexpected tool invocation: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    const runDir = path.join(
+      root,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "performance",
+      "catalog-search-perf",
+      "runs",
+      String(out.planRuns[0].runId),
+    );
+    const executionResult = JSON.parse(fs.readFileSync(path.join(runDir, "execution.result.json"), "utf8"));
+    const evidence = JSON.parse(fs.readFileSync(path.join(runDir, "evidence.json"), "utf8"));
+    assert.deepEqual(executionResult.msta, { status: "not_configured" });
+    assert.deepEqual(evidence.msta, { status: "not_configured" });
+    assert.equal(fs.existsSync(path.join(runDir, "execution-timing.msta.json")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executePerformanceRuntimeSuite persists MSTA status as disabled when analysis.msta.enabled=false", async () => {
+  const root = createTestTempDir("performance-runtime-suite-msta-disabled");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-msta-disabled";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              runtimeConfig: {
+                requestTimeoutMs: 250,
+              },
+              plans: [{ order: 1, planName: "catalog-search-perf" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlan(root, projectName, "catalog-search-perf", "http://127.0.0.1:18082", {
+      msta: {
+        enabled: false,
+      },
+    });
+
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 15,
+            },
+          };
+        }
+        if (toolName === "probe") {
+          if (input.action === "reset") {
+            return { structuredContent: { result: { reasonCode: "ok" } } };
+          }
+          if (input.action === "wait_for_hit") {
+            return { structuredContent: { result: { hit: true } } };
+          }
+        }
+        throw new Error(`unexpected tool invocation: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "pass");
+    const runDir = path.join(
+      root,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "performance",
+      "catalog-search-perf",
+      "runs",
+      String(out.planRuns[0].runId),
+    );
+    const executionResult = JSON.parse(fs.readFileSync(path.join(runDir, "execution.result.json"), "utf8"));
+    const evidence = JSON.parse(fs.readFileSync(path.join(runDir, "evidence.json"), "utf8"));
+    assert.deepEqual(executionResult.msta, { status: "disabled" });
+    assert.deepEqual(evidence.msta, { status: "disabled" });
+    assert.equal(fs.existsSync(path.join(runDir, "execution-timing.msta.json")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executePerformanceRuntimeSuite blocks explicit enabled MSTA without methodTargets", async () => {
+  const root = createTestTempDir("performance-runtime-suite-msta-invalid");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-msta-invalid";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              runtimeConfig: {
+                requestTimeoutMs: 250,
+              },
+              plans: [{ order: 1, planName: "catalog-search-perf" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlan(root, projectName, "catalog-search-perf", "http://127.0.0.1:18082", {
+      executionTiming: {
+        enabled: true,
+        provider: "async-profiler",
+        outputFormat: "jfr",
+      },
+      msta: {
+        enabled: true,
+      },
+    });
+
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async ({ toolName }: { toolName: string }) => {
+        throw new Error(`unexpected tool invocation: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "blocked");
+    assert.equal(out.planRuns.length, 1);
+    assert.equal(out.planRuns[0].status, "blocked");
+    assert.equal(out.planRuns[0].blockedReasonCode, "performance_plan_invalid");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executePerformanceRuntimeSuite blocks malformed present analysis.msta objects", async () => {
+  const root = createTestTempDir("performance-runtime-suite-msta-malformed");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-msta-malformed";
+    const planName = "catalog-search-perf";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              runtimeConfig: {
+                requestTimeoutMs: 250,
+              },
+              plans: [{ order: 1, planName }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const cases: Array<{
+      name: string;
+      msta: unknown;
+      expectedRequiredUserAction: string[];
+    }> = [
+      {
+        name: "empty object",
+        msta: {},
+        expectedRequiredUserAction: ["Set analysis.msta.enabled=true or remove analysis.msta when MSTA is not configured."],
+      },
+      {
+        name: "string enabled",
+        msta: { enabled: "true" },
+        expectedRequiredUserAction: ["Set analysis.msta.enabled=true or remove analysis.msta when MSTA is not configured."],
+      },
+    ];
+
+    for (const testCase of cases) {
+      writePerformancePlan(root, projectName, planName, "http://127.0.0.1:18082", {
+        executionTiming: {
+          enabled: true,
+          provider: "async-profiler",
+          outputFormat: "jfr",
+        },
+      });
+      const contractPath = path.join(root, ".mcpjvm", projectName, "plans", "performance", planName, "contract.json");
+      const contract = JSON.parse(fs.readFileSync(contractPath, "utf8"));
+      contract.analysis.msta = testCase.msta;
+      writeJson(contractPath, contract);
+
+      const out = await executePerformanceRuntimeSuite({
+        workspaceRootAbs: root,
+        projectName,
+        executionProfile,
+        mcpInvoke: async ({ toolName }: { toolName: string }) => {
+          throw new Error(`unexpected tool invocation for ${testCase.name}: ${toolName}`);
+        },
+      });
+
+      assert.equal(out.status, "blocked");
+      assert.equal(out.planRuns.length, 1);
+      assert.equal(out.planRuns[0].status, "blocked");
+      assert.equal(out.planRuns[0].blockedReasonCode, "performance_plan_invalid");
+    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
