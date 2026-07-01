@@ -20,3 +20,4 @@ If blocked, return:
 1. exact missing or invalid Artifact/template id
 2. deterministic reason code
 3. single next action
+4. for missing required Artifact files, `reasonCode=artifact_files_missing`, `runId`, and a `missing[]` list containing only missing required Artifact filenames
