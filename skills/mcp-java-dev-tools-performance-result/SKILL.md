@@ -95,7 +95,23 @@ Do not infer MSTA availability from a missing Artifact file or from the presence
 
 Return deterministic blocked guidance when:
 
-1. required Artifact files are missing
+1. one or more required Artifact files are missing
 2. Artifact JSON is invalid
 3. required threshold/result fields are absent and cannot be deterministically mapped
 4. requested template is not registered
+
+Blocked response must include:
+
+1. exact missing/invalid Artifact or template id
+2. deterministic `reasonCode`
+3. single `nextAction`
+
+When one or more required Artifact files are missing for the requested `run_id`, return:
+
+- `status=blocked`
+- `reasonCode=artifact_files_missing`
+- `runId=<run_id>`
+- `missing=[...]` containing only missing required Artifact filenames
+- `nextAction=Re-run the plan to regenerate Artifacts, or provide the run ID of an existing persisted run.`
+
+Optional Artifact files such as `context.resolved.json` and `execution-timing.msta.json` MUST NOT trigger blocked output by themselves when every required output field remains deterministically mappable from persisted Artifacts. If a missing optional Artifact prevents deterministic rendering of a required field such as `MSTA`, the skill MUST fail closed and MUST NOT reconstruct that field from transient logs.

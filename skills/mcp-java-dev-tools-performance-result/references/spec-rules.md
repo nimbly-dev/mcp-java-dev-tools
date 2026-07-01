@@ -41,3 +41,16 @@ Required rows or fields:
 5. `not_configured` maps to `MSTA: n/a (not configured)`.
 6. `disabled` maps to `MSTA: n/a (disabled)`.
 7. Enablement guidance MAY be added only for `not_configured` and `disabled` states.
+8. Missing required Artifact files MUST fail closed; rendering from transient logs or session memory is not allowed.
+9. Missing optional Artifact files MUST render stable placeholders or omit optional sections only when every required output field can still be deterministically mapped from persisted Artifacts.
+10. If a missing optional Artifact file prevents deterministic mapping of a required output field such as `MSTA`, the renderer MUST fail closed under the existing missing-required-fields rule and MUST NOT fall back to transient logs.
+
+## Blocked Output Contract
+
+When required Artifact files are missing for a requested `run_id`, the blocked output MUST include:
+
+1. `status=blocked`
+2. `reasonCode=artifact_files_missing`
+3. `runId=<run_id>`
+4. `missing=[...]` containing only missing required Artifact filenames
+5. `nextAction=Re-run the plan to regenerate Artifacts, or provide the run ID of an existing persisted run.`
