@@ -452,3 +452,7 @@ export async function probeWaitHit(args: Parameters<typeof probeWaitHitUtil>[0])
 export async function probeActuate(args: Parameters<typeof probeActuateUtil>[0]) {
   return await probeActuateUtil(args);
 }
+
+export async function probeProfiler(args: Parameters<typeof probeProfilerUtil>[0]) {
+  return await probeProfilerUtil(args);
+}

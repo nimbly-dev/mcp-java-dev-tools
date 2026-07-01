@@ -445,6 +445,45 @@ function isProfilerDownloadNotReady(value: unknown): boolean {
   return response?.status === 404 && responseJson?.error === "profiler_output_not_found";
 }
 
+function resolveProfilerStartFailure(value: unknown): { reasonCode: string; detail: string } | null {
+  if (!isRecord(value)) {
+    return {
+      reasonCode: "performance_profiler_start_failed",
+      detail: "Profiler start response is missing structured content.",
+    };
+  }
+
+  const response = isRecord(value.response) ? value.response : null;
+  const responseStatus = typeof response?.status === "number" ? response.status : undefined;
+  const responseJson = isRecord(response?.json) ? response.json : null;
+  const responseError = asTrimmedString(responseJson?.error);
+  const result = isRecord(value.result) ? value.result : null;
+  const supported = result?.supported === false ? false : result?.supported === true ? true : undefined;
+  const status = asTrimmedString(result?.status);
+  const detail = asTrimmedString(result?.detail) ?? responseError;
+
+  if (typeof responseStatus === "number" && responseStatus >= 400) {
+    return {
+      reasonCode: responseError ?? "performance_profiler_start_failed",
+      detail: detail ?? `Probe profiler start returned HTTP ${String(responseStatus)}.`,
+    };
+  }
+  if (supported === false) {
+    return {
+      reasonCode: detail ?? "performance_profiler_unsupported",
+      detail: detail ?? "Profiler provider is unsupported for the active JVM runtime.",
+    };
+  }
+  if (status === "failed") {
+    return {
+      reasonCode: detail ?? "performance_profiler_start_failed",
+      detail: detail ?? "Profiler provider failed to start.",
+    };
+  }
+
+  return null;
+}
+
 function resolveExecutionTiming(
   input: Record<string, unknown>,
 ): PerformancePlanContract["analysis"] extends { executionTiming?: infer T } ? T | undefined : never {
@@ -960,6 +999,50 @@ async function executePerformancePlanWorkflow(
     });
     profilerStartResult = profilerStart.structuredContent;
     logPerformancePhase({ runId, planName: args.planName, phase: "profiler_start_complete" });
+    const profilerStartFailure = resolveProfilerStartFailure(profilerStartResult);
+    if (profilerStartFailure) {
+      const blockedMstaSummary = buildPersistedMstaSummary({ mstaConfigState });
+      await fs.writeFile(
+        path.join(runDirAbs, "execution.result.json"),
+        `${JSON.stringify(
+          {
+            status: "blocked",
+            reasonCode: profilerStartFailure.reasonCode,
+            errorMessage: profilerStartFailure.detail,
+            executionTiming: profilerStartResult,
+            msta: blockedMstaSummary,
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(runDirAbs, "evidence.json"),
+        `${JSON.stringify(
+          {
+            entrypoint,
+            observationTargets: contract.observationTargets,
+            loadModel: contract.loadModel,
+            successCriteria: contract.successCriteria,
+            ...(contract.analysis ? { analysis: contract.analysis } : {}),
+            profilerStart: profilerStartResult,
+            msta: blockedMstaSummary,
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      return buildBlockedResult({
+        reasonCode: profilerStartFailure.reasonCode,
+        requiredUserAction: [
+          "Run the Probe on a profiler-supported JVM runtime or disable analysis.executionTiming / analysis.msta for this plan.",
+        ],
+        runId,
+        runDirAbs,
+      });
+    }
   }
   const deadlineEpochMs = Date.now() + contract.loadModel.durationSeconds * 1000;
   const latencies: number[] = [];

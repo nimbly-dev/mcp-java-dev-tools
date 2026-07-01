@@ -7,6 +7,7 @@ const {
   probeWaitHit,
   probeCaptureGet,
   probeActuate,
+  probeProfiler,
   createProbeDomain,
 } = require("@/tools/core/probe/domain");
 const { LAST_RESET_EPOCH_BY_KEY } = require("@/utils/probe/constants.util");
@@ -651,6 +652,29 @@ test("probe_get_capture returns capture payload when available", async () => {
     assert.equal(out.structuredContent.result.capture.hasReturnValue, true);
     assert.equal(out.structuredContent.result.capture.hasThrownValue, false);
     assert.equal(out.structuredContent.result.capture.executionPaths, undefined);
+  });
+});
+
+test("probe_profiler surfaces deterministic reason code for fail-closed start response", async () => {
+  await withMockedFetch(async () => {
+    return jsonResponse(409, {
+      error: "profiler_unsupported_platform",
+    });
+  }, async () => {
+    const out = await probeProfiler({
+      action: "start",
+      sessionId: "perf-1",
+      event: "wall",
+      outputFormat: "jfr",
+      baseUrl: "http://127.0.0.1:9191",
+      profilerPath: "/__probe/profiler",
+    });
+
+    assert.equal(out.structuredContent.response.status, 409);
+    assert.equal(out.structuredContent.result.status, "profiler_unsupported_platform");
+    assert.equal(out.structuredContent.result.reasonCode, "profiler_unsupported_platform");
+    assert.equal(out.structuredContent.result.detail, "profiler_unsupported_platform");
+    assert.equal(out.structuredContent.result.supported, false);
   });
 });
 

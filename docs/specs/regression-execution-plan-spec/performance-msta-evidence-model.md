@@ -48,6 +48,7 @@ Current supported fields:
 
 - `enabled`: must be `true`
 - `provider`: current supported value: `async-profiler`
+- native Windows JVMs are not currently supported by `async-profiler`; profiler start fails closed with reason code `profiler_unsupported_platform`
 - `event`: optional provider-specific event name such as `cpu` or `wall`
 - `intervalNanos`: optional provider-specific sampling interval
 - `outputFormat`: current supported value: `jfr`

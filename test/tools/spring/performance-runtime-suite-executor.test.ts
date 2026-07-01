@@ -1012,6 +1012,114 @@ test("executePerformanceRuntimeSuite propagates observationTargets.probeId to st
   }
 });
 
+test("executePerformanceRuntimeSuite blocks immediately when profiler start reports unsupported runtime", async () => {
+  const root = createTestTempDir("performance-runtime-suite-profiler-unsupported");
+  try {
+    const projectName = "petclinic-performance";
+    const executionProfile = "catalog-perf-profiler-unsupported";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          executionProfiles: [
+            {
+              executionProfile,
+              suiteType: "performance",
+              executionPolicy: "stop_on_fail",
+              runtimeConfig: {
+                requestTimeoutMs: 250,
+              },
+              plans: [{ order: 1, planName: "catalog-search-perf" }],
+            },
+          ],
+        },
+      ],
+    });
+    writePerformancePlan(root, projectName, "catalog-search-perf", "http://127.0.0.1:18082", {
+      executionTiming: {
+        enabled: true,
+        provider: "async-profiler",
+        event: "wall",
+        outputFormat: "jfr",
+      },
+      msta: {
+        enabled: true,
+        mode: "method_targets",
+        methodTargets: [{ methodRef: "com.example.catalog.CatalogService#search" }],
+      },
+    });
+
+    let transportCalls = 0;
+    const out = await executePerformanceRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName,
+      executionProfile,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          transportCalls += 1;
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 15,
+            },
+          };
+        }
+        if (toolName === "probe") {
+          if (input.action === "reset") {
+            return { structuredContent: { result: { reasonCode: "ok" } } };
+          }
+          if (input.action === "profiler") {
+            return {
+              structuredContent: {
+                response: {
+                  status: 200,
+                  json: {
+                    contractVersion: "0.1.7",
+                    ok: true,
+                    action: "start",
+                  },
+                },
+                result: {
+                  status: "disabled",
+                  provider: "async-profiler",
+                  supported: false,
+                  sessionId: "",
+                  detail: "profiler_unsupported_platform",
+                },
+              },
+            };
+          }
+        }
+        throw new Error(`unexpected tool invocation: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "blocked");
+    assert.equal(out.planRuns.length, 1);
+    assert.equal(out.planRuns[0].status, "blocked");
+    assert.equal(out.planRuns[0].blockedReasonCode, "profiler_unsupported_platform");
+    assert.equal(transportCalls, 0);
+
+    const runDir = path.join(
+      root,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "performance",
+      "catalog-search-perf",
+      "runs",
+      String(out.planRuns[0].runId),
+    );
+    const executionResult = JSON.parse(fs.readFileSync(path.join(runDir, "execution.result.json"), "utf8"));
+    assert.equal(executionResult.status, "blocked");
+    assert.equal(executionResult.reasonCode, "profiler_unsupported_platform");
+    assert.equal(executionResult.executionTiming.result.supported, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executePerformanceRuntimeSuite persists first MSTA-oriented output when execution-timing JFR is readable", async () => {
   const root = createTestTempDir("performance-runtime-suite-msta");
   const javaFixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "msta-jfr-"));
