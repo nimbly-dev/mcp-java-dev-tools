@@ -56,6 +56,7 @@ Optional unless `analysis.msta.enabled=true`.
 
 - `enabled`: must be `true` when present for active timing capture
 - `provider`: current supported value `async-profiler`
+- native Windows JVMs are not currently supported by `async-profiler`; if unsupported, profiler start fails closed with reason code `profiler_unsupported_platform`
 - `event`: optional provider-specific sampling event such as `cpu` or `wall`
 - `intervalNanos`: optional positive integer sampling interval
 - `outputFormat`: current supported value `jfr`

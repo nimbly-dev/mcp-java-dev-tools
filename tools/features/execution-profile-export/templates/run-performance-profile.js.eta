@@ -356,7 +356,57 @@ async function profiler(baseUrl, input) {
     body: input.action === "status" ? undefined : JSON.stringify(input),
   }, 20000);
   const json = await response.json().catch(() => ({}));
-  return json && typeof json.profiler === "object" && json.profiler ? json.profiler : { status: "profiler_response_invalid", response: json };
+  const profilerPayload = json && typeof json.profiler === "object" && json.profiler ? json.profiler : null;
+  if (profilerPayload) {
+    return {
+      ...profilerPayload,
+      httpStatus: response.status,
+      ...(json && typeof json.error === "string" ? { responseError: json.error } : {}),
+    };
+  }
+  return {
+    status: "profiler_response_invalid",
+    httpStatus: response.status,
+    ...(json && typeof json.error === "string" ? { responseError: json.error } : {}),
+    response: json,
+  };
+}
+
+function resolveProfilerStartFailure(result) {
+  if (!result || typeof result !== "object") {
+    return {
+      reasonCode: "performance_profiler_start_failed",
+      detail: "Profiler start response is missing structured content.",
+    };
+  }
+  const detail =
+    typeof result.detail === "string" && result.detail.trim().length > 0
+      ? result.detail.trim()
+      : typeof result.responseError === "string" && result.responseError.trim().length > 0
+        ? result.responseError.trim()
+        : undefined;
+  if (typeof result.httpStatus === "number" && result.httpStatus >= 400) {
+    return {
+      reasonCode:
+        typeof result.responseError === "string" && result.responseError.trim().length > 0
+          ? result.responseError.trim()
+          : "performance_profiler_start_failed",
+      detail: detail ?? `Probe profiler start returned HTTP ${String(result.httpStatus)}.`,
+    };
+  }
+  if (result.supported === false) {
+    return {
+      reasonCode: detail ?? "performance_profiler_unsupported",
+      detail: detail ?? "Profiler provider is unsupported for the active JVM runtime.",
+    };
+  }
+  if (result.status === "failed") {
+    return {
+      reasonCode: detail ?? "performance_profiler_start_failed",
+      detail: detail ?? "Profiler provider failed to start.",
+    };
+  }
+  return null;
 }
 
 function percentile(values, ratio) {
@@ -623,6 +673,24 @@ async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
       plan._profilerSessionId = activeProfilerSessionId;
       plan._profilerStartResult = startResult;
       profilerStartResult = startResult;
+      const profilerStartFailure = resolveProfilerStartFailure(startResult);
+      if (profilerStartFailure) {
+        return blockedPlanResult(profilerStartFailure.reasonCode, profilerStartFailure.detail, {
+          failedStep: "profiler_start",
+          reasonMeta: {
+            probeBaseUrl,
+            sessionId,
+            provider: "async-profiler",
+            event: plan.contract.analysis.executionTiming.event ?? "cpu",
+            planName: plan.planName,
+          },
+          executionTiming: {
+            start: profilerStartResult,
+            status: "profiler_start_failed",
+            detail: profilerStartFailure.detail,
+          },
+        });
+      }
     } catch (error) {
       return blockedPlanResult("performance_profiler_start_failed", errorDetail(error), {
         failedStep: "profiler_start",

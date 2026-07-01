@@ -280,6 +280,7 @@ Required top-level sections:
 
 - `enabled` (boolean)
 - `provider` (string): current supported value `async-profiler`
+- `provider=async-profiler` does not currently support native Windows JVM profiling; Probe `action=profiler` `start` fails closed with reason code `profiler_unsupported_platform` when unsupported.
 - `event` (string, optional): provider-specific sampling event such as `cpu` or `wall`
 - `intervalNanos` (number, optional)
 - `outputFormat` (string): current supported value `jfr`

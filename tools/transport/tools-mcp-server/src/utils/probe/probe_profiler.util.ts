@@ -7,6 +7,33 @@ import { probeUnreachableMessage, joinUrl } from "@/utils/probe.util";
 import type { ToolTextResponse } from "@/models/tool_response.model";
 import { buildTextResponse } from "@/utils/probe/response_builders.util";
 
+function buildProfilerErrorResult(args: {
+  responseStatus: number;
+  json: Record<string, unknown> | null;
+  text?: string;
+}): Record<string, unknown> {
+  const errorCode =
+    args.json && typeof args.json.error === "string" && args.json.error.trim().length > 0
+      ? args.json.error.trim()
+      : "profiler_response_invalid";
+  const detail =
+    args.json && typeof args.json.detail === "string" && args.json.detail.trim().length > 0
+        ? args.json.detail.trim()
+      : args.json && typeof args.json.error === "string" && args.json.error.trim().length > 0
+        ? args.json.error.trim()
+      : args.text && args.text.trim().length > 0
+        ? args.text.trim()
+        : errorCode;
+  return {
+    status: errorCode,
+    reasonCode: errorCode,
+    detail,
+    supported: false,
+    httpStatus: args.responseStatus,
+    ...(args.json ? { error: args.json } : {}),
+  };
+}
+
 export async function probeProfiler(args: {
   action: "start" | "stop" | "reset" | "status" | "download";
   baseUrl: string;
@@ -118,7 +145,7 @@ export async function probeProfiler(args: {
       ...(typeof args.sessionId === "string" ? { sessionId: args.sessionId } : {}),
     },
     response: { status: res.status, json },
-    result: profiler ?? { status: "profiler_response_invalid" },
+    result: profiler ?? buildProfilerErrorResult({ responseStatus: res.status, json, text: res.text }),
   };
   return buildTextResponse(structuredContent, JSON.stringify(structuredContent, null, 2));
 }

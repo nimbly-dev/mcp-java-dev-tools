@@ -323,6 +323,14 @@ public final class ProbeHttpServer {
                 request.outputFormat()
             )
         );
+        if (ProbeProfilerHttpResponses.shouldFailClosedOnStart(state)) {
+          ProbeHttpJson.writeJson(
+              exchange,
+              ProbeProfilerHttpResponses.startStatusCode(state),
+              ProbeProfilerHttpResponses.startErrorEnvelope(state)
+          );
+          return;
+        }
         ProbeHttpJson.writeJson(
             exchange,
             200,
