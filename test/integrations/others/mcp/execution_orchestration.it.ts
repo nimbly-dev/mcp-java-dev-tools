@@ -1116,6 +1116,151 @@ test("mcp IT: execution_orchestration composes baseUrl prerequisite with transpo
   }
 });
 
+test("mcp IT: execution_orchestration persists fail_closed correlation when json_path source uses response.body.id", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-correlation-json-path-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-correlation";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "correlation-json-path";
+  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const runRootAbs = path.join(planRootAbs, "runs");
+  const appServer = http.createServer((_req, res) => {
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ id: "evt-123", ok: true }));
+  });
+  const appPort = await listen(appServer);
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "event-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        executionProfiles: [
+          {
+            executionProfile: "correlation-json-path-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [
+      {
+        type: "class_method",
+        selectors: { fqcn: "x.A", method: "m" },
+        runtimeVerification: { strictProbeKey: "x.A#m:10", probeId: "event-service" },
+      },
+    ],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "create_event",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            pathTemplate: "/events",
+            body: { kind: "created" },
+          },
+        },
+        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+      },
+    ],
+    correlation: {
+      enabled: true,
+      key: {
+        type: "messageId",
+        source: {
+          type: "json_path",
+          path: "response.body.id",
+        },
+      },
+      window: { maxWindowMs: 60000 },
+      probeIds: ["event-service"],
+      matchPolicy: {
+        requireExactKeyMatch: true,
+        requireWindowMatch: true,
+        ambiguityStrategy: "fail_closed",
+      },
+    },
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "correlation-json-path-run",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "pass");
+
+    const runDirs = await fs.readdir(runRootAbs);
+    assert.equal(runDirs.length, 1);
+    const runDir = runDirs[0];
+    if (!runDir) throw new Error("expected one run directory");
+
+    const evidence = JSON.parse(await fs.readFile(path.join(runRootAbs, runDir, "evidence.json"), "utf8")) as Record<string, unknown>;
+    const correlation = JSON.parse(
+      await fs.readFile(path.join(runRootAbs, runDir, "correlation", "correlation.json"), "utf8"),
+    ) as Record<string, unknown>;
+
+    assert.equal(Array.isArray(evidence.correlationEvents), true);
+    assert.equal((evidence.correlationPolicy as Record<string, unknown>).keySourceType, "json_path");
+    assert.equal((evidence.correlationPolicy as Record<string, unknown>).keySourcePath, "response.body.id");
+    assert.equal((evidence.correlationPolicy as Record<string, unknown>).keyExtractionReasonCode, "correlation_key_extraction_failed");
+    const correlationEvents = evidence.correlationEvents as Array<Record<string, unknown>>;
+    assert.equal(correlationEvents.length, 1);
+    assert.equal(correlationEvents[0]?.probeId, "event-service");
+    assert.equal(typeof correlationEvents[0]?.keyValue, "undefined");
+    assert.equal(correlation.status, "fail_closed");
+    assert.equal(correlation.reasonCode, "correlation_key_extraction_failed");
+    assert.equal((correlation.reasonMeta as Record<string, unknown>).sourceType, "json_path");
+    assert.equal((correlation.reasonMeta as Record<string, unknown>).sourcePath, "response.body.id");
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
 test("mcp IT: execution_orchestration continue_on_fail stops after suite-level env blocker and creates no runs", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-suite-block-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");

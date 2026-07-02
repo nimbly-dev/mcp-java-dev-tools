@@ -929,6 +929,101 @@ test("executeRegressionPlanWorkflow does not promote extracted baseUrl into apiB
   }
 });
 
+test("executeRegressionPlanWorkflow persists fail_closed correlation when json_path source uses response.body.id", async () => {
+  const root = createTestTempDir("plan-executor-correlation-json-path");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "correlation-json-path-fail-closed";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [
+        {
+          type: "class_method",
+          selectors: { fqcn: "org.example.EventsController", method: "create", sourceRoot: "src/main/java" },
+          runtimeVerification: { strictProbeKey: "org.example.EventsController#create:10", probeId: "event-service" },
+        },
+      ],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "create_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events", body: { kind: "created" } } },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+      correlation: {
+        enabled: true,
+        key: {
+          type: "messageId",
+          source: {
+            type: "json_path",
+            path: "response.body.id",
+          },
+        },
+        window: { maxWindowMs: 60000 },
+        probeIds: ["event-service"],
+        matchPolicy: {
+          requireExactKeyMatch: true,
+          requireWindowMatch: true,
+          ambiguityStrategy: "fail_closed",
+        },
+      },
+    });
+
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 11,
+            body: "{\"id\":\"evt-123\",\"ok\":true}",
+            bodyPreview: "{\"id\":\"evt-123\",\"ok\":true}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(typeof out.artifacts.correlationPathAbs, "string");
+      const evidence = JSON.parse(fs.readFileSync(out.artifacts.evidencePathAbs, "utf8"));
+      const correlation = JSON.parse(fs.readFileSync(String(out.artifacts.correlationPathAbs), "utf8"));
+
+      assert.equal(evidence.correlationPolicy.keyType, "messageId");
+      assert.equal(evidence.correlationPolicy.keySourceType, "json_path");
+      assert.equal(evidence.correlationPolicy.keySourcePath, "response.body.id");
+      assert.equal(evidence.correlationPolicy.keyExtractionReasonCode, "correlation_key_extraction_failed");
+      assert.equal(Array.isArray(evidence.correlationEvents), true);
+      assert.equal(evidence.correlationEvents.length, 1);
+      assert.equal(evidence.correlationEvents[0].probeId, "event-service");
+      assert.equal(typeof evidence.correlationEvents[0].keyValue, "undefined");
+
+      assert.equal(correlation.status, "fail_closed");
+      assert.equal(correlation.reasonCode, "correlation_key_extraction_failed");
+      assert.equal(correlation.reasonMeta.sourceType, "json_path");
+      assert.equal(correlation.reasonMeta.sourcePath, "response.body.id");
+      assert.equal(Array.isArray(correlation.timeline), true);
+      assert.equal(correlation.timeline.length, 0);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow skips step when condition evaluates false", async () => {
   const root = createTestTempDir("plan-executor-condition-skip");
   try {

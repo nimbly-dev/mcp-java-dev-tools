@@ -179,6 +179,7 @@ Cross-service/cross-plan deterministic post-analysis policy.
 - `key.value` (string, optional): explicit key value.
 - `key.source.type` (string, optional): `header` | `json_path` | `capture_field`
 - `key.source.path` (string, required when `key.source` is set): extraction path.
+- `key.source.path` for `json_path` SHOULD use canonical normalized response paths such as `response.bodyJson.id`.
 - `window.maxWindowMs` (number, required): bounded matching window.
 - `window.startEpochMs` (number, optional)
 - `window.endEpochMs` (number, optional)
@@ -245,6 +246,7 @@ Examples:
 - resolved target selectors
 - probe verification details
 - diagnostics summary
+- correlation key extraction provenance (`correlationPolicy.keySourceType`, `correlationPolicy.keySourcePath`, `correlationPolicy.keyExtractionReasonCode`)
 
 ## `.mcpjvm/regression/<plan>/runs/<run_id>/correlation.json`
 
@@ -254,12 +256,18 @@ Expected fields:
 
 - `status` (`ok` | `fail_closed`)
 - `reasonCode`
+- `reasonMeta` (optional): compact typed diagnostics for fail-closed outcomes such as unresolved correlation key source path
 - `correlationSessionId` (for cross-plan scenarios)
 - `keyType`, `keyValue`
 - `window`
 - `expectedFlow` (optional)
 - `timeline[]` (deterministically ordered matched events)
 - `evidenceRefs[]` (optional)
+
+Fail-closed correlation diagnostics:
+
+- `reasonCode=correlation_key_extraction_failed`: configured `key.source` could not be resolved from available step evidence.
+- when `reasonCode=correlation_key_extraction_failed`, `reasonMeta.sourcePath` SHOULD contain the unresolved configured path.
 
 ## `.mcpjvm/correlation-index.json`
 
