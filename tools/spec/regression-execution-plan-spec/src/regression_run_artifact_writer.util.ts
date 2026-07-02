@@ -94,6 +94,7 @@ function normalizeCorrelationPayload(correlation: CorrelationArtifact): Record<s
   return {
     status: correlation.status,
     reasonCode: correlation.reasonCode,
+    ...(isRecord(correlation.reasonMeta) ? { reasonMeta: correlation.reasonMeta } : {}),
     ...(typeof correlation.correlationSessionId === "string"
       ? { correlationSessionId: correlation.correlationSessionId }
       : {}),
@@ -139,6 +140,12 @@ function toCorrelationArtifactFromEvidence(args: {
       ? String(args.resolvedContext[keyFromContextPath])
       : undefined;
   const keyValue = typeof keyValueRaw === "string" && keyValueRaw.trim().length > 0 ? keyValueRaw : keyFromContext;
+  const keySourceType = typeof policyRaw.keySourceType === "string" ? policyRaw.keySourceType : undefined;
+  const keySourcePath = typeof policyRaw.keySourcePath === "string" ? policyRaw.keySourcePath : undefined;
+  const keyExtractionReasonCode =
+    policyRaw.keyExtractionReasonCode === "correlation_key_extraction_failed"
+      ? "correlation_key_extraction_failed"
+      : undefined;
 
   const correlationEvents = eventsRaw
     .filter((entry) => isRecord(entry))
@@ -158,7 +165,15 @@ function toCorrelationArtifactFromEvidence(args: {
   if (typeof keyValue !== "string" || keyValue.trim().length === 0) {
     return {
       status: "fail_closed",
-      reasonCode: "missing_correlation_key",
+      reasonCode: keyExtractionReasonCode ?? "missing_correlation_key",
+      ...(keyExtractionReasonCode && (keySourceType || keySourcePath)
+        ? {
+            reasonMeta: {
+              ...(keySourceType ? { sourceType: keySourceType } : {}),
+              ...(keySourcePath ? { sourcePath: keySourcePath } : {}),
+            },
+          }
+        : {}),
       keyType,
       window: { maxWindowMs: maxWindowMs > 0 ? maxWindowMs : 0 },
       timeline: [],

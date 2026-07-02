@@ -95,6 +95,13 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
+type CorrelationKeyResolution = {
+  keyValue?: string;
+  sourceType?: "header" | "json_path" | "capture_field";
+  sourcePath?: string;
+  reasonCode?: "correlation_key_extraction_failed";
+};
+
 function tryParseJson(value: string): unknown {
   try {
     return JSON.parse(value);
@@ -326,19 +333,22 @@ function resolveCorrelationKeyValue(args: {
   correlation: PlanCorrelationPolicy;
   resolvedContext: Record<string, unknown>;
   stepOutputsByOrder: Record<number, Record<string, unknown>>;
-}): string | undefined {
+}): CorrelationKeyResolution {
   const directValue = asString(args.correlation.key.value);
   if (directValue) {
-    return directValue.replace(/\$\{([^}]+)\}/g, (_match, key) => {
-      const resolved = args.resolvedContext[key];
-      return typeof resolved === "undefined" || resolved === null ? "" : String(resolved);
-    });
+    return {
+      keyValue: directValue.replace(/\$\{([^}]+)\}/g, (_match, key) => {
+        const resolved = args.resolvedContext[key];
+        return typeof resolved === "undefined" || resolved === null ? "" : String(resolved);
+      }),
+    };
   }
 
   const source = args.correlation.key.source;
   if (!source || typeof source.path !== "string" || source.path.trim().length === 0) {
-    return undefined;
+    return {};
   }
+  const sourcePath = source.path.trim();
 
   const orders = Object.keys(args.stepOutputsByOrder)
     .map((value) => Number(value))
@@ -350,32 +360,63 @@ function resolveCorrelationKeyValue(args: {
     if (source.type === "header") {
       const headers = asRecord(readValueByPath(stepOutput, "response.headers"));
       if (!headers) continue;
-      const headerName = source.path.trim().toLowerCase();
+      const headerName = sourcePath.toLowerCase();
       for (const [key, value] of Object.entries(headers)) {
         if (key.toLowerCase() === headerName) {
-          return asString(value);
+          const keyValue = asString(value);
+          if (keyValue) {
+            return {
+              keyValue,
+              sourceType: source.type,
+              sourcePath,
+            };
+          }
         }
       }
       continue;
     }
 
     if (source.type === "json_path") {
+      const fullPathValue = asString(readValueByPath(stepOutput, sourcePath));
+      if (fullPathValue) {
+        return {
+          keyValue: fullPathValue,
+          sourceType: source.type,
+          sourcePath,
+        };
+      }
       const parsedBody = readValueByPath(stepOutput, "response.bodyJson");
       const parsedBodyRecord = asRecord(parsedBody);
       if (parsedBodyRecord) {
-        const value = readValueByPath(parsedBodyRecord, source.path.trim());
+        const value = readValueByPath(parsedBodyRecord, sourcePath);
         const textValue = asString(value);
-        if (textValue) return textValue;
+        if (textValue) {
+          return {
+            keyValue: textValue,
+            sourceType: source.type,
+            sourcePath,
+          };
+        }
       }
       continue;
     }
 
-    const value = readValueByPath(stepOutput, source.path.trim());
+    const value = readValueByPath(stepOutput, sourcePath);
     const textValue = asString(value);
-    if (textValue) return textValue;
+    if (textValue) {
+      return {
+        keyValue: textValue,
+        sourceType: source.type,
+        sourcePath,
+      };
+    }
   }
 
-  return undefined;
+  return {
+    sourceType: source.type,
+    sourcePath,
+    reasonCode: "correlation_key_extraction_failed",
+  };
 }
 
 function buildPlanCorrelationEvidence(args: {
@@ -392,11 +433,12 @@ function buildPlanCorrelationEvidence(args: {
   const correlation = args.contract.correlation;
   if (!correlation || correlation.enabled !== true) return undefined;
 
-  const keyValue = resolveCorrelationKeyValue({
+  const keyResolution = resolveCorrelationKeyValue({
     correlation,
     resolvedContext: args.resolvedContext,
     stepOutputsByOrder: args.stepOutputsByOrder,
   });
+  const keyValue = keyResolution.keyValue;
 
   const correlationEvents: Array<Record<string, unknown>> = [];
   for (const step of [...args.contract.steps].sort((a, b) => a.order - b.order)) {
@@ -426,6 +468,9 @@ function buildPlanCorrelationEvidence(args: {
     correlationPolicy: {
       keyType: correlation.key.type,
       ...(keyValue ? { keyValue } : {}),
+      ...(typeof keyResolution.sourceType === "string" ? { keySourceType: keyResolution.sourceType } : {}),
+      ...(typeof keyResolution.sourcePath === "string" ? { keySourcePath: keyResolution.sourcePath } : {}),
+      ...(typeof keyResolution.reasonCode === "string" ? { keyExtractionReasonCode: keyResolution.reasonCode } : {}),
       ...(typeof correlation.correlationSessionId === "string" && correlation.correlationSessionId.trim().length > 0
         ? { correlationSessionId: correlation.correlationSessionId.trim() }
         : {}),

@@ -133,6 +133,7 @@ export type CorrelationIndexRebuildResult = {
 export type CorrelationReasonCode =
   | "ok"
   | "missing_correlation_key"
+  | "correlation_key_extraction_failed"
   | "missing_correlation_session_id"
   | "no_matching_events"
   | "no_runs_in_scope"
@@ -156,6 +157,7 @@ export type CorrelationTimelineEvent = {
 export type CorrelationArtifact = {
   status: CorrelationVerdict;
   reasonCode: CorrelationReasonCode;
+  reasonMeta?: Record<string, unknown>;
   correlationSessionId?: string;
   keyType: "traceId" | "requestId" | "messageId";
   keyValue?: string;
