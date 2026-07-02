@@ -428,6 +428,16 @@ function validateCorrelationPolicy(
     };
   }
   if (
+    correlation.crossPlan === true &&
+    (typeof correlation.correlationSessionId !== "string" || correlation.correlationSessionId.trim() === "")
+  ) {
+    return {
+      ok: false,
+      reasonCode: "correlation_session_missing",
+      requiredUserAction: ["Set non-empty correlation.correlationSessionId when correlation.crossPlan=true."],
+    };
+  }
+  if (
     typeof correlation.correlationSessionId !== "undefined" &&
     (typeof correlation.correlationSessionId !== "string" || correlation.correlationSessionId.trim() === "")
   ) {
