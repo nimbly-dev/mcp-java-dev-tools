@@ -53,7 +53,7 @@
       "expect": [
         {
           "id": "get_creator_digest_http_status",
-          "actualPath": "transport.status_code",
+          "actualPath": "response.statusCode",
           "operator": "field_equals",
           "expected": 200
         }
@@ -82,7 +82,7 @@
       "expect": [
         {
           "id": "patch_missing_digest_http_status",
-          "actualPath": "transport.status_code",
+          "actualPath": "response.statusCode",
           "operator": "field_equals",
           "expected": 404
         }

@@ -124,7 +124,7 @@ Validation rule:
 ### `steps[].expect[]`
 
 - `id` (string): stable assertion id within the step
-- `actualPath` (string): deterministic dot-path read from step result payload
+- `actualPath` (string): deterministic dot-path read from the normalized step evaluation envelope, not directly from the persisted `execution.result.json` step row
 - `operator` (string): generic assertion operator
 - `expected` (any, optional): required for all operators except `field_exists`
 - `required` (boolean, optional): defaults to `true`
@@ -140,6 +140,33 @@ Supported operators:
 - `contains`
 - `probe_line_hit`
 - `outcome_status`
+
+Normalized step evaluation envelope for HTTP steps:
+
+- `status`: step outcome used by `outcome_status`
+- `response.statusCode`: HTTP status code
+- `response.body`: raw response body text
+- `response.bodyJson`: parsed response JSON when body parsing succeeds
+- `response.headers`: response headers when available
+- `transport.durationMs`: transport duration
+- `transport.reasonCode`: transport failure reason when present
+- `probe.hit`: strict probe verification hit flag when probe verification is enabled
+- `probe.key`: strict probe key used for verification
+- `probe.probeId`: probe id when provided
+- `probe.coverage`: runtime verification coverage classification
+
+Compatibility aliases accepted by the resolver:
+
+- `statusCode` -> `response.statusCode`
+- `outcome` -> `status`
+- `transport.status_code` -> `response.statusCode`
+- `runtime.probe.hit` -> `probe.hit`
+
+Operator-specific guidance:
+
+- `field_exists`: use any valid normalized path or compatibility alias
+- `probe_line_hit`: use `probe.hit` as the canonical `actualPath`; `runtime.probe.hit` remains accepted for compatibility
+- `outcome_status`: use `status` as the canonical `actualPath`; `outcome` remains accepted for compatibility
 
 ### `correlation` (optional)
 
