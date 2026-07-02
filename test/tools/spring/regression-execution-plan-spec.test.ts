@@ -333,6 +333,7 @@ test("preflight accepts correlation without session scope when correlationSessio
   const contract = baseContract({
     correlation: {
       enabled: true,
+      crossPlan: false,
       key: { type: "traceId", value: "trace-001" },
       window: { maxWindowMs: 5000 },
       probeIds: ["gateway-service", "user-service"],
@@ -351,6 +352,31 @@ test("preflight accepts correlation without session scope when correlationSessio
   });
   assert.equal(result.status, "ready");
   assert.equal(result.reasonCode, "ok");
+});
+
+test("preflight blocks cross-plan correlation when correlationSessionId is omitted", () => {
+  const contract = baseContract({
+    correlation: {
+      enabled: true,
+      crossPlan: true,
+      key: { type: "traceId", value: "trace-001" },
+      window: { maxWindowMs: 5000 },
+      probeIds: ["gateway-service", "user-service"],
+      matchPolicy: {
+        requireExactKeyMatch: true,
+        requireWindowMatch: true,
+        ambiguityStrategy: "fail_closed",
+      },
+    },
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "correlation_session_missing");
 });
 
 test("preflight blocks correlation when maxWindowMs is invalid", () => {
