@@ -157,6 +157,35 @@ function operatorNeedsExpected(operator: PlanStepExpectationOperator): boolean {
   return operator !== "field_exists";
 }
 
+function resolveActualPath(stepResult: Record<string, unknown>, actualPath: string): unknown {
+  const direct = readValueByPath(stepResult, actualPath);
+  if (typeof direct !== "undefined") {
+    return direct;
+  }
+
+  const aliasPaths = new Set<string>();
+  if (actualPath === "statusCode") {
+    aliasPaths.add("response.statusCode");
+  }
+  if (actualPath === "outcome") {
+    aliasPaths.add("status");
+  }
+  if (actualPath === "transport.status_code") {
+    aliasPaths.add("response.statusCode");
+  }
+  if (actualPath.startsWith("runtime.probe.")) {
+    aliasPaths.add(`probe.${actualPath.slice("runtime.probe.".length)}`);
+  }
+
+  for (const aliasPath of aliasPaths) {
+    const aliased = readValueByPath(stepResult, aliasPath);
+    if (typeof aliased !== "undefined") {
+      return aliased;
+    }
+  }
+  return undefined;
+}
+
 export function evaluateStepExpectations(args: {
   stepResult: Record<string, unknown>;
   expectations: PlanStepExpectation[];
@@ -167,7 +196,7 @@ export function evaluateStepExpectations(args: {
 
   for (const expectation of args.expectations) {
     const required = expectation.required !== false;
-    const actual = readValueByPath(args.stepResult, expectation.actualPath);
+    const actual = resolveActualPath(args.stepResult, expectation.actualPath);
     if (typeof actual === "undefined") {
       assertions.push(
         withOptionalMessage({

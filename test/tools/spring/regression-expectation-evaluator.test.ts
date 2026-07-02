@@ -210,6 +210,51 @@ test("evaluateStepExpectations supports array index notation in actualPath", () 
   assert.equal(evaluated.assertions[0].actual, "Test");
 });
 
+test("evaluateStepExpectations resolves documented and persisted aliases for step assertions", () => {
+  const evaluated = evaluateStepExpectations({
+    stepResult: {
+      status: "pass",
+      response: {
+        statusCode: 200,
+      },
+      probe: {
+        hit: true,
+      },
+    },
+    transportFailure: false,
+    dependencyBlocked: false,
+    expectations: [
+      {
+        id: "persisted-status-code",
+        actualPath: "statusCode",
+        operator: "field_equals",
+        expected: 200,
+      },
+      {
+        id: "legacy-transport-status-code",
+        actualPath: "transport.status_code",
+        operator: "field_equals",
+        expected: 200,
+      },
+      {
+        id: "legacy-runtime-probe-hit",
+        actualPath: "runtime.probe.hit",
+        operator: "probe_line_hit",
+        expected: true,
+      },
+      {
+        id: "outcome-alias",
+        actualPath: "outcome",
+        operator: "outcome_status",
+        expected: "pass",
+      },
+    ],
+  });
+
+  assert.equal(evaluated.status, "pass");
+  assert.equal(evaluated.assertions.every((entry: { status: string }) => entry.status === "pass"), true);
+});
+
 test("deriveRunStatusFromStepOutcomes maps continue-on-fail policy deterministically", () => {
   assert.equal(
     deriveRunStatusFromStepOutcomes({

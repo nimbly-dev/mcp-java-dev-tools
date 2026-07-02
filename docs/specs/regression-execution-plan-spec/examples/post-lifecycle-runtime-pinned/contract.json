@@ -69,13 +69,13 @@
       "expect": [
         {
           "id": "create_post_http_status",
-          "actualPath": "transport.status_code",
+          "actualPath": "response.statusCode",
           "operator": "field_equals",
           "expected": 201
         },
         {
           "id": "create_post_probe_hit",
-          "actualPath": "runtime.probe.hit",
+          "actualPath": "probe.hit",
           "operator": "probe_line_hit",
           "expected": true
         }
@@ -105,13 +105,13 @@
       "expect": [
         {
           "id": "update_post_http_status",
-          "actualPath": "transport.status_code",
+          "actualPath": "response.statusCode",
           "operator": "field_equals",
           "expected": 200
         },
         {
           "id": "update_post_probe_hit",
-          "actualPath": "runtime.probe.hit",
+          "actualPath": "probe.hit",
           "operator": "probe_line_hit",
           "expected": true
         }

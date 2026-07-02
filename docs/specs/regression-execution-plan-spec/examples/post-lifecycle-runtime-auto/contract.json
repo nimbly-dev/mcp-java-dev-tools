@@ -63,7 +63,7 @@
       "expect": [
         {
           "id": "create_post_http_status",
-          "actualPath": "transport.status_code",
+          "actualPath": "response.statusCode",
           "operator": "field_equals",
           "expected": 201
         }
@@ -89,7 +89,7 @@
       "expect": [
         {
           "id": "delete_post_http_status",
-          "actualPath": "transport.status_code",
+          "actualPath": "response.statusCode",
           "operator": "field_equals",
           "expected": 204
         }
