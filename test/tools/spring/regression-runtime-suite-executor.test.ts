@@ -918,6 +918,154 @@ test("executeRegressionRuntimeSuite runs postRuntime scriptRefs when health chec
   }
 });
 
+test("executeRegressionRuntimeSuite reruns postHealthcheck scriptRefs on a fresh run after prior external_healthcheck_failed", async () => {
+  const root = createTestTempDir("runtime-suite-posthealthcheck-rerun");
+  try {
+    const projectName = "petclinic-regression";
+    const envFile = path.join(root, ".mcpjvm", projectName, ".env");
+    fs.mkdirSync(path.dirname(envFile), { recursive: true });
+    fs.writeFileSync(envFile, "AUTH_BEARER_TOKEN=\n", "utf8");
+    const scriptFile = path.join(root, "scripts", "write-token.js");
+    fs.mkdirSync(path.dirname(scriptFile), { recursive: true });
+    fs.writeFileSync(
+      scriptFile,
+      [
+        "const fs = require('node:fs');",
+        "const idx = process.argv.indexOf('--env-file');",
+        "if (idx < 0 || !process.argv[idx + 1]) process.exit(2);",
+        "const current = fs.existsSync(process.argv[idx + 1]) ? fs.readFileSync(process.argv[idx + 1], 'utf8') : '';",
+        "const match = current.match(/SCRIPT_RUN_COUNT=(\\d+)/);",
+        "const count = match ? Number(match[1]) + 1 : 1;",
+        "fs.writeFileSync(process.argv[idx + 1], `AUTH_BEARER_TOKEN=generated-token-${count}\\nSCRIPT_RUN_COUNT=${count}\\n`, 'utf8');",
+      ].join("\n"),
+      "utf8",
+    );
+    const healthPort = 1;
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          externalSystems: [
+            {
+              name: "customers-api",
+              kind: "service",
+              host: "127.0.0.1",
+              port: healthPort,
+              healthChecks: [
+                { id: "http-ready", type: "http", url: `http://127.0.0.1:${healthPort}/health`, required: true },
+              ],
+            },
+          ],
+          scripts: [
+            {
+              name: "token-bootstrap",
+              phase: "postHealthcheck",
+              command: "node",
+              args: ["scripts/write-token.js"],
+              appdir: ".",
+              envFileArg: "--env-file",
+            },
+          ],
+          executionProfiles: [
+            {
+              executionProfile: "core-scriptrefs-rerun",
+              executionPolicy: "stop_on_fail",
+              scriptRefs: ["token-bootstrap"],
+              plans: [{ order: 1, planName: "plan-auth" }],
+            },
+          ],
+        },
+      ],
+    });
+    writeAuthPlan(root, projectName, "plan-auth", "/auth");
+
+    const first = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-scriptrefs-rerun",
+      mcpInvoke: async () => {
+        throw new Error("mcpInvoke should not be called when suite-level preflight blocks");
+      },
+    });
+
+    assert.equal(first.status, "blocked");
+    assert.equal(first.planRuns[0].blockedReasonCode, "external_healthcheck_failed");
+    assert.match(fs.readFileSync(envFile, "utf8"), /^AUTH_BEARER_TOKEN=\s*$/m);
+
+    const server = http.createServer((_req: any, res: any) => {
+      res.statusCode = 200;
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server address unavailable");
+    const liveHealthPort = address.port;
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          externalSystems: [
+            {
+              name: "customers-api",
+              kind: "service",
+              host: "127.0.0.1",
+              port: liveHealthPort,
+              healthChecks: [
+                { id: "http-ready", type: "http", url: `http://127.0.0.1:${liveHealthPort}/health`, required: true },
+              ],
+            },
+          ],
+          scripts: [
+            {
+              name: "token-bootstrap",
+              phase: "postHealthcheck",
+              command: "node",
+              args: ["scripts/write-token.js"],
+              appdir: ".",
+              envFileArg: "--env-file",
+            },
+          ],
+          executionProfiles: [
+            {
+              executionProfile: "core-scriptrefs-rerun",
+              executionPolicy: "stop_on_fail",
+              scriptRefs: ["token-bootstrap"],
+              plans: [{ order: 1, planName: "plan-auth" }],
+            },
+          ],
+        },
+      ],
+    });
+    try {
+      const second = await executeRegressionRuntimeSuite({
+        workspaceRootAbs: root,
+        executionProfile: "core-scriptrefs-rerun",
+        mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+          assert.equal(toolName, "transport_execute");
+          const req = input.request as Record<string, unknown>;
+          const headers = req.headers as Record<string, unknown>;
+          assert.equal(headers.Authorization, "Bearer generated-token-1");
+          return { structuredContent: { status: "pass", statusCode: 200, durationMs: 7, bodyPreview: "{}" } };
+        },
+      });
+
+      assert.equal(second.status, "pass");
+      assert.equal(second.planRuns[0].status, "executed");
+      assert.match(fs.readFileSync(envFile, "utf8"), /AUTH_BEARER_TOKEN=generated-token-1/);
+      assert.match(fs.readFileSync(envFile, "utf8"), /SCRIPT_RUN_COUNT=1/);
+    } finally {
+      server.close();
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite applies profile runtimeContextName when plan override is absent", async () => {
   const root = createTestTempDir("runtime-suite-profile-runtime-context");
   try {

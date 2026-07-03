@@ -44,6 +44,7 @@ export type PreflightReasonCode =
   | "project_reference_invalid"
   | "workspace_root_invalid"
   | "env_key_missing"
+  | "script_execution_failed"
   | "runtime_context_unknown"
   | "external_system_invalid"
   | "external_healthcheck_failed"
@@ -203,6 +204,7 @@ export type BuildPreflightArgs = {
       | "project_reference_invalid"
       | "workspace_root_invalid"
       | "env_key_missing"
+      | "script_execution_failed"
       | "runtime_context_unknown"
       | "external_system_invalid"
       | "external_healthcheck_failed";

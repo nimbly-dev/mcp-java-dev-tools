@@ -576,6 +576,7 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
   if (args.projectContext?.status === "blocked" && args.projectContext.reasonCode) {
     const isNeedsUserInput =
       args.projectContext.reasonCode === "env_key_missing" ||
+      args.projectContext.reasonCode === "script_execution_failed" ||
       args.projectContext.reasonCode === "external_healthcheck_failed" ||
       args.projectContext.reasonCode === "runtime_context_unknown";
     const nextAction =

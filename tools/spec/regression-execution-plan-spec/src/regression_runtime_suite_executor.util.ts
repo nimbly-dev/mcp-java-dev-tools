@@ -551,6 +551,7 @@ async function readSuiteManifest(args: {
 function isSuiteLevelPreflightBlocker(reasonCode: string | undefined): boolean {
   return (
     reasonCode === "env_key_missing" ||
+    reasonCode === "script_execution_failed" ||
     reasonCode === "external_healthcheck_failed" ||
     reasonCode === "runtime_context_unknown" ||
     reasonCode === "project_artifact_missing" ||
