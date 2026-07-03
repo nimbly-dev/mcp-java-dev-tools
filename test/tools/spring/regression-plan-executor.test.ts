@@ -1127,7 +1127,7 @@ test("executeRegressionPlanWorkflow does not promote extracted baseUrl into apiB
   }
 });
 
-test("executeRegressionPlanWorkflow persists fail_closed correlation when json_path source uses response.body.id", async () => {
+test("executeRegressionPlanWorkflow resolves correlation key when json_path source uses response.body.id", async () => {
   const root = createTestTempDir("plan-executor-correlation-json-path");
   try {
     const projectName = "petclinic-regression";
@@ -1204,18 +1204,18 @@ test("executeRegressionPlanWorkflow persists fail_closed correlation when json_p
       assert.equal(evidence.correlationPolicy.keyType, "messageId");
       assert.equal(evidence.correlationPolicy.keySourceType, "json_path");
       assert.equal(evidence.correlationPolicy.keySourcePath, "response.body.id");
-      assert.equal(evidence.correlationPolicy.keyExtractionReasonCode, "correlation_key_extraction_failed");
+      assert.equal(evidence.correlationPolicy.keyValue, "evt-123");
+      assert.equal(typeof evidence.correlationPolicy.keyExtractionReasonCode, "undefined");
       assert.equal(Array.isArray(evidence.correlationEvents), true);
       assert.equal(evidence.correlationEvents.length, 1);
       assert.equal(evidence.correlationEvents[0].probeId, "event-service");
-      assert.equal(typeof evidence.correlationEvents[0].keyValue, "undefined");
+      assert.equal(evidence.correlationEvents[0].keyValue, "evt-123");
 
-      assert.equal(correlation.status, "fail_closed");
-      assert.equal(correlation.reasonCode, "correlation_key_extraction_failed");
-      assert.equal(correlation.reasonMeta.sourceType, "json_path");
-      assert.equal(correlation.reasonMeta.sourcePath, "response.body.id");
+      assert.equal(correlation.status, "ok");
+      assert.equal(correlation.reasonCode, "ok");
+      assert.equal(correlation.keyValue, "evt-123");
       assert.equal(Array.isArray(correlation.timeline), true);
-      assert.equal(correlation.timeline.length, 0);
+      assert.equal(correlation.timeline.length, 1);
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

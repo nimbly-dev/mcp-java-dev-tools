@@ -1116,7 +1116,7 @@ test("mcp IT: execution_orchestration composes baseUrl prerequisite with transpo
   }
 });
 
-test("mcp IT: execution_orchestration persists fail_closed correlation when json_path source uses response.body.id", async () => {
+test("mcp IT: execution_orchestration resolves correlation when json_path source uses response.body.id", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-correlation-json-path-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-correlation";
@@ -1243,15 +1243,15 @@ test("mcp IT: execution_orchestration persists fail_closed correlation when json
     assert.equal(Array.isArray(evidence.correlationEvents), true);
     assert.equal((evidence.correlationPolicy as Record<string, unknown>).keySourceType, "json_path");
     assert.equal((evidence.correlationPolicy as Record<string, unknown>).keySourcePath, "response.body.id");
-    assert.equal((evidence.correlationPolicy as Record<string, unknown>).keyExtractionReasonCode, "correlation_key_extraction_failed");
+    assert.equal((evidence.correlationPolicy as Record<string, unknown>).keyValue, "evt-123");
+    assert.equal(typeof (evidence.correlationPolicy as Record<string, unknown>).keyExtractionReasonCode, "undefined");
     const correlationEvents = evidence.correlationEvents as Array<Record<string, unknown>>;
     assert.equal(correlationEvents.length, 1);
     assert.equal(correlationEvents[0]?.probeId, "event-service");
-    assert.equal(typeof correlationEvents[0]?.keyValue, "undefined");
-    assert.equal(correlation.status, "fail_closed");
-    assert.equal(correlation.reasonCode, "correlation_key_extraction_failed");
-    assert.equal((correlation.reasonMeta as Record<string, unknown>).sourceType, "json_path");
-    assert.equal((correlation.reasonMeta as Record<string, unknown>).sourcePath, "response.body.id");
+    assert.equal(correlationEvents[0]?.keyValue, "evt-123");
+    assert.equal(correlation.status, "ok");
+    assert.equal(correlation.reasonCode, "ok");
+    assert.equal(correlation.keyValue, "evt-123");
   } finally {
     appServer.close();
     await mcp?.close();
