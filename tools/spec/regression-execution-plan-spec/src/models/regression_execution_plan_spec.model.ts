@@ -34,6 +34,7 @@ export type PreflightReasonCode =
   | "secret_default_forbidden"
   | "step_expectations_missing"
   | "step_expectation_invalid"
+  | "step_extract_invalid"
   | "top_level_expectations_unsupported"
   | "correlation_session_missing"
   | "correlation_window_invalid"
@@ -122,10 +123,26 @@ export type PlanStep = {
   targetRef: number;
   protocol: string;
   transport: Record<string, unknown>;
-  extract?: Array<{ from: string; as: string }>;
+  extract?: PlanStepExtract[];
   when?: PlanStepCondition;
   expect: PlanStepExpectation[];
 };
+
+export type PlanStepExtract = {
+  from: string;
+  as: string;
+  required?: boolean;
+};
+
+export type StepExtractValidationResult =
+  | {
+      ok: true;
+    }
+  | {
+      ok: false;
+      reasonCode: "step_extract_invalid";
+      requiredUserAction: string[];
+    };
 
 export type PlanStepConditionPredicateOperator = "equals" | "not_equals" | "in" | "exists";
 

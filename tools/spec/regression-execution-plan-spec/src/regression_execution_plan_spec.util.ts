@@ -13,8 +13,12 @@ import {
   deepResolvePlaceholderValue,
   normalizePlaceholderSyntaxInString,
 } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
+import {
+  applyStepExtract,
+  applyStepExtractWithDiagnostics,
+  validateStepExtracts,
+} from "@tools-regression-execution-plan-spec/step_extract.util";
 import { normalizeHttpContextAliases } from "@tools-regression-execution-plan-spec/suite_http_request.util";
-import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
 import { validateCanonicalPlanContextKeys } from "@tools-regression-execution-plan-spec/suite_context_key_validation.util";
 
 export type {
@@ -670,6 +674,15 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
       requiredUserAction: stepExpectValidation.requiredUserAction,
     };
   }
+  const stepExtractValidation = validateStepExtracts(contract.steps);
+  if (!stepExtractValidation.ok) {
+    return {
+      status: "blocked_invalid",
+      reasonCode: stepExtractValidation.reasonCode,
+      ...emptyPreflightDetails(),
+      requiredUserAction: stepExtractValidation.requiredUserAction,
+    };
+  }
   const stepConditionValidation = validateStepConditions(contract.steps);
   if (!stepConditionValidation.ok) {
     return {
@@ -823,20 +836,7 @@ export function resolvePrerequisiteContext(
 export function resolveStepTransport(step: PlanStep, context: Record<string, unknown>): Record<string, unknown> {
   return deepResolvePlaceholderValue(step.transport, context) as Record<string, unknown>;
 }
-
-export function applyStepExtract(
-  output: Record<string, unknown>,
-  extract: Array<{ from: string; as: string }> | undefined,
-  context: Record<string, unknown>,
-): Record<string, unknown> {
-  if (!extract?.length) return context;
-  const next = { ...context };
-  for (const mapping of extract) {
-    const value = readValueByPath(output, mapping.from);
-    if (typeof value !== "undefined") next[mapping.as] = value;
-  }
-  return next;
-}
+export { applyStepExtract, applyStepExtractWithDiagnostics };
 
 export function buildTimestampRunId(now: Date, _seq: number): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");

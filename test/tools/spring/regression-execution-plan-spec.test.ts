@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const {
   applyStepExtract,
+  applyStepExtractWithDiagnostics,
   buildReplayPreflight,
   buildTimestampRunId,
   resolvePrerequisiteContext,
@@ -498,6 +499,70 @@ test("applyStepExtract supports array index notation in extract paths", () => {
   const next = applyStepExtract(output, [{ from: "response.bodyJson.names[0].value", as: "primaryName" }], initial);
   assert.equal(next.tenantId, "tenant-social-001");
   assert.equal(next.primaryName, "Test");
+});
+
+test("applyStepExtractWithDiagnostics records unresolved extract without mutating context", () => {
+  const initial = { tenantId: "tenant-social-001" };
+  const output = {
+    response: {
+      body: "{\"ok\":true}",
+      bodyJson: {
+        ok: true,
+      },
+    },
+  };
+  const result = applyStepExtractWithDiagnostics(
+    output,
+    [{ from: "response.body.id", as: "triggeredEventId" }],
+    initial,
+  );
+  assert.equal(result.hasRequiredUnresolved, false);
+  assert.deepEqual(result.context, initial);
+  assert.deepEqual(result.outcomes, [
+    {
+      from: "response.body.id",
+      as: "triggeredEventId",
+      required: false,
+      status: "unresolved",
+      reasonCode: "extract_path_missing",
+    },
+  ]);
+});
+
+test("preflight blocks when extract entry is malformed", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        order: 1,
+        id: "create_post",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            pathTemplate: "/api/v1/posts",
+          },
+        },
+        extract: [{ from: "response.bodyJson.id", as: "postId", required: "yes" }],
+        expect: [
+          {
+            id: "step_outcome_pass",
+            actualPath: "status",
+            operator: "outcome_status",
+            expected: "pass",
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "provided-at-runtime" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "step_extract_invalid");
 });
 
 test("buildTimestampRunId produces sortable timestamp-based run id", () => {
