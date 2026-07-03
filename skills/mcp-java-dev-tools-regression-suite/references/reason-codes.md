@@ -8,13 +8,14 @@ Canonical fail/blocked reason codes:
 4. `workspace_root_invalid`
 5. `runtime_context_unknown`
 6. `env_key_missing`
-7. `external_system_invalid`
-8. `external_healthcheck_failed`
-9. `runtime_auto_replace_required`
-10. `runtime_start_failed`
-11. `runtime_probe_unreachable_after_start`
-12. `probe_gate_failed`
-13. `needs_user_input`
+7. `script_execution_failed`
+8. `external_system_invalid`
+9. `external_healthcheck_failed`
+10. `runtime_auto_replace_required`
+11. `runtime_start_failed`
+12. `runtime_probe_unreachable_after_start`
+13. `probe_gate_failed`
+14. `needs_user_input`
 
 Usage:
 

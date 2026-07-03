@@ -20,6 +20,7 @@ type ProjectContextBlockedReason =
   | "project_reference_invalid"
   | "workspace_root_invalid"
   | "env_key_missing"
+  | "script_execution_failed"
   | "runtime_context_unknown"
   | "external_system_invalid"
   | "external_healthcheck_failed";
@@ -503,7 +504,7 @@ async function executeSharedScriptsForPhase(args: {
     if (!result.ok) {
       return {
         status: "blocked",
-        reasonCode: "external_healthcheck_failed",
+        reasonCode: "script_execution_failed",
         checks,
         nextAction: `Fix profile script '${script.name}' and retry.`,
         requiredUserAction: [`Profile script '${script.name}' failed: ${result.detail}`],
