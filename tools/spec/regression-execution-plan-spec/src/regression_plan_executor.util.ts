@@ -110,6 +110,20 @@ function tryParseJson(value: string): unknown {
   }
 }
 
+function correlationJsonBodyCandidatePaths(sourcePath: string): string[] {
+  const candidates = new Set<string>([sourcePath]);
+  if (sourcePath.startsWith("response.body.")) {
+    candidates.add(sourcePath.slice("response.body.".length));
+  }
+  if (sourcePath.startsWith("response.bodyJson.")) {
+    candidates.add(sourcePath.slice("response.bodyJson.".length));
+  }
+  if (sourcePath === "response.body" || sourcePath === "response.bodyJson") {
+    candidates.add("");
+  }
+  return Array.from(candidates).filter((value) => value.length > 0);
+}
+
 function resolveConditionLeftValue(args: {
   left: string;
   context: Record<string, unknown>;
@@ -388,14 +402,16 @@ function resolveCorrelationKeyValue(args: {
       const parsedBody = readValueByPath(stepOutput, "response.bodyJson");
       const parsedBodyRecord = asRecord(parsedBody);
       if (parsedBodyRecord) {
-        const value = readValueByPath(parsedBodyRecord, sourcePath);
-        const textValue = asString(value);
-        if (textValue) {
-          return {
-            keyValue: textValue,
-            sourceType: source.type,
-            sourcePath,
-          };
+        for (const candidatePath of correlationJsonBodyCandidatePaths(sourcePath)) {
+          const value = readValueByPath(parsedBodyRecord, candidatePath);
+          const textValue = asString(value);
+          if (textValue) {
+            return {
+              keyValue: textValue,
+              sourceType: source.type,
+              sourcePath,
+            };
+          }
         }
       }
       continue;
