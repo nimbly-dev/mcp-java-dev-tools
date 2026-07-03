@@ -35,6 +35,22 @@ export type RegressionConditionEvaluation = {
     | "step_condition_type_mismatch";
 };
 
+export type RegressionRunStepExtractStatus = "resolved" | "unresolved";
+
+export type RegressionRunStepExtractResult = {
+  from: string;
+  as: string;
+  required: boolean;
+  status: RegressionRunStepExtractStatus;
+  reasonCode: "ok" | "extract_path_missing";
+};
+
+export type RegressionRunStepExtractApplyResult = {
+  context: Record<string, unknown>;
+  outcomes: RegressionRunStepExtractResult[];
+  hasRequiredUnresolved: boolean;
+};
+
 export type RegressionRunAssertionStatus = "pass" | "fail" | "blocked_invalid";
 
 export type RegressionRunAssertionResult = {
@@ -53,6 +69,7 @@ export type RegressionRunStepResult = Record<string, unknown> & {
   order: number;
   id: string;
   status: RegressionRunStepResultStatus;
+  extract?: RegressionRunStepExtractResult[];
   assertions?: RegressionRunAssertionResult[];
   conditionEvaluation?: RegressionConditionEvaluation;
 };

@@ -16,7 +16,7 @@ import type {
 } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
 import { buildReplayPreflightWithDiscovery } from "@tools-regression-execution-plan-spec/regression_discovery_resolver.util";
 import {
-  applyStepExtract,
+  applyStepExtractWithDiagnostics,
   buildTimestampRunId,
   resolvePrerequisiteContext,
   resolveStepTransport,
@@ -686,15 +686,37 @@ export async function executeRegressionPlanWorkflow(
       dependencyBlocked: transport.status === "blocked_invalid" || transport.status === "blocked_runtime",
     });
     const transportReasonMeta = resolveTransportReasonMeta(transport);
+    const extractOutcome = applyStepExtractWithDiagnostics(stepEnvelope, step.extract, resolvedContext);
+    const requiredExtractBlocked = extractOutcome.hasRequiredUnresolved;
+    const extractPromotesBlock = requiredExtractBlocked && evalResult.status === "pass";
+    const stepStatus = extractPromotesBlock ? "blocked_runtime" : evalResult.status;
+    const unresolvedRequiredExtract = extractOutcome.outcomes.filter(
+      (entry) => entry.required && entry.status === "unresolved",
+    );
+    let stepReasonCode: string | undefined;
+    if (!extractPromotesBlock && evalResult.status !== "pass" && transport.reasonCode) {
+      stepReasonCode = transport.reasonCode;
+    }
+    let stepReasonMeta: Record<string, unknown> | undefined;
+    if (unresolvedRequiredExtract.length > 0) {
+      stepReasonMeta = {
+        ...(transportReasonMeta ?? {}),
+        extract: unresolvedRequiredExtract,
+      };
+    } else if (evalResult.status !== "pass" && transportReasonMeta) {
+      stepReasonMeta = transportReasonMeta;
+    }
     stepRows.push({
       order: step.order,
       id: step.id,
-      status: evalResult.status,
+      status: stepStatus,
       durationMs: transport.durationMs,
       statusCode: transport.statusCode ?? 0,
+      ...(extractOutcome.outcomes.length > 0 ? { extract: extractOutcome.outcomes } : {}),
       assertions: evalResult.assertions,
-      ...(evalResult.status === "pass" || !transport.reasonCode ? {} : { reasonCode: transport.reasonCode }),
-      ...(evalResult.status === "pass" || !transportReasonMeta ? {} : { reasonMeta: transportReasonMeta }),
+      ...(extractPromotesBlock ? { reasonCode: "extract_path_missing" } : {}),
+      ...(stepReasonCode ? { reasonCode: stepReasonCode } : {}),
+      ...(stepReasonMeta ? { reasonMeta: stepReasonMeta } : {}),
       ...(typeof step.when === "undefined"
         ? {}
         : {
@@ -706,9 +728,9 @@ export async function executeRegressionPlanWorkflow(
     stepOutputsByOrder[step.order] = stepEnvelope;
     stepEventTimesByOrder[step.order] = eventCursorEpochMs;
     eventCursorEpochMs += Math.max(1, transport.durationMs);
-    resolvedContext = applyStepExtract(stepEnvelope, step.extract, resolvedContext);
+    resolvedContext = extractOutcome.context;
 
-    if (transport.status === "blocked_runtime" || transport.status === "blocked_invalid") {
+    if (requiredExtractBlocked || transport.status === "blocked_runtime" || transport.status === "blocked_invalid") {
       hardRuntimeBlocker = true;
       break;
     }

@@ -431,6 +431,7 @@ These fields are emitted by orchestration summaries in skill-guided runs when pr
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
 | --- | --- | --- | --- | --- |
 | `executionResult.steps[].status` | Step outcome status including conditional skip (`skipped_condition_false`). | `mcp-java-dev-tools-regression-suite` | true | `"skipped_condition_false"` |
+| `executionResult.steps[].extract[]` | Per-mapping extraction outcome with deterministic diagnostics (`from`, `as`, `required`, `status`, `reasonCode`). | `mcp-java-dev-tools-regression-suite` | false | `[{"from":"response.body.id","as":"triggeredEventId","required":false,"status":"unresolved","reasonCode":"extract_path_missing"}]` |
 | `executionResult.steps[].conditionEvaluation.status` | Deterministic condition evaluation result (`true`, `false`, `blocked_invalid`). | `mcp-java-dev-tools-regression-suite` | false | `false` |
 | `executionResult.steps[].conditionEvaluation.reasonCode` | Deterministic reason when condition evaluation is blocked. | `mcp-java-dev-tools-regression-suite` | false | `"step_condition_forward_reference"` |
 

@@ -1261,6 +1261,135 @@ test("mcp IT: execution_orchestration persists fail_closed correlation when json
   }
 });
 
+test("mcp IT: execution_orchestration records unresolved optional extract without blocking the run", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-extract-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-extract";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "extract-optional-miss";
+  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const runRootAbs = path.join(planRootAbs, "runs");
+  const appServer = http.createServer((_req, res) => {
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ ok: true }));
+  });
+  const appPort = await listen(appServer);
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "event-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        executionProfiles: [
+          {
+            executionProfile: "extract-optional-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [
+      {
+        type: "class_method",
+        selectors: { fqcn: "x.A", method: "m" },
+      },
+    ],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "create_event",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            pathTemplate: "/events",
+            body: { kind: "created" },
+          },
+        },
+        extract: [{ from: "response.body.id", as: "triggeredEventId" }],
+        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "extract-optional-run",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "pass");
+
+    const runDirs = await fs.readdir(runRootAbs);
+    assert.equal(runDirs.length, 1);
+    const runDir = runDirs[0];
+    if (!runDir) throw new Error("expected one run directory");
+
+    const context = JSON.parse(await fs.readFile(path.join(runRootAbs, runDir, "context.resolved.json"), "utf8")) as Record<string, unknown>;
+    const executionResult = JSON.parse(
+      await fs.readFile(path.join(runRootAbs, runDir, "execution.result.json"), "utf8"),
+    ) as Record<string, unknown>;
+
+    assert.equal(typeof context.triggeredEventId, "undefined");
+    const steps = executionResult.steps as Array<Record<string, unknown>>;
+    assert.equal(Array.isArray(steps), true);
+    assert.equal(steps[0]?.status, "pass");
+    assert.deepEqual(steps[0]?.extract, [
+      {
+        from: "response.body.id",
+        as: "triggeredEventId",
+        required: false,
+        status: "unresolved",
+        reasonCode: "extract_path_missing",
+      },
+    ]);
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
 test("mcp IT: execution_orchestration continue_on_fail stops after suite-level env blocker and creates no runs", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-suite-block-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");

@@ -206,6 +206,204 @@ test("executeRegressionPlanWorkflow extracts response.bodyJson.id from full resp
   }
 });
 
+test("executeRegressionPlanWorkflow records unresolved optional extract and continues", async () => {
+  const root = createTestTempDir("plan-executor-optional-extract-miss");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "optional-extract-miss";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "create", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "create_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events", body: { kind: "created" } } },
+          extract: [{ from: "response.body.id", as: "triggeredEventId" }],
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        },
+      ],
+    });
+
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 10, body: "{\"ok\":true}", bodyPreview: "{\"ok\":true}" } };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "pass");
+      assert.deepEqual(out.executionResult.steps[0].extract, [
+        {
+          from: "response.body.id",
+          as: "triggeredEventId",
+          required: false,
+          status: "unresolved",
+          reasonCode: "extract_path_missing",
+        },
+      ]);
+      const resolved = JSON.parse(fs.readFileSync(out.artifacts.contextResolvedPathAbs, "utf8"));
+      assert.equal(typeof resolved.triggeredEventId, "undefined");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow blocks when required extract path is unresolved", async () => {
+  const root = createTestTempDir("plan-executor-required-extract-miss");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "required-extract-miss";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "create", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "create_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events", body: { kind: "created" } } },
+          extract: [{ from: "response.body.id", as: "triggeredEventId", required: true }],
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        },
+        {
+          order: 2,
+          id: "consume_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", url: "http://localhost:8082/events/${triggeredEventId}" } },
+          expect: [{ id: "ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        },
+      ],
+    });
+
+    let calls = 0;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        calls += 1;
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 10, body: "{\"ok\":true}", bodyPreview: "{\"ok\":true}" } };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(calls, 1);
+      assert.equal(out.runStatus, "blocked");
+      assert.equal(out.executionResult.steps[0].status, "blocked_runtime");
+      assert.equal(out.executionResult.steps[0].reasonCode, "extract_path_missing");
+      assert.deepEqual(out.executionResult.steps[0].extract, [
+        {
+          from: "response.body.id",
+          as: "triggeredEventId",
+          required: true,
+          status: "unresolved",
+          reasonCode: "extract_path_missing",
+        },
+      ]);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow preserves primary step failure when required extract is also unresolved", async () => {
+  const root = createTestTempDir("plan-executor-required-extract-with-failure");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "required-extract-with-failure";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "create", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "create_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events", body: { kind: "created" } } },
+          extract: [{ from: "response.body.id", as: "triggeredEventId", required: true }],
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        },
+        {
+          order: 2,
+          id: "consume_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", url: "http://localhost:8082/events/${triggeredEventId}" } },
+          expect: [{ id: "ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        },
+      ],
+    });
+
+    let calls = 0;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        calls += 1;
+        return { structuredContent: { status: "pass", statusCode: 500, durationMs: 10, body: "{\"ok\":true}", bodyPreview: "{\"ok\":true}" } };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(calls, 1);
+      assert.equal(out.runStatus, "blocked");
+      assert.equal(out.executionResult.steps[0].status, "fail_assertion");
+      assert.equal(typeof out.executionResult.steps[0].reasonCode, "undefined");
+      assert.deepEqual(out.executionResult.steps[0].reasonMeta, {
+        extract: [
+          {
+            from: "response.body.id",
+            as: "triggeredEventId",
+            required: true,
+            status: "unresolved",
+            reasonCode: "extract_path_missing",
+          },
+        ],
+      });
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow applies workspace requestTimeoutMs to wrapped transport when step timeout is absent", async () => {
   const root = createTestTempDir("plan-executor-timeout-default");
   try {
