@@ -63,6 +63,45 @@ function resolveTransportReasonMeta(transport: { reasonMeta?: Record<string, unk
   return transport.reasonMeta && Object.keys(transport.reasonMeta).length > 0 ? transport.reasonMeta : undefined;
 }
 
+function resolveProbeWaitFailure(args: {
+  structuredContent: Record<string, unknown> | null;
+}): { reasonCode: "probe_wait_for_hit_failed"; reasonMeta: Record<string, unknown> } | null {
+  const structured = args.structuredContent;
+  if (!structured || "error" in structured) {
+    return {
+      reasonCode: "probe_wait_for_hit_failed",
+      reasonMeta: {
+        failedStep: "probe_wait_for_hit",
+      },
+    };
+  }
+
+  const status = asString(structured.status);
+  const result = asRecord(structured.result);
+  if (status && status !== "pass") {
+    return {
+      reasonCode: "probe_wait_for_hit_failed",
+      reasonMeta: {
+        failedStep: "probe_wait_for_hit",
+        probeStatus: status,
+        ...(asString(structured.reasonCode) ? { probeReasonCode: asString(structured.reasonCode) } : {}),
+        ...(asString(structured.nextActionCode) ? { nextActionCode: asString(structured.nextActionCode) } : {}),
+        ...(asString(structured.nextAction) ? { nextAction: asString(structured.nextAction) } : {}),
+      },
+    };
+  }
+  if (!result) {
+    return {
+      reasonCode: "probe_wait_for_hit_failed",
+      reasonMeta: {
+        failedStep: "probe_wait_for_hit",
+        ...(status ? { probeStatus: status } : {}),
+      },
+    };
+  }
+  return null;
+}
+
 export type ExecuteRegressionPlanWorkflowArgs = {
   workspaceRootAbs: string;
   projectName?: string;
@@ -695,7 +734,29 @@ export async function executeRegressionPlanWorkflow(
         },
       });
       const waitStructured = asRecord(waitOut.structuredContent);
-      const waitResult = waitStructured ? asRecord(waitStructured.result) : null;
+      const waitFailure = resolveProbeWaitFailure({ structuredContent: waitStructured });
+      if (waitFailure) {
+        hardRuntimeBlocker = true;
+        stepRows.push({
+          order: step.order,
+          id: step.id,
+          status: "blocked_runtime",
+          durationMs: transport.durationMs,
+          statusCode: transport.statusCode ?? 0,
+          assertions: [],
+          reasonCode: waitFailure.reasonCode,
+          reasonMeta: waitFailure.reasonMeta,
+          ...(typeof step.when === "undefined"
+            ? {}
+            : {
+                conditionEvaluation: {
+                  status: true as const,
+                },
+              }),
+        });
+        break;
+      }
+      const waitResult = asRecord(waitStructured?.result);
       const hit = waitResult?.hit === true;
       stepEnvelope.probe = {
         hit,

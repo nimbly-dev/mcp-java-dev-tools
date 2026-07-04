@@ -179,6 +179,7 @@ Cross-service/cross-plan deterministic post-analysis policy.
 - `correlationSessionId` (string, required when `crossPlan=true`): explicit shared correlation session.
 - `key.type` (string): `traceId` | `requestId` | `messageId`
 - `key.value` (string, optional): explicit key value.
+- During runtime suite execution, `key.value` MAY reference a prior resolved suite correlation key via `${suite.correlation.<correlationSessionId>.keyValue}` or `${suite.correlation.last.keyValue}`.
 - `key.source.type` (string, optional): `header` | `json_path` | `capture_field`
 - `key.source.path` (string, required when `key.source` is set): extraction path.
 - `key.source.path` for `json_path` SHOULD use canonical normalized response paths such as `response.bodyJson.id`.
