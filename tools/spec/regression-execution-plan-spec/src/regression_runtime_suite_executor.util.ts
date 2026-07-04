@@ -47,6 +47,11 @@ type RuntimeSuiteCorrelationSession = {
   events: CanonicalCorrelationEvent[];
 };
 
+const SUITE_CORRELATION_LAST_KEY_VALUE = "suite.correlation.last.keyValue";
+const SUITE_CORRELATION_LAST_KEY_TYPE = "suite.correlation.last.keyType";
+const SUITE_CORRELATION_LAST_SESSION_ID = "suite.correlation.last.correlationSessionId";
+const SUITE_CORRELATION_LAST_SOURCE_PLAN = "suite.correlation.last.sourcePlanName";
+
 function isReplayScriptPath(value: string): boolean {
   const normalized = value.replaceAll("\\", "/").toLowerCase();
   if (normalized.endsWith(".ps1") || normalized.endsWith(".sh")) {
@@ -259,10 +264,49 @@ function correlationEventsKeyValues(events: CanonicalCorrelationEvent[]): string
   return Array.from(new Set(events.map((event) => event.keyValue).filter((value): value is string => typeof value === "string" && value.trim().length > 0))).sort();
 }
 
+function isSuiteContextTokenSafe(value: string): boolean {
+  return /^[A-Za-z0-9_.-]+$/.test(value);
+}
+
+function resolveSuiteCorrelationSessionKeyValue(session: RuntimeSuiteCorrelationSession): string | undefined {
+  const distinctKeyValues = new Set(correlationEventsKeyValues(session.events));
+  if (typeof session.keyValue === "string" && session.keyValue.trim().length > 0) {
+    distinctKeyValues.add(session.keyValue.trim());
+  }
+  return distinctKeyValues.size === 1 ? Array.from(distinctKeyValues)[0] : undefined;
+}
+
+function applySuiteCorrelationContext(args: {
+  suiteContext: Record<string, unknown>;
+  session: RuntimeSuiteCorrelationSession;
+  sourcePlanName: string;
+}): void {
+  const keyValue = resolveSuiteCorrelationSessionKeyValue(args.session);
+  if (!keyValue) {
+    return;
+  }
+
+  args.suiteContext[SUITE_CORRELATION_LAST_KEY_VALUE] = keyValue;
+  args.suiteContext[SUITE_CORRELATION_LAST_KEY_TYPE] = args.session.keyType;
+  args.suiteContext[SUITE_CORRELATION_LAST_SESSION_ID] = args.session.correlationSessionId;
+  args.suiteContext[SUITE_CORRELATION_LAST_SOURCE_PLAN] = args.sourcePlanName;
+
+  if (!isSuiteContextTokenSafe(args.session.correlationSessionId)) {
+    return;
+  }
+
+  const sessionPrefix = `suite.correlation.${args.session.correlationSessionId}`;
+  args.suiteContext[`${sessionPrefix}.keyValue`] = keyValue;
+  args.suiteContext[`${sessionPrefix}.keyType`] = args.session.keyType;
+  args.suiteContext[`${sessionPrefix}.correlationSessionId`] = args.session.correlationSessionId;
+  args.suiteContext[`${sessionPrefix}.sourcePlanName`] = args.sourcePlanName;
+}
+
 async function collectSuiteCorrelationSession(args: {
   runDirAbs: string;
   planName: string;
   sessions: Map<string, RuntimeSuiteCorrelationSession>;
+  suiteContext?: Record<string, unknown>;
 }): Promise<void> {
   const evidence = await readJsonFile(path.join(args.runDirAbs, "evidence.json"));
   if (!evidence) return;
@@ -295,6 +339,15 @@ async function collectSuiteCorrelationSession(args: {
   if (typeof policy.keyValue === "string" && policy.keyValue.trim().length > 0) {
     session.keyValue = policy.keyValue;
   }
+  if (typeof session.keyValue !== "string" || session.keyValue.trim().length === 0) {
+    const distinctEventKeyValues = correlationEventsKeyValues(session.events);
+    if (distinctEventKeyValues.length === 1) {
+      const [resolvedKeyValue] = distinctEventKeyValues;
+      if (typeof resolvedKeyValue === "string" && resolvedKeyValue.trim().length > 0) {
+        session.keyValue = resolvedKeyValue;
+      }
+    }
+  }
   if (!(session.maxWindowMs > 0) && maxWindowMs > 0) {
     session.maxWindowMs = maxWindowMs;
   }
@@ -302,6 +355,13 @@ async function collectSuiteCorrelationSession(args: {
     session.expectedFlow = expectedFlow;
   }
   args.sessions.set(sessionId, session);
+  if (args.suiteContext) {
+    applySuiteCorrelationContext({
+      suiteContext: args.suiteContext,
+      session,
+      sourcePlanName: args.planName,
+    });
+  }
 }
 
 async function writeSuiteCorrelationResults(args: {
@@ -599,6 +659,7 @@ export async function executeRegressionRuntimeSuite(
       ? args.suiteRunId.trim()
       : buildTimestampRunId(new Date(), 1);
   const correlationSessions = new Map<string, RuntimeSuiteCorrelationSession>();
+  const suiteProvidedContext: Record<string, unknown> = {};
   let hasFail = planRuns.some((entry) => entry.status === "executed" && entry.runStatus === "fail");
   let hasBlocked = planRuns.some(
     (entry) => entry.status === "blocked" || (entry.status === "executed" && entry.runStatus === "blocked"),
@@ -654,7 +715,10 @@ export async function executeRegressionRuntimeSuite(
         : {}),
       executionProfileName: manifest.executionProfile,
       suiteRunId,
-      ...(plan.providedContext ? { providedContext: plan.providedContext } : {}),
+      providedContext: {
+        ...(plan.providedContext ?? {}),
+        ...suiteProvidedContext,
+      },
     });
     if (run.status === "blocked") {
       processedPlansThisCall += 1;
@@ -690,6 +754,7 @@ export async function executeRegressionRuntimeSuite(
       runDirAbs: run.artifacts.runDirAbs,
       planName: plan.planName,
       sessions: correlationSessions,
+      suiteContext: suiteProvidedContext,
     });
     if (run.runStatus === "fail") hasFail = true;
     if (run.runStatus === "blocked") hasBlocked = true;
