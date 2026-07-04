@@ -49,7 +49,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 {
   "workspaces": [
     {
-      "projectRoot": "C:\\workspace\\example",
+      "executionRoot": "C:\\workspace\\example",
       "envFile": ".env",
       "variables": {
         "bearerTokenEnv": "AUTH_BEARER_TOKEN",
@@ -104,9 +104,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
           "executionProfile": "regression-test-run",
           "runtimeContextName": "docker-compose",
           "executionPolicy": "stop_on_fail",
-          "scriptRefs": [
-            "keycloak-token-bootstrap"
-          ],
+          "scriptRefs": ["keycloak-token-bootstrap"],
           "plans": [
             {
               "order": 1,
