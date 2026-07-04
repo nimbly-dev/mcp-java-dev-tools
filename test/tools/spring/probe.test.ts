@@ -441,6 +441,136 @@ test("probe_wait_for_hit emits minimal non-duplicative epoch fields", async () =
   }
 });
 
+test("probe domain reuses reset window across probeIds when strict line keys are identical", async () => {
+  const key = "com.example.social.post.app.controller.PostController#updatePost:122";
+  const originalNow = Date.now;
+  let now = 1_000;
+  try {
+    Date.now = () => now;
+    const domain = createProbeDomain({
+      probeBaseUrl: "",
+      probeStatusPath: "/__probe/status",
+      probeResetPath: "/__probe/reset",
+      probeActuatePath: "/__probe/actuate",
+      probeCapturePath: "/__probe/capture",
+      probeProfilerPath: "/__probe/profiler",
+      probeWaitMaxRetries: 1,
+      probeWaitUnreachableRetryEnabled: false,
+      probeWaitUnreachableMaxRetries: 1,
+      getProbeRegistry: () => ({
+        configFileAbs: "C:\\probe-config.json",
+        activeProfile: "dev",
+        profileSource: "env",
+        probesById: new Map([
+          ["producer-service", { id: "producer-service", baseUrl: "http://127.0.0.1:9191", include: [], exclude: [] }],
+          ["consumer-service", { id: "consumer-service", baseUrl: "http://127.0.0.1:9192", include: [], exclude: [] }],
+        ]),
+      }),
+    });
+
+    await withMockedFetch(async (input, init) => {
+      const url = String(input);
+      const method = String(init?.method ?? "GET").toUpperCase();
+      if (url === "http://127.0.0.1:9191/__probe/reset" && method === "POST") {
+        return jsonResponse(200, {
+          ok: true,
+          key,
+          lineResolvable: true,
+          lineValidation: "resolvable",
+        });
+      }
+      if (url === `http://127.0.0.1:9192/__probe/status?key=${encodeURIComponent(key)}` && method === "GET") {
+        return jsonResponse(200, {
+          key,
+          hitCount: 1,
+          lastHitEpoch: 1_500,
+          mode: "observe",
+          lineResolvable: true,
+          lineValidation: "resolvable",
+        });
+      }
+      throw new Error(`unexpected fetch ${method} ${url}`);
+    }, async () => {
+      const resetOut = await domain.reset({
+        probeId: "producer-service",
+        key,
+      });
+      assert.equal(resetOut.structuredContent.response.status, 200);
+
+      now = 2_000;
+      const waitOut = await domain.waitForHit({
+        probeId: "consumer-service",
+        key,
+        timeoutMs: 250,
+        pollIntervalMs: 100,
+        maxRetries: 1,
+      });
+
+      assert.equal(waitOut.structuredContent.result.hit, true);
+      assert.equal(waitOut.structuredContent.result.source, "already_hit_since_inline_start");
+      assert.equal(waitOut.structuredContent.result.hitDelta, 0);
+      assert.equal(waitOut.structuredContent.request.triggerWindowStartEpoch, 1_000);
+      assert.equal(waitOut.structuredContent.request.waitStartEpoch, 2_000);
+    });
+  } finally {
+    Date.now = originalNow;
+    LAST_RESET_EPOCH_BY_KEY.delete(key);
+  }
+});
+
+test("probe_wait_for_hit preserves the original reset window across retry attempts", async () => {
+  const key = "com.example.social.post.app.controller.PostController#updatePost:122";
+  const originalNow = Date.now;
+  let now = 0;
+  let fetchCalls = 0;
+  try {
+    LAST_RESET_EPOCH_BY_KEY.set(key, 500);
+    Date.now = () => {
+      now += 600;
+      return now;
+    };
+    await withMockedFetch(async () => {
+      fetchCalls += 1;
+      if (fetchCalls <= 3) {
+        return jsonResponse(200, {
+          key,
+          hitCount: 0,
+          lastHitEpoch: 0,
+          mode: "observe",
+          lineResolvable: true,
+          lineValidation: "resolvable",
+        });
+      }
+      return jsonResponse(200, {
+        key,
+        hitCount: 1,
+        lastHitEpoch: 1_500,
+        mode: "observe",
+        lineResolvable: true,
+        lineValidation: "resolvable",
+      });
+    }, async () => {
+      const out = await probeWaitHit({
+        key,
+        baseUrl: "http://127.0.0.1:9191",
+        statusPath: "/__probe/status",
+        timeoutMs: 120,
+        pollIntervalMs: 60,
+        maxRetries: 2,
+      });
+      assert.equal(out.structuredContent.result.hit, true);
+      assert.equal(out.structuredContent.result.inline, true);
+      assert.equal(out.structuredContent.request.maxRetries, 2);
+      assert.equal(out.structuredContent.request.triggerWindowStartEpoch, 500);
+    });
+    assert.equal(fetchCalls, 4);
+    assert.equal(LAST_RESET_EPOCH_BY_KEY.has(key), false);
+  } finally {
+    Date.now = originalNow;
+    LAST_RESET_EPOCH_BY_KEY.delete(key);
+  }
+});
+
 test("probe_wait_for_hit line_key_required includes diagnostics contract", async () => {
   const out = await probeWaitHit({
     key: "com.example.social.post.app.controller.PostController#updatePost",

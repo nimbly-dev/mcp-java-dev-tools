@@ -115,6 +115,11 @@ export type PlanTarget = {
   runtimeVerification?: {
     strictProbeKey: string;
     probeId?: string;
+    waitForHit?: {
+      timeoutMs?: number;
+      pollIntervalMs?: number;
+      maxRetries?: number;
+    };
   };
 };
 

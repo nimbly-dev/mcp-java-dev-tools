@@ -616,6 +616,79 @@ test("executeRegressionPlanWorkflow routes strict probe verification per target 
   }
 });
 
+test("executeRegressionPlanWorkflow propagates runtimeVerification.waitForHit overrides to probe wait_for_hit", async () => {
+  const root = createTestTempDir("plan-executor-probe-wait-overrides");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "strict-probe-wait-overrides";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: true, pinStrictProbeKey: true, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [
+        {
+          type: "class_method",
+          selectors: { fqcn: "org.example.EventsController", method: "create", sourceRoot: "src/main/java" },
+          runtimeVerification: {
+            strictProbeKey: "org.example.EventsController#create:10",
+            probeId: "event-service",
+            waitForHit: {
+              timeoutMs: 60_000,
+              pollIntervalMs: 750,
+              maxRetries: 9,
+            },
+          },
+        },
+      ],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8080" }],
+      steps: [
+        {
+          order: 1,
+          id: "event_step",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        },
+      ],
+    });
+
+    let waitInput: Record<string, unknown> | undefined;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        if (toolName === "transport_execute") {
+          return { structuredContent: { status: "pass", statusCode: 200, durationMs: 8, bodyPreview: "{}" } };
+        }
+        if (toolName === "probe") {
+          if (input.action === "reset") {
+            return { structuredContent: { ok: true } };
+          }
+          if (input.action === "wait_for_hit") {
+            waitInput = input.input as Record<string, unknown>;
+            return { structuredContent: { result: { hit: true } } };
+          }
+        }
+        throw new Error(`unexpected tool: ${toolName}`);
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    assert.equal(waitInput?.probeId, "event-service");
+    assert.equal(waitInput?.timeoutMs, 60_000);
+    assert.equal(waitInput?.pollIntervalMs, 750);
+    assert.equal(waitInput?.maxRetries, 9);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow infers apiBaseUrl from probe-config runtime.port when plan context omits it", async () => {
   const root = createTestTempDir("plan-executor-probe-config-api-base");
   try {

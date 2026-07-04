@@ -27,6 +27,10 @@
     <module>shared-security-annotations</module>
     <module>auth-service/auth-api</module>
     <module>auth-service/auth-app</module>
+    <module>event-service/event-api</module>
+    <module>event-service/event-app</module>
+    <module>event-service/event-producer-app</module>
+    <module>event-service/event-consumer-app</module>
     <module>user-service/user-api</module>
     <module>user-service/user-app</module>
     <module>post-service/post-api</module>

@@ -11,6 +11,8 @@ This fixture is a real multi-module Spring workspace used for upcoming integrati
 - `shared-security-annotations`: realistic custom annotations defined outside the service modules
 - `auth-service/auth-api`: public and protected auth controller contracts
 - `auth-service/auth-app`: runnable auth service
+- `event-service/event-api`: authenticated event trigger and event-status contracts
+- `event-service/event-app`: runnable async event workflow service
 - `user-service/user-api`: public and protected user controller contracts
 - `user-service/user-app`: runnable user service
 - `post-service/post-api`: public and protected post/feed controller contracts
@@ -27,6 +29,12 @@ This fixture is a real multi-module Spring workspace used for upcoming integrati
 - `POST /api/v1/auth/register` public
 - `POST /api/v1/auth/login` public
 - `GET /api/v1/auth/me` bearer protected
+
+### Event Service
+- `POST /api/v1/events/trigger` bearer protected and publishes an async in-process event
+- `GET /api/v1/events/{eventId}` bearer protected and returns accepted/processed status
+- `event-producer-app`: authenticated trigger service that forwards event work downstream
+- `event-consumer-app`: downstream internal consumer that dispatches to an async listener
 
 ### User Service
 - `GET /api/v1/users/{username}` public

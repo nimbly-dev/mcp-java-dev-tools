@@ -56,6 +56,24 @@ export const postAppProjectRootAbs = path.join(
   "post-app",
 );
 export const postAppTargetDirAbs = path.join(postAppProjectRootAbs, "target");
+export const eventAppProjectRootAbs = path.join(
+  socialPlatformRootAbs,
+  "event-service",
+  "event-app",
+);
+export const eventAppTargetDirAbs = path.join(eventAppProjectRootAbs, "target");
+export const eventProducerAppProjectRootAbs = path.join(
+  socialPlatformRootAbs,
+  "event-service",
+  "event-producer-app",
+);
+export const eventProducerAppTargetDirAbs = path.join(eventProducerAppProjectRootAbs, "target");
+export const eventConsumerAppProjectRootAbs = path.join(
+  socialPlatformRootAbs,
+  "event-service",
+  "event-consumer-app",
+);
+export const eventConsumerAppTargetDirAbs = path.join(eventConsumerAppProjectRootAbs, "target");
 export const agentTargetDirAbs = path.join(
   repoRootAbs,
   "java-agent",
@@ -98,6 +116,66 @@ export const postServiceSourceFileAbs = path.join(
   "app",
   "service",
   "PostService.java",
+);
+export const eventControllerFqcn = "com.example.social.event.app.controller.ExampleEventController";
+export const eventControllerSourceFileAbs = path.join(
+  eventAppProjectRootAbs,
+  "src",
+  "main",
+  "java",
+  "com",
+  "example",
+  "social",
+  "event",
+  "app",
+  "controller",
+  "ExampleEventController.java",
+);
+export const eventListenerFqcn = "com.example.social.event.app.listener.ExampleQueueListener";
+export const eventListenerSourceFileAbs = path.join(
+  eventAppProjectRootAbs,
+  "src",
+  "main",
+  "java",
+  "com",
+  "example",
+  "social",
+  "event",
+  "app",
+  "listener",
+  "ExampleQueueListener.java",
+);
+export const eventProducerControllerFqcn =
+  "com.example.social.event.producer.app.controller.ExampleEventController";
+export const eventProducerControllerSourceFileAbs = path.join(
+  eventProducerAppProjectRootAbs,
+  "src",
+  "main",
+  "java",
+  "com",
+  "example",
+  "social",
+  "event",
+  "producer",
+  "app",
+  "controller",
+  "ExampleEventController.java",
+);
+export const eventConsumerListenerFqcn =
+  "com.example.social.event.consumer.app.listener.ExampleQueueListener";
+export const eventConsumerListenerSourceFileAbs = path.join(
+  eventConsumerAppProjectRootAbs,
+  "src",
+  "main",
+  "java",
+  "com",
+  "example",
+  "social",
+  "event",
+  "consumer",
+  "app",
+  "listener",
+  "ExampleQueueListener.java",
 );
 
 const LOG_TAIL_LIMIT = 200;
@@ -352,12 +430,20 @@ export function buildLineKey(args: { fqcn: string; methodName: string; line: num
   return `${args.fqcn}#${args.methodName}:${args.line}`;
 }
 
-export async function startPostAppWithAgent(args?: {
+async function startSpringBootAppWithAgent(args: {
+  appLabel: string;
+  appProjectRootAbs: string;
+  appTargetDirAbs: string;
+  appJarPattern: RegExp;
+  appJarLabel: string;
+  defaultAgentInclude?: string;
+  defaultAgentExclude?: string;
   appPort?: number;
   probePort?: number;
   actuateAuthToken?: string;
   agentInclude?: string;
   agentExclude?: string;
+  extraJavaArgs?: string[];
 }): Promise<RunningApp> {
   const agentJarAbs = await resolveJarByPattern({
     dirAbs: agentTargetDirAbs,
@@ -365,23 +451,23 @@ export async function startPostAppWithAgent(args?: {
     label: "java agent jar",
     preferredVersion: repoVersion,
   });
-  const postAppJarAbs = await resolveJarByPattern({
-    dirAbs: postAppTargetDirAbs,
-    include: /^post-app-.*\.jar$/,
+  const appJarAbs = await resolveJarByPattern({
+    dirAbs: args.appTargetDirAbs,
+    include: args.appJarPattern,
     exclude: /\.jar\.original$/,
-    label: "post-app jar",
+    label: args.appJarLabel,
   });
   await assertFileExists(agentJarAbs, "java agent jar");
-  await assertFileExists(postAppJarAbs, "post-app jar");
+  await assertFileExists(appJarAbs, args.appJarLabel);
 
-  const appPort = args?.appPort ?? (await allocateFreePort());
-  const probePort = args?.probePort ?? (await allocateFreePort());
+  const appPort = args.appPort ?? (await allocateFreePort());
+  const probePort = args.probePort ?? (await allocateFreePort());
   const apiBaseUrl = `http://127.0.0.1:${appPort}`;
   const probeBaseUrl = `http://127.0.0.1:${probePort}`;
   const logBuffer: string[] = [];
 
-  const agentInclude = args?.agentInclude?.trim() ?? "com.example.social.**";
-  const agentExclude = args?.agentExclude?.trim() ?? "**.config.**";
+  const agentInclude = args.agentInclude?.trim() ?? args.defaultAgentInclude ?? "com.example.social.**";
+  const agentExclude = args.agentExclude?.trim() ?? args.defaultAgentExclude ?? "**.config.**";
   const agentOptions = [`host=127.0.0.1`, `port=${probePort}`];
   if (agentInclude.length > 0) agentOptions.push(`include=${agentInclude}`);
   if (agentExclude.length > 0) agentOptions.push(`exclude=${agentExclude}`);
@@ -389,17 +475,20 @@ export async function startPostAppWithAgent(args?: {
   const javaAgentArg = `-javaagent:${agentJarAbs}=` + agentOptions.join(";");
 
   const javaArgs = [javaAgentArg];
-  if (typeof args?.actuateAuthToken === "string" && args.actuateAuthToken.trim().length > 0) {
+  if (typeof args.actuateAuthToken === "string" && args.actuateAuthToken.trim().length > 0) {
     javaArgs.push(`-Dmcp.probe.auth.actuate.token=${args.actuateAuthToken.trim()}`);
   }
-  javaArgs.push("-jar", postAppJarAbs, `--server.port=${appPort}`);
+  if (Array.isArray(args.extraJavaArgs) && args.extraJavaArgs.length > 0) {
+    javaArgs.push(...args.extraJavaArgs);
+  }
+  javaArgs.push("-jar", appJarAbs, `--server.port=${appPort}`);
 
   const child = spawn("java", javaArgs, {
-      cwd: postAppProjectRootAbs,
-      env: { ...process.env },
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    cwd: args.appProjectRootAbs,
+    env: { ...process.env },
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
 
   child.stdout?.on("data", (chunk) => appendLog(logBuffer, chunk));
   child.stderr?.on("data", (chunk) => appendLog(logBuffer, chunk));
@@ -416,7 +505,7 @@ export async function startPostAppWithAgent(args?: {
         timeoutMs: 60_000,
         intervalMs: 750,
         failureMessage:
-          `post-app failed to become ready. apiBaseUrl=${apiBaseUrl} probeBaseUrl=${probeBaseUrl}\n` +
+          `${args.appLabel} failed to become ready. apiBaseUrl=${apiBaseUrl} probeBaseUrl=${probeBaseUrl}\n` +
           logBuffer.join(""),
       },
     );
@@ -433,6 +522,94 @@ export async function startPostAppWithAgent(args?: {
     },
     logs: () => logBuffer.join(""),
   };
+}
+
+export async function startPostAppWithAgent(args?: {
+  appPort?: number;
+  probePort?: number;
+  actuateAuthToken?: string;
+  agentInclude?: string;
+  agentExclude?: string;
+}): Promise<RunningApp> {
+  return await startSpringBootAppWithAgent({
+    appLabel: "post-app",
+    appProjectRootAbs: postAppProjectRootAbs,
+    appTargetDirAbs: postAppTargetDirAbs,
+    appJarPattern: /^post-app-.*\.jar$/,
+    appJarLabel: "post-app jar",
+    ...(typeof args?.appPort === "number" ? { appPort: args.appPort } : {}),
+    ...(typeof args?.probePort === "number" ? { probePort: args.probePort } : {}),
+    ...(typeof args?.actuateAuthToken === "string" ? { actuateAuthToken: args.actuateAuthToken } : {}),
+    ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
+    ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
+  });
+}
+
+export async function startEventAppWithAgent(args?: {
+  appPort?: number;
+  probePort?: number;
+  actuateAuthToken?: string;
+  agentInclude?: string;
+  agentExclude?: string;
+}): Promise<RunningApp> {
+  return await startSpringBootAppWithAgent({
+    appLabel: "event-app",
+    appProjectRootAbs: eventAppProjectRootAbs,
+    appTargetDirAbs: eventAppTargetDirAbs,
+    appJarPattern: /^event-app-.*\.jar$/,
+    appJarLabel: "event-app jar",
+    ...(typeof args?.appPort === "number" ? { appPort: args.appPort } : {}),
+    ...(typeof args?.probePort === "number" ? { probePort: args.probePort } : {}),
+    ...(typeof args?.actuateAuthToken === "string" ? { actuateAuthToken: args.actuateAuthToken } : {}),
+    ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
+    ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
+  });
+}
+
+export async function startEventProducerAppWithAgent(args?: {
+  appPort?: number;
+  probePort?: number;
+  actuateAuthToken?: string;
+  agentInclude?: string;
+  agentExclude?: string;
+  consumerBaseUrl?: string;
+}): Promise<RunningApp> {
+  return await startSpringBootAppWithAgent({
+    appLabel: "event-producer-app",
+    appProjectRootAbs: eventProducerAppProjectRootAbs,
+    appTargetDirAbs: eventProducerAppTargetDirAbs,
+    appJarPattern: /^event-producer-app-.*\.jar$/,
+    appJarLabel: "event-producer-app jar",
+    ...(typeof args?.appPort === "number" ? { appPort: args.appPort } : {}),
+    ...(typeof args?.probePort === "number" ? { probePort: args.probePort } : {}),
+    ...(typeof args?.actuateAuthToken === "string" ? { actuateAuthToken: args.actuateAuthToken } : {}),
+    ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
+    ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
+    ...(typeof args?.consumerBaseUrl === "string"
+      ? { extraJavaArgs: [`-Dfixture.consumer.base-url=${args.consumerBaseUrl}`] }
+      : {}),
+  });
+}
+
+export async function startEventConsumerAppWithAgent(args?: {
+  appPort?: number;
+  probePort?: number;
+  actuateAuthToken?: string;
+  agentInclude?: string;
+  agentExclude?: string;
+}): Promise<RunningApp> {
+  return await startSpringBootAppWithAgent({
+    appLabel: "event-consumer-app",
+    appProjectRootAbs: eventConsumerAppProjectRootAbs,
+    appTargetDirAbs: eventConsumerAppTargetDirAbs,
+    appJarPattern: /^event-consumer-app-.*\.jar$/,
+    appJarLabel: "event-consumer-app jar",
+    ...(typeof args?.appPort === "number" ? { appPort: args.appPort } : {}),
+    ...(typeof args?.probePort === "number" ? { probePort: args.probePort } : {}),
+    ...(typeof args?.actuateAuthToken === "string" ? { actuateAuthToken: args.actuateAuthToken } : {}),
+    ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
+    ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
+  });
 }
 
 export async function startMcpClient(args: {
