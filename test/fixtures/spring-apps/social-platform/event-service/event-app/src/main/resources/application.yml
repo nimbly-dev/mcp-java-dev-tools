@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: social-event-app
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,mappings
+server:
+  port: 18084

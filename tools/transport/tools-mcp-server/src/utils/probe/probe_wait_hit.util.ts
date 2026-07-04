@@ -119,9 +119,11 @@ export async function probeWaitHit(args: {
 
   let last: Record<string, unknown> | null = null;
   let staleCandidate: Record<string, unknown> | undefined;
+  const initialWindow = resolveProbeWaitWindow(resolvedKey);
+  const triggerWindowStartMs = initialWindow.triggerWindowStartMs;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const window = resolveProbeWaitWindow(resolvedKey);
+    const waitStartMs = attempt === 1 ? initialWindow.waitStartMs : Date.now();
     const requestCtx = {
       key: args.key,
       resolvedKey,
@@ -131,8 +133,8 @@ export async function probeWaitHit(args: {
       unreachableRetryEnabled,
       unreachableMaxRetries,
       attempt,
-      waitStartEpoch: window.waitStartMs,
-      triggerWindowStartEpoch: window.triggerWindowStartMs,
+      waitStartEpoch: waitStartMs,
+      triggerWindowStartEpoch: triggerWindowStartMs,
     };
 
     const baselineStatus = await probeStatusWithUnreachablePolicy({
@@ -176,7 +178,7 @@ export async function probeWaitHit(args: {
       hasBaselineInlineHit({
         baselineHitCount,
         baselineLastHitEpoch,
-        triggerWindowStartMs: window.triggerWindowStartMs,
+        triggerWindowStartMs,
       })
     ) {
       return buildBaselineInlineHitResponse({
@@ -188,7 +190,7 @@ export async function probeWaitHit(args: {
       });
     }
 
-    const start = window.waitStartMs;
+    const start = waitStartMs;
     while (Date.now() - start < timeoutMs) {
       const polledStatus = await probeStatusWithUnreachablePolicy({
         key: resolvedKey,
@@ -243,7 +245,7 @@ export async function probeWaitHit(args: {
       if (hitCount !== null) {
         const hitDelta = hitCount - baselineHitCount;
         const inlineByCount = hitDelta > 0;
-        const inlineByTime = isInlineByTime(lastHitEpoch, window.triggerWindowStartMs);
+        const inlineByTime = isInlineByTime(lastHitEpoch, triggerWindowStartMs);
         if (inlineByCount && inlineByTime) {
           return buildPolledInlineHitResponse({
             request: requestCtx,

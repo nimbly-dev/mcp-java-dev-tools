@@ -95,6 +95,10 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
+function asPositiveInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
 type CorrelationKeyResolution = {
   keyValue?: string;
   sourceType?: "header" | "json_path" | "capture_field";
@@ -611,6 +615,7 @@ export async function executeRegressionPlanWorkflow(
     const target = contract.targets[step.targetRef];
     const strictProbeKey = target?.runtimeVerification?.strictProbeKey;
     const targetProbeId = target?.runtimeVerification?.probeId;
+    const strictProbeWaitForHit = target?.runtimeVerification?.waitForHit;
     const strictProbeEnabled =
       metadata.execution.probeVerification === true &&
       typeof strictProbeKey === "string" &&
@@ -672,9 +677,13 @@ export async function executeRegressionPlanWorkflow(
     if (strictProbeEnabled && transport.status === "pass") {
       const waitIn: Record<string, unknown> = {
         key: strictProbeKey as string,
-        maxRetries: 5,
-        pollIntervalMs: 300,
+        maxRetries: asPositiveInteger(strictProbeWaitForHit?.maxRetries) ?? 5,
+        pollIntervalMs: asPositiveInteger(strictProbeWaitForHit?.pollIntervalMs) ?? 300,
       };
+      const waitTimeoutMs = asPositiveInteger(strictProbeWaitForHit?.timeoutMs);
+      if (typeof waitTimeoutMs === "number") {
+        waitIn.timeoutMs = waitTimeoutMs;
+      }
       if (typeof targetProbeId === "string" && targetProbeId.trim().length > 0) {
         waitIn.probeId = targetProbeId.trim();
       }
