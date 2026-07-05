@@ -1,6 +1,7 @@
 import type { PreflightResult } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 
 export type RegressionRunStatus = "pass" | "fail" | "blocked";
+export type RegressionWatcherPhaseStatus = "not_configured" | "pass" | "fail" | "blocked";
 
 export type RegressionPlanReference = {
   name?: string;
@@ -9,10 +10,13 @@ export type RegressionPlanReference = {
 
 export type RegressionRunExecutionResult = {
   status: RegressionRunStatus;
+  triggerStatus?: RegressionRunStatus;
+  watcherStatus?: RegressionWatcherPhaseStatus;
   preflight: PreflightResult;
   startedAt: string | null;
   endedAt: string | null;
   steps: RegressionRunStepResult[];
+  watchers?: RegressionRunWatcherResult[];
 };
 
 export type RegressionRunStepResultStatus =
@@ -63,6 +67,55 @@ export type RegressionRunAssertionResult = {
   actual?: unknown;
   expected?: unknown;
   message?: string;
+};
+
+export type RegressionRunWatcherResultStatus =
+  | "pass"
+  | "fail_assertion"
+  | "blocked_dependency"
+  | "blocked_runtime";
+
+export type RegressionRunWatcherOutcome =
+  | "verified"
+  | "failed_expectation"
+  | "timed_out"
+  | "blocked";
+
+export type RegressionRunWatcherAttemptStatus =
+  | "pass"
+  | "fail_assertion"
+  | "fail_http"
+  | "blocked_runtime"
+  | "blocked_invalid";
+
+export type RegressionRunWatcherAttempt = {
+  attempt: number;
+  status: RegressionRunWatcherAttemptStatus;
+  durationMs: number;
+  statusCode?: number;
+  reasonCode?: string;
+  observedAt: string;
+};
+
+export type RegressionRunWatcherWaitSummary = {
+  timeoutMs?: number;
+  timeoutSource: "watcher_override" | "project_default" | "unresolved";
+  retryMax?: number;
+  retrySource: "watcher_override" | "project_default" | "unresolved";
+  pollIntervalMs?: number;
+};
+
+export type RegressionRunWatcherResult = Record<string, unknown> & {
+  id: string;
+  dependencyStepOrder: number;
+  providerType: string;
+  status: RegressionRunWatcherResultStatus;
+  outcome: RegressionRunWatcherOutcome;
+  attemptCount: number;
+  durationMs: number;
+  waitPolicy: RegressionRunWatcherWaitSummary;
+  assertions?: RegressionRunAssertionResult[];
+  attempts?: RegressionRunWatcherAttempt[];
 };
 
 export type RegressionRunStepResult = Record<string, unknown> & {
@@ -127,6 +180,7 @@ export type WriteRegressionRunArtifactsInput = {
   evidence: {
     targetResolution: Array<Record<string, unknown>>;
     discovery?: DiscoveryEvidence;
+    watcherExecutions?: Array<Record<string, unknown>>;
     [key: string]: unknown;
   };
   correlation?: CorrelationArtifact;

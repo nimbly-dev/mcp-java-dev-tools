@@ -435,6 +435,10 @@ These fields are emitted by orchestration summaries in skill-guided runs when pr
 | `executionResult.steps[].extract[]` | Per-mapping extraction outcome with deterministic diagnostics (`from`, `as`, `required`, `status`, `reasonCode`). | `mcp-java-dev-tools-regression-suite` | false | `[{"from":"response.body.id","as":"triggeredEventId","required":false,"status":"unresolved","reasonCode":"extract_path_missing"}]` |
 | `executionResult.steps[].conditionEvaluation.status` | Deterministic condition evaluation result (`true`, `false`, `blocked_invalid`). | `mcp-java-dev-tools-regression-suite` | false | `false` |
 | `executionResult.steps[].conditionEvaluation.reasonCode` | Deterministic reason when condition evaluation is blocked. | `mcp-java-dev-tools-regression-suite` | false | `"step_condition_forward_reference"` |
+| `executionResult.triggerStatus` | Trigger/step-phase aggregate run status before watcher aggregation. | `mcp-java-dev-tools-regression-suite` | false | `"pass"` |
+| `executionResult.watcherStatus` | Watcher-phase aggregate status (`not_configured`, `pass`, `fail`, `blocked`). | `mcp-java-dev-tools-regression-suite` | false | `"blocked"` |
+| `executionResult.watchers[]` | Per-watcher bounded completion-verification results with deterministic outcome/reason fields and attempt counters. | `mcp-java-dev-tools-regression-suite` | false | `[{"id":"indexed_ready","status":"pass","outcome":"verified","attemptCount":3}]` |
+| `evidence.watcherExecutions[]` | Persisted watcher polling evidence summary including wait-policy provenance and compact attempt timeline. | `mcp-java-dev-tools-regression-suite` | false | `[{"id":"indexed_ready","waitPolicy":{"timeoutSource":"project_default","retrySource":"project_default"},"attempts":[{"attempt":1,"status":"pass"}]}]` |
 
 
 

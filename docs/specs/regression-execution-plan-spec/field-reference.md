@@ -277,10 +277,40 @@ Canonical run result for a specific run.
 Expected fields:
 
 - `status`
+- `triggerStatus` (optional): trigger/step-phase outcome before watcher aggregation (`pass` | `fail` | `blocked`)
+- `watcherStatus` (optional): watcher-phase aggregate outcome (`not_configured` | `pass` | `fail` | `blocked`)
 - `startedAt`, `endedAt`
 - `preflight` block
 - per-step result list
+- optional `watchers[]` result list
 - failure reason when applicable
+
+### `execution.result.json.watchers[]` (optional)
+
+Persisted watcher execution result for bounded downstream completion verification.
+
+- `id` (string)
+- `dependencyStepOrder` (number)
+- `providerType` (string)
+- `status` (`pass` | `fail_assertion` | `blocked_dependency` | `blocked_runtime`)
+- `outcome` (`verified` | `failed_expectation` | `timed_out` | `blocked`)
+- `attemptCount` (number)
+- `durationMs` (number)
+- `waitPolicy.timeoutMs` / `waitPolicy.retryMax` (when resolved)
+- `waitPolicy.timeoutSource` / `waitPolicy.retrySource`
+- `waitPolicy.pollIntervalMs` (derived runtime polling interval when resolved)
+- `assertions[]` (optional): final watcher assertion evaluation snapshot
+- `attempts[]` (optional): compact polling attempt timeline
+
+Watcher runtime fail-closed reason codes include:
+
+- `watcher_dependency_not_satisfied`
+- `watcher_wait_policy_unresolved`
+- `watcher_runtime_configuration_invalid`
+- `watcher_provider_not_supported`
+- `watcher_target_unreachable`
+- `watcher_timeout_exceeded`
+- `watcher_expectation_not_satisfied`
 
 ## `.mcpjvm/regression/<plan>/runs/<run_id>/evidence.json`
 
@@ -291,6 +321,7 @@ Examples:
 - resolved target selectors
 - probe verification details
 - diagnostics summary
+- watcher execution evidence (`watcherExecutions[]`)
 - correlation key extraction provenance (`correlationPolicy.keySourceType`, `correlationPolicy.keySourcePath`, `correlationPolicy.keyExtractionReasonCode`)
 
 ## `.mcpjvm/regression/<plan>/runs/<run_id>/correlation.json`
