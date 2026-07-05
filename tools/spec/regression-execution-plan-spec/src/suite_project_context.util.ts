@@ -159,6 +159,14 @@ function resolveWorkspaceRequestTimeoutMs(workspace: ProjectWorkspaceEntry, fall
   return fallbackMs;
 }
 
+function resolveWorkspaceRetryMax(workspace: ProjectWorkspaceEntry, fallback: number): number {
+  const retryMaxRaw = workspace.defaults?.retryMax;
+  if (typeof retryMaxRaw === "number" && Number.isFinite(retryMaxRaw) && retryMaxRaw > 0) {
+    return Math.floor(retryMaxRaw);
+  }
+  return fallback;
+}
+
 async function readProbeRegistryFromWorkspace(workspaceRootAbs: string): Promise<{
   ok: true;
   registry: ProbeRegistry;
@@ -528,11 +536,7 @@ async function runRequiredHealthChecks(workspace: ProjectWorkspaceEntry): Promis
   nextAction: string;
   requiredUserAction: string[];
 }> {
-  const retryMaxRaw = workspace.defaults?.retryMax;
-  const retryMax =
-    typeof retryMaxRaw === "number" && Number.isFinite(retryMaxRaw) && retryMaxRaw > 0
-      ? Math.floor(retryMaxRaw)
-      : 1;
+  const retryMax = resolveWorkspaceRetryMax(workspace, 1);
   const timeoutDefaultMs = resolveWorkspaceRequestTimeoutMs(workspace, 3000);
   const systems = workspace.externalSystems ?? [];
   const failures: string[] = [];
@@ -602,11 +606,7 @@ async function runRequiredHealthChecksWithDedupe(args: {
   nextAction: string;
   requiredUserAction: string[];
 }> {
-  const retryMaxRaw = args.workspace.defaults?.retryMax;
-  const retryMax =
-    typeof retryMaxRaw === "number" && Number.isFinite(retryMaxRaw) && retryMaxRaw > 0
-      ? Math.floor(retryMaxRaw)
-      : 1;
+  const retryMax = resolveWorkspaceRetryMax(args.workspace, 1);
   const timeoutDefaultMs = resolveWorkspaceRequestTimeoutMs(args.workspace, 3000);
   const systems = args.workspace.externalSystems ?? [];
   const failures: string[] = [];
@@ -655,11 +655,7 @@ function resolveAutoStartHealthConvergenceAttempts(args: {
   workspace: ProjectWorkspaceEntry;
   runtimeMode: ProjectRuntimeContext["mode"];
 }): number {
-  const retryMaxRaw = args.workspace.defaults?.retryMax;
-  const retryMax =
-    typeof retryMaxRaw === "number" && Number.isFinite(retryMaxRaw) && retryMaxRaw > 0
-      ? Math.floor(retryMaxRaw)
-      : 1;
+  const retryMax = resolveWorkspaceRetryMax(args.workspace, 1);
   const baseline = args.runtimeMode === "docker" ? 10 : 3;
   return Math.max(retryMax, baseline);
 }
@@ -1104,6 +1100,7 @@ export async function resolveProjectContextForRegression(
 
   const contextPatch: Record<string, unknown> = {
     "runtime.requestTimeoutMs": resolveWorkspaceRequestTimeoutMs(effectiveWorkspace, 20_000),
+    "runtime.retryMax": resolveWorkspaceRetryMax(effectiveWorkspace, 1),
   };
   const secretContextKeys = new Set<string>();
 

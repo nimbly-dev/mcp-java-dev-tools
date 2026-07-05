@@ -170,6 +170,48 @@ Operator-specific guidance:
 - `probe_line_hit`: use `probe.hit` as the canonical `actualPath`; `runtime.probe.hit` remains accepted for compatibility
 - `outcome_status`: use `status` as the canonical `actualPath`; `outcome` remains accepted for compatibility
 
+### `watchers[]` (optional)
+
+Bounded, fail-closed downstream completion verification policy for long-running cross-service work.
+Watchers complement `correlation`:
+
+- `correlation` proves cross-service event relationship
+- `watchers` prove downstream completion or expected external-state convergence
+
+- `id` (string): stable watcher identifier; must be unique within `contract.watchers[]`
+- `dependency.stepOrder` (number): prior `steps[].order` that the watcher depends on
+- `provider.type` (string): generic watcher provider classification (`probe`, `http`, `sql`, `custom`, etc.)
+- `provider.transport` (object, optional): generic transport payload for provider execution
+- `provider.config` (object, optional): generic provider configuration payload
+- `expect[]` (array, required): watcher assertion block; reuses the same field shape and operators as `steps[].expect[]`
+- `waitPolicy.timeoutMs` (number, optional): positive integer bounded wait override
+- `waitPolicy.retryMax` (number, optional): positive integer bounded retry/attempt override
+
+Validation rules:
+
+- `provider.type` plus at least one of `provider.transport` or `provider.config` is required
+- `provider.transport` and `provider.config`, when present, must be objects
+- `dependency.stepOrder` must reference an existing prior step order from `steps[].order`
+- `watchers[].expect[]` reuses the same validation rules as `steps[].expect[]`
+- `waitPolicy`, when present, may contain only `timeoutMs` and/or `retryMax`
+- `waitPolicy.timeoutMs` and `waitPolicy.retryMax` must be positive integers
+
+Wait inheritance semantics:
+
+- when `waitPolicy.timeoutMs` is absent, runtime should inherit the bounded timeout from resolved project/runtime default `runtime.requestTimeoutMs`
+- when `waitPolicy.retryMax` is absent, runtime should inherit the bounded retry window from resolved project/runtime default `runtime.retryMax`
+- watcher-level overrides remain authoritative when explicitly set
+- if runtime execution cannot establish a bounded wait window from watcher overrides or inherited defaults, execution must fail closed
+
+Fail-closed watcher contract validations:
+
+- `watcher_id_invalid`
+- `watcher_dependency_invalid`
+- `watcher_provider_invalid`
+- `watcher_wait_policy_invalid`
+- `watcher_expectations_missing`
+- `watcher_expectation_invalid`
+
 ### `correlation` (optional)
 
 Cross-service/cross-plan deterministic post-analysis policy.
