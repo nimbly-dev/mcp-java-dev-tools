@@ -20,6 +20,10 @@ import {
   applyStepExtractWithDiagnostics,
   validateStepExtracts,
 } from "@tools-regression-execution-plan-spec/step_extract.util";
+import {
+  resolveWatcherWaitPolicy,
+  validateWatchers,
+} from "@tools-regression-execution-plan-spec/regression_watcher_contract.util";
 import { normalizeHttpContextAliases } from "@tools-regression-execution-plan-spec/suite_http_request.util";
 import { validateCanonicalPlanContextKeys } from "@tools-regression-execution-plan-spec/suite_context_key_validation.util";
 
@@ -496,165 +500,6 @@ function validateCorrelationPolicy(
   return { ok: true };
 }
 
-export type ResolvedWatcherWaitPolicy = {
-  timeoutMs?: number;
-  timeoutSource: "watcher_override" | "project_default" | "unresolved";
-  retryMax?: number;
-  retrySource: "watcher_override" | "project_default" | "unresolved";
-};
-
-export function resolveWatcherWaitPolicy(args: {
-  watcher: Pick<PlanWatcher, "waitPolicy">;
-  providedContext?: Record<string, unknown>;
-}): ResolvedWatcherWaitPolicy {
-  const timeoutOverride = asPositiveInteger(args.watcher.waitPolicy?.timeoutMs);
-  const retryOverride = asPositiveInteger(args.watcher.waitPolicy?.retryMax);
-  const inheritedTimeoutMs = asPositiveInteger(args.providedContext?.["runtime.requestTimeoutMs"]);
-  const inheritedRetryMax = asPositiveInteger(args.providedContext?.["runtime.retryMax"]);
-
-  return {
-    ...(typeof timeoutOverride === "number"
-      ? { timeoutMs: timeoutOverride, timeoutSource: "watcher_override" as const }
-      : typeof inheritedTimeoutMs === "number"
-        ? { timeoutMs: inheritedTimeoutMs, timeoutSource: "project_default" as const }
-        : { timeoutSource: "unresolved" as const }),
-    ...(typeof retryOverride === "number"
-      ? { retryMax: retryOverride, retrySource: "watcher_override" as const }
-      : typeof inheritedRetryMax === "number"
-        ? { retryMax: inheritedRetryMax, retrySource: "project_default" as const }
-        : { retrySource: "unresolved" as const }),
-  };
-}
-
-function validateWatchers(
-  watchers: PlanWatcher[] | undefined,
-  steps: PlanStep[],
-):
-  | { ok: true }
-  | {
-      ok: false;
-      reasonCode:
-        | "watcher_id_invalid"
-        | "watcher_dependency_invalid"
-        | "watcher_provider_invalid"
-        | "watcher_wait_policy_invalid"
-        | "watcher_expectations_missing"
-        | "watcher_expectation_invalid";
-      requiredUserAction: string[];
-    } {
-  if (typeof watchers === "undefined") return { ok: true };
-  if (!Array.isArray(watchers)) {
-    return {
-      ok: false,
-      reasonCode: "watcher_id_invalid",
-      requiredUserAction: ["Set contract.watchers to an array of watcher definitions."],
-    };
-  }
-
-  const validStepOrders = new Set(steps.map((step) => step.order));
-  const watcherIds = new Set<string>();
-  for (const rawWatcher of watchers) {
-    const watcher = rawWatcher as PlanWatcher;
-    if (!isRecord(watcher) || !hasNonBlank(watcher.id)) {
-      return {
-        ok: false,
-        reasonCode: "watcher_id_invalid",
-        requiredUserAction: ["Set non-empty watcher id values in contract.watchers[].id."],
-      };
-    }
-
-    const watcherId = watcher.id.trim();
-    if (watcherIds.has(watcherId)) {
-      return {
-        ok: false,
-        reasonCode: "watcher_id_invalid",
-        requiredUserAction: [`Ensure watcher id '${watcherId}' is unique within contract.watchers[].`],
-      };
-    }
-    watcherIds.add(watcherId);
-
-    const dependency = watcher.dependency;
-    if (!isRecord(dependency) || !asPositiveInteger(dependency.stepOrder) || !validStepOrders.has(dependency.stepOrder)) {
-      return {
-        ok: false,
-        reasonCode: "watcher_dependency_invalid",
-        requiredUserAction: [
-          `Set watcher '${watcherId}' dependency.stepOrder to an existing prior step order from contract.steps[].order.`,
-        ],
-      };
-    }
-
-    const provider = watcher.provider;
-    const hasTransport = isRecord(provider?.transport);
-    const hasConfig = isRecord(provider?.config);
-    if (!isRecord(provider) || !hasNonBlank(provider.type) || (!hasTransport && !hasConfig)) {
-      return {
-        ok: false,
-        reasonCode: "watcher_provider_invalid",
-        requiredUserAction: [
-          `Set watcher '${watcherId}' provider.type plus at least one provider.transport or provider.config object.`,
-        ],
-      };
-    }
-    if (
-      typeof provider.transport !== "undefined" && !isRecord(provider.transport) ||
-      typeof provider.config !== "undefined" && !isRecord(provider.config)
-    ) {
-      return {
-        ok: false,
-        reasonCode: "watcher_provider_invalid",
-        requiredUserAction: [
-          `Set watcher '${watcherId}' provider.transport and provider.config to objects when present.`,
-        ],
-      };
-    }
-
-    if (typeof watcher.waitPolicy !== "undefined") {
-      const waitPolicy = watcher.waitPolicy as PlanWatcherWaitPolicy;
-      if (!isRecord(waitPolicy)) {
-        return {
-          ok: false,
-          reasonCode: "watcher_wait_policy_invalid",
-          requiredUserAction: [`Set watcher '${watcherId}' waitPolicy to an object when overriding wait defaults.`],
-        };
-      }
-      const waitPolicyKeys = Object.keys(waitPolicy);
-      if (
-        waitPolicyKeys.length === 0 ||
-        waitPolicyKeys.some((key) => key !== "timeoutMs" && key !== "retryMax") ||
-        (typeof waitPolicy.timeoutMs !== "undefined" && typeof asPositiveInteger(waitPolicy.timeoutMs) === "undefined") ||
-        (typeof waitPolicy.retryMax !== "undefined" && typeof asPositiveInteger(waitPolicy.retryMax) === "undefined")
-      ) {
-        return {
-          ok: false,
-          reasonCode: "watcher_wait_policy_invalid",
-          requiredUserAction: [
-            `Set watcher '${watcherId}' waitPolicy using positive integer timeoutMs and/or retryMax overrides only.`,
-          ],
-        };
-      }
-    }
-
-    const expectationValidation = validateExpectationEntries({
-      ownerType: "watcher",
-      ownerId: watcherId,
-      expectations: watcher.expect,
-    });
-    if (!expectationValidation.ok) {
-      return {
-        ok: false,
-        reasonCode:
-          expectationValidation.reasonCode === "watcher_expectations_missing"
-            ? "watcher_expectations_missing"
-            : "watcher_expectation_invalid",
-        requiredUserAction: expectationValidation.requiredUserAction,
-      };
-    }
-  }
-
-  return { ok: true };
-}
-
 function classifyPrerequisites(args: {
   prerequisites: PlanPrerequisite[];
   providedContext: Record<string, unknown>;
@@ -1048,6 +893,7 @@ export function resolveStepTransport(step: PlanStep, context: Record<string, unk
   return deepResolvePlaceholderValue(step.transport, context) as Record<string, unknown>;
 }
 export { applyStepExtract, applyStepExtractWithDiagnostics };
+export { resolveWatcherWaitPolicy };
 
 export function buildTimestampRunId(now: Date, _seq: number): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");

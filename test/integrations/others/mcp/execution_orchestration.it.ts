@@ -2055,6 +2055,134 @@ test("mcp IT: execution_orchestration executes watcher polling after trigger suc
   }
 });
 
+test("mcp IT: execution_orchestration fails closed when watcher response normalization fails", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-normalization-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-watchers";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "watcher-normalization-failure";
+  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const runRootAbs = path.join(planRootAbs, "runs");
+
+  let watcherCalls = 0;
+  const appServer = http.createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/events") {
+      res.statusCode = 202;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ eventId: "evt-401" }));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/index/evt-401") {
+      watcherCalls += 1;
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end("not-json");
+      return;
+    }
+    res.statusCode = 404;
+    res.end();
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    const appPort = await listen(appServer);
+    await fs.mkdir(runRootAbs, { recursive: true });
+    await writeJson(probeConfigAbs, {
+      defaultProfile: "dev",
+      profiles: {
+        dev: {
+          probes: {
+            "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] },
+          },
+        },
+      },
+      workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+    });
+
+    await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: projectRootAbs,
+          defaults: { requestTimeoutMs: 100, retryMax: 2 },
+          executionProfiles: [
+            {
+              executionProfile: "watcher-normalization-run",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName, onFail: "inherit" }],
+            },
+          ],
+        },
+      ],
+    });
+    await writeJson(path.join(planRootAbs, "metadata.json"), {
+      execution: { intent: "regression" },
+    });
+    await writeJson(path.join(planRootAbs, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [
+        { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: `http://127.0.0.1:${appPort}` },
+      ],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
+          expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "indexed_ready",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: { http: { method: "GET", pathTemplate: "/index/${eventId}" } },
+            config: {
+              response: {
+                bodyFormat: "json",
+              },
+            },
+          },
+          expect: [{ id: "ready", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "watcher-normalization-run",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "blocked");
+    const planRuns = Array.isArray(out.structuredContent?.planRuns)
+      ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 1);
+    assert.equal(planRuns[0]?.blockedReasonCode, "watcher_response_normalization_failed");
+    assert.equal(watcherCalls, 1);
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
 test("mcp IT: execution_orchestration fails closed when watcher target stays unreachable", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-unreachable-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");

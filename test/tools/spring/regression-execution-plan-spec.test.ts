@@ -537,13 +537,87 @@ test("preflight blocks watcher when provider shape is incomplete", () => {
   assert.equal(result.reasonCode, "watcher_provider_invalid");
 });
 
+test("preflight blocks http watcher when provider transport is missing even if config exists", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: "post_indexed",
+        dependency: { stepOrder: 1 },
+        provider: {
+          type: "http",
+          config: {
+            response: {
+              bodyFormat: "json",
+            },
+          },
+        },
+        expect: [{ id: "watcher_outcome_pass", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "watcher_provider_invalid");
+});
+
+test("preflight blocks watcher when response bodyFormat config is unsupported", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: "post_indexed",
+        dependency: { stepOrder: 1 },
+        provider: {
+          type: "http",
+          transport: {
+            http: {
+              method: "GET",
+              pathTemplate: "/index/status",
+            },
+          },
+          config: {
+            response: {
+              bodyFormat: "yaml",
+            },
+          },
+        },
+        expect: [{ id: "watcher_outcome_pass", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "watcher_provider_invalid");
+});
+
 test("preflight blocks watcher when waitPolicy values are invalid", () => {
   const contract = baseContract({
     watchers: [
       {
         id: "post_indexed",
         dependency: { stepOrder: 1 },
-        provider: { type: "http", config: { endpoint: "watch" } },
+        provider: {
+          type: "http",
+          transport: {
+            http: {
+              method: "GET",
+              pathTemplate: "/watch",
+            },
+          },
+        },
         waitPolicy: { timeoutMs: 0 },
         expect: [{ id: "watcher_outcome_pass", actualPath: "status", operator: "outcome_status", expected: "pass" }],
       },
@@ -565,7 +639,15 @@ test("preflight blocks watcher when expect[] is missing", () => {
       {
         id: "post_indexed",
         dependency: { stepOrder: 1 },
-        provider: { type: "http", config: { endpoint: "watch" } },
+        provider: {
+          type: "http",
+          transport: {
+            http: {
+              method: "GET",
+              pathTemplate: "/watch",
+            },
+          },
+        },
       },
     ],
   });
@@ -585,7 +667,15 @@ test("preflight blocks watcher when expectation shape is invalid", () => {
       {
         id: "post_indexed",
         dependency: { stepOrder: 1 },
-        provider: { type: "http", config: { endpoint: "watch" } },
+        provider: {
+          type: "http",
+          transport: {
+            http: {
+              method: "GET",
+              pathTemplate: "/watch",
+            },
+          },
+        },
         expect: [{ id: "watcher_outcome_pass", actualPath: "status", operator: "outcome_status" }],
       },
     ],
