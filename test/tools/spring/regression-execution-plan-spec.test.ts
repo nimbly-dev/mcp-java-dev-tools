@@ -6,6 +6,7 @@ const {
   applyStepExtractWithDiagnostics,
   buildReplayPreflight,
   buildTimestampRunId,
+  resolveWatcherWaitPolicy,
   resolvePrerequisiteContext,
   resolveStepTransport,
 } = require("@tools-regression-execution-plan-spec/regression_execution_plan_spec.util");
@@ -402,6 +403,201 @@ test("preflight blocks correlation when maxWindowMs is invalid", () => {
   });
   assert.equal(result.status, "blocked_invalid");
   assert.equal(result.reasonCode, "correlation_window_invalid");
+});
+
+test("preflight accepts watchers with step dependency and generic provider shape", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: "post_indexed",
+        dependency: { stepOrder: 1 },
+        provider: {
+          type: "http",
+          transport: {
+            request: {
+              method: "GET",
+              url: "http://127.0.0.1:9200/posts/${postId}",
+            },
+          },
+        },
+        expect: [
+          {
+            id: "watcher_outcome_pass",
+            actualPath: "status",
+            operator: "outcome_status",
+            expected: "pass",
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
+});
+
+test("resolveWatcherWaitPolicy inherits project defaults when watcher overrides are absent", () => {
+  const resolved = resolveWatcherWaitPolicy({
+    watcher: {},
+    providedContext: {
+      "runtime.requestTimeoutMs": 4500,
+      "runtime.retryMax": 3,
+    },
+  });
+  assert.equal(resolved.timeoutMs, 4500);
+  assert.equal(resolved.timeoutSource, "project_default");
+  assert.equal(resolved.retryMax, 3);
+  assert.equal(resolved.retrySource, "project_default");
+});
+
+test("resolveWatcherWaitPolicy prefers explicit watcher waitPolicy overrides", () => {
+  const resolved = resolveWatcherWaitPolicy({
+    watcher: {
+      waitPolicy: {
+        timeoutMs: 1200,
+        retryMax: 8,
+      },
+    },
+    providedContext: {
+      "runtime.requestTimeoutMs": 4500,
+      "runtime.retryMax": 3,
+    },
+  });
+  assert.equal(resolved.timeoutMs, 1200);
+  assert.equal(resolved.timeoutSource, "watcher_override");
+  assert.equal(resolved.retryMax, 8);
+  assert.equal(resolved.retrySource, "watcher_override");
+});
+
+test("preflight blocks watcher when id is missing", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: " ",
+        dependency: { stepOrder: 1 },
+        provider: { type: "probe", config: { probeId: "search-service" } },
+        expect: [{ id: "watcher_outcome_pass", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "watcher_id_invalid");
+});
+
+test("preflight blocks watcher when dependency stepOrder does not exist", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: "post_indexed",
+        dependency: { stepOrder: 2 },
+        provider: { type: "probe", config: { probeId: "search-service" } },
+        expect: [{ id: "watcher_outcome_pass", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "watcher_dependency_invalid");
+});
+
+test("preflight blocks watcher when provider shape is incomplete", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: "post_indexed",
+        dependency: { stepOrder: 1 },
+        provider: { type: "http" },
+        expect: [{ id: "watcher_outcome_pass", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "watcher_provider_invalid");
+});
+
+test("preflight blocks watcher when waitPolicy values are invalid", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: "post_indexed",
+        dependency: { stepOrder: 1 },
+        provider: { type: "http", config: { endpoint: "watch" } },
+        waitPolicy: { timeoutMs: 0 },
+        expect: [{ id: "watcher_outcome_pass", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "watcher_wait_policy_invalid");
+});
+
+test("preflight blocks watcher when expect[] is missing", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: "post_indexed",
+        dependency: { stepOrder: 1 },
+        provider: { type: "http", config: { endpoint: "watch" } },
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "watcher_expectations_missing");
+});
+
+test("preflight blocks watcher when expectation shape is invalid", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: "post_indexed",
+        dependency: { stepOrder: 1 },
+        provider: { type: "http", config: { endpoint: "watch" } },
+        expect: [{ id: "watcher_outcome_pass", actualPath: "status", operator: "outcome_status" }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "watcher_expectation_invalid");
 });
 
 test("resolvePrerequisiteContext prefers provided values and falls back to defaults", () => {

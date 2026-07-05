@@ -13,7 +13,7 @@ Each regression plan lives under:
 | File / Folder | Purpose |
 |---|---|
 | `metadata.json` | Plan-level execution settings |
-| `contract.json` | Authoritative machine contract |
+| `contract.json` | Authoritative machine contract for targets, prerequisites, steps, optional watchers, and optional correlation policy |
 | `plan.md` | Human-readable execution plan |
 | `runs/<run_id>/...` | Immutable outputs for each run (plan-local run history) |
 | `artifact-schema.md` | Normative run artifact contract (`MUST/SHOULD/MAY`) |

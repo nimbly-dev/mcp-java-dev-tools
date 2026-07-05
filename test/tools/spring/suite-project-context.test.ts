@@ -256,6 +256,10 @@ test("resolveProjectContextForRegression uses workspace defaults retryMax/reques
       healthChecksEnabled: true,
     });
     assert.equal(out.status, "ok");
+    if (out.status === "ok") {
+      assert.equal(out.contextPatch["runtime.requestTimeoutMs"], 500);
+      assert.equal(out.contextPatch["runtime.retryMax"], 2);
+    }
     assert.equal(attempts, 2);
   } finally {
     server.close();

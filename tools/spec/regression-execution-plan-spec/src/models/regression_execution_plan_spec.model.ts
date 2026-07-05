@@ -39,6 +39,12 @@ export type PreflightReasonCode =
   | "correlation_session_missing"
   | "correlation_window_invalid"
   | "correlation_key_invalid"
+  | "watcher_id_invalid"
+  | "watcher_dependency_invalid"
+  | "watcher_provider_invalid"
+  | "watcher_wait_policy_invalid"
+  | "watcher_expectations_missing"
+  | "watcher_expectation_invalid"
   | "project_artifact_missing"
   | "project_artifact_invalid"
   | "project_reference_invalid"
@@ -189,10 +195,34 @@ export type PlanStepExpectation = {
   message?: string;
 };
 
+export type PlanWatcherDependency = {
+  stepOrder: number;
+};
+
+export type PlanWatcherWaitPolicy = {
+  timeoutMs?: number;
+  retryMax?: number;
+};
+
+export type PlanWatcherProvider = {
+  type: string;
+  transport?: Record<string, unknown>;
+  config?: Record<string, unknown>;
+};
+
+export type PlanWatcher = {
+  id: string;
+  dependency: PlanWatcherDependency;
+  provider: PlanWatcherProvider;
+  waitPolicy?: PlanWatcherWaitPolicy;
+  expect: PlanStepExpectation[];
+};
+
 export type PlanContract = {
   targets: PlanTarget[];
   prerequisites: PlanPrerequisite[];
   steps: PlanStep[];
+  watchers?: PlanWatcher[];
   correlation?: PlanCorrelationPolicy;
 };
 
