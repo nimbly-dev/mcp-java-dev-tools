@@ -114,6 +114,7 @@ export type RegressionRunWatcherResult = Record<string, unknown> & {
   attemptCount: number;
   durationMs: number;
   waitPolicy: RegressionRunWatcherWaitSummary;
+  lastObservation?: Record<string, unknown>;
   assertions?: RegressionRunAssertionResult[];
   attempts?: RegressionRunWatcherAttempt[];
 };

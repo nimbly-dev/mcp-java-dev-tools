@@ -1,9 +1,7 @@
 import type {
   PlanContract,
-  PlanWatcher,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import type {
-  RegressionRunExecutionResult,
   RegressionRunStatus,
   RegressionRunWatcherAttempt,
   RegressionRunWatcherOutcome,
@@ -12,13 +10,16 @@ import type {
   RegressionRunStepResult,
 } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
 import type { TransportAdapter, TransportProtocol, TransportExecutionResult } from "@tools-regression-execution-plan-spec/models/regression_transport.model";
-import { deepResolvePlaceholderValue } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
-import { resolveWatcherWaitPolicy } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+import { resolveWatcherWaitPolicy } from "@tools-regression-execution-plan-spec/regression_watcher_contract.util";
 import {
   evaluateStepExpectations,
 } from "@tools-regression-execution-plan-spec/regression_expectation_evaluator.util";
-import { buildHttpPayload } from "@tools-regression-execution-plan-spec/regression_http_payload.util";
 import { executeTransportWithRegistry } from "@tools-regression-execution-plan-spec/regression_transport_executor.util";
+import {
+  normalizeWatcherProviderResult,
+  resolveWatcherProviderExecution,
+  summarizeWatcherObservation,
+} from "@tools-regression-execution-plan-spec/regression_watcher_provider.util";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -26,20 +27,8 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function tryParseJson(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
-  }
 }
 
 function resolveWatcherPollIntervalMs(args: {
@@ -68,106 +57,6 @@ function watcherAssertionsAreRetryableMissingPath(assertions: Array<Record<strin
 
 function watcherMissingPathRetryCap(retryMax: number): number {
   return Math.min(retryMax, 2);
-}
-
-function buildWatcherEnvelope(transport: {
-  status: string;
-  statusCode?: number;
-  durationMs: number;
-  bodyText?: string;
-  bodyPreview?: string;
-  headers?: Record<string, string>;
-  reasonCode?: string;
-}): Record<string, unknown> {
-  const responseBody = transport.bodyText ?? transport.bodyPreview ?? "";
-  return {
-    status: transport.status === "pass" ? "pass" : "fail",
-    response: {
-      statusCode: transport.statusCode ?? 0,
-      body: responseBody,
-      ...(transport.headers ? { headers: transport.headers } : {}),
-      ...(typeof responseBody === "string" ? { bodyJson: tryParseJson(responseBody) } : {}),
-    },
-    transport: {
-      durationMs: transport.durationMs,
-      reasonCode: transport.reasonCode ?? null,
-    },
-  };
-}
-
-function resolveWatcherPayload(args: {
-  watcher: PlanWatcher;
-  context: Record<string, unknown>;
-  timeoutMs?: number;
-}):
-  | { ok: true; protocol: TransportProtocol; payload: Record<string, unknown> }
-  | { ok: false; reasonCode: string; reasonMeta?: Record<string, unknown> } {
-  const providerType = asString(args.watcher.provider?.type);
-  if (!providerType) {
-    return { ok: false, reasonCode: "watcher_runtime_configuration_invalid" };
-  }
-
-  const protocol = providerType === "http" || providerType === "grpc" || providerType === "kafka" || providerType === "custom"
-    ? providerType
-    : undefined;
-  if (!protocol) {
-    return {
-      ok: false,
-      reasonCode: "watcher_provider_not_supported",
-      reasonMeta: { providerType },
-    };
-  }
-
-  const transport = asRecord(args.watcher.provider?.transport);
-  if (!transport) {
-    return { ok: false, reasonCode: "watcher_runtime_configuration_invalid" };
-  }
-
-  const resolvedTransport = deepResolvePlaceholderValue(transport, args.context);
-  const normalizedTransport = asRecord(resolvedTransport);
-  if (!normalizedTransport) {
-    return { ok: false, reasonCode: "watcher_runtime_configuration_invalid" };
-  }
-
-  if (protocol !== "http") {
-    return {
-      ok: false,
-      reasonCode: "watcher_provider_not_supported",
-      reasonMeta: { providerType },
-    };
-  }
-
-  const candidatePayload =
-    asRecord(normalizedTransport.http) ??
-    asRecord(normalizedTransport.request) ??
-    normalizedTransport;
-  const payload = buildHttpPayload({
-    resolvedTransport: { http: candidatePayload },
-    context: args.context,
-  });
-  const inheritedTimeoutMs =
-    typeof payload.timeoutMs === "number" && Number.isFinite(payload.timeoutMs) && payload.timeoutMs > 0
-      ? Math.floor(payload.timeoutMs)
-      : typeof args.context["runtime.requestTimeoutMs"] === "number" &&
-          Number.isFinite(args.context["runtime.requestTimeoutMs"]) &&
-          args.context["runtime.requestTimeoutMs"] > 0
-        ? Math.floor(args.context["runtime.requestTimeoutMs"] as number)
-        : undefined;
-  const boundedTimeoutMs =
-    typeof args.timeoutMs === "number" && args.timeoutMs > 0
-      ? typeof inheritedTimeoutMs === "number"
-        ? Math.min(inheritedTimeoutMs, args.timeoutMs)
-        : args.timeoutMs
-      : inheritedTimeoutMs;
-  if (typeof boundedTimeoutMs === "number" && boundedTimeoutMs > 0) {
-    payload.timeoutMs = boundedTimeoutMs;
-  }
-
-  return {
-    ok: true,
-    protocol,
-    payload,
-  };
 }
 
 export function deriveWatcherPhaseStatus(watchers: RegressionRunWatcherResult[] | undefined): RegressionWatcherPhaseStatus {
@@ -245,6 +134,7 @@ export async function executeWatchers(args: {
         attemptCount: watcherRow.attemptCount,
         durationMs: watcherRow.durationMs,
         waitPolicy: watcherRow.waitPolicy,
+        ...(asRecord(watcherRow.lastObservation) ? { lastObservation: watcherRow.lastObservation } : {}),
         ...(Array.isArray(watcherRow.attempts) ? { attempts: watcherRow.attempts } : {}),
         ...(Array.isArray(watcherRow.assertions) ? { assertions: watcherRow.assertions } : {}),
         ...(typeof watcherRow.reasonCode === "string" ? { reasonCode: watcherRow.reasonCode } : {}),
@@ -290,12 +180,12 @@ export async function executeWatchers(args: {
       continue;
     }
 
-    const payload = resolveWatcherPayload({
+    const providerExecution = resolveWatcherProviderExecution({
       watcher,
       context: watcherContext,
       timeoutMs: resolvedWaitPolicy.timeoutMs,
     });
-    if (!payload.ok) {
+    if (!providerExecution.ok) {
       persistWatcher({
         id: watcher.id,
         dependencyStepOrder: watcher.dependency.stepOrder,
@@ -305,13 +195,14 @@ export async function executeWatchers(args: {
         attemptCount: 0,
         durationMs: Math.max(1, Date.now() - startedAt),
         waitPolicy,
-        reasonCode: payload.reasonCode,
-        ...(payload.reasonMeta ? { reasonMeta: payload.reasonMeta } : {}),
+        reasonCode: providerExecution.reasonCode,
+        ...(providerExecution.reasonMeta ? { reasonMeta: providerExecution.reasonMeta } : {}),
       });
       continue;
     }
 
     let finalAssertions: RegressionRunWatcherResult["assertions"] | undefined;
+    let finalObservation: Record<string, unknown> | undefined;
     let finalReasonCode: string | undefined;
     let finalReasonMeta: Record<string, unknown> | undefined;
     let finalStatus: RegressionRunWatcherResult["status"] = "blocked_runtime";
@@ -332,8 +223,8 @@ export async function executeWatchers(args: {
       }
 
       const transport = await executeTransportWithRegistry({
-        protocol: payload.protocol,
-        payload: payload.payload,
+        protocol: providerExecution.execution.protocol,
+        payload: providerExecution.execution.payload,
         registry: args.registry,
       });
       const observedAt = new Date().toISOString();
@@ -355,7 +246,20 @@ export async function executeWatchers(args: {
         break;
       }
 
-      const watcherEnvelope = buildWatcherEnvelope(transport);
+      const normalized = normalizeWatcherProviderResult({
+        execution: providerExecution.execution,
+        transport,
+      });
+      if (!normalized.ok) {
+        finalStatus = "blocked_runtime";
+        finalOutcome = "blocked";
+        finalReasonCode = normalized.reasonCode;
+        finalReasonMeta = normalized.reasonMeta;
+        break;
+      }
+
+      const watcherEnvelope = normalized.envelope;
+      finalObservation = summarizeWatcherObservation(watcherEnvelope);
       const evaluated = evaluateStepExpectations({
         stepResult: watcherEnvelope,
         expectations: watcher.expect,
@@ -438,6 +342,7 @@ export async function executeWatchers(args: {
       waitPolicy,
       ...(typeof finalReasonCode === "string" ? { reasonCode: finalReasonCode } : {}),
       ...(finalReasonMeta ? { reasonMeta: finalReasonMeta } : {}),
+      ...(finalObservation ? { lastObservation: finalObservation } : {}),
       ...(finalAssertions ? { assertions: finalAssertions } : {}),
       attempts,
     });

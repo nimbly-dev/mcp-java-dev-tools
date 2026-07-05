@@ -299,6 +299,7 @@ Persisted watcher execution result for bounded downstream completion verificatio
 - `waitPolicy.timeoutMs` / `waitPolicy.retryMax` (when resolved)
 - `waitPolicy.timeoutSource` / `waitPolicy.retrySource`
 - `waitPolicy.pollIntervalMs` (derived runtime polling interval when resolved)
+- `lastObservation` (optional): compact final observation summary used for watcher assertions/debugging without persisting raw body or header values
 - `assertions[]` (optional): final watcher assertion evaluation snapshot
 - `attempts[]` (optional): compact polling attempt timeline
 
@@ -308,6 +309,7 @@ Watcher runtime fail-closed reason codes include:
 - `watcher_wait_policy_unresolved`
 - `watcher_runtime_configuration_invalid`
 - `watcher_provider_not_supported`
+- `watcher_response_normalization_failed`
 - `watcher_target_unreachable`
 - `watcher_timeout_exceeded`
 - `watcher_expectation_not_satisfied`
