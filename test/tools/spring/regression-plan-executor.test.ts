@@ -1415,3 +1415,783 @@ test("executeRegressionPlanWorkflow blocks when condition path is invalid at run
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("executeRegressionPlanWorkflow executes watcher as bounded post-step verification and persists watcher success", async () => {
+  const root = createTestTempDir("plan-executor-watcher-success");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "watcher-success";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 120, retryMax: 3 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          extract: [{ from: "response.bodyJson.id", as: "eventId", required: true }],
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "search_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://localhost:8082/index/${eventId}",
+              },
+            },
+          },
+          expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    let watcherCalls = 0;
+    const seenUrls: string[] = [];
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        seenUrls.push(String(request.url));
+        if (String(request.method) === "POST") {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 202,
+              durationMs: 8,
+              body: "{\"id\":\"evt-001\"}",
+              bodyPreview: "{\"id\":\"evt-001\"}",
+            },
+          };
+        }
+        watcherCalls += 1;
+        return {
+          structuredContent: watcherCalls < 3
+            ? {
+                status: "pass",
+                statusCode: 200,
+                durationMs: 7,
+                body: "{\"state\":\"pending\"}",
+                bodyPreview: "{\"state\":\"pending\"}",
+              }
+            : {
+                status: "pass",
+                statusCode: 200,
+                durationMs: 7,
+                body: "{\"state\":\"ready\"}",
+                bodyPreview: "{\"state\":\"ready\"}",
+              },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "pass");
+      assert.equal(out.executionResult.triggerStatus, "pass");
+      assert.equal(out.executionResult.watcherStatus, "pass");
+      assert.equal(out.executionResult.watchers?.length, 1);
+      assert.equal(out.executionResult.watchers?.[0]?.status, "pass");
+      assert.equal(out.executionResult.watchers?.[0]?.outcome, "verified");
+      assert.equal(out.executionResult.watchers?.[0]?.attemptCount, 3);
+      assert.equal(out.executionResult.watchers?.[0]?.waitPolicy.timeoutSource, "project_default");
+      assert.equal(out.executionResult.watchers?.[0]?.waitPolicy.retrySource, "project_default");
+      assert.equal(Array.isArray(out.executionResult.watchers?.[0]?.attempts), true);
+      assert.deepEqual(seenUrls, [
+        "http://localhost:8082/events",
+        "http://localhost:8082/index/evt-001",
+        "http://localhost:8082/index/evt-001",
+        "http://localhost:8082/index/evt-001",
+      ]);
+      const evidence = JSON.parse(fs.readFileSync(out.artifacts.evidencePathAbs, "utf8"));
+      assert.equal(Array.isArray(evidence.watcherExecutions), true);
+      assert.equal(evidence.watcherExecutions.length, 1);
+      assert.equal(evidence.watcherExecutions[0].status, "pass");
+      assert.equal(evidence.watcherExecutions[0].attemptCount, 3);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow reuses HTTP payload normalization for watcher requests", async () => {
+  const root = createTestTempDir("plan-executor-watcher-http-normalization");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "watcher-http-normalization";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          extract: [{ from: "response.bodyJson.id", as: "eventId", required: true }],
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "index_event",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "POST",
+                pathTemplate: "/index/${eventId}",
+                body: { state: "ready" },
+              },
+            },
+          },
+          expect: [{ id: "indexed", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        },
+      ],
+    });
+
+    const capturedRequests: Record<string, unknown>[] = [];
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        capturedRequests.push(request);
+        if (capturedRequests.length === 1) {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 202,
+              durationMs: 8,
+              body: "{\"id\":\"evt-200\"}",
+              bodyPreview: "{\"id\":\"evt-200\"}",
+            },
+          };
+        }
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 8,
+            body: "{\"ok\":true}",
+            bodyPreview: "{\"ok\":true}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "pass");
+      assert.equal(capturedRequests.length, 2);
+      const watcherRequest = capturedRequests[1]!;
+      assert.equal(watcherRequest.url, "http://localhost:8082/index/evt-200");
+      assert.equal(watcherRequest.body, JSON.stringify({ state: "ready" }));
+      assert.deepEqual(watcherRequest.headers, { "Content-Type": "application/json" });
+      assert.equal(watcherRequest.timeoutMs, 20_000);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow fails closed when watcher timeout is exceeded before expectations converge", async () => {
+  const root = createTestTempDir("plan-executor-watcher-timeout");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "watcher-defaults-unresolved";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "search_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://localhost:8082/index/status",
+              },
+            },
+          },
+          waitPolicy: { timeoutMs: 30, retryMax: 5 },
+          expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    let watcherCalls = 0;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "GET") {
+          watcherCalls += 1;
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 200,
+              durationMs: 5,
+              body: "{\"state\":\"pending\"}",
+              bodyPreview: "{\"state\":\"pending\"}",
+            },
+          };
+        }
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 202,
+            durationMs: 8,
+            body: "{\"ok\":true}",
+            bodyPreview: "{\"ok\":true}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(watcherCalls >= 1, true);
+      assert.equal(out.runStatus, "blocked");
+      assert.equal(out.executionResult.triggerStatus, "pass");
+      assert.equal(out.executionResult.watcherStatus, "blocked");
+      assert.equal(out.executionResult.watchers?.[0]?.status, "blocked_runtime");
+      assert.equal(out.executionResult.watchers?.[0]?.outcome, "timed_out");
+      assert.equal(out.executionResult.watchers?.[0]?.reasonCode, "watcher_timeout_exceeded");
+      assert.equal(out.executionResult.watchers?.[0]?.attemptCount >= 1, true);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow marks watcher dependency blocked when dependent step does not pass", async () => {
+  const root = createTestTempDir("plan-executor-watcher-dependency");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "watcher-dependency";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 80, retryMax: 2 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "search_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://localhost:8082/index/status",
+              },
+            },
+          },
+          waitPolicy: { timeoutMs: 50, retryMax: 2 },
+          expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    let calls = 0;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        calls += 1;
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 500,
+            durationMs: 8,
+            body: "{\"ok\":false}",
+            bodyPreview: "{\"ok\":false}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(calls, 1);
+      assert.equal(out.runStatus, "fail");
+      assert.equal(out.executionResult.watchers?.[0]?.status, "blocked_dependency");
+      assert.equal(out.executionResult.watchers?.[0]?.reasonCode, "watcher_dependency_not_satisfied");
+      assert.equal(out.executionResult.watchers?.[0]?.reasonMeta?.dependencyStatus, "fail_assertion");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow fails closed when watcher target is unreachable and when expectation stays unsatisfied", async () => {
+  const root = createTestTempDir("plan-executor-watcher-terminal-failures");
+  try {
+    const projectName = "petclinic-regression";
+    const unreachablePlanName = "watcher-unreachable";
+    const unreachablePlanRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", unreachablePlanName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 80, retryMax: 2 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        },
+      ],
+    });
+    writeJson(path.join(unreachablePlanRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(unreachablePlanRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "search_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://localhost:8082/index/status",
+              },
+            },
+          },
+          waitPolicy: { timeoutMs: 60, retryMax: 2 },
+          expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    let watcherCalls = 0;
+    const unreachableOut = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName: unreachablePlanName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "POST") {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 202,
+              durationMs: 8,
+              body: "{\"ok\":true}",
+              bodyPreview: "{\"ok\":true}",
+            },
+          };
+        }
+        watcherCalls += 1;
+        return {
+          structuredContent: {
+            status: "blocked_runtime",
+            durationMs: 5,
+            reasonCode: "connect_failed",
+          },
+        };
+      },
+    });
+
+    assert.equal(unreachableOut.status, "executed");
+    if (unreachableOut.status === "executed") {
+      assert.equal(watcherCalls, 1);
+      assert.equal(unreachableOut.runStatus, "blocked");
+      assert.equal(unreachableOut.executionResult.watchers?.[0]?.status, "blocked_runtime");
+      assert.equal(unreachableOut.executionResult.watchers?.[0]?.outcome, "blocked");
+      assert.equal(unreachableOut.executionResult.watchers?.[0]?.reasonCode, "watcher_target_unreachable");
+    }
+
+    const expectationPlanName = "watcher-failed-expectation";
+    const expectationPlanRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", expectationPlanName);
+    writeJson(path.join(expectationPlanRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(expectationPlanRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "search_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://localhost:8082/index/status",
+              },
+            },
+          },
+          waitPolicy: { timeoutMs: 500, retryMax: 2 },
+          expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    let expectationWatcherCalls = 0;
+    const expectationOut = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName: expectationPlanName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "POST") {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 202,
+              durationMs: 8,
+              body: "{\"ok\":true}",
+              bodyPreview: "{\"ok\":true}",
+            },
+          };
+        }
+        expectationWatcherCalls += 1;
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 7,
+            body: "{\"state\":\"pending\"}",
+            bodyPreview: "{\"state\":\"pending\"}",
+          },
+        };
+      },
+    });
+
+    assert.equal(expectationOut.status, "executed");
+    if (expectationOut.status === "executed") {
+      assert.equal(expectationWatcherCalls, 2);
+      assert.equal(expectationOut.runStatus, "fail");
+      assert.equal(expectationOut.executionResult.watchers?.[0]?.status, "fail_assertion");
+      assert.equal(expectationOut.executionResult.watchers?.[0]?.outcome, "failed_expectation");
+      assert.equal(expectationOut.executionResult.watchers?.[0]?.reasonCode, "watcher_expectation_not_satisfied");
+      assert.equal(expectationOut.executionResult.watchers?.[0]?.attemptCount, 2);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow retries watcher polls when the expected field is temporarily absent", async () => {
+  const root = createTestTempDir("plan-executor-watcher-missing-path-retry");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "watcher-missing-path-retry";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 120, retryMax: 3 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "search_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://localhost:8082/index/status",
+              },
+            },
+          },
+          waitPolicy: { timeoutMs: 200, retryMax: 3 },
+          expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    let watcherCalls = 0;
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "POST") {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 202,
+              durationMs: 8,
+              body: "{\"ok\":true}",
+              bodyPreview: "{\"ok\":true}",
+            },
+          };
+        }
+        watcherCalls += 1;
+        return {
+          structuredContent: watcherCalls < 2
+            ? {
+                status: "pass",
+                statusCode: 200,
+                durationMs: 5,
+                body: "{\"pending\":true}",
+                bodyPreview: "{\"pending\":true}",
+              }
+            : {
+                status: "pass",
+                statusCode: 200,
+                durationMs: 5,
+                body: "{\"state\":\"ready\"}",
+                bodyPreview: "{\"state\":\"ready\"}",
+              },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "pass");
+      assert.equal(watcherCalls, 2);
+      assert.equal(out.executionResult.watchers?.[0]?.status, "pass");
+      assert.equal(out.executionResult.watchers?.[0]?.attemptCount, 2);
+      assert.equal(out.executionResult.watchers?.[0]?.assertions[0]?.status, "pass");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionPlanWorkflow binds watcher placeholders to the dependency step context snapshot", async () => {
+  const root = createTestTempDir("plan-executor-watcher-dependency-context");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "watcher-dependency-context";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 120, retryMax: 2 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_primary_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events/primary" } },
+          extract: [{ from: "response.bodyJson.id", as: "eventId", required: true }],
+          expect: [{ id: "created", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+        {
+          order: 2,
+          id: "trigger_secondary_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events/secondary" } },
+          extract: [{ from: "response.bodyJson.id", as: "eventId", required: true }],
+          expect: [{ id: "created_secondary", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "primary_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                pathTemplate: "/index/${eventId}",
+              },
+            },
+          },
+          expect: [{ id: "indexed", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        },
+      ],
+    });
+
+    const seenUrls: string[] = [];
+    const out = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        seenUrls.push(String(request.url));
+        if (String(request.url).endsWith("/events/primary")) {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 202,
+              durationMs: 8,
+              body: "{\"id\":\"evt-primary\"}",
+              bodyPreview: "{\"id\":\"evt-primary\"}",
+            },
+          };
+        }
+        if (String(request.url).endsWith("/events/secondary")) {
+          return {
+            structuredContent: {
+              status: "pass",
+              statusCode: 202,
+              durationMs: 8,
+              body: "{\"id\":\"evt-secondary\"}",
+              bodyPreview: "{\"id\":\"evt-secondary\"}",
+            },
+          };
+        }
+        return {
+          structuredContent: {
+            status: "pass",
+            statusCode: 200,
+            durationMs: 8,
+            body: "{\"ok\":true}",
+            bodyPreview: "{\"ok\":true}",
+          },
+        };
+      },
+    });
+
+    assert.equal(out.status, "executed");
+    if (out.status === "executed") {
+      assert.equal(out.runStatus, "pass");
+      assert.deepEqual(seenUrls, [
+        "http://localhost:8082/events/primary",
+        "http://localhost:8082/events/secondary",
+        "http://localhost:8082/index/evt-primary",
+      ]);
+      assert.equal(out.executionResult.watchers?.[0]?.status, "pass");
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

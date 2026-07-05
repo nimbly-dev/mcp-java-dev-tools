@@ -155,10 +155,20 @@ function resolveBlockedPlanDetail(executionResult: Record<string, unknown>): {
   const steps = Array.isArray(executionResult.steps) ? executionResult.steps : [];
   const blockedStep = steps.find((entry) => isRecord(entry) && entry.status === "blocked_runtime") ??
     steps.find((entry) => isRecord(entry) && entry.status === "blocked_dependency");
-  if (!isRecord(blockedStep)) return {};
+  if (isRecord(blockedStep)) {
+    return {
+      ...(typeof blockedStep.reasonCode === "string" ? { blockedReasonCode: blockedStep.reasonCode } : {}),
+      ...(isRecord(blockedStep.reasonMeta) ? { blockedReasonMeta: blockedStep.reasonMeta } : {}),
+    };
+  }
+
+  const watchers = Array.isArray(executionResult.watchers) ? executionResult.watchers : [];
+  const blockedWatcher = watchers.find((entry) => isRecord(entry) && entry.status === "blocked_runtime") ??
+    watchers.find((entry) => isRecord(entry) && entry.status === "blocked_dependency");
+  if (!isRecord(blockedWatcher)) return {};
   return {
-    ...(typeof blockedStep.reasonCode === "string" ? { blockedReasonCode: blockedStep.reasonCode } : {}),
-    ...(isRecord(blockedStep.reasonMeta) ? { blockedReasonMeta: blockedStep.reasonMeta } : {}),
+    ...(typeof blockedWatcher.reasonCode === "string" ? { blockedReasonCode: blockedWatcher.reasonCode } : {}),
+    ...(isRecord(blockedWatcher.reasonMeta) ? { blockedReasonMeta: blockedWatcher.reasonMeta } : {}),
   };
 }
 

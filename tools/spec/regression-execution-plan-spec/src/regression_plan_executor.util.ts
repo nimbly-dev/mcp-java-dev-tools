@@ -21,14 +21,19 @@ import {
   resolvePrerequisiteContext,
   resolveStepTransport,
 } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+import { buildHttpPayload } from "@tools-regression-execution-plan-spec/regression_http_payload.util";
 import { inferPlanApiBaseUrlFromProbeConfig } from "@tools-regression-execution-plan-spec/regression_plan_base_url.util";
 import {
   deriveRunStatusFromStepOutcomes,
   evaluateStepExpectations,
 } from "@tools-regression-execution-plan-spec/regression_expectation_evaluator.util";
 import {
+  combinePlanRunStatus,
+  deriveWatcherPhaseStatus,
+  executeWatchers,
+} from "@tools-regression-execution-plan-spec/regression_watcher_runtime.util";
+import {
   normalizeHttpContextAliases,
-  synthesizeHttpUrl,
 } from "@tools-regression-execution-plan-spec/suite_http_request.util";
 import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
 import {
@@ -326,43 +331,6 @@ async function readJsonFile<T>(absPath: string): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-function buildHttpPayload(args: {
-  step: PlanStep;
-  resolvedTransport: Record<string, unknown>;
-  context: Record<string, unknown>;
-}): Record<string, unknown> {
-  const transportHttp =
-    typeof args.resolvedTransport.http === "object" && args.resolvedTransport.http !== null
-      ? { ...(args.resolvedTransport.http as Record<string, unknown>) }
-      : {};
-  if (!transportHttp.method) transportHttp.method = "GET";
-  const synthesizedUrl = synthesizeHttpUrl({
-    url: transportHttp.url,
-    apiBaseUrl: args.context.apiBaseUrl,
-    pathTemplate: transportHttp.pathTemplate,
-    path: transportHttp.path,
-  });
-  if (synthesizedUrl) transportHttp.url = synthesizedUrl;
-  if (typeof transportHttp.body === "object" && transportHttp.body !== null && !Array.isArray(transportHttp.body)) {
-    transportHttp.body = JSON.stringify(transportHttp.body);
-    const headers =
-      typeof transportHttp.headers === "object" && transportHttp.headers !== null && !Array.isArray(transportHttp.headers)
-        ? (transportHttp.headers as Record<string, unknown>)
-        : {};
-    const hasContentType = Object.keys(headers).some((key) => key.toLowerCase() === "content-type");
-    if (!hasContentType) {
-      headers["Content-Type"] = "application/json";
-    }
-    transportHttp.headers = headers;
-  }
-  if (typeof transportHttp.timeoutMs !== "number" || !Number.isFinite(transportHttp.timeoutMs) || transportHttp.timeoutMs <= 0) {
-    const defaultTimeoutMs = args.context["runtime.requestTimeoutMs"];
-    if (typeof defaultTimeoutMs === "number" && Number.isFinite(defaultTimeoutMs) && defaultTimeoutMs > 0) {
-      transportHttp.timeoutMs = Math.floor(defaultTimeoutMs);
-    }
-  }
-  return transportHttp;
-}
 
 async function resolvePlanExecutionContext(args: {
   workspaceRootAbs: string;
@@ -551,6 +519,7 @@ function isStepRequired(step: PlanStep | undefined): boolean {
   return step.expect.some((expectation) => expectation.required !== false);
 }
 
+
 export async function executeRegressionPlanWorkflow(
   args: ExecuteRegressionPlanWorkflowArgs,
 ): Promise<ExecuteRegressionPlanWorkflowResult> {
@@ -608,6 +577,7 @@ export async function executeRegressionPlanWorkflow(
   const stepRows: RegressionRunStepResult[] = [];
   const stepOutputsByOrder: Record<number, Record<string, unknown>> = {};
   const stepEventTimesByOrder: Record<number, number> = {};
+  const stepContextsByOrder = new Map<number, Record<string, unknown>>();
   let hardRuntimeBlocker = false;
   let eventCursorEpochMs = now.getTime();
   for (const step of [...contract.steps].sort((a, b) => a.order - b.order)) {
@@ -691,7 +661,7 @@ export async function executeRegressionPlanWorkflow(
     const resolvedTransport = resolveStepTransport(step, resolvedContext);
     const payload =
       step.protocol === "http"
-        ? buildHttpPayload({ step, resolvedTransport, context: resolvedContext })
+        ? buildHttpPayload({ resolvedTransport, context: resolvedContext })
         : ((resolvedTransport[step.protocol] as Record<string, unknown>) ?? {});
     const transport = await executeTransportWithRegistry({
       protocol: step.protocol as any,
@@ -815,6 +785,7 @@ export async function executeRegressionPlanWorkflow(
     stepEventTimesByOrder[step.order] = eventCursorEpochMs;
     eventCursorEpochMs += Math.max(1, transport.durationMs);
     resolvedContext = extractOutcome.context;
+    stepContextsByOrder.set(step.order, { ...resolvedContext });
 
     if (requiredExtractBlocked || transport.status === "blocked_runtime" || transport.status === "blocked_invalid") {
       hardRuntimeBlocker = true;
@@ -823,19 +794,34 @@ export async function executeRegressionPlanWorkflow(
   }
 
   const ended = new Date();
-  const runStatus = deriveRunStatusFromStepOutcomes({
+  const triggerStatus = deriveRunStatusFromStepOutcomes({
     stepOutcomes: stepRows.map((row) => ({
       status: row.status as any,
       required: isStepRequired(contract.steps.find((step) => step.order === row.order && step.id === row.id)),
     })),
     hardRuntimeBlocker,
   });
+  const { watcherRows, watcherEvidence } = await executeWatchers({
+    contract,
+    resolvedContext,
+    registry,
+    stepRows,
+    stepContextsByOrder,
+  });
+  const watcherStatus = deriveWatcherPhaseStatus(watcherRows);
+  const runStatus = combinePlanRunStatus({
+    triggerStatus,
+    watcherStatus,
+  });
   const executionResult: RegressionRunExecutionResult = {
     status: runStatus,
+    triggerStatus,
+    watcherStatus,
     preflight: preflightWithDiscovery.preflight,
     startedAt,
     endedAt: ended.toISOString(),
     steps: stepRows,
+    ...(watcherRows.length > 0 ? { watchers: watcherRows } : {}),
   };
 
   const correlationEvidence = buildPlanCorrelationEvidence({
@@ -873,6 +859,7 @@ export async function executeRegressionPlanWorkflow(
         runEndEpoch: ended.getTime(),
         runDurationMs: Math.max(1, ended.getTime() - now.getTime()),
       },
+      ...(watcherEvidence.length > 0 ? { watcherExecutions: watcherEvidence } : {}),
       ...(correlationEvidence ?? {}),
     },
     now,

@@ -386,3 +386,89 @@ test("executeRegressionRuntimeSuite applies runtimeConfig retryMax override", as
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("executeRegressionRuntimeSuite surfaces watcher-only blocked reason details in planRuns", async () => {
+  const root = createTestTempDir("runtime-suite-watcher-blocked-reason");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "plan-watcher-block";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 100, retryMax: 2 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "core-watcher-blocked",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName }],
+            },
+          ],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: {
+        intent: "regression",
+        probeVerification: false,
+        pinStrictProbeKey: false,
+        discoveryPolicy: "allow_discoverable_prerequisites",
+      },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "step_1",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "indexed_ready",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://127.0.0.1:1/index/status",
+              },
+            },
+          },
+          waitPolicy: { timeoutMs: 80, retryMax: 2 },
+          expect: [{ id: "ready", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "core-watcher-blocked",
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const req = input.request as Record<string, unknown>;
+        if (String(req.method) === "POST") {
+          return { structuredContent: { status: "pass", statusCode: 202, durationMs: 7, bodyPreview: "{\"ok\":true}" } };
+        }
+        return { structuredContent: { status: "blocked_runtime", durationMs: 5, reasonCode: "connect_failed" } };
+      },
+    });
+
+    assert.equal(out.status, "blocked");
+    assert.equal(out.planRuns[0].status, "executed");
+    assert.equal(out.planRuns[0].runStatus, "blocked");
+    assert.equal(out.planRuns[0].blockedReasonCode, "watcher_target_unreachable");
+    assert.equal(out.planRuns[0].blockedReasonMeta?.transportReasonCode, "connect_failed");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -1898,3 +1898,305 @@ test("mcp IT: execution_orchestration executes performance suite profiles throug
     }
   }
 });
+
+test("mcp IT: execution_orchestration executes watcher polling after trigger success and persists watcher Artifact state", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-success-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-watchers";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "watcher-success";
+  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const runRootAbs = path.join(planRootAbs, "runs");
+  let stateChecks = 0;
+
+  const appServer = http.createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/events") {
+      res.statusCode = 202;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ id: "evt-123" }));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/index/evt-123") {
+      stateChecks += 1;
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ state: stateChecks >= 3 ? "ready" : "pending" }));
+      return;
+    }
+    res.statusCode = 404;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ reason: "missing" }));
+  });
+  const appPort = await listen(appServer);
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        defaults: { requestTimeoutMs: 120, retryMax: 3 },
+        executionProfiles: [
+          {
+            executionProfile: "watcher-success-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "trigger_event",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            pathTemplate: "/events",
+          },
+        },
+        extract: [{ from: "response.bodyJson.id", as: "eventId", required: true }],
+        expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+      },
+    ],
+    watchers: [
+      {
+        id: "indexed_ready",
+        dependency: { stepOrder: 1 },
+        provider: {
+          type: "http",
+          transport: {
+            request: {
+              method: "GET",
+              url: `http://127.0.0.1:${appPort}/index/\${eventId}`,
+            },
+          },
+        },
+        expect: [{ id: "ready", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "watcher-success-run",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "pass");
+    assert.equal(stateChecks, 3);
+    const planRuns = Array.isArray(out.structuredContent?.planRuns)
+      ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 1);
+    assert.equal(planRuns[0]?.runStatus, "pass");
+
+    const runDirs = await fs.readdir(runRootAbs);
+    assert.equal(runDirs.length, 1);
+    const runDir = runDirs[0];
+    if (!runDir) throw new Error("expected one watcher run directory");
+    const executionResult = JSON.parse(
+      await fs.readFile(path.join(runRootAbs, runDir, "execution.result.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const evidence = JSON.parse(
+      await fs.readFile(path.join(runRootAbs, runDir, "evidence.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const watchers = executionResult.watchers as Array<Record<string, unknown>>;
+    assert.equal(executionResult.triggerStatus, "pass");
+    assert.equal(executionResult.watcherStatus, "pass");
+    assert.equal(Array.isArray(watchers), true);
+    assert.equal(watchers[0]?.status, "pass");
+    assert.equal(watchers[0]?.attemptCount, 3);
+    assert.equal(Array.isArray(evidence.watcherExecutions), true);
+    assert.equal((evidence.watcherExecutions as Array<Record<string, unknown>>)[0]?.status, "pass");
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("mcp IT: execution_orchestration fails closed when watcher target stays unreachable", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-unreachable-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-watchers";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "watcher-unreachable";
+  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const runRootAbs = path.join(planRootAbs, "runs");
+  const appServer = http.createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/events") {
+      res.statusCode = 202;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+    res.statusCode = 404;
+    res.end("not found");
+  });
+  const appPort = await listen(appServer);
+
+  const unreachableServer = http.createServer((_req, res) => {
+    res.statusCode = 200;
+    res.end("unused");
+  });
+  const unreachablePort = await listen(unreachableServer);
+  await new Promise<void>((resolve, reject) => unreachableServer.close((error) => error ? reject(error) : resolve()));
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        defaults: { requestTimeoutMs: 100, retryMax: 2 },
+        executionProfiles: [
+          {
+            executionProfile: "watcher-unreachable-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    execution: { intent: "regression" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "trigger_event",
+        targetRef: 0,
+        protocol: "http",
+        transport: {
+          http: {
+            method: "POST",
+            pathTemplate: "/events",
+          },
+        },
+        expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+      },
+    ],
+    watchers: [
+      {
+        id: "indexed_ready",
+        dependency: { stepOrder: 1 },
+        provider: {
+          type: "http",
+          transport: {
+            request: {
+              method: "GET",
+              url: `http://127.0.0.1:${unreachablePort}/index/evt-123`,
+            },
+          },
+        },
+        waitPolicy: { timeoutMs: 80, retryMax: 2 },
+        expect: [{ id: "ready", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const out = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "watcher-unreachable-run",
+      },
+    });
+
+    assert.equal(out.structuredContent?.resultType, "execution_orchestration");
+    assert.equal(out.structuredContent?.status, "blocked");
+    const planRuns = Array.isArray(out.structuredContent?.planRuns)
+      ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
+      : [];
+    assert.equal(planRuns.length, 1);
+    assert.equal(planRuns[0]?.runStatus, "blocked");
+
+    const runDirs = await fs.readdir(runRootAbs);
+    assert.equal(runDirs.length, 1);
+    const runDir = runDirs[0];
+    if (!runDir) throw new Error("expected one watcher run directory");
+    const executionResult = JSON.parse(
+      await fs.readFile(path.join(runRootAbs, runDir, "execution.result.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const watchers = executionResult.watchers as Array<Record<string, unknown>>;
+    assert.equal(executionResult.triggerStatus, "pass");
+    assert.equal(executionResult.watcherStatus, "blocked");
+    assert.equal(watchers[0]?.status, "blocked_runtime");
+    assert.equal(watchers[0]?.reasonCode, "watcher_target_unreachable");
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
