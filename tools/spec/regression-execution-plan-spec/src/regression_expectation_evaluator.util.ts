@@ -58,6 +58,65 @@ function withOptionalMessage<T extends Record<string, unknown>>(base: T, message
   return base;
 }
 
+type ComparableNumeric = {
+  negative: boolean;
+  integer: string;
+  fraction: string;
+};
+
+function normalizeComparableNumeric(value: unknown): ComparableNumeric | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+    return normalizeComparableNumeric(String(value));
+  }
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  const match = /^([+-])?(\d+)(?:\.(\d+))?$/.exec(trimmed);
+  if (!match) {
+    return null;
+  }
+
+  const sign = match[1] ?? "";
+  const integerRaw = match[2] ?? "0";
+  const fractionRaw = match[3] ?? "";
+  const integer = integerRaw.replace(/^0+(?=\d)/, "");
+  const fraction = fractionRaw.replace(/0+$/, "");
+  const isZero = /^0+$/.test(integer) && fraction.length === 0;
+
+  return {
+    negative: sign === "-" && !isZero,
+    integer,
+    fraction,
+  };
+}
+
+function compareComparableNumeric(left: ComparableNumeric, right: ComparableNumeric): number {
+  if (left.negative !== right.negative) {
+    return left.negative ? -1 : 1;
+  }
+
+  const direction = left.negative ? -1 : 1;
+  if (left.integer.length !== right.integer.length) {
+    return left.integer.length > right.integer.length ? direction : -direction;
+  }
+  if (left.integer !== right.integer) {
+    return left.integer > right.integer ? direction : -direction;
+  }
+
+  const fractionLength = Math.max(left.fraction.length, right.fraction.length);
+  const leftFraction = left.fraction.padEnd(fractionLength, "0");
+  const rightFraction = right.fraction.padEnd(fractionLength, "0");
+  if (leftFraction === rightFraction) {
+    return 0;
+  }
+  return leftFraction > rightFraction ? direction : -direction;
+}
+
 function evaluatePredicate(args: {
   operator: PlanStepExpectationOperator;
   actual: unknown;
@@ -99,21 +158,25 @@ function evaluatePredicate(args: {
     }
   }
   if (operator === "numeric_gte") {
-    if (typeof actual !== "number" || typeof expected !== "number") {
+    const actualNumeric = normalizeComparableNumeric(actual);
+    const expectedNumeric = normalizeComparableNumeric(expected);
+    if (!actualNumeric || !expectedNumeric) {
       return { status: "blocked_invalid", reasonCode: "type_mismatch" };
     }
     return {
-      status: actual >= expected ? "pass" : "fail",
-      reasonCode: actual >= expected ? "ok" : "predicate_false",
+      status: compareComparableNumeric(actualNumeric, expectedNumeric) >= 0 ? "pass" : "fail",
+      reasonCode: compareComparableNumeric(actualNumeric, expectedNumeric) >= 0 ? "ok" : "predicate_false",
     };
   }
   if (operator === "numeric_lte") {
-    if (typeof actual !== "number" || typeof expected !== "number") {
+    const actualNumeric = normalizeComparableNumeric(actual);
+    const expectedNumeric = normalizeComparableNumeric(expected);
+    if (!actualNumeric || !expectedNumeric) {
       return { status: "blocked_invalid", reasonCode: "type_mismatch" };
     }
     return {
-      status: actual <= expected ? "pass" : "fail",
-      reasonCode: actual <= expected ? "ok" : "predicate_false",
+      status: compareComparableNumeric(actualNumeric, expectedNumeric) <= 0 ? "pass" : "fail",
+      reasonCode: compareComparableNumeric(actualNumeric, expectedNumeric) <= 0 ? "ok" : "predicate_false",
     };
   }
   if (operator === "contains") {

@@ -70,6 +70,37 @@ test("evaluateStepExpectations returns fail_assertion when required predicate fa
   assert.equal(evaluated.assertions[0].reasonCode, "predicate_false");
 });
 
+test("evaluateStepExpectations supports exact decimal strings for numeric comparisons", () => {
+  const gte = evaluateStepExpectations({
+    stepResult: {
+      sql: {
+        firstRow: {
+          indexed_count: "500.12345678901234567890",
+        },
+      },
+    },
+    transportFailure: false,
+    dependencyBlocked: false,
+    expectations: [
+      {
+        id: "decimal-gte",
+        actualPath: "sql.firstRow.indexed_count",
+        operator: "numeric_gte",
+        expected: "500.12345678901234567889",
+      },
+      {
+        id: "decimal-lte",
+        actualPath: "sql.firstRow.indexed_count",
+        operator: "numeric_lte",
+        expected: "500.12345678901234567890",
+      },
+    ],
+  });
+
+  assert.equal(gte.status, "pass");
+  assert.equal(gte.assertions.every((entry: { status: string }) => entry.status === "pass"), true);
+});
+
 test("evaluateStepExpectations returns blocked_runtime on invalid expectation mapping", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {

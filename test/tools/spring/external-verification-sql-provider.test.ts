@@ -8,6 +8,20 @@ const {
   executeSqlExternalVerification,
 } = require("@tools-regression-execution-plan-spec/external_verification_sql_provider.util");
 
+type JdbcExecutionMockArgs = {
+  connection: {
+    connectionKind: string;
+    jdbcUrl: string;
+    driverClass?: string;
+    properties: Record<string, string>;
+  };
+  statement: string;
+  bindings: Array<{
+    name: string;
+    value: unknown;
+  }>;
+};
+
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
   fs.mkdirSync(base, { recursive: true });
@@ -235,4 +249,160 @@ test("executeSqlExternalVerification fails closed when SQL execution exceeds tim
   assert.equal(out.result.reasonCode, "external_verification_execution_failed");
   assert.match(String(out.result.reasonMeta.errorMessage ?? ""), /sql_execution_timeout_/);
   assert.equal(out.result.reasonMeta.timeoutMs, 10);
+});
+
+test("executeSqlExternalVerification executes JDBC-backed SQL verification for vendor-neutral runtime config", async () => {
+  const out = await executeSqlExternalVerification({
+    workspaceRootAbs: process.cwd(),
+    resolvedContext: {
+      tenantId: "tenant-social-001",
+      "sql.connection.catalogDb.kind": "postgres",
+      "sql.connection.catalogDb.jdbc.url": "jdbc:postgresql://localhost:5432/catalog",
+      "sql.connection.catalogDb.jdbc.driverClass": "org.postgresql.Driver",
+      "sql.connection.catalogDb.jdbc.classpath": ["drivers/postgresql.jar"],
+      "sql.connection.catalogDb.jdbc.properties.user": "catalog_user",
+      "sql.connection.catalogDb.jdbc.properties.password": "catalog_pass",
+    },
+    verification: {
+      id: "verify_catalog_count_jdbc",
+      provider: { type: "sql" },
+      request: {
+        sql: {
+          connectionRef: "catalogDb",
+          statement: "SELECT indexed_count FROM reindex_status WHERE tenant_id = :tenantId",
+          parameters: [{ name: "tenantId", valueFromContext: "tenantId" }],
+        },
+      },
+      expect: [
+        { id: "row_count_ok", actualPath: "sql.rowCount", operator: "numeric_gte", expected: 1 },
+        {
+          id: "indexed_count_min",
+          actualPath: "sql.firstRow.indexed_count",
+          operator: "numeric_gte",
+          expected: "500.12345678901234567889",
+        },
+        {
+          id: "indexed_count_exact",
+          actualPath: "sql.firstRow.indexed_count",
+          operator: "field_equals",
+          expected: "500.12345678901234567890",
+        },
+      ],
+    },
+    internals: {
+      executeJdbcQuery: async ({ connection, statement, bindings }: JdbcExecutionMockArgs) => {
+        assert.equal(connection.connectionKind, "postgres");
+        assert.equal(connection.jdbcUrl, "jdbc:postgresql://localhost:5432/catalog");
+        assert.equal(connection.driverClass, "org.postgresql.Driver");
+        assert.deepEqual(connection.properties, {
+          user: "catalog_user",
+          password: "catalog_pass",
+        });
+        assert.equal(statement, "SELECT indexed_count FROM reindex_status WHERE tenant_id = :tenantId");
+        assert.deepEqual(bindings, [{ name: "tenantId", value: "tenant-social-001" }]);
+        return {
+          ok: true,
+          durationMs: 18,
+          rows: [{ indexed_count: "500.12345678901234567890" }],
+        };
+      },
+    },
+  });
+
+  assert.equal(out.result.status, "pass");
+  assert.equal(out.result.providerType, "sql");
+  assert.equal(out.result.sql.rowCount, 1);
+  assert.equal(out.result.sql.firstRow.indexed_count, "500.12345678901234567890");
+  assert.equal(out.result.assertions[1].status, "pass");
+  assert.equal(out.result.assertions[2].status, "pass");
+});
+
+test("executeSqlExternalVerification fails closed when JDBC runtime config omits jdbc url", async () => {
+  const out = await executeSqlExternalVerification({
+    workspaceRootAbs: process.cwd(),
+    resolvedContext: {
+      "sql.connection.catalogDb.kind": "postgres",
+    },
+    verification: {
+      id: "verify_missing_jdbc_url",
+      provider: { type: "sql" },
+      request: {
+        sql: {
+          connectionRef: "catalogDb",
+          statement: "SELECT 1",
+        },
+      },
+      expect: [{ id: "row_count_ok", actualPath: "sql.rowCount", operator: "numeric_gte", expected: 1 }],
+    },
+  });
+
+  assert.equal(out.result.status, "blocked_runtime");
+  assert.equal(out.result.reasonCode, "external_verification_connection_unresolved");
+  assert.equal(out.result.reasonMeta.connectionKind, "postgres");
+  assert.equal(out.result.reasonMeta.missingContextKey, "sql.connection.catalogDb.jdbc.url");
+});
+
+test("executeSqlExternalVerification fails closed through the JDBC runner when no suitable driver is available", async () => {
+  const out = await executeSqlExternalVerification({
+    workspaceRootAbs: process.cwd(),
+    resolvedContext: {
+      "sql.connection.catalogDb.kind": "postgres",
+      "sql.connection.catalogDb.jdbc.url": "jdbc:postgresql://localhost:5432/catalog",
+    },
+    verification: {
+      id: "verify_missing_jdbc_driver",
+      provider: { type: "sql" },
+      request: {
+        sql: {
+          connectionRef: "catalogDb",
+          statement: "SELECT 1",
+        },
+      },
+      expect: [{ id: "row_count_ok", actualPath: "sql.rowCount", operator: "numeric_gte", expected: 1 }],
+    },
+  });
+
+  assert.equal(out.result.status, "blocked_runtime");
+  assert.equal(out.result.reasonCode, "external_verification_execution_failed");
+  assert.equal(out.result.reasonMeta.connectionKind, "postgres");
+  assert.match(String(out.result.reasonMeta.errorMessage ?? ""), /No suitable driver|jdbc_runner_/);
+});
+
+test("executeSqlExternalVerification fails closed when JDBC helper exceeds timeoutMs", async () => {
+  const out = await executeSqlExternalVerification({
+    workspaceRootAbs: process.cwd(),
+    resolvedContext: {
+      "sql.connection.catalogDb.kind": "postgres",
+      "sql.connection.catalogDb.jdbc.url": "jdbc:postgresql://localhost:5432/catalog",
+    },
+    verification: {
+      id: "verify_jdbc_timeout",
+      provider: { type: "sql" },
+      request: {
+        sql: {
+          connectionRef: "catalogDb",
+          statement: "SELECT 1",
+          timeoutMs: 10,
+        },
+      },
+      expect: [{ id: "row_count_ok", actualPath: "sql.rowCount", operator: "numeric_gte", expected: 1 }],
+    },
+    internals: {
+      executeJdbcQuery: async ({ timeoutMs }: { timeoutMs?: number | null }) =>
+        await new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({
+              ok: false,
+              errorMessage: `sql_execution_timeout_${String(timeoutMs)}ms`,
+              durationMs: timeoutMs ?? 0,
+            });
+          }, 1);
+        }),
+    },
+  });
+
+  assert.equal(out.result.status, "blocked_runtime");
+  assert.equal(out.result.reasonCode, "external_verification_execution_failed");
+  assert.equal(out.result.reasonMeta.timeoutMs, 10);
+  assert.match(String(out.result.reasonMeta.errorMessage ?? ""), /sql_execution_timeout_/);
 });
