@@ -13,6 +13,7 @@ import type {
   TransportExecutionResult,
 } from "@tools-regression-execution-plan-spec/models/regression_transport.model";
 import { validateNormalizedExternalVerificationResultShape } from "@tools-regression-execution-plan-spec/external_verification_contract.util";
+import { executeSqlExternalVerification } from "@tools-regression-execution-plan-spec/external_verification_sql_provider.util";
 import { evaluateStepExpectations } from "@tools-regression-execution-plan-spec/regression_expectation_evaluator.util";
 import { buildHttpPayload } from "@tools-regression-execution-plan-spec/regression_http_payload.util";
 import { executeTransportWithRegistry } from "@tools-regression-execution-plan-spec/regression_transport_executor.util";
@@ -252,6 +253,7 @@ export async function executeExternalVerifications(args: {
   resolvedContext: Record<string, unknown>;
   registry: Map<TransportAdapter["protocol"], TransportAdapter>;
   dependencyStatus: RegressionRunStatus;
+  workspaceRootAbs: string;
 }): Promise<{
   phaseStatus: RegressionExternalVerificationPhaseStatus;
   results: NormalizedExternalVerificationResult[];
@@ -277,16 +279,27 @@ export async function executeExternalVerifications(args: {
   const results: NormalizedExternalVerificationResult[] = [];
 
   for (const verification of verifications) {
+    if (verification.provider.type === "sql") {
+      const sqlExecution = await executeSqlExternalVerification({
+        verification,
+        resolvedContext,
+        workspaceRootAbs: args.workspaceRootAbs,
+      });
+      results.push(sqlExecution.result);
+      if (sqlExecution.result.extractedContext) {
+        resolvedContext = {
+          ...resolvedContext,
+          ...sqlExecution.result.extractedContext,
+        };
+      }
+      continue;
+    }
+
     if (verification.provider.type !== "http") {
       results.push({
         id: verification.id,
         providerType: verification.provider.type,
         status: "blocked_runtime",
-        sql: {
-          rowCount: 0,
-          rows: [],
-          durationMs: 1,
-        },
         reasonCode: "external_verification_provider_not_supported",
       });
       continue;

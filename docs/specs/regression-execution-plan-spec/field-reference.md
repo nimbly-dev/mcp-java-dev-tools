@@ -271,6 +271,12 @@ SQL contract boundary rules:
 
 - `connectionRef` is required; concrete vendor/driver connection attributes live in runtime/project-owned configuration, not `contract.json`
 - vendor-specific fields such as host, database, schema, catalog, instance, service name, DSN, or JDBC URL remain behind the resolved runtime/project connection config
+- current runtime-owned connection resolution uses canonical context keys shaped as `sql.connection.<connectionRef>.*`
+- current first concrete engine resolution is:
+  - `sql.connection.<connectionRef>.kind=sqlite`
+  - `sql.connection.<connectionRef>.sqlite.filePath=<db path>`
+- these keys MAY be projected from project-owned env-backed `variables.contextBindings`, execution-profile `providedContext`, or explicit per-run context
+- resolved `sql.connection.*` runtime keys are treated as secret context and are redacted from persisted run Artifacts
 
 Canonical normalized result roots for `expect[].actualPath`:
 
@@ -448,6 +454,16 @@ HTTP runtime canonical reason codes:
 - `external_verification_request_invalid`
 - `external_verification_request_unresolved`
 - `external_verification_target_unreachable`
+- `external_verification_response_invalid`
+- `external_verification_expectation_failed`
+- `extract_path_missing`
+
+SQL runtime canonical reason codes:
+
+- `external_verification_connection_unresolved`
+- `external_verification_connection_invalid`
+- `external_verification_request_unresolved`
+- `external_verification_execution_failed`
 - `external_verification_response_invalid`
 - `external_verification_expectation_failed`
 - `extract_path_missing`

@@ -545,6 +545,12 @@ function combineRunStatusWithExternalVerification(args: {
   return "pass";
 }
 
+function collectRuntimeSecretContextKeys(resolvedContext: Record<string, unknown>): string[] {
+  return Object.keys(resolvedContext)
+    .filter((key) => key === "sql.connection" || key.startsWith("sql.connection."))
+    .sort((a, b) => a.localeCompare(b));
+}
+
 
 export async function executeRegressionPlanWorkflow(
   args: ExecuteRegressionPlanWorkflowArgs,
@@ -840,6 +846,7 @@ export async function executeRegressionPlanWorkflow(
     resolvedContext,
     registry,
     dependencyStatus: triggerStatus,
+    workspaceRootAbs: args.workspaceRootAbs,
   });
   resolvedContext = externalVerification.resolvedContext;
   const runStatus = combineRunStatusWithExternalVerification({
@@ -881,6 +888,7 @@ export async function executeRegressionPlanWorkflow(
       ...new Set([
         ...contract.prerequisites.filter((entry) => entry.secret).map((entry) => entry.key),
         ...preflightWithDiscovery.secretContextKeys,
+        ...collectRuntimeSecretContextKeys(resolvedContext),
       ]),
     ],
     executionResult,
