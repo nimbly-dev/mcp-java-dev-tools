@@ -35,6 +35,12 @@ A few intentional constraints that apply across all regression plans:
 - Current provider contract shapes are `http` and `sql`.
 - `request` must contain exactly one matching provider block (`request.http` or `request.sql`).
 - SQL verification uses `connectionRef` indirection; secret-bearing connection material stays in project/runtime-owned context, not `contract.json`.
+- Current runtime-owned SQL connection resolution uses canonical context keys shaped as `sql.connection.<connectionRef>.*`.
+- The first concrete SQL engine is `sqlite`, resolved with:
+  - `sql.connection.<connectionRef>.kind=sqlite`
+  - `sql.connection.<connectionRef>.sqlite.filePath=<db path>`
+- These runtime keys MAY be supplied through project-owned env-backed `variables.contextBindings`, execution-profile `providedContext`, or explicit per-run context.
+- Runtime-owned `sql.connection.*` keys are treated as secret context and are redacted from persisted run Artifacts.
 - Placeholder semantics align with transport placeholders: canonical `${key}`, compatible `{{key}}`, and compatible `{{{key}}}`.
 
 ## HTTP Context Rules
