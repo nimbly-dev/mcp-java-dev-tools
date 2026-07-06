@@ -11,6 +11,56 @@ function asStringArray(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null && !Array.isArray(entry));
+}
+
+function countFailedSteps(steps: Record<string, unknown>[]): number {
+  return steps.filter((entry) => {
+    const status = entry.status;
+    return typeof status === "string" && status !== "passed" && status !== "ok" && status !== "skipped_condition_false" && status !== "pass";
+  }).length;
+}
+
+function filterWatcherRows(
+  rows: Record<string, unknown>[],
+  filter: { watcherId?: string; watcherStatus?: string } | undefined,
+): Record<string, unknown>[] {
+  if (!filter?.watcherId && !filter?.watcherStatus) return rows;
+  return rows.filter((row) => {
+    if (filter.watcherId) {
+      const watcherId = typeof row.id === "string" ? row.id : "";
+      if (watcherId !== filter.watcherId) return false;
+    }
+    if (filter.watcherStatus) {
+      const watcherStatus = typeof row.status === "string" ? row.status : "";
+      if (watcherStatus !== filter.watcherStatus) return false;
+    }
+    return true;
+  });
+}
+
+function toWindowedSection<T>(items: T[], window: { offset: number; limit: number }, filter?: Record<string, unknown>) {
+  const start = Math.min(window.offset, items.length);
+  const end = Math.min(start + window.limit, items.length);
+  const page = items.slice(start, end);
+  return {
+    offset: start,
+    limit: window.limit,
+    returned: page.length,
+    total: items.length,
+    ...(filter && Object.keys(filter).length > 0 ? { filter } : {}),
+    items: page,
+  };
+}
+
 export async function handleRunResultArtifact(
   ctx: ArtifactActionContext,
   request: ArtifactActionRequest<"run_result">,
@@ -61,17 +111,13 @@ export async function handleRunResultArtifact(
   const evidence = await readJsonFile(path.join(runDirAbs, "evidence.json"));
   const selectors = asStringArray(request.input.query?.select);
   const includeAll = selectors.length === 0;
+  const executionResultRecord = asRecord(executionResult) ?? {};
+  const evidenceRecord = asRecord(evidence) ?? {};
+  const steps = asRecordArray(executionResultRecord.steps);
+  const watcherRows = asRecordArray(executionResultRecord.watchers);
+  const watcherExecutionEvidence = asRecordArray(evidenceRecord.watcherExecutions);
+
   if (includeAll) {
-    const executionResultRecord =
-      typeof executionResult === "object" && executionResult !== null && !Array.isArray(executionResult)
-        ? (executionResult as Record<string, unknown>)
-        : {};
-    const steps = Array.isArray(executionResultRecord.steps) ? executionResultRecord.steps : [];
-    const failedSteps = steps.filter((entry) => {
-      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return false;
-      const status = (entry as Record<string, unknown>).status;
-      return typeof status === "string" && status !== "passed" && status !== "ok" && status !== "skipped_condition_false";
-    }).length;
     return okArtifactResponse({
       resultType: "artifact",
       status: "ok",
@@ -80,20 +126,137 @@ export async function handleRunResultArtifact(
       runDirAbs,
       summary: {
         runStatus: typeof executionResultRecord.status === "string" ? executionResultRecord.status : "unknown",
+        triggerStatus: typeof executionResultRecord.triggerStatus === "string" ? executionResultRecord.triggerStatus : "unknown",
+        watcherStatus: typeof executionResultRecord.watcherStatus === "string" ? executionResultRecord.watcherStatus : "not_configured",
         stepCount: steps.length,
-        failedStepCount: failedSteps,
+        failedStepCount: countFailedSteps(steps),
+        watcherCount: watcherRows.length,
+        watcherEvidenceCount: watcherExecutionEvidence.length,
       },
     });
   }
   const artifact: Record<string, unknown> = {};
-  if (selectors.includes("executionResult")) artifact.executionResult = executionResult;
-  if (selectors.includes("evidence")) artifact.evidence = evidence;
-  return okArtifactResponse({
+  const response: Record<string, unknown> = {
     resultType: "artifact",
     status: "ok",
     artifactType: request.artifactType,
     action: request.action,
     runDirAbs,
-    artifact,
-  });
+  };
+
+  if (selectors.includes("summary")) {
+    response.summary = {
+      runStatus: typeof executionResultRecord.status === "string" ? executionResultRecord.status : "unknown",
+      triggerStatus: typeof executionResultRecord.triggerStatus === "string" ? executionResultRecord.triggerStatus : "unknown",
+      watcherStatus: typeof executionResultRecord.watcherStatus === "string" ? executionResultRecord.watcherStatus : "not_configured",
+      stepCount: steps.length,
+      failedStepCount: countFailedSteps(steps),
+      watcherCount: watcherRows.length,
+      watcherEvidenceCount: watcherExecutionEvidence.length,
+    };
+  }
+  if (selectors.includes("executionResult")) artifact.executionResult = executionResult;
+  if (selectors.includes("evidence")) artifact.evidence = evidence;
+
+  const watcherFilterRecord = asRecord(request.input.query?.watcherFilter);
+  const watcherFilter = watcherFilterRecord
+    ? {
+        ...(typeof watcherFilterRecord.watcherId === "string" ? { watcherId: watcherFilterRecord.watcherId } : {}),
+        ...(typeof watcherFilterRecord.watcherStatus === "string" ? { watcherStatus: watcherFilterRecord.watcherStatus } : {}),
+      }
+    : undefined;
+
+  if (selectors.includes("watchers")) {
+    if (watcherRows.length === 0) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: "watcher_state_unavailable",
+        reason: "watcher result state is unavailable for the selected run",
+        reasonMeta: {
+          projectName,
+          planName: request.input.planName,
+          runId: request.input.runId,
+          section: "watchers",
+        },
+      });
+    }
+    const window = request.input.query?.watchers;
+    if (!window) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: "watcher_query_window_required",
+        reason: "query.watchers window is required when selecting watchers",
+        reasonMeta: { section: "watchers" },
+      });
+    }
+    const filteredWatchers = filterWatcherRows(watcherRows, watcherFilter);
+    response.watchers = toWindowedSection(filteredWatchers, window, watcherFilter);
+  }
+
+  if (selectors.includes("watcherEvidence")) {
+    if (watcherExecutionEvidence.length === 0) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: "watcher_state_unavailable",
+        reason: "watcher execution evidence is unavailable for the selected run",
+        reasonMeta: {
+          projectName,
+          planName: request.input.planName,
+          runId: request.input.runId,
+          section: "watcherEvidence",
+        },
+      });
+    }
+    const window = request.input.query?.watcherEvidence;
+    if (!window) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: "watcher_query_window_required",
+        reason: "query.watcherEvidence window is required when selecting watcherEvidence",
+        reasonMeta: { section: "watcherEvidence" },
+      });
+    }
+    const watcherStatusById = new Map<string, string>();
+    for (const watcher of watcherRows) {
+      if (typeof watcher.id === "string" && typeof watcher.status === "string") {
+        watcherStatusById.set(watcher.id, watcher.status);
+      }
+    }
+    const evidenceScopedById = watcherExecutionEvidence.filter((entry) => {
+      if (watcherFilter?.watcherId) {
+        const watcherId = typeof entry.id === "string" ? entry.id : "";
+        if (watcherId !== watcherFilter.watcherId) return false;
+      }
+      return true;
+    });
+    if (watcherFilter?.watcherStatus) {
+      const missingStatusEvidence = evidenceScopedById.find((entry) => {
+        const watcherId = typeof entry.id === "string" ? entry.id : "";
+        return watcherId.length > 0 && !watcherStatusById.has(watcherId);
+      });
+      if (missingStatusEvidence) {
+        return buildFailClosedArtifactResponse({
+          reasonCode: "watcher_state_unavailable",
+          reason: "watcher status provenance is unavailable for watcher evidence filtering",
+          reasonMeta: {
+            projectName,
+            planName: request.input.planName,
+            runId: request.input.runId,
+            section: "watcherEvidence",
+            watcherId: typeof missingStatusEvidence.id === "string" ? missingStatusEvidence.id : undefined,
+          },
+        });
+      }
+    }
+    const filteredEvidence = evidenceScopedById.filter((entry) => {
+      if (watcherFilter?.watcherStatus) {
+        const watcherId = typeof entry.id === "string" ? entry.id : "";
+        if (watcherStatusById.get(watcherId) !== watcherFilter.watcherStatus) return false;
+      }
+      return true;
+    });
+    response.watcherEvidence = toWindowedSection(filteredEvidence, window, watcherFilter);
+  }
+
+  if (Object.keys(artifact).length > 0) {
+    response.artifact = artifact;
+  }
+
+  return okArtifactResponse(response);
 }

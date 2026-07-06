@@ -341,11 +341,17 @@ Postman variable normalization policy:
 | `input` | Typed per-artifact payload object. The top-level request is generic; artifact-specific fields are nested under `input`. | `artifact_management` | true | `{"projectName":"catalog-service","query":{"select":["summary"]}}` |
 | `input.projectName` | Canonical project Artifact identity for `project_context`, `regression_plan`, `run_result`, and `execution_export` operations. Required for orchestrator-grade calls in multi-project workspaces. | `artifact_management` | false | `"post-service"` |
 | `input.projectRootAbs` | Optional deterministic project-root selector for `project_context` validation and scope cross-checking. | `artifact_management` | false | `"C:\\repo\\social-platform\\post-service\\post-app"` |
-| `input.query.select` | Optional projection selectors for structured reads to reduce payload size. Supported examples: `project_context` (`summary`, `executionProfiles`, `runtimeContexts`, `scripts`, `runPrerequisites`, `workspaces`), `regression_plan` (`summary`, `targets`, `prerequisites`, `steps`, `metadata`, `contract`, `plan`), `run_result` (`executionResult`, `evidence`). | `artifact_management` | false | `["summary","executionProfiles"]` |
+| `input.query.select` | Optional projection selectors for structured reads to reduce payload size. Supported examples: `project_context` (`summary`, `executionProfiles`, `runtimeContexts`, `scripts`, `runPrerequisites`, `workspaces`), `regression_plan` (`summary`, `targets`, `prerequisites`, `steps`, `metadata`, `contract`, `plan`), `run_result` (`summary`, `watchers`, `watcherEvidence`, `executionResult`, `evidence`). | `artifact_management` | false | `["summary","executionProfiles"]` |
 | `input.query.prerequisites.offset` | Required zero-based window start for `regression_plan` `prerequisites` section reads when `select` includes `prerequisites`. | `artifact_management` | false | `0` |
 | `input.query.prerequisites.limit` | Required window size for `regression_plan` `prerequisites` section reads when `select` includes `prerequisites`. | `artifact_management` | false | `50` |
 | `input.query.steps.offset` | Required zero-based window start for `regression_plan` `steps` section reads when `select` includes `steps`. | `artifact_management` | false | `0` |
 | `input.query.steps.limit` | Required window size for `regression_plan` `steps` section reads when `select` includes `steps`. | `artifact_management` | false | `25` |
+| `input.query.watchers.offset` | Required zero-based window start for `run_result` watcher outcome reads when `select` includes `watchers`. | `artifact_management` | false | `0` |
+| `input.query.watchers.limit` | Required window size for `run_result` watcher outcome reads when `select` includes `watchers`. | `artifact_management` | false | `25` |
+| `input.query.watcherEvidence.offset` | Required zero-based window start for `run_result` watcher evidence reads when `select` includes `watcherEvidence`. | `artifact_management` | false | `0` |
+| `input.query.watcherEvidence.limit` | Required window size for `run_result` watcher evidence reads when `select` includes `watcherEvidence`. | `artifact_management` | false | `25` |
+| `input.query.watcherFilter.watcherId` | Optional deterministic Watcher id filter applied to `run_result` Watcher outcome/evidence queries. | `artifact_management` | false | `"search-index"` |
+| `input.query.watcherFilter.watcherStatus` | Optional deterministic Watcher runtime-status filter applied to `run_result` Watcher outcome/evidence queries (`pass`, `fail_assertion`, `blocked_dependency`, `blocked_runtime`). | `artifact_management` | false | `"blocked_runtime"` |
 | `reasonCode` | Deterministic blocked reason code (for example `artifact_action_not_allowed`, `project_artifact_missing`). | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `nextActionCode` | Verb-style deterministic follow-up action key for blocked outputs. | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `reasonMeta` | Optional typed diagnostics including allowed action presets for the selected `artifactType`. | `artifact_management` | false | `{"allowedActions":["read","validate","upsert","reload"]}` |
@@ -377,6 +383,23 @@ Postman variable normalization policy:
 | `steps.returned` | Number of step entries actually returned in the current window. | `artifact_management` | false | `25` |
 | `steps.total` | Total step count for the plan Artifact. | `artifact_management` | false | `115` |
 | `steps.items` | Current window slice of regression plan steps. | `artifact_management` | false | `[{"id":"step-1"}]` |
+| `summary.runStatus` | For `run_result` summary reads, overall persisted run outcome after trigger and Watcher aggregation. | `artifact_management` | false | `"fail"` |
+| `summary.triggerStatus` | For `run_result` summary reads, trigger/step-phase aggregate status before Watcher aggregation. | `artifact_management` | false | `"pass"` |
+| `summary.watcherStatus` | For `run_result` summary reads, Watcher-phase aggregate status (`not_configured`, `pass`, `fail`, `blocked`). | `artifact_management` | false | `"blocked"` |
+| `summary.watcherCount` | For `run_result` summary reads, count of persisted `execution.result.json.watchers[]` rows. | `artifact_management` | false | `4` |
+| `summary.watcherEvidenceCount` | For `run_result` summary reads, count of persisted `evidence.json.watcherExecutions[]` rows. | `artifact_management` | false | `4` |
+| `watchers.offset` | Returned zero-based start offset for a windowed `run_result` Watcher outcome section. | `artifact_management` | false | `0` |
+| `watchers.limit` | Requested window size for a windowed `run_result` Watcher outcome section. | `artifact_management` | false | `25` |
+| `watchers.returned` | Number of Watcher outcome rows actually returned in the current window. | `artifact_management` | false | `1` |
+| `watchers.total` | Total Watcher outcome row count after optional `watcherFilter` is applied. | `artifact_management` | false | `1` |
+| `watchers.filter` | Optional applied Watcher filter echoed in the response for deterministic automation/debugging. | `artifact_management` | false | `{"watcherStatus":"blocked_runtime"}` |
+| `watchers.items` | Current window slice of persisted `execution.result.json.watchers[]` rows. | `artifact_management` | false | `[{"id":"analytics-rollup","status":"blocked_runtime","outcome":"timed_out"}]` |
+| `watcherEvidence.offset` | Returned zero-based start offset for a windowed `run_result` Watcher evidence section. | `artifact_management` | false | `0` |
+| `watcherEvidence.limit` | Requested window size for a windowed `run_result` Watcher evidence section. | `artifact_management` | false | `25` |
+| `watcherEvidence.returned` | Number of Watcher evidence rows actually returned in the current window. | `artifact_management` | false | `1` |
+| `watcherEvidence.total` | Total Watcher evidence row count after optional `watcherFilter` is applied. | `artifact_management` | false | `1` |
+| `watcherEvidence.filter` | Optional applied Watcher filter echoed in the response for deterministic automation/debugging. | `artifact_management` | false | `{"watcherStatus":"blocked_runtime"}` |
+| `watcherEvidence.items` | Current window slice of persisted `evidence.json.watcherExecutions[]` rows. | `artifact_management` | false | `[{"id":"analytics-rollup","status":"timed_out","reasonCode":"watcher_timeout"}]` |
 
 `artifact_management` action presets:
 - `probe_config`: `read`, `validate`, `upsert`, `reload`

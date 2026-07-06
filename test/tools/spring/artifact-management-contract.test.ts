@@ -108,3 +108,24 @@ test("artifact_management handler rejects regression_plan windowed read when pag
   assert.equal(out.structuredContent.reasonCode, "artifact_request_invalid");
   assert.equal(out.structuredContent.reasonMeta.failedStep, "input_validation");
 });
+
+test("artifact_management handler rejects run_result watcher query when pagination params are missing", async () => {
+  const handler = captureRegisteredHandler((server: any) =>
+    registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
+  );
+  const out = await handler({
+    artifactType: "run_result",
+    action: "read",
+    input: {
+      projectName: "test-project-watchers",
+      planName: "watcher-plan",
+      runId: "06-05-2026-07-27-58AM",
+      query: {
+        select: ["watchers"],
+      },
+    },
+  });
+  assert.equal(out.structuredContent.resultType, "report");
+  assert.equal(out.structuredContent.reasonCode, "artifact_request_invalid");
+  assert.equal(out.structuredContent.reasonMeta.failedStep, "input_validation");
+});

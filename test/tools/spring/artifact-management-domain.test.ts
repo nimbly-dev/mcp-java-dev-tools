@@ -608,3 +608,151 @@ test("artifact_management run_result read uses explicit projectName in multi-pro
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("artifact_management run_result read returns bounded watcher queries with status separation", async () => {
+  const root = createTestTempDir("artifact-management-run-watchers");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    const runRoot = path.join(root, ".mcpjvm", "alpha", "plans", "regression", "watcher-plan", "runs", "06-05-2026-07-27-58AM");
+    writeJson(path.join(runRoot, "execution.result.json"), {
+      status: "fail",
+      triggerStatus: "pass",
+      watcherStatus: "fail",
+      steps: [{ order: 1, id: "trigger", status: "pass" }],
+      watchers: [
+        { id: "search-index", status: "pass", outcome: "verified", attemptCount: 2, durationMs: 200 },
+        { id: "feed-cache", status: "fail_assertion", outcome: "failed_expectation", attemptCount: 3, durationMs: 900 },
+        { id: "warehouse-sync", status: "blocked_runtime", outcome: "timed_out", attemptCount: 2, durationMs: 1200 },
+      ],
+    });
+    writeJson(path.join(runRoot, "evidence.json"), {
+      watcherExecutions: [
+        { id: "search-index", status: "ok", outcome: "verified", attemptCount: 2, durationMs: 200, reasonCode: "watcher_verified" },
+        { id: "feed-cache", status: "fail_closed", outcome: "expectation_failed", attemptCount: 3, durationMs: 900, reasonCode: "watcher_expectation_failed" },
+        { id: "warehouse-sync", status: "timed_out", outcome: "timeout", attemptCount: 2, durationMs: 1200, reasonCode: "watcher_timeout" },
+      ],
+    });
+
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "read",
+        input: {
+          projectName: "alpha",
+          planName: "watcher-plan",
+          runId: "06-05-2026-07-27-58AM",
+          query: {
+            select: ["summary", "watchers", "watcherEvidence"],
+            watcherFilter: { watcherStatus: "fail_assertion" },
+            watchers: { offset: 0, limit: 10 },
+            watcherEvidence: { offset: 0, limit: 10 },
+          },
+        },
+      },
+    });
+
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.summary.triggerStatus, "pass");
+    assert.equal(out.structuredContent.summary.watcherStatus, "fail");
+    assert.equal(out.structuredContent.summary.watcherCount, 3);
+    assert.equal(out.structuredContent.watchers.total, 1);
+    assert.equal(out.structuredContent.watchers.items[0].id, "feed-cache");
+    assert.equal(out.structuredContent.watcherEvidence.total, 1);
+    assert.equal(out.structuredContent.watcherEvidence.items[0].id, "feed-cache");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management run_result read fails closed when watcher state is unavailable", async () => {
+  const root = createTestTempDir("artifact-management-run-watchers-missing");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    const runRoot = path.join(root, ".mcpjvm", "alpha", "plans", "regression", "watcher-plan", "runs", "06-05-2026-07-27-58AM");
+    writeJson(path.join(runRoot, "execution.result.json"), {
+      status: "pass",
+      triggerStatus: "pass",
+      watcherStatus: "not_configured",
+      steps: [{ order: 1, id: "trigger", status: "pass" }],
+    });
+    writeJson(path.join(runRoot, "evidence.json"), {
+      targetResolution: [],
+    });
+
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "read",
+        input: {
+          projectName: "alpha",
+          planName: "watcher-plan",
+          runId: "06-05-2026-07-27-58AM",
+          query: {
+            select: ["watchers"],
+            watchers: { offset: 0, limit: 10 },
+          },
+        },
+      },
+    });
+
+    assert.equal(out.structuredContent.status, "watcher_state_unavailable");
+    assert.equal(out.structuredContent.reasonCode, "watcher_state_unavailable");
+    assert.equal(out.structuredContent.reasonMeta.section, "watchers");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management run_result watcherEvidence filter fails closed when watcher status provenance is missing", async () => {
+  const root = createTestTempDir("artifact-management-run-watcher-evidence-status-missing");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    const runRoot = path.join(root, ".mcpjvm", "alpha", "plans", "regression", "watcher-plan", "runs", "06-05-2026-07-27-58AM");
+    writeJson(path.join(runRoot, "execution.result.json"), {
+      status: "fail",
+      triggerStatus: "pass",
+      watcherStatus: "fail",
+      steps: [{ order: 1, id: "trigger", status: "pass" }],
+      watchers: [{ id: "search-index", status: "pass", outcome: "verified", attemptCount: 2, durationMs: 200 }],
+    });
+    writeJson(path.join(runRoot, "evidence.json"), {
+      watcherExecutions: [
+        { id: "search-index", status: "ok", outcome: "verified", attemptCount: 2, durationMs: 200, reasonCode: "watcher_verified" },
+        { id: "feed-cache", status: "fail_closed", outcome: "expectation_failed", attemptCount: 3, durationMs: 900, reasonCode: "watcher_expectation_failed" },
+      ],
+    });
+
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "read",
+        input: {
+          projectName: "alpha",
+          planName: "watcher-plan",
+          runId: "06-05-2026-07-27-58AM",
+          query: {
+            select: ["watcherEvidence"],
+            watcherFilter: { watcherStatus: "fail_assertion" },
+            watcherEvidence: { offset: 0, limit: 10 },
+          },
+        },
+      },
+    });
+
+    assert.equal(out.structuredContent.status, "watcher_state_unavailable");
+    assert.equal(out.structuredContent.reasonCode, "watcher_state_unavailable");
+    assert.equal(out.structuredContent.reasonMeta.section, "watcherEvidence");
+    assert.equal(out.structuredContent.reasonMeta.watcherId, "feed-cache");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
