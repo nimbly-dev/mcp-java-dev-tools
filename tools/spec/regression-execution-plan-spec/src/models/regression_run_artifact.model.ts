@@ -81,6 +81,14 @@ export type RegressionRunWatcherOutcome =
   | "timed_out"
   | "blocked";
 
+export type RegressionWatcherReasonCode =
+  | "watcher_verified"
+  | "watcher_timeout"
+  | "watcher_target_unreachable"
+  | "watcher_expectation_failed"
+  | "watcher_configuration_invalid"
+  | "watcher_dependency_invalid";
+
 export type RegressionRunWatcherAttemptStatus =
   | "pass"
   | "fail_assertion"
@@ -114,9 +122,36 @@ export type RegressionRunWatcherResult = Record<string, unknown> & {
   attemptCount: number;
   durationMs: number;
   waitPolicy: RegressionRunWatcherWaitSummary;
+  reasonCode?: RegressionWatcherReasonCode;
   lastObservation?: Record<string, unknown>;
   assertions?: RegressionRunAssertionResult[];
   attempts?: RegressionRunWatcherAttempt[];
+};
+
+export type WatcherExecutionEvidenceStatus = "ok" | "fail_closed" | "timed_out";
+
+export type WatcherExecutionEvidenceOutcome =
+  | "verified"
+  | "timeout"
+  | "target_unreachable"
+  | "expectation_failed"
+  | "configuration_invalid"
+  | "dependency_invalid";
+
+export type WatcherExecutionEvidence = {
+  id: string;
+  dependencyStepOrder: number;
+  providerType: string;
+  status: WatcherExecutionEvidenceStatus;
+  outcome: WatcherExecutionEvidenceOutcome;
+  attemptCount: number;
+  durationMs: number;
+  reasonCode: RegressionWatcherReasonCode;
+  waitPolicy: RegressionRunWatcherWaitSummary;
+  lastObservation?: Record<string, unknown>;
+  attempts?: RegressionRunWatcherAttempt[];
+  assertions?: RegressionRunAssertionResult[];
+  reasonMeta?: Record<string, unknown>;
 };
 
 export type RegressionRunStepResult = Record<string, unknown> & {
@@ -181,7 +216,7 @@ export type WriteRegressionRunArtifactsInput = {
   evidence: {
     targetResolution: Array<Record<string, unknown>>;
     discovery?: DiscoveryEvidence;
-    watcherExecutions?: Array<Record<string, unknown>>;
+    watcherExecutions?: WatcherExecutionEvidence[];
     [key: string]: unknown;
   };
   correlation?: CorrelationArtifact;
