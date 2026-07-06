@@ -4,7 +4,9 @@ import type {
 import type {
   RegressionRunStatus,
   RegressionRunWatcherAttempt,
+  RegressionWatcherReasonCode,
   RegressionRunWatcherOutcome,
+  WatcherExecutionEvidence,
   RegressionRunWatcherResult,
   RegressionWatcherPhaseStatus,
   RegressionRunStepResult,
@@ -91,10 +93,10 @@ export async function executeWatchers(args: {
   stepContextsByOrder: Map<number, Record<string, unknown>>;
 }): Promise<{
   watcherRows: RegressionRunWatcherResult[];
-  watcherEvidence: Array<Record<string, unknown>>;
+  watcherEvidence: WatcherExecutionEvidence[];
 }> {
   const watcherRows: RegressionRunWatcherResult[] = [];
-  const watcherEvidence: Array<Record<string, unknown>> = [];
+  const watcherEvidence: WatcherExecutionEvidence[] = [];
   const stepStatusByOrder = new Map<number, RegressionRunStepResult>(
     args.stepRows.map((row) => [row.order, row]),
   );
@@ -125,21 +127,7 @@ export async function executeWatchers(args: {
 
     const persistWatcher = (watcherRow: RegressionRunWatcherResult): void => {
       watcherRows.push(watcherRow);
-      watcherEvidence.push({
-        id: watcherRow.id,
-        dependencyStepOrder: watcherRow.dependencyStepOrder,
-        providerType: watcherRow.providerType,
-        status: watcherRow.status,
-        outcome: watcherRow.outcome,
-        attemptCount: watcherRow.attemptCount,
-        durationMs: watcherRow.durationMs,
-        waitPolicy: watcherRow.waitPolicy,
-        ...(asRecord(watcherRow.lastObservation) ? { lastObservation: watcherRow.lastObservation } : {}),
-        ...(Array.isArray(watcherRow.attempts) ? { attempts: watcherRow.attempts } : {}),
-        ...(Array.isArray(watcherRow.assertions) ? { assertions: watcherRow.assertions } : {}),
-        ...(typeof watcherRow.reasonCode === "string" ? { reasonCode: watcherRow.reasonCode } : {}),
-        ...(asRecord(watcherRow.reasonMeta) ? { reasonMeta: watcherRow.reasonMeta } : {}),
-      });
+      watcherEvidence.push(toWatcherExecutionEvidence(watcherRow));
     };
 
     if (!dependencyRow || dependencyRow.status !== "pass") {
@@ -152,7 +140,7 @@ export async function executeWatchers(args: {
         attemptCount: 0,
         durationMs: Math.max(1, Date.now() - startedAt),
         waitPolicy,
-        reasonCode: "watcher_dependency_not_satisfied",
+        reasonCode: "watcher_dependency_invalid",
         reasonMeta: {
           dependencyStepOrder: watcher.dependency.stepOrder,
           dependencyStatus: dependencyRow?.status ?? "missing",
@@ -175,7 +163,10 @@ export async function executeWatchers(args: {
         attemptCount: 0,
         durationMs: Math.max(1, Date.now() - startedAt),
         waitPolicy,
-        reasonCode: "watcher_wait_policy_unresolved",
+        reasonCode: "watcher_configuration_invalid",
+        reasonMeta: {
+          cause: "wait_policy_unresolved",
+        },
       });
       continue;
     }
@@ -186,6 +177,7 @@ export async function executeWatchers(args: {
       timeoutMs: resolvedWaitPolicy.timeoutMs,
     });
     if (!providerExecution.ok) {
+      const providerReasonMeta = asRecord(providerExecution.reasonMeta);
       persistWatcher({
         id: watcher.id,
         dependencyStepOrder: watcher.dependency.stepOrder,
@@ -195,15 +187,18 @@ export async function executeWatchers(args: {
         attemptCount: 0,
         durationMs: Math.max(1, Date.now() - startedAt),
         waitPolicy,
-        reasonCode: providerExecution.reasonCode,
-        ...(providerExecution.reasonMeta ? { reasonMeta: providerExecution.reasonMeta } : {}),
+        reasonCode: "watcher_configuration_invalid",
+        reasonMeta: {
+          ...(providerReasonMeta ?? {}),
+          providerReasonCode: providerExecution.reasonCode,
+        },
       });
       continue;
     }
 
     let finalAssertions: RegressionRunWatcherResult["assertions"] | undefined;
     let finalObservation: Record<string, unknown> | undefined;
-    let finalReasonCode: string | undefined;
+    let finalReasonCode: RegressionWatcherReasonCode | undefined;
     let finalReasonMeta: Record<string, unknown> | undefined;
     let finalStatus: RegressionRunWatcherResult["status"] = "blocked_runtime";
     let finalOutcome: RegressionRunWatcherOutcome = "blocked";
@@ -214,7 +209,7 @@ export async function executeWatchers(args: {
       if (elapsedBeforeAttempt >= resolvedWaitPolicy.timeoutMs) {
         finalStatus = "blocked_runtime";
         finalOutcome = "timed_out";
-        finalReasonCode = "watcher_timeout_exceeded";
+        finalReasonCode = "watcher_timeout";
         finalReasonMeta = {
           timeoutMs: resolvedWaitPolicy.timeoutMs,
           retryMax: resolvedWaitPolicy.retryMax,
@@ -233,7 +228,7 @@ export async function executeWatchers(args: {
       if (transport.status === "blocked_invalid") {
         finalStatus = "blocked_runtime";
         finalOutcome = "blocked";
-        finalReasonCode = "watcher_runtime_configuration_invalid";
+        finalReasonCode = "watcher_configuration_invalid";
         finalReasonMeta = buildTransportReasonMeta(transport);
         break;
       }
@@ -253,8 +248,11 @@ export async function executeWatchers(args: {
       if (!normalized.ok) {
         finalStatus = "blocked_runtime";
         finalOutcome = "blocked";
-        finalReasonCode = normalized.reasonCode;
-        finalReasonMeta = normalized.reasonMeta;
+        finalReasonCode = "watcher_configuration_invalid";
+        finalReasonMeta = {
+          ...normalized.reasonMeta,
+          providerReasonCode: normalized.reasonCode,
+        };
         break;
       }
 
@@ -271,7 +269,7 @@ export async function executeWatchers(args: {
       if (evaluated.status === "pass") {
         finalStatus = "pass";
         finalOutcome = "verified";
-        finalReasonCode = "ok";
+        finalReasonCode = "watcher_verified";
         finalReasonMeta = undefined;
         break;
       }
@@ -284,7 +282,7 @@ export async function executeWatchers(args: {
             if (remainingMs <= 0) {
               finalStatus = "blocked_runtime";
               finalOutcome = "timed_out";
-              finalReasonCode = "watcher_timeout_exceeded";
+              finalReasonCode = "watcher_timeout";
               finalReasonMeta = {
                 timeoutMs: resolvedWaitPolicy.timeoutMs,
                 retryMax: resolvedWaitPolicy.retryMax,
@@ -296,7 +294,7 @@ export async function executeWatchers(args: {
           }
           finalStatus = "blocked_runtime";
           finalOutcome = "blocked";
-          finalReasonCode = "watcher_runtime_configuration_invalid";
+          finalReasonCode = "watcher_configuration_invalid";
           finalReasonMeta = {
             cause: "actual_path_missing_persistent",
             retryCap: watcherMissingPathRetryCap(resolvedWaitPolicy.retryMax),
@@ -305,14 +303,14 @@ export async function executeWatchers(args: {
         }
         finalStatus = "blocked_runtime";
         finalOutcome = "blocked";
-        finalReasonCode = "watcher_runtime_configuration_invalid";
+        finalReasonCode = "watcher_configuration_invalid";
         finalReasonMeta = buildTransportReasonMeta(transport);
         break;
       }
 
       finalStatus = "fail_assertion";
       finalOutcome = "failed_expectation";
-      finalReasonCode = "watcher_expectation_not_satisfied";
+      finalReasonCode = "watcher_expectation_failed";
 
       if (attempt < resolvedWaitPolicy.retryMax) {
         const elapsedAfterAttempt = Date.now() - startedAt;
@@ -320,7 +318,7 @@ export async function executeWatchers(args: {
         if (remainingMs <= 0) {
           finalStatus = "blocked_runtime";
           finalOutcome = "timed_out";
-          finalReasonCode = "watcher_timeout_exceeded";
+          finalReasonCode = "watcher_timeout";
           finalReasonMeta = {
             timeoutMs: resolvedWaitPolicy.timeoutMs,
             retryMax: resolvedWaitPolicy.retryMax,
@@ -352,8 +350,9 @@ export async function executeWatchers(args: {
 }
 
 function buildTransportReasonMeta(transport: TransportExecutionResult): Record<string, unknown> | undefined {
+  const transportReasonMeta = asRecord(transport.reasonMeta);
   return {
-    ...(transport.reasonMeta ?? {}),
+    ...(transportReasonMeta ?? {}),
     ...(transport.reasonCode ? { transportReasonCode: transport.reasonCode } : {}),
   };
 }
@@ -370,5 +369,40 @@ function buildWatcherAttemptRecord(args: {
     ...(typeof args.transport.statusCode === "number" ? { statusCode: args.transport.statusCode } : {}),
     ...(typeof args.transport.reasonCode === "string" ? { reasonCode: args.transport.reasonCode } : {}),
     observedAt: args.observedAt,
+  };
+}
+
+function toWatcherExecutionEvidence(watcherRow: RegressionRunWatcherResult): WatcherExecutionEvidence {
+  const reasonMeta = asRecord(watcherRow.reasonMeta);
+  return {
+    id: watcherRow.id,
+    dependencyStepOrder: watcherRow.dependencyStepOrder,
+    providerType: watcherRow.providerType,
+    status:
+      watcherRow.outcome === "timed_out"
+        ? "timed_out"
+        : watcherRow.status === "pass"
+          ? "ok"
+          : "fail_closed",
+    outcome:
+      watcherRow.outcome === "verified"
+        ? "verified"
+        : watcherRow.outcome === "timed_out"
+          ? "timeout"
+          : watcherRow.reasonCode === "watcher_target_unreachable"
+            ? "target_unreachable"
+            : watcherRow.reasonCode === "watcher_expectation_failed"
+              ? "expectation_failed"
+              : watcherRow.reasonCode === "watcher_dependency_invalid"
+                ? "dependency_invalid"
+                : "configuration_invalid",
+    attemptCount: watcherRow.attemptCount,
+    durationMs: watcherRow.durationMs,
+    reasonCode: watcherRow.reasonCode ?? "watcher_configuration_invalid",
+    waitPolicy: watcherRow.waitPolicy,
+    ...(asRecord(watcherRow.lastObservation) ? { lastObservation: watcherRow.lastObservation } : {}),
+    ...(Array.isArray(watcherRow.attempts) ? { attempts: watcherRow.attempts } : {}),
+    ...(Array.isArray(watcherRow.assertions) ? { assertions: watcherRow.assertions } : {}),
+    ...(reasonMeta ? { reasonMeta } : {}),
   };
 }

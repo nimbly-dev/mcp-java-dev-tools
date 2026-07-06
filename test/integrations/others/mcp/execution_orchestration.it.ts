@@ -2045,7 +2045,7 @@ test("mcp IT: execution_orchestration executes watcher polling after trigger suc
     assert.equal(watchers[0]?.status, "pass");
     assert.equal(watchers[0]?.attemptCount, 3);
     assert.equal(Array.isArray(evidence.watcherExecutions), true);
-    assert.equal((evidence.watcherExecutions as Array<Record<string, unknown>>)[0]?.status, "pass");
+    assert.equal((evidence.watcherExecutions as Array<Record<string, unknown>>)[0]?.status, "ok");
   } finally {
     appServer.close();
     await mcp?.close();
@@ -2172,7 +2172,7 @@ test("mcp IT: execution_orchestration fails closed when watcher response normali
       ? (out.structuredContent?.planRuns as Array<Record<string, unknown>>)
       : [];
     assert.equal(planRuns.length, 1);
-    assert.equal(planRuns[0]?.blockedReasonCode, "watcher_response_normalization_failed");
+    assert.equal(planRuns[0]?.blockedReasonCode, "watcher_configuration_invalid");
     assert.equal(watcherCalls, 1);
   } finally {
     appServer.close();

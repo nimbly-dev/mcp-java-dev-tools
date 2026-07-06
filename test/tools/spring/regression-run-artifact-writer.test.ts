@@ -451,3 +451,230 @@ test("writeRegressionRunArtifacts uses project-scoped regression root when .mcpj
   }
 });
 
+test("writeRegressionRunArtifacts preserves legacy watcher evidence by normalizing it to canonical values", async () => {
+  const root = createTestTempDir("run-artifacts-legacy-watcher-evidence");
+  try {
+    initProjectArtifact(root);
+    const runId = "2026-04-19T08-01-22Z_05";
+    const written = await writeRegressionRunArtifacts({
+      workspaceRootAbs: root,
+      runId,
+      planRef: { name: "probe-registry-course-service-smoke" },
+      resolvedContext: {},
+      executionResult: {
+        status: "blocked",
+        watcherStatus: "blocked",
+        preflight: {
+          status: "ready",
+          reasonCode: "ok",
+          missing: [],
+          discoverablePending: [],
+          prerequisiteResolution: [],
+          requiredUserAction: [],
+        },
+        startedAt: "2026-04-19T08:01:22.111Z",
+        endedAt: "2026-04-19T08:01:25.333Z",
+        steps: [{ order: 1, id: "course_list", status: "pass" }],
+        watchers: [
+          {
+            id: "search-index",
+            dependencyStepOrder: 1,
+            providerType: "http",
+            status: "pass",
+            outcome: "verified",
+            attemptCount: 3,
+            durationMs: 1500,
+            reasonCode: "ok",
+            waitPolicy: {
+              timeoutMs: 5000,
+              retryMax: 4,
+            },
+          },
+          {
+            id: "feed-cache",
+            dependencyStepOrder: 1,
+            providerType: "http",
+            status: "blocked_runtime",
+            outcome: "timed_out",
+            attemptCount: 4,
+            durationMs: 5000,
+            reasonCode: "watcher_timeout_exceeded",
+            waitPolicy: {
+              timeoutMs: 5000,
+              retryMax: 4,
+            },
+          },
+        ],
+      },
+      evidence: {
+        targetResolution: [],
+        watcherExecutions: [
+          {
+            id: "search-index",
+            dependencyStepOrder: 1,
+            providerType: "http",
+            status: "pass",
+            outcome: "verified",
+            attemptCount: 3,
+            durationMs: 1500,
+            reasonCode: "ok",
+            waitPolicy: {
+              timeoutMs: 5000,
+              retryMax: 4,
+            },
+          },
+          {
+            id: "feed-cache",
+            dependencyStepOrder: 1,
+            providerType: "http",
+            status: "blocked_runtime",
+            outcome: "timed_out",
+            attemptCount: 4,
+            durationMs: 5000,
+            reasonCode: "watcher_timeout_exceeded",
+            waitPolicy: {
+              timeoutMs: 5000,
+              retryMax: 4,
+            },
+          },
+        ],
+      },
+      now: new Date("2026-04-19T08:01:26.000Z"),
+    });
+
+    const result = readJson(written.executionResultPathAbs);
+    const evidence = readJson(written.evidencePathAbs);
+    assert.equal(evidence.watcherExecutions.length, 2);
+    const watcherExecutions = evidence.watcherExecutions as Array<Record<string, unknown>>;
+    const byId = new Map<string, Record<string, unknown>>(
+      watcherExecutions.map((entry) => [String(entry.id), entry]),
+    );
+    const searchIndex = byId.get("search-index");
+    const feedCache = byId.get("feed-cache");
+    if (!searchIndex || !feedCache) {
+      throw new Error("expected canonical watcher evidence entries");
+    }
+    assert.equal(searchIndex.status, "ok");
+    assert.equal(searchIndex.reasonCode, "watcher_verified");
+    assert.equal(feedCache.status, "timed_out");
+    assert.equal(feedCache.outcome, "timeout");
+    assert.equal(feedCache.reasonCode, "watcher_timeout");
+    assert.equal((searchIndex.waitPolicy as Record<string, unknown>).timeoutSource, "unresolved");
+    assert.equal((searchIndex.waitPolicy as Record<string, unknown>).retrySource, "unresolved");
+    assert.equal(result.watchers.length, 2);
+    assert.equal(result.watchers[0].reasonCode, "watcher_verified");
+    assert.equal(result.watchers[1].reasonCode, "watcher_timeout");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("writeRegressionRunArtifacts fails closed for malformed watcher evidence rows", async () => {
+  const root = createTestTempDir("run-artifacts-invalid-watcher-evidence");
+  try {
+    initProjectArtifact(root);
+    await assert.rejects(
+      () =>
+        writeRegressionRunArtifacts({
+          workspaceRootAbs: root,
+          runId: "2026-04-19T08-01-22Z_06",
+          planRef: { name: "probe-registry-course-service-smoke" },
+          resolvedContext: {},
+          executionResult: {
+            status: "blocked",
+            watcherStatus: "blocked",
+            preflight: {
+              status: "ready",
+              reasonCode: "ok",
+              missing: [],
+              discoverablePending: [],
+              prerequisiteResolution: [],
+              requiredUserAction: [],
+            },
+            startedAt: "2026-04-19T08:01:22.111Z",
+            endedAt: "2026-04-19T08:01:25.333Z",
+            steps: [{ order: 1, id: "course_list", status: "pass" }],
+            watchers: [
+              {
+                id: "search-index",
+                dependencyStepOrder: 1,
+                providerType: "http",
+                status: "pass",
+                outcome: "verified",
+                attemptCount: 2,
+                durationMs: 1000,
+                reasonCode: "non_canonical_reason_code",
+                waitPolicy: {
+                  timeoutMs: 5000,
+                  retryMax: 4,
+                },
+              },
+            ],
+          },
+          evidence: {
+            targetResolution: [],
+            watcherExecutions: [
+              {
+                id: "search-index",
+                dependencyStepOrder: 1,
+                providerType: "http",
+                status: "ok",
+                outcome: "verified",
+                attemptCount: 2,
+                durationMs: 1000,
+                reasonCode: "non_canonical_reason_code",
+                waitPolicy: {
+                  timeoutMs: 5000,
+                  retryMax: 4,
+                },
+              },
+            ],
+          },
+        }),
+      /watcher_execution_(?:result|evidence)_invalid/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("writeRegressionRunArtifacts fails closed when explicit watcher results are not an array", async () => {
+  const root = createTestTempDir("run-artifacts-invalid-watcher-results-shape");
+  try {
+    initProjectArtifact(root);
+    await assert.rejects(
+      () =>
+        writeRegressionRunArtifacts({
+          workspaceRootAbs: root,
+          runId: "2026-04-19T08-01-22Z_07",
+          planRef: { name: "probe-registry-course-service-smoke" },
+          resolvedContext: {},
+          executionResult: {
+            status: "blocked",
+            watcherStatus: "blocked",
+            preflight: {
+              status: "ready",
+              reasonCode: "ok",
+              missing: [],
+              discoverablePending: [],
+              prerequisiteResolution: [],
+              requiredUserAction: [],
+            },
+            startedAt: "2026-04-19T08:01:22.111Z",
+            endedAt: "2026-04-19T08:01:25.333Z",
+            steps: [{ order: 1, id: "course_list", status: "pass" }],
+            watchers: {
+              id: "search-index",
+            } as unknown as Array<Record<string, unknown>>,
+          },
+          evidence: {
+            targetResolution: [],
+          },
+        }),
+      /watcher_execution_result_invalid/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+

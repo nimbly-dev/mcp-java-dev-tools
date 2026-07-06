@@ -1529,7 +1529,7 @@ test("executeRegressionPlanWorkflow executes watcher as bounded post-step verifi
       const evidence = JSON.parse(fs.readFileSync(out.artifacts.evidencePathAbs, "utf8"));
       assert.equal(Array.isArray(evidence.watcherExecutions), true);
       assert.equal(evidence.watcherExecutions.length, 1);
-      assert.equal(evidence.watcherExecutions[0].status, "pass");
+      assert.equal(evidence.watcherExecutions[0].status, "ok");
       assert.equal(evidence.watcherExecutions[0].attemptCount, 3);
     }
   } finally {
@@ -1715,7 +1715,9 @@ test("executeRegressionPlanWorkflow fails closed when watcher response cannot be
       assert.equal(out.runStatus, "blocked");
       assert.equal(out.executionResult.watcherStatus, "blocked");
       assert.equal(out.executionResult.watchers?.[0]?.status, "blocked_runtime");
-      assert.equal(out.executionResult.watchers?.[0]?.reasonCode, "watcher_response_normalization_failed");
+      assert.equal(out.executionResult.watchers?.[0]?.reasonCode, "watcher_configuration_invalid");
+      assert.equal(out.executionResult.watchers?.[0]?.reasonMeta?.providerReasonCode, "watcher_response_normalization_failed");
+      assert.equal(out.executionResult.watchers?.[0]?.reasonMeta?.cause, "response_body_json_invalid");
       assert.equal(out.executionResult.watchers?.[0]?.attemptCount, 1);
     }
   } finally {
@@ -1807,7 +1809,7 @@ test("executeRegressionPlanWorkflow fails closed when watcher timeout is exceede
       assert.equal(out.executionResult.watcherStatus, "blocked");
       assert.equal(out.executionResult.watchers?.[0]?.status, "blocked_runtime");
       assert.equal(out.executionResult.watchers?.[0]?.outcome, "timed_out");
-      assert.equal(out.executionResult.watchers?.[0]?.reasonCode, "watcher_timeout_exceeded");
+      assert.equal(out.executionResult.watchers?.[0]?.reasonCode, "watcher_timeout");
       assert.equal(out.executionResult.watchers?.[0]?.attemptCount >= 1, true);
     }
   } finally {
@@ -1890,7 +1892,7 @@ test("executeRegressionPlanWorkflow marks watcher dependency blocked when depend
       assert.equal(calls, 1);
       assert.equal(out.runStatus, "fail");
       assert.equal(out.executionResult.watchers?.[0]?.status, "blocked_dependency");
-      assert.equal(out.executionResult.watchers?.[0]?.reasonCode, "watcher_dependency_not_satisfied");
+      assert.equal(out.executionResult.watchers?.[0]?.reasonCode, "watcher_dependency_invalid");
       assert.equal(out.executionResult.watchers?.[0]?.reasonMeta?.dependencyStatus, "fail_assertion");
     }
   } finally {
@@ -2062,7 +2064,7 @@ test("executeRegressionPlanWorkflow fails closed when watcher target is unreacha
       assert.equal(expectationOut.runStatus, "fail");
       assert.equal(expectationOut.executionResult.watchers?.[0]?.status, "fail_assertion");
       assert.equal(expectationOut.executionResult.watchers?.[0]?.outcome, "failed_expectation");
-      assert.equal(expectationOut.executionResult.watchers?.[0]?.reasonCode, "watcher_expectation_not_satisfied");
+      assert.equal(expectationOut.executionResult.watchers?.[0]?.reasonCode, "watcher_expectation_failed");
       assert.equal(expectationOut.executionResult.watchers?.[0]?.attemptCount, 2);
     }
   } finally {

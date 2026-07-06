@@ -303,16 +303,18 @@ Persisted watcher execution result for bounded downstream completion verificatio
 - `assertions[]` (optional): final watcher assertion evaluation snapshot
 - `attempts[]` (optional): compact polling attempt timeline
 
-Watcher runtime fail-closed reason codes include:
+Watcher runtime canonical reason codes:
 
-- `watcher_dependency_not_satisfied`
-- `watcher_wait_policy_unresolved`
-- `watcher_runtime_configuration_invalid`
-- `watcher_provider_not_supported`
-- `watcher_response_normalization_failed`
+- `watcher_verified`
+- `watcher_timeout`
 - `watcher_target_unreachable`
-- `watcher_timeout_exceeded`
-- `watcher_expectation_not_satisfied`
+- `watcher_expectation_failed`
+- `watcher_configuration_invalid`
+- `watcher_dependency_invalid`
+
+Implementation-specific failure causes such as unresolved wait policy, unsupported provider, response normalization failure,
+or persistent missing assertion path should be carried in `reasonMeta.cause` rather than introducing additional top-level
+watcher reason codes.
 
 ## `.mcpjvm/regression/<plan>/runs/<run_id>/evidence.json`
 
@@ -324,6 +326,16 @@ Examples:
 - probe verification details
 - diagnostics summary
 - watcher execution evidence (`watcherExecutions[]`)
+- `watcherExecutions[]` minimum shape:
+  - `id`
+  - `dependencyStepOrder`
+  - `providerType`
+  - `status` (`ok` | `fail_closed` | `timed_out`)
+  - `outcome` (`verified` | `timeout` | `target_unreachable` | `expectation_failed` | `configuration_invalid` | `dependency_invalid`)
+  - `attemptCount`
+  - `durationMs`
+  - `reasonCode`
+  - `waitPolicy`
 - correlation key extraction provenance (`correlationPolicy.keySourceType`, `correlationPolicy.keySourcePath`, `correlationPolicy.keyExtractionReasonCode`)
 
 ## `.mcpjvm/regression/<plan>/runs/<run_id>/correlation.json`

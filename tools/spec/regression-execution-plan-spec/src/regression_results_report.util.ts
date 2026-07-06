@@ -1,6 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
+import {
+  renderWatcherResults,
+  type WatcherReportDetailRow,
+  type WatcherReportSummary,
+} from "@tools-regression-execution-plan-spec/regression_watcher_results_report.util";
 
 type ReportColumn = "endpoint" | "status" | "http_code" | "duration_ms" | "probe_coverage" | "memory_bytes";
 type ProbeCoverageState = "verified_line_hit" | "http_only_unverified_line" | "unknown" | "n/a";
@@ -26,6 +31,11 @@ type RenderResult = {
   columns: ReportColumn[];
   rows: StepRow[];
   table: string;
+  watchers?: {
+    summary: WatcherReportSummary;
+    rows: WatcherReportDetailRow[];
+    table: string;
+  };
   correlation?: {
     status: "ok" | "fail_closed";
     reasonCode: string;
@@ -168,6 +178,9 @@ function formatTable(columns: ReportColumn[], rows: StepRow[]): string {
 export function renderRegressionRunResultsTable(args: RenderArgs): RenderResult {
   const steps = toStepRecords(args.executionResult);
   const evidence = isRecord(args.evidence) ? args.evidence : {};
+  const watcherReport = renderWatcherResults({
+    executionResult: args.executionResult,
+  });
 
   const rows: StepRow[] = steps
     .map((step, index) => {
@@ -225,6 +238,15 @@ export function renderRegressionRunResultsTable(args: RenderArgs): RenderResult 
     columns,
     rows,
     table: formatTable(columns, rows),
+    ...(watcherReport
+      ? {
+          watchers: {
+            summary: watcherReport.summary,
+            rows: watcherReport.rows,
+            table: watcherReport.table,
+          },
+        }
+      : {}),
     ...(correlation ? { correlation } : {}),
   };
 }
