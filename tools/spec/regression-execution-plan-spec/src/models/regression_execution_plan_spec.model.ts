@@ -45,6 +45,13 @@ export type PreflightReasonCode =
   | "watcher_wait_policy_invalid"
   | "watcher_expectations_missing"
   | "watcher_expectation_invalid"
+  | "external_verification_id_invalid"
+  | "external_verification_provider_invalid"
+  | "external_verification_request_invalid"
+  | "external_verification_extract_invalid"
+  | "external_verification_expectations_missing"
+  | "external_verification_expectation_invalid"
+  | "external_verification_placeholder_syntax_invalid"
   | "project_artifact_missing"
   | "project_artifact_invalid"
   | "project_reference_invalid"
@@ -218,11 +225,101 @@ export type PlanWatcher = {
   expect: PlanStepExpectation[];
 };
 
+export type PlanExternalVerificationProviderType = "http" | "sql";
+
+export type PlanExternalVerificationProvider = {
+  type: PlanExternalVerificationProviderType;
+};
+
+export type PlanExternalVerificationHttpRequest = {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+  pathTemplate?: string;
+  url?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  timeoutMs?: number | null;
+};
+
+export type PlanExternalVerificationSqlParameter = {
+  name: string;
+  value?: unknown;
+  valueFromContext?: string;
+};
+
+export type PlanExternalVerificationSqlRequest = {
+  connectionRef: string;
+  statement: string;
+  parameters?: PlanExternalVerificationSqlParameter[];
+  timeoutMs?: number | null;
+};
+
+export type PlanExternalVerificationRequest = {
+  http?: PlanExternalVerificationHttpRequest;
+  sql?: PlanExternalVerificationSqlRequest;
+};
+
+export type PlanExternalVerification = {
+  id: string;
+  provider: PlanExternalVerificationProvider;
+  request: PlanExternalVerificationRequest;
+  extract?: PlanStepExtract[];
+  expect: PlanStepExpectation[];
+};
+
+export type ExternalVerificationExtractResult = {
+  from: string;
+  as: string;
+  required: boolean;
+  status: "resolved" | "unresolved";
+  value?: unknown;
+  reasonCode?: "extract_path_missing";
+};
+
+export type ExternalVerificationAssertionResult = {
+  id: string;
+  actualPath: string;
+  operator: PlanStepExpectationOperator;
+  status: "pass" | "fail" | "blocked";
+  expected?: unknown;
+  actual?: unknown;
+  message?: string;
+  reasonCode?: string;
+};
+
+export type ExternalVerificationHttpResponse = {
+  statusCode?: number;
+  body?: string;
+  bodyJson?: unknown;
+  headers?: Record<string, unknown>;
+  durationMs?: number;
+};
+
+export type ExternalVerificationSqlResult = {
+  rowCount: number;
+  rows: Record<string, unknown>[];
+  firstRow?: Record<string, unknown>;
+  durationMs?: number;
+};
+
+export type NormalizedExternalVerificationResult = {
+  id: string;
+  providerType: PlanExternalVerificationProviderType;
+  status: "pass" | "fail_assertion" | "blocked_runtime";
+  response?: ExternalVerificationHttpResponse;
+  sql?: ExternalVerificationSqlResult;
+  extractedContext?: Record<string, unknown>;
+  extractResults?: ExternalVerificationExtractResult[];
+  assertions?: ExternalVerificationAssertionResult[];
+  reasonCode?: string;
+  reasonMeta?: Record<string, unknown>;
+};
+
 export type PlanContract = {
   targets: PlanTarget[];
   prerequisites: PlanPrerequisite[];
   steps: PlanStep[];
   watchers?: PlanWatcher[];
+  externalVerification?: PlanExternalVerification[];
   correlation?: PlanCorrelationPolicy;
 };
 

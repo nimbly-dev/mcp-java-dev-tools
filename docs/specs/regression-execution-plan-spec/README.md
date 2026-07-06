@@ -13,20 +13,29 @@ Each regression plan lives under:
 | File / Folder | Purpose |
 |---|---|
 | `metadata.json` | Plan-level execution settings |
-| `contract.json` | Authoritative machine contract for targets, prerequisites, steps, optional watchers, and optional correlation policy |
+| `contract.json` | Authoritative machine contract for targets, prerequisites, steps, optional watchers, optional `externalVerification`, and optional correlation policy |
 | `plan.md` | Human-readable execution plan |
 | `runs/<run_id>/...` | Immutable outputs for each run (plan-local run history) |
 | `artifact-schema.md` | Normative run artifact contract (`MUST/SHOULD/MAY`) |
-
 
 ## Design Principles
 
 A few intentional constraints that apply across all regression plans:
 
-- **Deterministic selectors and execution order** — no ambiguity in what runs or when
-- **Protocol-agnostic** — not limited to HTTP
-- **Fail-closed** — ambiguous or incomplete required context stops execution rather than guessing
-- **No hardcoded secrets** — credentials must never appear in plan artifacts
+- **Deterministic selectors and execution order** - no ambiguity in what runs or when
+- **Protocol-agnostic** - not limited to HTTP
+- **Fail-closed** - ambiguous or incomplete required context stops execution rather than guessing
+- **No hardcoded secrets** - credentials must never appear in plan artifacts
+
+## External Verification
+
+`contract.externalVerification[]` defines deterministic downstream data-validity checks against third-party systems.
+
+- Provider shape is explicit and discriminated by `provider.type`.
+- Current provider contract shapes are `http` and `sql`.
+- `request` must contain exactly one matching provider block (`request.http` or `request.sql`).
+- SQL verification uses `connectionRef` indirection; secret-bearing connection material stays in project/runtime-owned context, not `contract.json`.
+- Placeholder semantics align with transport placeholders: canonical `${key}`, compatible `{{key}}`, and compatible `{{{key}}}`.
 
 ## HTTP Context Rules
 
@@ -65,7 +74,7 @@ Plans use a fixed vocabulary to keep steps unambiguous and machine-parseable.
 
 ## Execution Order
 
-Steps are numbered `1..N` and executed strictly in listed order. The orchestrator does not reorder steps implicitly — what you write is what runs.
+Steps are numbered `1..N` and executed strictly in listed order. The orchestrator does not reorder steps implicitly - what you write is what runs.
 Run artifacts are persisted under the plan package:
 
 ```text

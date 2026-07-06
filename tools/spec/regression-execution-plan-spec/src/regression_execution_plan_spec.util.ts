@@ -5,8 +5,6 @@ import type {
   PlanStepConditionPredicate,
   PlanStepExpectation,
   PlanPrerequisite,
-  PlanWatcher,
-  PlanWatcherWaitPolicy,
   PrerequisiteResolution,
   PlanStep,
   PreflightResult,
@@ -20,6 +18,7 @@ import {
   applyStepExtractWithDiagnostics,
   validateStepExtracts,
 } from "@tools-regression-execution-plan-spec/step_extract.util";
+import { validateExternalVerificationContract } from "@tools-regression-execution-plan-spec/external_verification_contract.util";
 import {
   resolveWatcherWaitPolicy,
   validateWatchers,
@@ -50,10 +49,6 @@ function isStrictProbeKey(value: string): boolean {
 
 function hasNonBlank(value: unknown): boolean {
   return typeof value !== "undefined" && value !== null && String(value).trim() !== "";
-}
-
-function asPositiveInteger(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -751,6 +746,9 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
   const canonicalContextKeyValidation = validateCanonicalPlanContextKeys({
     prerequisites: contract.prerequisites,
     steps: contract.steps,
+    ...(typeof contract.externalVerification === "undefined"
+      ? {}
+      : { externalVerification: contract.externalVerification }),
   });
   if (!canonicalContextKeyValidation.ok) {
     return {
@@ -758,6 +756,15 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
       reasonCode: canonicalContextKeyValidation.reasonCode,
       ...emptyPreflightDetails(),
       requiredUserAction: canonicalContextKeyValidation.requiredUserAction,
+    };
+  }
+  const externalVerificationValidation = validateExternalVerificationContract(contract.externalVerification);
+  if (!externalVerificationValidation.ok) {
+    return {
+      status: "blocked_invalid",
+      reasonCode: externalVerificationValidation.reasonCode,
+      ...emptyPreflightDetails(),
+      requiredUserAction: externalVerificationValidation.requiredUserAction,
     };
   }
   const correlationValidation = validateCorrelationPolicy(contract.correlation);
