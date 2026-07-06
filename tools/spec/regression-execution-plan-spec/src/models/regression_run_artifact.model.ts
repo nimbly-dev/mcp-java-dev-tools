@@ -1,7 +1,16 @@
-import type { PreflightResult } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import type {
+  NormalizedExternalVerificationResult,
+  PreflightResult,
+} from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 
 export type RegressionRunStatus = "pass" | "fail" | "blocked";
 export type RegressionWatcherPhaseStatus = "not_configured" | "pass" | "fail" | "blocked";
+export type RegressionExternalVerificationPhaseStatus =
+  | "not_configured"
+  | "pass"
+  | "fail"
+  | "blocked"
+  | "skipped_dependency";
 
 export type RegressionPlanReference = {
   name?: string;
@@ -12,11 +21,13 @@ export type RegressionRunExecutionResult = {
   status: RegressionRunStatus;
   triggerStatus?: RegressionRunStatus;
   watcherStatus?: RegressionWatcherPhaseStatus;
+  externalVerificationStatus?: RegressionExternalVerificationPhaseStatus;
   preflight: PreflightResult;
   startedAt: string | null;
   endedAt: string | null;
   steps: RegressionRunStepResult[];
   watchers?: RegressionRunWatcherResult[];
+  externalVerification?: NormalizedExternalVerificationResult[];
 };
 
 export type RegressionRunStepResultStatus =
@@ -217,6 +228,7 @@ export type WriteRegressionRunArtifactsInput = {
     targetResolution: Array<Record<string, unknown>>;
     discovery?: DiscoveryEvidence;
     watcherExecutions?: WatcherExecutionEvidence[];
+    externalVerificationExecutions?: NormalizedExternalVerificationResult[];
     [key: string]: unknown;
   };
   correlation?: CorrelationArtifact;

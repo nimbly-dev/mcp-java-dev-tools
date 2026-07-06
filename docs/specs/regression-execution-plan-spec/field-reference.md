@@ -379,10 +379,12 @@ Expected fields:
 - `status`
 - `triggerStatus` (optional): trigger/step-phase outcome before watcher aggregation (`pass` | `fail` | `blocked`)
 - `watcherStatus` (optional): watcher-phase aggregate outcome (`not_configured` | `pass` | `fail` | `blocked`)
+- `externalVerificationStatus` (optional): external-verification phase aggregate outcome (`not_configured` | `pass` | `fail` | `blocked` | `skipped_dependency`)
 - `startedAt`, `endedAt`
 - `preflight` block
 - per-step result list
 - optional `watchers[]` result list
+- optional `externalVerification[]` normalized result list
 - failure reason when applicable
 
 ### `execution.result.json.watchers[]` (optional)
@@ -416,6 +418,40 @@ Implementation-specific failure causes such as unresolved wait policy, unsupport
 or persistent missing assertion path should be carried in `reasonMeta.cause` rather than introducing additional top-level
 watcher reason codes.
 
+### `execution.result.json.externalVerification[]` (optional)
+
+Persisted normalized external verification result for downstream data-validity checks.
+
+- `id` (string)
+- `providerType` (`http` | `sql`)
+- `status` (`pass` | `fail_assertion` | `blocked_runtime`)
+- `response` (object, HTTP only, compact persisted summary)
+- `sql` (object, SQL only)
+- `extractResults[]` (optional)
+- `assertions[]` (optional)
+- `reasonCode` / `reasonMeta` (optional)
+
+Persisted HTTP response summary fields:
+
+- `response.statusCode`
+- `response.durationMs`
+- `response.bodyFormat` (`text` | `json`)
+- `response.bodyBytes`
+- `response.hasBodyJson`
+- `response.headerNames` (optional)
+
+Raw response bodies and raw header values are not persisted.
+Resolved extract values, assertion `actual` values, and `extractedContext` values are also not persisted.
+
+HTTP runtime canonical reason codes:
+
+- `external_verification_request_invalid`
+- `external_verification_request_unresolved`
+- `external_verification_target_unreachable`
+- `external_verification_response_invalid`
+- `external_verification_expectation_failed`
+- `extract_path_missing`
+
 ## `.mcpjvm/regression/<plan>/runs/<run_id>/evidence.json`
 
 Supporting evidence for result interpretation.
@@ -426,6 +462,7 @@ Examples:
 - probe verification details
 - diagnostics summary
 - watcher execution evidence (`watcherExecutions[]`)
+- external verification execution evidence (`externalVerificationExecutions[]`)
 - `watcherExecutions[]` minimum shape:
   - `id`
   - `dependencyStepOrder`
@@ -436,6 +473,8 @@ Examples:
   - `durationMs`
   - `reasonCode`
   - `waitPolicy`
+- `externalVerificationExecutions[]` minimum shape:
+  - same compact persisted shape as `execution.result.json.externalVerification[]`
 - correlation key extraction provenance (`correlationPolicy.keySourceType`, `correlationPolicy.keySourcePath`, `correlationPolicy.keyExtractionReasonCode`)
 
 ## `.mcpjvm/regression/<plan>/runs/<run_id>/correlation.json`
