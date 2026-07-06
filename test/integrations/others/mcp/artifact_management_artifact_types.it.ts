@@ -331,3 +331,100 @@ test("mcp IT: artifact_management run_result read honors explicit projectName in
     }
   }
 });
+
+test("mcp IT: artifact_management run_result watcher queries are bounded and deterministic", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-watchers-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "watcher-project";
+  const mcpjvmRoot = path.join(workspaceRootAbs, ".mcpjvm");
+  const probeConfigAbs = path.join(mcpjvmRoot, "probe-config.json");
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.gateway.**"],
+            exclude: [],
+          },
+        },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(mcpjvmRoot, projectName, "projects.json"), {
+    workspaces: [{ projectRoot: path.join(workspaceRootAbs, "app") }],
+  });
+
+  const runRoot = path.join(mcpjvmRoot, projectName, "plans", "regression", "cross-service-plan", "runs", "07-06-2026-10-10-10AM");
+  await writeJson(path.join(runRoot, "execution.result.json"), {
+    status: "fail",
+    triggerStatus: "pass",
+    watcherStatus: "blocked",
+    steps: [{ order: 1, id: "trigger", status: "pass" }],
+    watchers: [
+      { id: "search-index", status: "pass", outcome: "verified", attemptCount: 2, durationMs: 200, reasonCode: "watcher_verified" },
+      { id: "feed-cache", status: "fail_assertion", outcome: "failed_expectation", attemptCount: 3, durationMs: 900, reasonCode: "watcher_expectation_failed" },
+      { id: "warehouse-sync", status: "blocked_dependency", outcome: "blocked", attemptCount: 1, durationMs: 20, reasonCode: "watcher_dependency_invalid" },
+      { id: "analytics-rollup", status: "blocked_runtime", outcome: "timed_out", attemptCount: 4, durationMs: 5000, reasonCode: "watcher_timeout" },
+    ],
+  });
+  await writeJson(path.join(runRoot, "evidence.json"), {
+    watcherExecutions: [
+      { id: "search-index", status: "ok", outcome: "verified", attemptCount: 2, durationMs: 200, reasonCode: "watcher_verified" },
+      { id: "feed-cache", status: "fail_closed", outcome: "expectation_failed", attemptCount: 3, durationMs: 900, reasonCode: "watcher_expectation_failed" },
+      { id: "warehouse-sync", status: "fail_closed", outcome: "dependency_invalid", attemptCount: 1, durationMs: 20, reasonCode: "watcher_dependency_invalid" },
+      { id: "analytics-rollup", status: "timed_out", outcome: "timeout", attemptCount: 4, durationMs: 5000, reasonCode: "watcher_timeout" },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: {
+        MCP_PROBE_CONFIG_FILE: probeConfigAbs,
+      },
+    });
+
+    const filtered = await callTool(mcp, "artifact_management", {
+      artifactType: "run_result",
+      action: "read",
+      input: {
+        projectName,
+        planName: "cross-service-plan",
+        runId: "07-06-2026-10-10-10AM",
+        query: {
+          select: ["summary", "watchers", "watcherEvidence"],
+          watcherFilter: { watcherStatus: "blocked_runtime" },
+          watchers: { offset: 0, limit: 5 },
+          watcherEvidence: { offset: 0, limit: 5 },
+        },
+      },
+    });
+
+    assert.equal(filtered.structuredContent?.status, "ok");
+    assert.equal((filtered.structuredContent?.summary as { triggerStatus?: unknown })?.triggerStatus, "pass");
+    assert.equal((filtered.structuredContent?.summary as { watcherStatus?: unknown })?.watcherStatus, "blocked");
+    assert.equal((filtered.structuredContent?.watchers as { total?: unknown })?.total, 1);
+    assert.equal(
+      ((filtered.structuredContent?.watchers as { items?: Array<{ id?: unknown }> })?.items ?? [])[0]?.id,
+      "analytics-rollup",
+    );
+    assert.equal((filtered.structuredContent?.watcherEvidence as { total?: unknown })?.total, 1);
+    assert.equal(
+      ((filtered.structuredContent?.watcherEvidence as { items?: Array<{ id?: unknown }> })?.items ?? [])[0]?.id,
+      "analytics-rollup",
+    );
+
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
