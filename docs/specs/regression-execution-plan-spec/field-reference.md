@@ -212,6 +212,106 @@ Fail-closed watcher contract validations:
 - `watcher_expectations_missing`
 - `watcher_expectation_invalid`
 
+### `externalVerification[]` (optional)
+
+Deterministic downstream data-validity verification against external third-party systems after the trigger path completes.
+
+- `id` (string): stable external verification identifier; must be unique within `contract.externalVerification[]`
+- `provider.type` (string): provider discriminator. Current supported contract shapes:
+  - `http`
+  - `sql`
+- `request` (object, required): explicit provider-discriminated execution block
+  - `request.http` is required only when `provider.type=http`
+  - `request.sql` is required only when `provider.type=sql`
+  - provider/request mismatches fail closed
+- `extract[]` (array, optional): extraction mapping from normalized external verification result into downstream context
+- `expect[]` (array, required): assertion block using the same field shape and operators as `steps[].expect[]`
+
+Validation rules:
+
+- `provider.type` must be one of `http` or `sql`
+- `request` must contain exactly one provider block and that block must match `provider.type`
+- `externalVerification[].expect[]` reuses the same expectation operator contract as `steps[].expect[]`
+- `externalVerification[].extract[]`, when present, must use deterministic `from` / `as` mappings and boolean `required`
+- placeholder syntax follows transport rules: canonical `${key}`, compatible `{{key}}`, compatible `{{{key}}}`
+- placeholder keys resolve directly from the context map; do not use `context.*` inside `${...}` or `valueFromContext`
+- secret-bearing connection details and inline SQL credentials are not allowed in the public verification contract
+
+#### `externalVerification[].request.http`
+
+- `method` (string): `GET` | `POST` | `PUT` | `PATCH` | `DELETE` | `HEAD` | `OPTIONS`
+- exactly one of:
+  - `pathTemplate` (string): relative path resolved against runtime-owned base URL context
+  - `url` (string): explicit absolute target
+- `headers` (object, optional): string-valued request headers
+- `body` (any, optional): provider request payload
+- `timeoutMs` (number or `null`, optional): bounded override for provider execution timeout
+
+Canonical normalized result roots for `expect[].actualPath`:
+
+- `status`
+- `response.statusCode`
+- `response.body`
+- `response.bodyJson`
+- `response.headers`
+- `response.durationMs`
+
+#### `externalVerification[].request.sql`
+
+- `connectionRef` (string): logical runtime/project-owned connection reference
+- `statement` (string): SQL statement text
+- `parameters[]` (array, optional):
+  - `name` (string): statement parameter name
+  - exactly one of:
+    - `value` (any): literal non-secret value
+    - `valueFromContext` (string): canonical context key
+- `timeoutMs` (number or `null`, optional): bounded override for provider execution timeout
+
+SQL contract boundary rules:
+
+- `connectionRef` is required; concrete vendor/driver connection attributes live in runtime/project-owned configuration, not `contract.json`
+- vendor-specific fields such as host, database, schema, catalog, instance, service name, DSN, or JDBC URL remain behind the resolved runtime/project connection config
+
+Canonical normalized result roots for `expect[].actualPath`:
+
+- `status`
+- `sql.rowCount`
+- `sql.rows`
+- `sql.firstRow`
+- `sql.durationMs`
+
+Fail-closed external verification contract validations:
+
+- `external_verification_id_invalid`
+- `external_verification_provider_invalid`
+- `external_verification_request_invalid`
+- `external_verification_extract_invalid`
+- `external_verification_expectations_missing`
+- `external_verification_expectation_invalid`
+- `external_verification_placeholder_syntax_invalid`
+
+### Normalized External Verification Result
+
+This is the deterministic provider-normalized evaluation envelope for future external verification runtime execution and assertion evaluation.
+
+- `id` (string)
+- `providerType` (`http` | `sql`)
+- `status` (`pass` | `fail_assertion` | `blocked_runtime`)
+- `response` (object, HTTP only)
+- `sql` (object, SQL only)
+- `extractedContext` (object, optional)
+- `extractResults[]` (optional): normalized extract outcomes with `from`, `as`, `required`, `status`, optional `value`, and optional `reasonCode`
+- `assertions[]` (optional): normalized assertion outcomes with `id`, `actualPath`, `operator`, `status`, optional `expected`, optional `actual`, optional `message`, and optional `reasonCode`
+- `reasonCode` / `reasonMeta` (optional): fail-closed diagnostics
+
+Provider normalization rules:
+
+- `providerType=http` requires `response` and must not include `sql`
+- `providerType=sql` requires `sql.rowCount` plus `sql.rows[]` and must not include `response`
+- `sql.firstRow` is the first row object when one exists
+- `response.bodyJson` is the parsed HTTP body when parsing succeeds
+- contracts SHOULD target canonical normalized paths instead of provider-native raw payload paths
+
 ### `correlation` (optional)
 
 Cross-service/cross-plan deterministic post-analysis policy.

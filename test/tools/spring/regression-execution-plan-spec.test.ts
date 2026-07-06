@@ -10,6 +10,9 @@ const {
   resolvePrerequisiteContext,
   resolveStepTransport,
 } = require("@tools-regression-execution-plan-spec/regression_execution_plan_spec.util");
+const {
+  validateNormalizedExternalVerificationResultShape,
+} = require("@tools-regression-execution-plan-spec/external_verification_contract.util");
 
 function baseMetadata(overrides = {}) {
   return {
@@ -441,6 +444,330 @@ test("preflight accepts watchers with step dependency and generic provider shape
   assert.equal(result.reasonCode, "ok");
 });
 
+test("preflight accepts externalVerification http contract with canonical placeholders", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_reindex_task_status",
+        provider: { type: "http" },
+        request: {
+          http: {
+            method: "GET",
+            pathTemplate: "/_tasks/${taskId}",
+            headers: {
+              Authorization: "Bearer {{auth.bearer}}",
+            },
+            timeoutMs: 5000,
+          },
+        },
+        extract: [{ from: "response.bodyJson.task.id", as: "taskStatusId" }],
+        expect: [
+          {
+            id: "task_completed",
+            actualPath: "response.bodyJson.completed",
+            operator: "field_equals",
+            expected: true,
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
+});
+
+test("preflight accepts externalVerification http secret-bearing header when value is placeholder-backed", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_authorized_http_header",
+        provider: { type: "http" },
+        request: {
+          http: {
+            method: "GET",
+            pathTemplate: "/_tasks/${taskId}",
+            headers: {
+              Authorization: "Bearer ${auth.bearer}",
+            },
+          },
+        },
+        expect: [
+          {
+            id: "task_completed",
+            actualPath: "response.bodyJson.completed",
+            operator: "field_equals",
+            expected: true,
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
+});
+
+test("preflight accepts externalVerification sql contract with connectionRef indirection", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_reindex_row_count",
+        provider: { type: "sql" },
+        request: {
+          sql: {
+            connectionRef: "catalogDb",
+            statement: "SELECT indexed_count FROM reindex_status WHERE tenant_id = :tenantId",
+            parameters: [{ name: "tenantId", valueFromContext: "tenantId" }],
+            timeoutMs: 3000,
+          },
+        },
+        expect: [
+          {
+            id: "row_count_matches",
+            actualPath: "sql.rowCount",
+            operator: "numeric_gte",
+            expected: 1,
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { tenantId: "tenant-social-001", "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
+});
+
+test("preflight blocks externalVerification when provider and request block do not match", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_bad_pairing",
+        provider: { type: "http" },
+        request: {
+          sql: {
+            connectionRef: "catalogDb",
+            statement: "SELECT 1",
+          },
+        },
+        expect: [{ id: "ok", actualPath: "sql.rowCount", operator: "numeric_gte", expected: 1 }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "external_verification_request_invalid");
+});
+
+test("preflight blocks malformed externalVerification entry without throwing", () => {
+  const contract = baseContract({
+    externalVerification: [{}],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "external_verification_id_invalid");
+});
+
+test("preflight blocks externalVerification with provider but missing request without throwing", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_missing_request",
+        provider: { type: "http" },
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "external_verification_request_invalid");
+});
+
+test("preflight blocks externalVerification when SQL parameter uses noncanonical context path syntax", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_bad_sql_context",
+        provider: { type: "sql" },
+        request: {
+          sql: {
+            connectionRef: "catalogDb",
+            statement: "SELECT indexed_count FROM reindex_status WHERE tenant_id = :tenantId",
+            parameters: [{ name: "tenantId", valueFromContext: "context.tenantId" }],
+          },
+        },
+        expect: [{ id: "ok", actualPath: "sql.rowCount", operator: "numeric_gte", expected: 1 }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { tenantId: "tenant-social-001", "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "external_verification_request_invalid");
+});
+
+test("preflight blocks externalVerification sql request with inline connection details", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_inline_sql_credentials",
+        provider: { type: "sql" },
+        request: {
+          sql: {
+            connectionRef: "catalogDb",
+            statement: "SELECT 1",
+            jdbcUrl: "jdbc:postgresql://localhost:5432/catalog",
+          },
+        },
+        expect: [{ id: "ok", actualPath: "sql.rowCount", operator: "numeric_gte", expected: 1 }],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "external_verification_request_invalid");
+});
+
+test("preflight blocks malformed placeholder syntax in externalVerification http request", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_bad_placeholder",
+        provider: { type: "http" },
+        request: {
+          http: {
+            method: "GET",
+            pathTemplate: "/_tasks/{{ taskId }",
+          },
+        },
+        expect: [
+          {
+            id: "task_completed",
+            actualPath: "response.bodyJson.completed",
+            operator: "field_equals",
+            expected: true,
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { taskId: "task-1", "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "external_verification_placeholder_syntax_invalid");
+});
+
+test("preflight blocks inline secret-bearing header values in externalVerification http request", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_inline_auth_header",
+        provider: { type: "http" },
+        request: {
+          http: {
+            method: "GET",
+            pathTemplate: "/_tasks/${taskId}",
+            headers: {
+              Authorization: "Bearer hardcoded-secret",
+            },
+          },
+        },
+        expect: [
+          {
+            id: "task_completed",
+            actualPath: "response.bodyJson.completed",
+            operator: "field_equals",
+            expected: true,
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { taskId: "task-1", "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "external_verification_request_invalid");
+});
+
+test("preflight blocks raw env-style placeholder keys in externalVerification http request", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_bad_context_key",
+        provider: { type: "http" },
+        request: {
+          http: {
+            method: "GET",
+            pathTemplate: "/_tasks/${TASK_ID}",
+          },
+        },
+        expect: [
+          {
+            id: "task_completed",
+            actualPath: "response.bodyJson.completed",
+            operator: "field_equals",
+            expected: true,
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { taskId: "task-1", "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "plan_context_key_noncanonical");
+});
+
 test("resolveWatcherWaitPolicy inherits project defaults when watcher overrides are absent", () => {
   const resolved = resolveWatcherWaitPolicy({
     watcher: {},
@@ -688,6 +1015,55 @@ test("preflight blocks watcher when expectation shape is invalid", () => {
   });
   assert.equal(result.status, "blocked_invalid");
   assert.equal(result.reasonCode, "watcher_expectation_invalid");
+});
+
+test("validateNormalizedExternalVerificationResultShape accepts deterministic HTTP result shape", () => {
+  const validation = validateNormalizedExternalVerificationResultShape({
+    id: "verify_reindex_task_status",
+    providerType: "http",
+    status: "pass",
+    response: {
+      statusCode: 200,
+      body: "{\"completed\":true}",
+      bodyJson: { completed: true },
+      headers: { "content-type": "application/json" },
+      durationMs: 42,
+    },
+    extractResults: [
+      {
+        from: "response.bodyJson.task.id",
+        as: "taskStatusId",
+        required: false,
+        status: "resolved",
+        value: "task-1",
+      },
+    ],
+    assertions: [
+      {
+        id: "task_completed",
+        actualPath: "response.bodyJson.completed",
+        operator: "field_equals",
+        status: "pass",
+        expected: true,
+        actual: true,
+      },
+    ],
+  });
+  assert.equal(validation.ok, true);
+});
+
+test("validateNormalizedExternalVerificationResultShape blocks SQL result without deterministic row model", () => {
+  const validation = validateNormalizedExternalVerificationResultShape({
+    id: "verify_reindex_row_count",
+    providerType: "sql",
+    status: "pass",
+    sql: {
+      rowCount: -1,
+      rows: [],
+    },
+  });
+  assert.equal(validation.ok, false);
+  assert.equal(validation.reasonCode, "external_verification_request_invalid");
 });
 
 test("resolvePrerequisiteContext prefers provided values and falls back to defaults", () => {
