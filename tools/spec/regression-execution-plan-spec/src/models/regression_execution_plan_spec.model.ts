@@ -292,6 +292,10 @@ export type ExternalVerificationHttpResponse = {
   bodyJson?: unknown;
   headers?: Record<string, unknown>;
   durationMs?: number;
+  bodyFormat?: "text" | "json";
+  bodyBytes?: number;
+  hasBodyJson?: boolean;
+  headerNames?: string[];
 };
 
 export type ExternalVerificationSqlResult = {

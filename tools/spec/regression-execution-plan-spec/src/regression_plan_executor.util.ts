@@ -33,6 +33,9 @@ import {
   executeWatchers,
 } from "@tools-regression-execution-plan-spec/regression_watcher_runtime.util";
 import {
+  executeExternalVerifications,
+} from "@tools-regression-execution-plan-spec/external_verification_runtime.util";
+import {
   normalizeHttpContextAliases,
 } from "@tools-regression-execution-plan-spec/suite_http_request.util";
 import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
@@ -519,6 +522,29 @@ function isStepRequired(step: PlanStep | undefined): boolean {
   return step.expect.some((expectation) => expectation.required !== false);
 }
 
+function combineRunStatusWithExternalVerification(args: {
+  triggerStatus: RegressionRunExecutionResult["triggerStatus"];
+  watcherStatus: RegressionRunExecutionResult["watcherStatus"];
+  externalVerificationStatus: RegressionRunExecutionResult["externalVerificationStatus"];
+}): "pass" | "fail" | "blocked" {
+  const baseStatus = combinePlanRunStatus({
+    triggerStatus: args.triggerStatus ?? "pass",
+    watcherStatus: args.watcherStatus ?? "not_configured",
+  });
+  if (baseStatus === "blocked" || baseStatus === "fail") {
+    return baseStatus;
+  }
+  if (
+    args.externalVerificationStatus === "blocked"
+  ) {
+    return "blocked";
+  }
+  if (args.externalVerificationStatus === "fail") {
+    return "fail";
+  }
+  return "pass";
+}
+
 
 export async function executeRegressionPlanWorkflow(
   args: ExecuteRegressionPlanWorkflowArgs,
@@ -809,19 +835,29 @@ export async function executeRegressionPlanWorkflow(
     stepContextsByOrder,
   });
   const watcherStatus = deriveWatcherPhaseStatus(watcherRows);
-  const runStatus = combinePlanRunStatus({
+  const externalVerification = await executeExternalVerifications({
+    externalVerification: contract.externalVerification,
+    resolvedContext,
+    registry,
+    dependencyStatus: triggerStatus,
+  });
+  resolvedContext = externalVerification.resolvedContext;
+  const runStatus = combineRunStatusWithExternalVerification({
     triggerStatus,
     watcherStatus,
+    externalVerificationStatus: externalVerification.phaseStatus,
   });
   const executionResult: RegressionRunExecutionResult = {
     status: runStatus,
     triggerStatus,
     watcherStatus,
+    externalVerificationStatus: externalVerification.phaseStatus,
     preflight: preflightWithDiscovery.preflight,
     startedAt,
     endedAt: ended.toISOString(),
     steps: stepRows,
     ...(watcherRows.length > 0 ? { watchers: watcherRows } : {}),
+    ...(externalVerification.results.length > 0 ? { externalVerification: externalVerification.results } : {}),
   };
 
   const correlationEvidence = buildPlanCorrelationEvidence({
@@ -860,6 +896,9 @@ export async function executeRegressionPlanWorkflow(
         runDurationMs: Math.max(1, ended.getTime() - now.getTime()),
       },
       ...(watcherEvidence.length > 0 ? { watcherExecutions: watcherEvidence } : {}),
+      ...(externalVerification.results.length > 0
+        ? { externalVerificationExecutions: externalVerification.results }
+        : {}),
       ...(correlationEvidence ?? {}),
     },
     now,

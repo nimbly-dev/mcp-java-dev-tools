@@ -678,3 +678,185 @@ test("writeRegressionRunArtifacts fails closed when explicit watcher results are
   }
 });
 
+test("writeRegressionRunArtifacts persists canonical external verification results and evidence", async () => {
+  const root = createTestTempDir("run-artifacts-external-verification");
+  try {
+    initProjectArtifact(root);
+    const written = await writeRegressionRunArtifacts({
+      workspaceRootAbs: root,
+      runId: "2026-04-19T08-01-22Z_08",
+      planRef: { name: "probe-registry-course-service-smoke" },
+      resolvedContext: {},
+      executionResult: {
+        status: "pass",
+        externalVerificationStatus: "pass",
+        preflight: {
+          status: "ready",
+          reasonCode: "ok",
+          missing: [],
+          discoverablePending: [],
+          prerequisiteResolution: [],
+          requiredUserAction: [],
+        },
+        startedAt: "2026-04-19T08:01:22.111Z",
+        endedAt: "2026-04-19T08:01:25.333Z",
+        steps: [{ order: 1, id: "course_list", status: "pass" }],
+        externalVerification: [
+          {
+            id: "verify_reindex_task_status",
+            providerType: "http",
+            status: "pass",
+            response: {
+              statusCode: 200,
+              body: "{\"completed\":true}",
+              bodyJson: { completed: true },
+              headers: { "content-type": "application/json" },
+              durationMs: 42,
+            },
+            assertions: [
+              {
+                id: "task_completed",
+                actualPath: "response.bodyJson.completed",
+                operator: "field_equals",
+                status: "pass",
+                expected: true,
+                actual: true,
+              },
+            ],
+            extractResults: [
+              {
+                from: "response.bodyJson.task.id",
+                as: "taskStatusId",
+                required: false,
+                status: "resolved",
+                value: "task-123",
+              },
+            ],
+            extractedContext: {
+              taskStatusId: "task-123",
+            },
+          },
+        ],
+      },
+      evidence: {
+        targetResolution: [],
+        externalVerificationExecutions: [
+          {
+            id: "verify_reindex_task_status",
+            providerType: "http",
+            status: "pass",
+            response: {
+              statusCode: 200,
+              body: "{\"completed\":true}",
+              bodyJson: { completed: true },
+              headers: { "content-type": "application/json" },
+              durationMs: 42,
+            },
+          },
+        ],
+      },
+      now: new Date("2026-04-19T08:01:26.000Z"),
+    });
+
+    const result = readJson(written.executionResultPathAbs);
+    const evidence = readJson(written.evidencePathAbs);
+    assert.equal(result.externalVerificationStatus, "pass");
+    assert.equal(result.externalVerification.length, 1);
+    assert.equal(result.externalVerification[0].providerType, "http");
+    assert.equal(result.externalVerification[0].response.statusCode, 200);
+    assert.equal(result.externalVerification[0].response.bodyFormat, "json");
+    assert.equal(result.externalVerification[0].response.hasBodyJson, true);
+    assert.equal(typeof result.externalVerification[0].response.body, "undefined");
+    assert.equal(typeof result.externalVerification[0].response.bodyJson, "undefined");
+    assert.equal(typeof result.externalVerification[0].assertions[0].actual, "undefined");
+    assert.equal(typeof result.externalVerification[0].extractResults[0].value, "undefined");
+    assert.equal(typeof result.externalVerification[0].extractedContext, "undefined");
+    assert.equal(evidence.externalVerificationExecutions.length, 1);
+    assert.equal(evidence.externalVerificationExecutions[0].status, "pass");
+    assert.equal(typeof evidence.externalVerificationExecutions[0].response.headers, "undefined");
+    assert.deepEqual(evidence.externalVerificationExecutions[0].response.headerNames, ["content-type"]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("writeRegressionRunArtifacts fails closed for malformed external verification rows", async () => {
+  const root = createTestTempDir("run-artifacts-invalid-external-verification");
+  try {
+    initProjectArtifact(root);
+    await assert.rejects(
+      () =>
+        writeRegressionRunArtifacts({
+          workspaceRootAbs: root,
+          runId: "2026-04-19T08-01-22Z_09",
+          planRef: { name: "probe-registry-course-service-smoke" },
+          resolvedContext: {},
+          executionResult: {
+            status: "blocked",
+            externalVerificationStatus: "blocked",
+            preflight: {
+              status: "ready",
+              reasonCode: "ok",
+              missing: [],
+              discoverablePending: [],
+              prerequisiteResolution: [],
+              requiredUserAction: [],
+            },
+            startedAt: "2026-04-19T08:01:22.111Z",
+            endedAt: "2026-04-19T08:01:25.333Z",
+            steps: [{ order: 1, id: "course_list", status: "pass" }],
+            externalVerification: [
+              {
+                id: "verify_reindex_task_status",
+                providerType: "http",
+                status: "blocked_runtime",
+              },
+            ],
+          },
+          evidence: {
+            targetResolution: [],
+          },
+        }),
+      /external_verification_execution_result_invalid/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("writeRegressionRunArtifacts fails closed for invalid external verification phase status", async () => {
+  const root = createTestTempDir("run-artifacts-invalid-external-verification-phase-status");
+  try {
+    initProjectArtifact(root);
+    await assert.rejects(
+      () =>
+        writeRegressionRunArtifacts({
+          workspaceRootAbs: root,
+          runId: "2026-04-19T08-01-22Z_10",
+          planRef: { name: "probe-registry-course-service-smoke" },
+          resolvedContext: {},
+          executionResult: {
+            status: "blocked",
+            externalVerificationStatus: "bogus_status" as never,
+            preflight: {
+              status: "ready",
+              reasonCode: "ok",
+              missing: [],
+              discoverablePending: [],
+              prerequisiteResolution: [],
+              requiredUserAction: [],
+            },
+            startedAt: "2026-04-19T08:01:22.111Z",
+            endedAt: "2026-04-19T08:01:25.333Z",
+            steps: [{ order: 1, id: "course_list", status: "pass" }],
+          },
+          evidence: {
+            targetResolution: [],
+          },
+        }),
+      /external_verification_execution_result_invalid/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

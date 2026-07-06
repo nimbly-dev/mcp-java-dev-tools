@@ -1,10 +1,11 @@
 import { promises as fs } from "node:fs";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync, type Dirent } from "node:fs";
 import path from "node:path";
 
 import type {
   CorrelationIndexRebuildResult,
   CorrelationArtifact,
+  RegressionExternalVerificationPhaseStatus,
   RegressionRunArtifactsWriteResult,
   RegressionRunExecutionResult,
   RegressionRunWatcherOutcome,
@@ -15,6 +16,10 @@ import type {
   WatcherExecutionEvidence,
   WriteRegressionRunArtifactsInput,
 } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
+import type { NormalizedExternalVerificationResult } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import {
+  validateNormalizedExternalVerificationResultShape,
+} from "@tools-regression-execution-plan-spec/external_verification_contract.util";
 import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 import { correlateEvents } from "@tools-regression-execution-plan-spec/regression_correlation.util";
 import {
@@ -98,29 +103,142 @@ function normalizeEvidencePayload(evidence: Record<string, unknown>): Record<str
       normalized.watcherExecutions = watcherExecutions;
     }
   }
+  if ("externalVerificationExecutions" in evidence) {
+    const externalVerificationExecutions = normalizeExternalVerificationResults(
+      evidence.externalVerificationExecutions,
+      "external_verification_evidence_invalid",
+    );
+    if (externalVerificationExecutions.length === 0) {
+      delete normalized.externalVerificationExecutions;
+    } else {
+      normalized.externalVerificationExecutions = externalVerificationExecutions;
+    }
+  }
   return normalized;
 }
 
 function normalizeExecutionResultPayload(
   executionResult: RegressionRunExecutionResult,
 ): RegressionRunExecutionResult {
-  if (typeof executionResult.watchers === "undefined") {
+  if (
+    typeof executionResult.watchers === "undefined" &&
+    typeof executionResult.externalVerification === "undefined" &&
+    typeof executionResult.externalVerificationStatus === "undefined"
+  ) {
     return executionResult;
   }
-  if (!Array.isArray(executionResult.watchers)) {
+  if (typeof executionResult.watchers !== "undefined" && !Array.isArray(executionResult.watchers)) {
     throw new Error("watcher_execution_result_invalid");
   }
   return {
     ...executionResult,
-    watchers: executionResult.watchers
-      .map((watcher) => normalizeExecutionWatcherResult(watcher))
-      .map((watcher) => {
-        if (!watcher) {
-          throw new Error("watcher_execution_result_invalid");
-        }
-        return watcher;
-      }),
+    ...(typeof executionResult.externalVerificationStatus === "undefined"
+      ? {}
+      : {
+          externalVerificationStatus: normalizeExternalVerificationPhaseStatus(
+            executionResult.externalVerificationStatus,
+            "external_verification_execution_result_invalid",
+          ),
+        }),
+    ...(typeof executionResult.watchers === "undefined"
+      ? {}
+      : {
+          watchers: executionResult.watchers
+            .map((watcher) => normalizeExecutionWatcherResult(watcher))
+            .map((watcher) => {
+              if (!watcher) {
+                throw new Error("watcher_execution_result_invalid");
+              }
+              return watcher;
+            }),
+        }),
+    ...(typeof executionResult.externalVerification === "undefined"
+      ? {}
+      : {
+          externalVerification: normalizeExternalVerificationResults(
+            executionResult.externalVerification,
+            "external_verification_execution_result_invalid",
+          ),
+        }),
   };
+}
+
+function normalizeExternalVerificationPhaseStatus(
+  value: unknown,
+  invalidErrorCode: "external_verification_execution_result_invalid",
+): RegressionExternalVerificationPhaseStatus {
+  if (
+    value === "not_configured" ||
+    value === "pass" ||
+    value === "fail" ||
+    value === "blocked" ||
+    value === "skipped_dependency"
+  ) {
+    return value;
+  }
+  throw new Error(invalidErrorCode);
+}
+
+function normalizeExternalVerificationResults(
+  results: unknown,
+  invalidErrorCode: "external_verification_evidence_invalid" | "external_verification_execution_result_invalid",
+) {
+  if (typeof results === "undefined") {
+    return [];
+  }
+  if (!Array.isArray(results)) {
+    throw new Error(invalidErrorCode);
+  }
+  return results.map((entry) => {
+    const validation = validateNormalizedExternalVerificationResultShape(entry);
+    if (!validation.ok) {
+      throw new Error(invalidErrorCode);
+    }
+    return compactExternalVerificationResult(entry as NormalizedExternalVerificationResult);
+  });
+}
+
+function compactExternalVerificationResult(
+  entry: NormalizedExternalVerificationResult,
+): NormalizedExternalVerificationResult {
+  const compacted: NormalizedExternalVerificationResult = { ...entry };
+  if (isRecord(entry.response)) {
+    const response = entry.response;
+    const body = typeof response.body === "string" ? response.body : "";
+    const headerNames = isRecord(response.headers) ? Object.keys(response.headers).sort() : [];
+    compacted.response = {
+      ...(typeof response.statusCode === "number" ? { statusCode: response.statusCode } : {}),
+      ...(typeof response.durationMs === "number" ? { durationMs: response.durationMs } : {}),
+      bodyFormat: typeof response.bodyJson === "undefined" ? "text" : "json",
+      bodyBytes: Buffer.byteLength(body, "utf8"),
+      hasBodyJson: typeof response.bodyJson !== "undefined",
+      ...(headerNames.length > 0 ? { headerNames } : {}),
+    };
+  }
+  if (Array.isArray(entry.extractResults)) {
+    compacted.extractResults = entry.extractResults.map((extractResult) => ({
+      from: extractResult.from,
+      as: extractResult.as,
+      required: extractResult.required,
+      status: extractResult.status,
+      ...(typeof extractResult.reasonCode === "string" ? { reasonCode: extractResult.reasonCode } : {}),
+    }));
+  }
+  if (Array.isArray(entry.assertions)) {
+    compacted.assertions = entry.assertions.map((assertion) => ({
+      id: assertion.id,
+      actualPath: assertion.actualPath,
+      operator: assertion.operator,
+      status: assertion.status,
+      ...(typeof assertion.expected === "undefined" ? {} : { expected: assertion.expected }),
+      ...(typeof assertion.message === "undefined" ? {} : { message: assertion.message }),
+      ...(typeof assertion.reasonCode === "undefined" ? {} : { reasonCode: assertion.reasonCode }),
+    }));
+  }
+  if (typeof compacted.extractedContext !== "undefined") {
+    delete compacted.extractedContext;
+  }
+  return compacted;
 }
 
 function normalizeExecutionWatcherResult(
@@ -746,7 +864,7 @@ export async function rebuildCorrelationIndex(args: {
     for (const planDir of plans) {
       if (!planDir.isDirectory()) continue;
       const runsRoot = path.join(root, planDir.name, "runs");
-      let runDirs: import("node:fs").Dirent[] = [];
+      let runDirs: Dirent[] = [];
       try {
         runDirs = await fs.readdir(runsRoot, { withFileTypes: true });
       } catch {
