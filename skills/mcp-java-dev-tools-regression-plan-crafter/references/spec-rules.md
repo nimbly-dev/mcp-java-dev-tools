@@ -79,6 +79,36 @@ When `probeVerification=true` and `pinStrictProbeKey=true`, every target must pr
   - `probe_line_hit`
   - `outcome_status`
 
+### watchers[] (optional)
+
+- use for bounded downstream completion/readiness verification after trigger-step success
+- `id`: required, stable
+- `dependency.stepOrder`: required and must reference an earlier step
+- `provider.type`: required
+- `waitPolicy`: optional but bounded when present
+- `expect[]`: required and deterministic
+
+Watcher constraints:
+
+- watcher dependencies cannot reference the same or a future step
+- watcher contracts must remain bounded and fail closed
+- watcher expectations verify downstream completion/readiness, not trigger-path success
+
+### externalVerification[] (optional)
+
+- use for downstream data-validity verification after step/watcher convergence
+- `id`: required, stable
+- `provider.type`: required and provider-neutral (`http` or `sql`)
+- `request`: required and provider-matched
+- `extract`: optional
+- `expect[]`: required and deterministic
+
+External verification constraints:
+
+- secret-bearing provider configuration must not be persisted inline in plan defaults
+- use runtime/project-owned configuration for connection or credential material
+- use canonical `${key}` placeholders for context interpolation
+
 ## plan.md (required)
 
 Required sections:

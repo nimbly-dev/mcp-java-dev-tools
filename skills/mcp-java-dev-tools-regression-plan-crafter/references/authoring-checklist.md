@@ -28,6 +28,14 @@ Use this checklist before finalizing a crafted plan.
 2. Step IDs and order match between human and machine artifacts.
 3. Expectations are measurable and deterministic.
 4. `metadata.execution.discoveryPolicy` matches prerequisite provisioning strategy.
+5. Optional `watchers[]` depend only on prior steps and verify downstream completion/readiness.
+6. Optional `externalVerification[]` verify downstream data validity with provider-matched requests.
+7. Context interpolation uses canonical `${key}` placeholders.
+
+## Secret Boundaries
+
+1. External verification credentials or connection details are not persisted as plan defaults.
+2. HTTP/SQL verification contracts keep secret-bearing configuration in runtime/project-owned context.
 
 ## Fail-Closed
 

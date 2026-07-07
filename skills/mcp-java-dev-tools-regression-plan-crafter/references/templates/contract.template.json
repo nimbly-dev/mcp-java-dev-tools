@@ -62,5 +62,56 @@
         }
       ]
     }
+  ],
+  "watchers": [
+    {
+      "id": "wait_for_downstream_completion",
+      "dependency": {
+        "stepOrder": 1
+      },
+      "provider": {
+        "type": "http",
+        "transport": {
+          "request": {
+            "method": "GET",
+            "url": "${downstreamBaseUrl}/status/${exampleId}"
+          }
+        }
+      },
+      "waitPolicy": {
+        "timeoutMs": 15000,
+        "retryMax": 10
+      },
+      "expect": [
+        {
+          "id": "downstream_ready",
+          "actualPath": "response.bodyJson.status",
+          "operator": "field_equals",
+          "expected": "ready"
+        }
+      ]
+    }
+  ],
+  "externalVerification": [
+    {
+      "id": "verify_downstream_record",
+      "provider": {
+        "type": "http"
+      },
+      "request": {
+        "http": {
+          "method": "GET",
+          "url": "${verificationBaseUrl}/records/${exampleId}"
+        }
+      },
+      "expect": [
+        {
+          "id": "verification_http_ok",
+          "actualPath": "response.statusCode",
+          "operator": "field_equals",
+          "expected": 200
+        }
+      ]
+    }
   ]
 }

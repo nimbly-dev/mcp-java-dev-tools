@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-regression-suite
-description: "Run MCP-first HTTP regression suites (endpoint, service, or API scope) with optional strict probe-hit verification."
+description: "Run MCP-first HTTP regression suites (endpoint, service, or API scope) with optional strict probe-hit verification, bounded Watchers for downstream completion checks, and external verification for downstream data validity across HTTP or SQL targets."
 ---
 
 # MCP JVM Regression Suite
@@ -27,13 +27,23 @@ Single-call execution skill for regression plans.
    - `phase_2_preflight_and_discovery`
    - `phase_3_strict_probe_gate`
    - `phase_4_step_execution`
-   - `phase_5_artifact_persist_and_summary`
+   - `phase_5_watchers`
+   - `phase_6_external_verification`
+   - `phase_7_artifact_persist_and_summary`
 3. No phase skipping. Fail closed with deterministic reason and nextAction.
 4. In `phase_4_step_execution`, evaluate `steps[].when` before transport execution.
 5. Condition outcomes are deterministic:
    - `true` => execute step
    - `false` => mark `skipped_condition_false` and continue
    - invalid/ambiguous => fail closed (`blocked_invalid`)
+6. `phase_5_watchers` is mandatory when `contract.watchers[]` is present:
+   - execute only after trigger-step completion
+   - verify bounded downstream completion/readiness
+   - fail closed on timeout, invalid dependency, invalid provider, or unreachable target
+7. `phase_6_external_verification` is mandatory when `contract.externalVerification[]` is present:
+   - execute only after trigger-step and watcher convergence
+   - verify downstream data validity against external HTTP or SQL targets
+   - preserve secret-safe runtime/project-owned provider configuration
 
 ## Branch Router
 
@@ -65,7 +75,11 @@ This `SKILL.md` is a thin router. Execute phases in order and load only the need
 5. `phase_4_step_execution`:
    - reference: `references/execution-fsm.md`
    - script: `scripts/step-execution-check.js`
-6. `phase_5_artifact_persist_and_summary`:
+6. `phase_5_watchers`:
+   - reference: `references/execution-fsm.md`
+7. `phase_6_external_verification`:
+   - reference: `references/execution-fsm.md`
+8. `phase_7_artifact_persist_and_summary`:
    - reference: `references/artifact-contract.md`
    - reference: `references/output-contract.md`
    - script: `scripts/summarize-run.js`
@@ -116,21 +130,22 @@ Runtime suite branch (`execution_profile`) rules:
 1. Always use bounded or windowed reads for Artifact inspection, logs, and generated scripts.
 2. Do not switch to full Artifact reads based on artifact size; this workflow should use paged/windowed inspection by default.
 3. Never dump full `contract.json`, `execution.result.json`, `evidence.json`, or export scripts into context when a bounded/windowed read can answer the question.
-4. For `artifact_management` `regression_plan` reads:
+4. When a plan contains `watchers` or `externalVerification`, inspect those sections with the same bounded-read discipline used for `steps`.
+5. For `artifact_management` `regression_plan` reads:
    - use `query.select`
    - treat `targets` as full
    - treat `prerequisites` as windowable
    - treat `steps` as windowable
-5. When inspecting regression plans, always prefer explicit windows such as:
+6. When inspecting regression plans, always prefer explicit windows such as:
    - `query: { "select": ["summary", "prerequisites", "steps"], "prerequisites": { "offset": 0, "limit": 50 }, "steps": { "offset": 0, "limit": 25 } }`
-6. For actual runtime suite execution, do not treat windowing as debug-only:
+7. For actual runtime suite execution, do not treat windowing as debug-only:
    - the orchestrator should load runtime suite plan inputs through these paged `artifact_management` calls as the maintained execution path
    - this applies even when a direct file read might seem cheaper
-6. For file/shell inspection outside MCP Artifact reads, always prefer bounded reads such as:
+8. For file/shell inspection outside MCP Artifact reads, always prefer bounded reads such as:
    - `rg`
    - `Select-Object -First`
    - targeted line/field extraction
-7. If a required investigation cannot be completed without Artifact inspection, read only the minimum slice needed and say which slice was inspected.
+9. If a required investigation cannot be completed without Artifact inspection, read only the minimum slice needed and say which slice was inspected.
 
 ## Source of Truth
 
@@ -164,24 +179,28 @@ Use these references/templates:
 3. `execution.result.json` step entries MUST include `durationMs`.
 4. Correlation uses canonical `correlationPolicy` + `correlationEvents`.
 5. Do not author `correlation.json` directly; use canonical artifact writer flow.
-6. `run_id` MUST be canonical:
+6. When `watchers[]` execute, watcher outcome state is first-class Artifact data and must be preserved in `execution.result.json` and `evidence.json`.
+7. When `externalVerification[]` execute, external-verification outcome state is first-class Artifact data and must be preserved in `execution.result.json` and `evidence.json`.
+8. `run_id` MUST be canonical:
    - `MM-DD-YYYY-hh-mm-ssAM`
    - example: `05-09-2026-08-33-41PM`
-7. Never invent ad-hoc run IDs (for example `20260509T134827387Z-customers`).
-8. If run_id is non-canonical, fail closed before artifact write.
-9. Runtime suite branch additionally references runtime manifest semantics at:
+9. Never invent ad-hoc run IDs (for example `20260509T134827387Z-customers`).
+10. If run_id is non-canonical, fail closed before artifact write.
+11. Runtime suite branch additionally references runtime manifest semantics at:
    - `.mcpjvm/<project_name>/projects.json` with matching workspace `executionProfiles[]`
-11. In multi-project workspaces (multiple `.mcpjvm/*/projects.json`), always pass explicit `projectName` in artifact reads to avoid ambiguity.
-10. Persisted artifact access in this workflow should route through `artifact_management` wherever MCP path is available.
+12. In multi-project workspaces (multiple `.mcpjvm/*/projects.json`), always pass explicit `projectName` in artifact reads to avoid ambiguity.
+13. Persisted artifact access in this workflow should route through `artifact_management` wherever MCP path is available.
 
 ## MCP-First and Wrapped Transport
 
 1. Mandatory MCP tools: `probe`, `artifact_management`, `route_synthesis`.
 2. HTTP execution uses `transport_execute` (wrapped-only); no raw curl fallback.
-3. If toolchain is unavailable:
+3. Watchers must remain bounded and fail closed; do not replace watcher polling with unbounded sleeps or open-ended retries.
+4. External verification contracts must keep secret-bearing connection or credential material outside persisted plan defaults.
+5. If toolchain is unavailable:
    - `reasonCode=toolchain_unavailable`
    - `nextAction=enable_mcp_jvm_debugger_tools_then_rerun`
-4. Wrapper script usage is optional implementation detail.
+6. Wrapper script usage is optional implementation detail.
 
 ## Runtime Rules
 
@@ -207,6 +226,7 @@ Use these references/templates:
 2. Resolve discoverable prerequisites before asking user input.
 3. Merge precedence: user-provided > discovered > non-secret defaults.
 4. Re-run preflight and continue only when ready.
+5. Validate `watchers[]` and `externalVerification[]` contracts during preflight; do not defer malformed capability contracts to best-effort runtime behavior.
 
 ## Strict Probe Port Mapping
 
@@ -224,5 +244,13 @@ Use these references/templates:
 6. `step_condition_forward_reference`
 7. `step_condition_path_missing`
 8. `step_condition_type_mismatch`
+9. `watcher_dependency_invalid`
+10. `watcher_provider_invalid`
+11. `watcher_wait_policy_invalid`
+12. `watcher_timeout`
+13. `watcher_target_unreachable`
+14. `external_verification_provider_invalid`
+15. `external_verification_request_invalid`
+16. `external_verification_target_unreachable`
 
 

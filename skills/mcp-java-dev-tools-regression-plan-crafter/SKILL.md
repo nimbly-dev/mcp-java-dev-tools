@@ -1,6 +1,6 @@
 ---
 name: mcp-java-dev-tools-regression-plan-crafter
-description: "Create or update deterministic regression plans (`metadata.json`, `contract.json`, `plan.md`) under `.mcpjvm/.../plans/regression`."
+description: "Create or update deterministic regression plans (`metadata.json`, `contract.json`, `plan.md`) under `.mcpjvm/.../plans/regression`, including ordered trigger steps, optional Watchers for downstream completion checks, and optional external verification for downstream data validity."
 ---
 
 # MCP JVM Regression Plan Crafter
@@ -50,6 +50,8 @@ If user input conflicts with these rules, fail closed and request clarification.
 6. If runtime pinning is enabled (`probeVerification=true`, `pinStrictProbeKey=true`), each target must provide `runtimeVerification.strictProbeKey` in `FQCN#method:line` format.
 7. `steps[].when` is optional and supports deterministic condition nodes only (`all`, `any`, `not`) and predicates (`equals`, `not_equals`, `in`, `exists`).
 8. `steps[].when.left` must reference only `context.*` or prior `step[n].*` (where `n < current step order`).
+9. `watchers[]` is optional and first-class for bounded downstream completion verification after trigger-step success.
+10. `externalVerification[]` is optional and first-class for downstream data-validity verification after trigger/watcher convergence.
 
 ## Plan Authoring Workflow
 
@@ -58,8 +60,10 @@ If user input conflicts with these rules, fail closed and request clarification.
 3. Define prerequisites
 4. Define ordered steps
 5. Define step expectations
-6. Generate `plan.md` with deterministic verbs
-7. Validate consistency and fail closed on ambiguity
+6. Define optional watchers
+7. Define optional external verification
+8. Generate `plan.md` with deterministic verbs
+9. Validate consistency and fail closed on ambiguity
 
 ### 0) Research target and route facts
 
@@ -133,7 +137,37 @@ Supported operators:
 7. `probe_line_hit`
 8. `outcome_status`
 
-### 5) Generate `plan.md`
+### 5) Define optional watchers
+
+Use `watchers[]` when the regression must prove downstream completion or readiness beyond the trigger path.
+
+For each watcher:
+
+1. assign stable `id`
+2. define `dependency.stepOrder` against an earlier trigger step
+3. define a bounded provider contract
+4. set deterministic expectations over downstream readiness/completion state
+5. keep watcher semantics complementary to `Correlation`, not a replacement for it
+
+### 6) Define optional external verification
+
+Use `externalVerification[]` when the regression must prove downstream data validity against an external HTTP or SQL target after trigger-path completion.
+
+For each external verification:
+
+1. assign stable `id`
+2. define `provider.type`
+3. define provider request details under `request`
+4. optionally add `extract` mappings
+5. add deterministic expectations against returned HTTP or SQL state
+
+Rules:
+
+1. keep secret-bearing provider configuration out of persisted plan defaults
+2. keep provider contracts vendor-neutral at authoring time
+3. use canonical `${key}` placeholders for context interpolation
+
+### 7) Generate `plan.md`
 
 Required sections:
 
@@ -160,7 +194,7 @@ Required outcome verbs in `Expected Outcomes`:
 4. `Matches`
 5. `Passes`
 
-### 6) Validate consistency
+### 8) Validate consistency
 
 Before finalizing, verify:
 
@@ -170,6 +204,8 @@ Before finalizing, verify:
 4. Prerequisites cover all referenced context keys
 5. No secrets are persisted as defaults
 6. `plan.md` semantics match `contract.json`
+7. optional `watchers[]` depend only on prior steps and use bounded completion expectations
+8. optional `externalVerification[]` preserve secret-safe provider configuration boundaries
 
 If any check fails, return blocked guidance with exact missing/invalid fields and no speculative defaults.
 
@@ -199,6 +235,8 @@ Stop and return deterministic blocked guidance when:
 8. discoverable prerequisite is missing `discoverySource`
 9. `steps[].when` is malformed, uses unsupported operators, or references non-deterministic paths
 10. `steps[].when` references the same or a future step
+11. watcher dependency points to the same or a future step
+12. external verification embeds secret-bearing provider configuration into persisted plan defaults
 
 ## Base Path Policy (No Assumptions)
 
