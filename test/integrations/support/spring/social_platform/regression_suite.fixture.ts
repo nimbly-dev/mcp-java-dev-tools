@@ -79,7 +79,7 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
   );
   const consumerLine = await findLineNumberBySnippet(
     eventConsumerListenerSourceFileAbs,
-    "processingStore.markProcessed(event.eventId());",
+    "processingStore.markProcessed(",
   );
   const producerStrictProbeKey = buildLineKey({
     fqcn: eventProducerControllerFqcn,

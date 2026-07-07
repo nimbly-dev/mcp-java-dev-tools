@@ -1,10 +1,13 @@
 package com.example.social.event.consumer.app.controller;
 
 import com.example.social.event.api.model.TriggerIndexRequest;
+import com.example.social.event.consumer.app.model.EventProcessingStatusResponse;
 import com.example.social.event.consumer.app.model.IndexRequestedEvent;
 import com.example.social.event.consumer.app.service.EventProcessingStore;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -32,14 +35,21 @@ public class ExampleConsumerController {
       @RequestHeader("X-Event-Id") String eventId,
       @RequestHeader("X-Accepted-By") String acceptedBy) {
     String tenant = request.data().isEmpty() ? "unknown-tenant" : request.data().get(0);
-    processingStore.markAccepted(eventId);
+    int indexedCount = request.data().size();
+    processingStore.markAccepted(eventId, tenant, request.type(), acceptedBy, indexedCount);
     eventPublisher.publishEvent(
         new IndexRequestedEvent(
             eventId,
             tenant,
             request.type(),
             acceptedBy,
+            indexedCount,
             parseProcessingDelayMs(request.notes())));
+  }
+
+  @GetMapping("/{eventId}")
+  public EventProcessingStatusResponse getEventStatus(@PathVariable String eventId) {
+    return processingStore.require(eventId);
   }
 
   private long parseProcessingDelayMs(String notes) {

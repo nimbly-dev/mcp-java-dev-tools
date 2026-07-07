@@ -18,7 +18,12 @@ public class ExampleQueueListener {
   @EventListener
   public void receiveEvent(IndexRequestedEvent event) {
     sleepIfRequested(event.processingDelayMs());
-    processingStore.markProcessed(event.eventId());
+    processingStore.markProcessed(
+        event.eventId(),
+        event.tenant(),
+        event.type(),
+        event.acceptedBy(),
+        event.indexedCount());
   }
 
   private void sleepIfRequested(long delayMs) {

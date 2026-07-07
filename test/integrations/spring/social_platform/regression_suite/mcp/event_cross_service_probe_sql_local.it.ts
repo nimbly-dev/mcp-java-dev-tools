@@ -37,17 +37,17 @@ async function callTool(
   })) as ToolResult;
 }
 
-test("mcp IT: execution_orchestration preserves probe.hit across cross-service event trigger and downstream listener verification", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-event-cross-service-probe-line-hit-it-"));
+test("mcp IT: local cross-service regression verifies producer and consumer strict probes plus DB persistence", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-event-cross-service-probe-sql-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
-  const projectName = "event-cross-service-probe-project";
+  const projectName = "event-cross-service-probe-sql-project";
   const projectRootAbs = workspaceRootAbs;
-
+  const sqliteFileAbs = path.join(tmpRoot, "event-processing.sqlite");
   const producerLine = await findLineNumberBySnippet(
     eventProducerControllerSourceFileAbs,
     "return triggerService.triggerIndex(request, authentication.getName());",
   );
-  const consumerListenerLine = await findLineNumberBySnippet(
+  const consumerLine = await findLineNumberBySnippet(
     eventConsumerListenerSourceFileAbs,
     "processingStore.markProcessed(",
   );
@@ -59,7 +59,7 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
   const consumerStrictProbeKey = buildLineKey({
     fqcn: eventConsumerListenerFqcn,
     methodName: "receiveEvent",
-    line: consumerListenerLine,
+    line: consumerLine,
   });
 
   let consumerRuntime: Awaited<ReturnType<typeof startEventConsumerAppWithAgent>> | undefined;
@@ -67,7 +67,7 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
   let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
 
   try {
-    consumerRuntime = await startEventConsumerAppWithAgent();
+    consumerRuntime = await startEventConsumerAppWithAgent({ sqliteFileAbs });
     producerRuntime = await startEventProducerAppWithAgent({
       consumerBaseUrl: consumerRuntime.apiBaseUrl,
     });
@@ -96,17 +96,34 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
       workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
     });
 
+    const sharedPlanContext = {
+      consumerApiBaseUrl: activeConsumerRuntime.apiBaseUrl,
+      "sql.connection.fixtureDb.kind": "sqlite",
+      "sql.connection.fixtureDb.sqlite.filePath": sqliteFileAbs,
+    };
+
     await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
       workspaces: [
         {
           projectRoot: projectRootAbs,
+          defaults: { requestTimeoutMs: 250, retryMax: 20 },
           executionProfiles: [
             {
-              executionProfile: "cross-service-event-run",
+              executionProfile: "probe-sql-run",
               executionPolicy: "stop_on_fail",
               plans: [
-                { order: 1, planName: "producer-trigger-plan", onFail: "inherit" },
-                { order: 2, planName: "consumer-listener-plan", onFail: "inherit" },
+                {
+                  order: 1,
+                  planName: "producer-plan",
+                  onFail: "inherit",
+                  providedContext: sharedPlanContext,
+                },
+                {
+                  order: 2,
+                  planName: "consumer-plan",
+                  onFail: "inherit",
+                  providedContext: sharedPlanContext,
+                },
               ],
             },
           ],
@@ -114,12 +131,23 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
       ],
     });
 
+    const requestBody = {
+      context: "entities",
+      type: "TriggerIndex",
+      groupId: "group-probe",
+      source: "event-cross-service-probe-sql-it",
+      dataFormatVersion: 1,
+      dataId: "tenant-batch-probe",
+      data: ["tenant-social-001", "doc-1", "doc-2"],
+      notes: "fixture-listener-delay-ms:800",
+    };
+
     async function writePlan(args: {
       planName: string;
+      targetFqcn: string;
+      targetMethod: string;
       strictProbeKey: string;
       probeId: string;
-      fqcn: string;
-      method: string;
     }): Promise<void> {
       const planRootAbs = path.join(
         workspaceRootAbs,
@@ -143,8 +171,8 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
           {
             type: "class_method",
             selectors: {
-              fqcn: args.fqcn,
-              method: args.method,
+              fqcn: args.targetFqcn,
+              method: args.targetMethod,
               sourceRoot: "test/fixtures/spring-apps/social-platform/event-service",
             },
             runtimeVerification: {
@@ -174,32 +202,19 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
                 pathTemplate: "/api/v1/events/trigger",
                 headers: {
                   Authorization: "Bearer alice-token",
+                  "x-tenant-id": "tenant-social-001",
                 },
-                body: {
-                  context: "entities",
-                  type: "TriggerIndex",
-                  groupId: "group-001",
-                  source: "event-cross-service-api",
-                  dataFormatVersion: 1,
-                  dataId: "tenant-batch-01",
-                  data: ["tenant-social-001"],
-                  notes: "Trigger reindex per tenant",
-                },
+                body: requestBody,
                 timeoutMs: 10_000,
               },
             },
+            extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
             expect: [
               {
                 id: "http_ok",
                 actualPath: "response.statusCode",
                 operator: "field_equals",
                 expected: 200,
-              },
-              {
-                id: "response_event_id",
-                actualPath: "response.body",
-                operator: "contains",
-                expected: "evt-",
               },
               {
                 id: "probe_hit",
@@ -210,27 +225,91 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
             ],
           },
         ],
+        watchers: [
+          {
+            id: "consumer_processed",
+            dependency: { stepOrder: 1 },
+            provider: {
+              type: "http",
+              transport: {
+                request: {
+                  method: "GET",
+                  url: "${consumerApiBaseUrl}/internal/events/${eventId}",
+                },
+              },
+            },
+            waitPolicy: {
+              timeoutMs: 15_000,
+              retryMax: 20,
+            },
+            expect: [
+              {
+                id: "status_processed",
+                actualPath: "response.bodyJson.status",
+                operator: "field_equals",
+                expected: "processed",
+              },
+            ],
+          },
+        ],
+        externalVerification: [
+          {
+            id: "verify_sqlite_event_row",
+            provider: { type: "sql" },
+            request: {
+              sql: {
+                connectionRef: "fixtureDb",
+                statement: `
+                  SELECT status, indexed_count, tenant, event_type
+                  FROM event_processing_audit
+                  WHERE event_id = :eventId
+                `,
+                parameters: [{ name: "eventId", valueFromContext: "eventId" }],
+              },
+            },
+            expect: [
+              {
+                id: "sql_row_found",
+                actualPath: "sql.rowCount",
+                operator: "field_equals",
+                expected: 1,
+              },
+              {
+                id: "sql_status_processed",
+                actualPath: "sql.firstRow.status",
+                operator: "field_equals",
+                expected: "processed",
+              },
+              {
+                id: "sql_indexed_count_written",
+                actualPath: "sql.firstRow.indexed_count",
+                operator: "field_equals",
+                expected: 3,
+              },
+            ],
+          },
+        ],
       });
     }
 
     await writePlan({
-      planName: "producer-trigger-plan",
+      planName: "producer-plan",
+      targetFqcn: eventProducerControllerFqcn,
+      targetMethod: "triggerIndex",
       strictProbeKey: producerStrictProbeKey,
       probeId: "event-producer-app",
-      fqcn: eventProducerControllerFqcn,
-      method: "triggerIndex",
     });
     await writePlan({
-      planName: "consumer-listener-plan",
+      planName: "consumer-plan",
+      targetFqcn: eventConsumerListenerFqcn,
+      targetMethod: "receiveEvent",
       strictProbeKey: consumerStrictProbeKey,
       probeId: "event-consumer-app",
-      fqcn: eventConsumerListenerFqcn,
-      method: "receiveEvent",
     });
 
     mcp = await startMcpClient({
       workspaceRootAbs,
-      probeBaseUrl: producerRuntime.probeBaseUrl,
+      probeBaseUrl: activeProducerRuntime.probeBaseUrl,
       extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
     });
 
@@ -238,26 +317,14 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
       action: "execute",
       input: {
         projectName,
-        executionProfile: "cross-service-event-run",
+        executionProfile: "probe-sql-run",
       },
     });
 
     assert.equal(out.structuredContent?.resultType, "execution_orchestration");
-    assert.equal(
-      out.structuredContent?.status,
-      "pass",
-      JSON.stringify(
-        {
-          orchestration: out.structuredContent,
-          producerLogs: producerRuntime.logs(),
-          consumerLogs: consumerRuntime.logs(),
-        },
-        null,
-        2,
-      ),
-    );
+    assert.equal(out.structuredContent?.status, "pass");
 
-    async function readLatestExecutionResult(planName: string) {
+    async function readExecution(planName: string): Promise<Record<string, unknown>> {
       const runRootAbs = path.join(
         workspaceRootAbs,
         ".mcpjvm",
@@ -271,38 +338,36 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
       assert.equal(runIds.length, 1);
       return JSON.parse(
         await fs.readFile(path.join(runRootAbs, runIds[0]!, "execution.result.json"), "utf8"),
-      ) as {
-        status: string;
-        steps: Array<{
-          status: string;
-          assertions: Array<{
-            actualPath: string;
-            status: string;
-            actual?: unknown;
-          }>;
-        }>;
-      };
+      ) as Record<string, unknown>;
     }
 
-    const producerExecution = await readLatestExecutionResult("producer-trigger-plan");
-    const consumerExecution = await readLatestExecutionResult("consumer-listener-plan");
+    const producerExecution = await readExecution("producer-plan");
+    const consumerExecution = await readExecution("consumer-plan");
 
-    assert.equal(producerExecution.status, "pass");
-    assert.equal(producerExecution.steps[0]?.status, "pass");
-    assert.equal(producerExecution.steps[0]?.assertions[2]?.actualPath, "probe.hit");
-    assert.equal(producerExecution.steps[0]?.assertions[2]?.status, "pass");
-    assert.equal(producerExecution.steps[0]?.assertions[2]?.actual, true);
+    for (const execution of [producerExecution, consumerExecution]) {
+      const steps = execution.steps as Array<Record<string, unknown>>;
+      const stepAssertions = (steps[0]?.assertions as Array<Record<string, unknown>>) ?? [];
+      const watcherRows = execution.watchers as Array<Record<string, unknown>>;
+      const externalVerification = execution.externalVerification as Array<Record<string, unknown>>;
 
-    assert.equal(consumerExecution.status, "pass");
-    assert.equal(consumerExecution.steps[0]?.status, "pass");
-    assert.equal(consumerExecution.steps[0]?.assertions[2]?.actualPath, "probe.hit");
-    assert.equal(consumerExecution.steps[0]?.assertions[2]?.status, "pass");
-    assert.equal(consumerExecution.steps[0]?.assertions[2]?.actual, true);
+      assert.equal(execution.status, "pass");
+      assert.equal(execution.watcherStatus, "pass");
+      assert.equal(execution.externalVerificationStatus, "pass");
+      assert.equal(stepAssertions[1]?.actualPath, "probe.hit");
+      assert.equal(stepAssertions[1]?.actual, true);
+      assert.equal(watcherRows[0]?.status, "pass");
+      assert.equal(externalVerification[0]?.status, "pass");
+      assert.equal(
+        ((externalVerification[0]?.sql as Record<string, unknown>)?.firstRow as Record<string, unknown>)
+          ?.status,
+        "processed",
+      );
+    }
   } finally {
     await mcp?.close();
     await producerRuntime?.stop();
     await consumerRuntime?.stop();
-    if (process.env.KEEP_EVENT_CROSS_SERVICE_TMP !== "1" && fssync.existsSync(tmpRoot)) {
+    if (process.env.KEEP_EVENT_CROSS_SERVICE_PROBE_SQL_TMP !== "1" && fssync.existsSync(tmpRoot)) {
       await fs.rm(tmpRoot, { recursive: true, force: true });
     }
   }

@@ -52,7 +52,7 @@ test(
 
     const consumerListenerLine = await findLineNumberBySnippet(
       eventConsumerListenerSourceFileAbs,
-      "processingStore.markProcessed(event.eventId());",
+      "processingStore.markProcessed(",
     );
     const consumerStrictProbeKey = buildLineKey({
       fqcn: eventConsumerListenerFqcn,

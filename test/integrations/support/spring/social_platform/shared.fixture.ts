@@ -597,7 +597,12 @@ export async function startEventConsumerAppWithAgent(args?: {
   actuateAuthToken?: string;
   agentInclude?: string;
   agentExclude?: string;
+  sqliteFileAbs?: string;
 }): Promise<RunningApp> {
+  const extraJavaArgs: string[] = [];
+  if (typeof args?.sqliteFileAbs === "string" && args.sqliteFileAbs.trim().length > 0) {
+    extraJavaArgs.push(`-Dfixture.sqlite.file=${args.sqliteFileAbs}`);
+  }
   return await startSpringBootAppWithAgent({
     appLabel: "event-consumer-app",
     appProjectRootAbs: eventConsumerAppProjectRootAbs,
@@ -609,6 +614,7 @@ export async function startEventConsumerAppWithAgent(args?: {
     ...(typeof args?.actuateAuthToken === "string" ? { actuateAuthToken: args.actuateAuthToken } : {}),
     ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
     ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
+    ...(extraJavaArgs.length > 0 ? { extraJavaArgs } : {}),
   });
 }
 

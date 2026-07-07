@@ -5,4 +5,5 @@ public record IndexRequestedEvent(
     String tenant,
     String type,
     String acceptedBy,
+    int indexedCount,
     long processingDelayMs) {}
