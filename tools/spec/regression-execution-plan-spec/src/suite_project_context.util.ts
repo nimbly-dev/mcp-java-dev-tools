@@ -1056,12 +1056,20 @@ export async function resolveProjectContextForRegression(
     };
   }
 
+  const effectiveDefaults = workspace.defaults
+    ? {
+        ...workspace.defaults,
+        ...(typeof args.defaultsOverride?.requestTimeoutMs === "number"
+          ? { requestTimeoutMs: args.defaultsOverride.requestTimeoutMs }
+          : {}),
+        ...(typeof args.defaultsOverride?.retryMax === "number"
+          ? { retryMax: args.defaultsOverride.retryMax }
+          : {}),
+      }
+    : undefined;
   const effectiveWorkspace: ProjectWorkspaceEntry = {
     ...workspace,
-    defaults: {
-      ...(workspace.defaults ?? {}),
-      ...(args.defaultsOverride ?? {}),
-    },
+    ...(effectiveDefaults ? { defaults: effectiveDefaults } : {}),
   };
   const profileScripts = resolveProfileScripts({
     workspace: effectiveWorkspace,
@@ -1101,6 +1109,9 @@ export async function resolveProjectContextForRegression(
   const contextPatch: Record<string, unknown> = {
     "runtime.requestTimeoutMs": resolveWorkspaceRequestTimeoutMs(effectiveWorkspace, 20_000),
     "runtime.retryMax": resolveWorkspaceRetryMax(effectiveWorkspace, 1),
+    "runtime.orchestrator.resumePollMax": effectiveWorkspace.defaults?.orchestrator.resumePollMax,
+    "runtime.orchestrator.resumePollIntervalMs": effectiveWorkspace.defaults?.orchestrator.resumePollIntervalMs,
+    "runtime.orchestrator.resumePollTimeoutMs": effectiveWorkspace.defaults?.orchestrator.resumePollTimeoutMs,
   };
   const secretContextKeys = new Set<string>();
 

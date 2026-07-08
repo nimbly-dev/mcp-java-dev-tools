@@ -123,7 +123,12 @@
       ],
       "defaults": {
         "requestTimeoutMs": 10000,
-        "retryMax": 1
+        "retryMax": 1,
+        "orchestrator": {
+          "resumePollMax": 30,
+          "resumePollIntervalMs": 10000,
+          "resumePollTimeoutMs": 300000
+        }
       }
     }
   ]

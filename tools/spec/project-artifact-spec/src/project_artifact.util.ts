@@ -72,6 +72,18 @@ function isPositivePort(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 65535;
 }
 
+function normalizeRequiredPositiveInteger(args: {
+  value: unknown;
+  fieldPath: string;
+  errors: string[];
+}): number | null {
+  if (typeof args.value !== "number" || !Number.isInteger(args.value) || args.value <= 0) {
+    args.errors.push(`${args.fieldPath} must be a positive integer`);
+    return null;
+  }
+  return args.value;
+}
+
 function normalizeProjectScriptPhase(value: unknown, fieldPath: string, errors: string[]): ProjectScriptPhase | undefined {
   const phase = asTrimmedString(value);
   if (!phase) return undefined;
@@ -671,14 +683,57 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
         .map((entry, i) => normalizeExternalSystem(entry, i, errors))
         .filter((entry): entry is ProjectExternalSystem => entry !== null)
     : [];
-  const defaults = isRecord(input.defaults)
-    ? {
-        ...(typeof input.defaults.requestTimeoutMs === "number"
-          ? { requestTimeoutMs: input.defaults.requestTimeoutMs }
-          : {}),
-        ...(typeof input.defaults.retryMax === "number" ? { retryMax: input.defaults.retryMax } : {}),
+  let defaults: ProjectWorkspaceEntry["defaults"] | undefined;
+  if (!isRecord(input.defaults)) {
+    errors.push(`workspaces[${index}].defaults.orchestrator is required`);
+  } else {
+    const orchestrator = isRecord(input.defaults.orchestrator) ? input.defaults.orchestrator : null;
+    if (!orchestrator) {
+      errors.push(`workspaces[${index}].defaults.orchestrator is required`);
+    } else {
+      const resumePollMax = normalizeRequiredPositiveInteger({
+        value: orchestrator.resumePollMax,
+        fieldPath: `workspaces[${index}].defaults.orchestrator.resumePollMax`,
+        errors,
+      });
+      const resumePollIntervalMs = normalizeRequiredPositiveInteger({
+        value: orchestrator.resumePollIntervalMs,
+        fieldPath: `workspaces[${index}].defaults.orchestrator.resumePollIntervalMs`,
+        errors,
+      });
+      const resumePollTimeoutMs = normalizeRequiredPositiveInteger({
+        value: orchestrator.resumePollTimeoutMs,
+        fieldPath: `workspaces[${index}].defaults.orchestrator.resumePollTimeoutMs`,
+        errors,
+      });
+      if (
+        typeof resumePollIntervalMs === "number" &&
+        typeof resumePollTimeoutMs === "number" &&
+        resumePollTimeoutMs < resumePollIntervalMs
+      ) {
+        errors.push(
+          `workspaces[${index}].defaults.orchestrator.resumePollTimeoutMs must be >= resumePollIntervalMs`,
+        );
       }
-    : undefined;
+      if (
+        typeof resumePollMax === "number" &&
+        typeof resumePollIntervalMs === "number" &&
+        typeof resumePollTimeoutMs === "number"
+      ) {
+        defaults = {
+          ...(typeof input.defaults.requestTimeoutMs === "number"
+            ? { requestTimeoutMs: input.defaults.requestTimeoutMs }
+            : {}),
+          ...(typeof input.defaults.retryMax === "number" ? { retryMax: input.defaults.retryMax } : {}),
+          orchestrator: {
+            resumePollMax,
+            resumePollIntervalMs,
+            resumePollTimeoutMs,
+          },
+        };
+      }
+    }
+  }
   const sessionExport = isRecord(input.sessionExport)
     ? (() => {
         const normalized = {

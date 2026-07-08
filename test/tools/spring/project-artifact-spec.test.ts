@@ -9,6 +9,28 @@ const {
   writeProjectArtifact,
 } = require("@tools-project-artifact-spec/project_artifact.util");
 
+function withRequiredDefaults(workspace: Record<string, unknown>): Record<string, unknown> {
+  const defaults =
+    workspace.defaults && typeof workspace.defaults === "object"
+      ? (workspace.defaults as Record<string, unknown>)
+      : {};
+  const orchestrator =
+    defaults.orchestrator && typeof defaults.orchestrator === "object"
+      ? (defaults.orchestrator as Record<string, unknown>)
+      : {
+          resumePollMax: 30,
+          resumePollIntervalMs: 10_000,
+          resumePollTimeoutMs: 300_000,
+        };
+  return {
+    ...workspace,
+    defaults: {
+      ...defaults,
+      orchestrator,
+    },
+  };
+}
+
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
   fs.mkdirSync(base, { recursive: true });
@@ -18,7 +40,7 @@ function createTestTempDir(prefix: string): string {
 test("validateProjectArtifact accepts minimal valid shape", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         envFile: ".env",
         variables: {
@@ -57,7 +79,7 @@ test("validateProjectArtifact accepts minimal valid shape", () => {
             ],
           },
         ],
-      },
+      }),
     ],
   });
 
@@ -71,13 +93,13 @@ test("validateProjectArtifact accepts minimal valid shape", () => {
 test("validateProjectArtifact fails closed when legacy auth field is present", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         auth: {
           bearerToken: "raw-token-value",
           bearerTokenEnv: "AUTH_BEARER_TOKEN",
         },
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -90,14 +112,14 @@ test("validateProjectArtifact fails closed when legacy auth field is present", (
 test("validateProjectArtifact fails closed when workspace variables contain unsupported env mappings", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         variables: {
           bearerTokenEnv: "AUTH_BEARER_TOKEN",
           tenantIdEnv: "TENANT_ID",
           baseUrlEnv: "BASE_URL",
         },
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -111,7 +133,7 @@ test("validateProjectArtifact fails closed when workspace variables contain unsu
 test("validateProjectArtifact accepts workspace variables.contextBindings env mappings", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         variables: {
           bearerTokenEnv: "AUTH_BEARER_TOKEN",
@@ -120,7 +142,7 @@ test("validateProjectArtifact accepts workspace variables.contextBindings env ma
             tenantId: "TENANT_ID",
           },
         },
-      },
+      }),
     ],
   });
   assert.equal(result.ok, true);
@@ -133,7 +155,7 @@ test("validateProjectArtifact accepts workspace variables.contextBindings env ma
 test("validateProjectArtifact fails closed when workspace variables.contextBindings uses reserved runtime keys", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         variables: {
           contextBindings: {
@@ -141,7 +163,7 @@ test("validateProjectArtifact fails closed when workspace variables.contextBindi
             "probeBaseUrl": "PROBE_BASE_URL",
           },
         },
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -155,10 +177,10 @@ test("validateProjectArtifact fails closed when workspace variables.contextBindi
 test("validateProjectArtifact fails closed when runtime context mode is invalid", () => {
   const result = validateProjectArtifact({
       workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         runtimeContexts: [{ name: "cluster", mode: "k8s" }],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -168,7 +190,7 @@ test("validateProjectArtifact fails closed when runtime context mode is invalid"
 test("validateProjectArtifact fails closed when startups entry is provided without command", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         runtimeContexts: [
           {
@@ -177,7 +199,7 @@ test("validateProjectArtifact fails closed when startups entry is provided witho
             startups: [{ name: "customers-service", args: ["-jar", "app.jar"] }],
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -190,11 +212,11 @@ test("write/read project artifact preserves deterministic shape", async () => {
     const out = path.join(root, ".mcpjvm", "my-project", "projects.json");
     await writeProjectArtifact(out, {
       workspaces: [
-        {
+        withRequiredDefaults({
           projectRoot: root,
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
           externalSystems: [{ name: "keycloak", kind: "auth-server", host: "localhost", port: 8081 }],
-        },
+        }),
       ],
     });
 
@@ -216,7 +238,7 @@ test("readProjectArtifact accepts UTF-8 BOM prefixed JSON", async () => {
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(
       out,
-      `\uFEFF${JSON.stringify({ workspaces: [{ projectRoot: root }] }, null, 2)}\n`,
+      `\uFEFF${JSON.stringify({ workspaces: [withRequiredDefaults({ projectRoot: root })] }, null, 2)}\n`,
       "utf8",
     );
 
@@ -233,7 +255,7 @@ test("readProjectArtifact accepts UTF-8 BOM prefixed JSON", async () => {
 test("validateProjectArtifact accepts runPrerequisites with enum-constrained script/assert", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         runPrerequisites: [
           {
@@ -259,7 +281,7 @@ test("validateProjectArtifact accepts runPrerequisites with enum-constrained scr
             },
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, true);
@@ -268,7 +290,7 @@ test("validateProjectArtifact accepts runPrerequisites with enum-constrained scr
 test("validateProjectArtifact fails closed for non-sequential runPrerequisites order", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         runPrerequisites: [
           {
@@ -286,7 +308,7 @@ test("validateProjectArtifact fails closed for non-sequential runPrerequisites o
             assert: { kind: "env_exists", key: "AUTH_BEARER_TOKEN" },
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -295,7 +317,7 @@ test("validateProjectArtifact fails closed for non-sequential runPrerequisites o
 test("validateProjectArtifact accepts executionProfile runtimeContext alias and normalizes to runtimeContextName", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
         executionProfiles: [
@@ -306,7 +328,7 @@ test("validateProjectArtifact accepts executionProfile runtimeContext alias and 
             plans: [{ order: 1, planName: "owners-list" }],
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, true);
@@ -318,7 +340,7 @@ test("validateProjectArtifact accepts executionProfile runtimeContext alias and 
 test("validateProjectArtifact accepts shared scripts and execution profile scriptRefs", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         envFile: ".mcpjvm/test-project/.env",
         variables: {
@@ -354,7 +376,7 @@ test("validateProjectArtifact accepts shared scripts and execution profile scrip
             plans: [{ order: 1, planName: "course-service-regression-spec" }],
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, true);
@@ -369,7 +391,7 @@ test("validateProjectArtifact accepts shared scripts and execution profile scrip
 test("validateProjectArtifact fails closed when execution profile scriptRef is unknown", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         scripts: [{ name: "seed-data", command: "node", args: ["scripts/seed.js"] }],
         executionProfiles: [
@@ -380,7 +402,7 @@ test("validateProjectArtifact fails closed when execution profile scriptRef is u
             plans: [{ order: 1, planName: "course-service-regression-spec" }],
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -393,7 +415,7 @@ test("validateProjectArtifact fails closed when execution profile scriptRef is u
 test("validateProjectArtifact fails closed when execution profile scriptRef is provided without any shared scripts", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         executionProfiles: [
           {
@@ -403,7 +425,7 @@ test("validateProjectArtifact fails closed when execution profile scriptRef is p
             plans: [{ order: 1, planName: "course-service-regression-spec" }],
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -416,7 +438,7 @@ test("validateProjectArtifact fails closed when execution profile scriptRef is p
 test("validateProjectArtifact fails closed when execution profile runtimeContextName is unknown", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         executionProfiles: [
           {
@@ -426,7 +448,7 @@ test("validateProjectArtifact fails closed when execution profile runtimeContext
             plans: [{ order: 1, planName: "course-service-regression-spec" }],
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -446,7 +468,7 @@ test("readProjectArtifact fails closed when execution profile planName does not 
       `${JSON.stringify(
         {
           workspaces: [
-            {
+            withRequiredDefaults({
               projectRoot: root,
               executionProfiles: [
                 {
@@ -455,7 +477,7 @@ test("readProjectArtifact fails closed when execution profile planName does not 
                   plans: [{ order: 1, planName: "missing-plan" }],
                 },
               ],
-            },
+            }),
           ],
         },
         null,
@@ -490,7 +512,7 @@ test("readProjectArtifact validates performance execution profile plan refs agai
       `${JSON.stringify(
         {
           workspaces: [
-            {
+            withRequiredDefaults({
               projectRoot,
               executionProfiles: [
                 {
@@ -500,7 +522,7 @@ test("readProjectArtifact validates performance execution profile plan refs agai
                   plans: [{ order: 1, planName: "catalog-search-perf" }],
                 },
               ],
-            },
+            }),
           ],
         },
         null,
@@ -522,14 +544,14 @@ test("readProjectArtifact validates performance execution profile plan refs agai
 test("validateProjectArtifact accepts sessionExport runtime defaults", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         sessionExport: {
           includeRuntimeStartup: true,
           includeHealthcheckGate: false,
           includeResolvedSecrets: true,
         },
-      },
+      }),
     ],
   });
   assert.equal(result.ok, true);
@@ -541,7 +563,7 @@ test("validateProjectArtifact accepts sessionExport runtime defaults", () => {
 test("validateProjectArtifact fails closed when shared script uses absolute path args", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         scripts: [
           {
@@ -552,7 +574,7 @@ test("validateProjectArtifact fails closed when shared script uses absolute path
             appdir: ".",
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -565,7 +587,7 @@ test("validateProjectArtifact fails closed when shared script uses absolute path
 test("validateProjectArtifact fails closed when runPrerequisite scriptPath is absolute", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         runPrerequisites: [
           {
@@ -579,7 +601,7 @@ test("validateProjectArtifact fails closed when runPrerequisite scriptPath is ab
             },
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -592,10 +614,10 @@ test("validateProjectArtifact fails closed when runPrerequisite scriptPath is ab
 test("validateProjectArtifact fails closed when workspace envFile is absolute", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         envFile: "C:\\workspace\\spring\\.env",
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -608,7 +630,7 @@ test("validateProjectArtifact fails closed when workspace envFile is absolute", 
 test("validateProjectArtifact fails closed when runPrerequisite script args contain absolute path", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         runPrerequisites: [
           {
@@ -623,12 +645,46 @@ test("validateProjectArtifact fails closed when runPrerequisite script args cont
             },
           },
         ],
-      },
+      }),
     ],
   });
   assert.equal(result.ok, false);
   if (!result.ok) {
     assert.equal(result.reasonCode, "project_artifact_invalid");
     assert.match(result.errors.join("\n"), /runPrerequisites\[0\]\.script\.args\[1\] must be relative\/replayable/);
+  }
+});
+
+test("validateProjectArtifact fails closed when orchestrator defaults are missing", () => {
+  const result = validateProjectArtifact({
+    workspaces: [{ projectRoot: "C:\\workspace\\spring" }],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /defaults\.orchestrator is required/);
+  }
+});
+
+test("validateProjectArtifact fails closed when orchestrator defaults are invalid", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        defaults: {
+          orchestrator: {
+            resumePollMax: 0,
+            resumePollIntervalMs: 10_000,
+            resumePollTimeoutMs: 5_000,
+          },
+        },
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /resumePollMax must be a positive integer/);
+    assert.match(result.errors.join("\n"), /resumePollTimeoutMs must be >= resumePollIntervalMs/);
   }
 });

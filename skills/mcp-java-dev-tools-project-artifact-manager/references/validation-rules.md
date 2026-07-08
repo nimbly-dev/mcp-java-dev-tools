@@ -6,11 +6,13 @@ Use these checks during `validate` to keep `SKILL.md` concise and deterministic.
 
 1. `workspaces[]` must exist and contain at least one entry.
 2. Each workspace must define `projectRoot`.
-3. `runtimeContexts[]` should exist when the project artifact manages runtime startup.
-4. Runtime `mode` must be `terminal` or `docker`.
-5. `tools/spec/project-artifact-spec/src/project_artifact.util.ts` is the canonical validation contract.
-6. `templates/projects.terminal.example.json` is an authoring starter, not a strict schema allowlist.
-7. Do not remove validator-supported optional fields as non-canonical:
+3. Each workspace must define `defaults.orchestrator.resumePollMax`, `defaults.orchestrator.resumePollIntervalMs`, and `defaults.orchestrator.resumePollTimeoutMs` as positive integers.
+4. `defaults.orchestrator.resumePollTimeoutMs` must be greater than or equal to `defaults.orchestrator.resumePollIntervalMs`.
+5. `runtimeContexts[]` should exist when the project artifact manages runtime startup.
+6. Runtime `mode` must be `terminal` or `docker`.
+7. `tools/spec/project-artifact-spec/src/project_artifact.util.ts` is the canonical validation contract.
+8. `templates/projects.terminal.example.json` is an authoring starter, not a strict schema allowlist.
+9. Do not remove validator-supported optional fields as non-canonical:
    1. `executionProfiles[].runtimeConfig`
    2. `executionProfiles[].plans[].onFail`
    3. `executionProfiles[].plans[].providedContext`
@@ -53,6 +55,12 @@ Use these checks during `validate` to keep `SKILL.md` concise and deterministic.
 
 1. `type=tcp` uses `target`.
 2. `type=http` uses `url` per canonical shape.
+
+## Orchestrator Defaults Rules
+
+1. Keep orchestrator resiliency configuration under `workspaces[].defaults.orchestrator`.
+2. Keep orchestrator resiliency defaults project-owned; do not introduce plan-level resume/poll knobs.
+3. Keep watcher wait-policy defaults distinct from orchestrator resume/poll defaults.
 
 ## Output Contract
 

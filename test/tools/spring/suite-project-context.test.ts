@@ -15,8 +15,36 @@ function createTestTempDir(prefix: string): string {
 }
 
 function writeJson(filePath: string, payload: Record<string, unknown>): void {
+  const nextPayload =
+    path.basename(filePath) === "projects.json" && Array.isArray(payload.workspaces)
+      ? {
+          ...payload,
+          workspaces: payload.workspaces.map((workspace) => {
+            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) return workspace;
+            const defaults =
+              "defaults" in workspace && workspace.defaults && typeof workspace.defaults === "object"
+                ? workspace.defaults
+                : {};
+            const orchestrator =
+              "orchestrator" in defaults && defaults.orchestrator && typeof defaults.orchestrator === "object"
+                ? defaults.orchestrator
+                : {
+                    resumePollMax: 30,
+                    resumePollIntervalMs: 10_000,
+                    resumePollTimeoutMs: 300_000,
+                  };
+            return {
+              ...workspace,
+              defaults: {
+                ...defaults,
+                orchestrator,
+              },
+            };
+          }),
+        }
+      : payload;
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  fs.writeFileSync(filePath, `${JSON.stringify(nextPayload, null, 2)}\n`, "utf8");
 }
 
 test("resolveProjectContextForRegression fails closed when artifact is missing", async () => {
@@ -259,10 +287,40 @@ test("resolveProjectContextForRegression uses workspace defaults retryMax/reques
     if (out.status === "ok") {
       assert.equal(out.contextPatch["runtime.requestTimeoutMs"], 500);
       assert.equal(out.contextPatch["runtime.retryMax"], 2);
+      assert.equal(out.contextPatch["runtime.orchestrator.resumePollMax"], 30);
+      assert.equal(out.contextPatch["runtime.orchestrator.resumePollIntervalMs"], 10_000);
+      assert.equal(out.contextPatch["runtime.orchestrator.resumePollTimeoutMs"], 300_000);
     }
     assert.equal(attempts, 2);
   } finally {
     server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectContextForRegression fails closed when orchestrator defaults are omitted from projects.json", async () => {
+  const root = createTestTempDir("project-context-orchestrator-missing");
+  try {
+    const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    fs.mkdirSync(path.dirname(projects), { recursive: true });
+    fs.writeFileSync(
+      projects,
+      `${JSON.stringify({ workspaces: [{ projectRoot: root }] }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projects,
+      healthChecksEnabled: false,
+    });
+
+    assert.equal(out.status, "blocked");
+    if (out.status === "blocked") {
+      assert.equal(out.reasonCode, "project_artifact_invalid");
+      assert.equal(out.requiredUserAction.some((entry: string) => entry.includes("defaults.orchestrator is required")), true);
+    }
+  } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
