@@ -33,9 +33,11 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 12. Shared scripts and run-prerequisite scripts must be replayable: use relative paths only (`scriptPath`, `appdir`, and path-like `args[]`); absolute machine paths are invalid.
 13. External system checks may use only deterministic `tcp` or `http` checks in v1.
 14. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
-15. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by orchestrator runtime operations by default, including health checks, wrapped HTTP execution, and replayable bootstrap/prerequisite scripts unless a narrower timeout is set.
-16. `sessionExport` uses flat defaults for `includeRuntimeStartup` and `includeHealthcheckGate`.
-17. `sessionExport.includeResolvedSecrets` must not auto-enable secret export; resolved secrets require explicit request opt-in at export time.
+15. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by suite-owned runtime operations by default, including health checks, wrapped HTTP execution, and replayable bootstrap/prerequisite scripts unless a narrower timeout is set.
+16. `defaults.orchestrator.resumePollMax`, `defaults.orchestrator.resumePollIntervalMs`, and `defaults.orchestrator.resumePollTimeoutMs` are required project-owned Execution Orchestrator resiliency defaults.
+17. Keep watcher wait-policy defaults distinct from `defaults.orchestrator`; watcher polling and outer orchestration polling are separate concerns.
+18. `sessionExport` uses flat defaults for `includeRuntimeStartup` and `includeHealthcheckGate`.
+19. `sessionExport.includeResolvedSecrets` must not auto-enable secret export; resolved secrets require explicit request opt-in at export time.
 
 ## Required Artifact Path
 
@@ -131,7 +133,12 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
       ],
       "defaults": {
         "requestTimeoutMs": 10000,
-        "retryMax": 1
+        "retryMax": 1,
+        "orchestrator": {
+          "resumePollMax": 30,
+          "resumePollIntervalMs": 10000,
+          "resumePollTimeoutMs": 300000
+        }
       },
       "sessionExport": {
         "includeRuntimeStartup": true,
@@ -180,7 +187,10 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 
 1. `defaults.retryMax`: retry attempts for required external system checks.
 2. `defaults.requestTimeoutMs`: default timeout for suite-owned runtime operations when a narrower timeout is not set, including required external system checks, wrapped HTTP execution, and replayable bootstrap/prerequisite scripts.
-3. Keep values small and deterministic for fast preflight feedback.
+3. `defaults.orchestrator.resumePollMax`: bounded outer resume/poll pass count for long-running execution orchestration.
+4. `defaults.orchestrator.resumePollIntervalMs`: bounded sleep interval between outer orchestration resume passes.
+5. `defaults.orchestrator.resumePollTimeoutMs`: bounded total outer orchestration wait budget.
+6. Keep runtime-operation defaults and outer orchestration defaults small and deterministic for fast fail-closed feedback.
 
 ## Shared Scripts
 

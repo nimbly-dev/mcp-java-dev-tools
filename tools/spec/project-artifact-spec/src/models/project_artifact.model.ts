@@ -143,6 +143,11 @@ export type ProjectWorkspaceEntry = {
   defaults?: {
     requestTimeoutMs?: number;
     retryMax?: number;
+    orchestrator: {
+      resumePollMax: number;
+      resumePollIntervalMs: number;
+      resumePollTimeoutMs: number;
+    };
   };
 };
 
