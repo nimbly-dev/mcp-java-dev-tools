@@ -3,14 +3,27 @@ import type {
   PreflightResult,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 
-export type RegressionRunStatus = "pass" | "fail" | "blocked";
-export type RegressionWatcherPhaseStatus = "not_configured" | "pass" | "fail" | "blocked";
+export type RegressionRunStatus = "pass" | "fail" | "blocked" | "in_progress";
+export type RegressionWatcherPhaseStatus = "not_configured" | "pass" | "fail" | "blocked" | "in_progress";
 export type RegressionExternalVerificationPhaseStatus =
   | "not_configured"
   | "pass"
   | "fail"
   | "blocked"
+  | "in_progress"
   | "skipped_dependency";
+
+export type RegressionExecutionContinuation =
+  | {
+      phase: "watchers";
+      watcherIndex: number;
+      phaseStartedAt: string;
+    }
+  | {
+      phase: "external_verification";
+      verificationIndex: number;
+      phaseStartedAt: string;
+    };
 
 export type RegressionPlanReference = {
   name?: string;
@@ -22,6 +35,7 @@ export type RegressionRunExecutionResult = {
   triggerStatus?: RegressionRunStatus;
   watcherStatus?: RegressionWatcherPhaseStatus;
   externalVerificationStatus?: RegressionExternalVerificationPhaseStatus;
+  continuation?: RegressionExecutionContinuation;
   preflight: PreflightResult;
   startedAt: string | null;
   endedAt: string | null;

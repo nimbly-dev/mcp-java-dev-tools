@@ -217,6 +217,119 @@ test("executeRegressionRuntimeSuite returns in_progress and resumes from nextPla
   }
 });
 
+test("executeRegressionRuntimeSuite resumes the same in_progress plan without duplicating planRuns", async () => {
+  const root = createTestTempDir("runtime-suite-same-plan-resume");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "watcher-resume-plan";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 100, retryMax: 3 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "watcher-resume-suite",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName }],
+            },
+          ],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
+          expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "search_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://localhost:8082/index/${eventId}",
+              },
+            },
+          },
+          waitPolicy: { timeoutMs: 1_000, retryMax: 3 },
+          expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    let stepCalls = 0;
+    let watcherCalls = 0;
+    const first = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "watcher-resume-suite",
+      orchestrationTimeoutBudgetMs: 10,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "POST") {
+          stepCalls += 1;
+          return { structuredContent: { status: "pass", statusCode: 202, durationMs: 1, body: "{\"eventId\":\"evt-1\"}", bodyPreview: "{\"eventId\":\"evt-1\"}" } };
+        }
+        watcherCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 1, body: "{\"state\":\"pending\"}", bodyPreview: "{\"state\":\"pending\"}" } };
+      },
+    });
+
+    assert.equal(first.status, "in_progress");
+    assert.equal(first.nextPlanOrder, 1);
+    assert.equal(first.planRuns.length, 1);
+    assert.equal(first.planRuns[0].runStatus, "in_progress");
+
+    const second = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "watcher-resume-suite",
+      suiteRunId: first.suiteRunId,
+      startPlanOrder: first.nextPlanOrder,
+      priorPlanRuns: first.planRuns,
+      orchestrationTimeoutBudgetMs: 1_000,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "POST") {
+          stepCalls += 1;
+          return { structuredContent: { status: "pass", statusCode: 202, durationMs: 1, body: "{\"eventId\":\"evt-1\"}", bodyPreview: "{\"eventId\":\"evt-1\"}" } };
+        }
+        watcherCalls += 1;
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 1, body: "{\"state\":\"ready\"}", bodyPreview: "{\"state\":\"ready\"}" } };
+      },
+    });
+
+    assert.equal(second.status, "pass");
+    assert.equal(second.planRuns.length, 1);
+    assert.equal(second.planRuns[0].runStatus, "pass");
+    assert.equal(second.suiteRunId, first.suiteRunId);
+    assert.equal(stepCalls, 1);
+    assert.equal(watcherCalls, 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite continue_on_fail blocks whole suite on shared env/auth non-viability", async () => {
   const root = createTestTempDir("runtime-suite-continue-suite-level-block");
   try {

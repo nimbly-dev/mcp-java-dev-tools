@@ -9,9 +9,12 @@ import type {
   RuntimeSuiteScriptPhase,
   RuntimeSuiteScriptRef,
 } from "@tools-regression-execution-plan-spec/models/regression_runtime_suite.model";
-import type { CorrelationArtifact } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import type {
+  CorrelationArtifact,
+  RegressionRunExecutionResult,
+} from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
+import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
 import {
   executeRegressionPlanWorkflow,
   type ExecuteRegressionPlanWorkflowArgs,
@@ -70,6 +73,33 @@ async function readJsonFile(absPath: string): Promise<Record<string, unknown> | 
   }
 }
 
+async function readPersistedRegressionPlanState(args: {
+  workspaceRootAbs: string;
+  projectName?: string;
+  planName: string;
+  runId: string;
+}): Promise<{
+  resolvedContext: Record<string, unknown>;
+  executionResult: RegressionRunExecutionResult;
+  evidence: Record<string, unknown>;
+} | null> {
+  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs, args.projectName);
+  const runDirAbs = path.join(plansRootAbs, args.planName, "runs", args.runId);
+  const [resolvedContext, executionResult, evidence] = await Promise.all([
+    readJsonFile(path.join(runDirAbs, "context.resolved.json")),
+    readJsonFile(path.join(runDirAbs, "execution.result.json")),
+    readJsonFile(path.join(runDirAbs, "evidence.json")),
+  ]);
+  if (!resolvedContext || !executionResult || !evidence) {
+    return null;
+  }
+  return {
+    resolvedContext,
+    executionResult: executionResult as unknown as RegressionRunExecutionResult,
+    evidence,
+  };
+}
+
 function buildSuiteStatusDirAbs(args: {
   workspaceRootAbs: string;
   projectName: string;
@@ -120,6 +150,9 @@ export async function writeExecutionOrchestrationSuiteResult(args: {
   if (Array.isArray(args.suite.correlations) && args.suite.correlations.length > 0) {
     payload.correlations = args.suite.correlations;
   }
+  if (isRecord(args.suite.suiteContext) && Object.keys(args.suite.suiteContext).length > 0) {
+    payload.suiteContext = args.suite.suiteContext;
+  }
   await fs.writeFile(fileAbs, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
   return fileAbs;
 }
@@ -133,7 +166,8 @@ function asPersistedPlanRunResult(value: unknown): RuntimeSuiteRunResult["planRu
     typeof value.runStatus !== "undefined" &&
     value.runStatus !== "pass" &&
     value.runStatus !== "fail" &&
-    value.runStatus !== "blocked"
+    value.runStatus !== "blocked" &&
+    value.runStatus !== "in_progress"
   ) {
     return null;
   }
@@ -146,6 +180,22 @@ function asPersistedPlanRunResult(value: unknown): RuntimeSuiteRunResult["planRu
     ...(isRecord(value.blockedReasonMeta) ? { blockedReasonMeta: value.blockedReasonMeta } : {}),
     ...(typeof value.runId === "string" ? { runId: value.runId } : {}),
   };
+}
+
+function upsertPlanRun(
+  planRuns: RuntimeSuiteRunResult["planRuns"],
+  nextPlanRun: RuntimeSuiteRunResult["planRuns"][number],
+): void {
+  const existingIndex = planRuns.findIndex((entry) => entry.order === nextPlanRun.order);
+  if (existingIndex >= 0) {
+    planRuns[existingIndex] = nextPlanRun;
+    return;
+  }
+  planRuns.push(nextPlanRun);
+}
+
+function countCompletedPlanRuns(planRuns: RuntimeSuiteRunResult["planRuns"]): number {
+  return planRuns.filter((entry) => entry.status !== "skipped" && entry.runStatus !== "in_progress").length;
 }
 
 function resolveBlockedPlanDetail(executionResult: Record<string, unknown>): {
@@ -234,6 +284,7 @@ export async function readExecutionOrchestrationSuiteResult(args: {
         .filter((entry): entry is RuntimeSuiteCorrelationResult => entry !== null)
     : undefined;
   if (Array.isArray(parsed.correlations) && correlations && correlations.length !== parsed.correlations.length) return null;
+  const suiteContext = isRecord(parsed.suiteContext) ? parsed.suiteContext : undefined;
   return {
     executionProfile: parsed.executionProfile,
     executionPolicy: parsed.executionPolicy,
@@ -243,6 +294,7 @@ export async function readExecutionOrchestrationSuiteResult(args: {
     ...(typeof parsed.nextPlanOrder === "number" ? { nextPlanOrder: parsed.nextPlanOrder } : {}),
     ...(typeof parsed.completedPlanCount === "number" ? { completedPlanCount: parsed.completedPlanCount } : {}),
     ...(correlations ? { correlations } : {}),
+    ...(suiteContext ? { suiteContext } : {}),
   };
 }
 
@@ -640,7 +692,9 @@ export type ExecuteRegressionRuntimeSuiteArgs = {
   suiteRunId?: string;
   startPlanOrder?: number;
   priorPlanRuns?: RuntimeSuiteRunResult["planRuns"];
+  priorSuiteContext?: Record<string, unknown>;
   maxPlansPerCall?: number;
+  orchestrationTimeoutBudgetMs?: number;
 };
 
 export async function executeRegressionRuntimeSuite(
@@ -669,7 +723,9 @@ export async function executeRegressionRuntimeSuite(
       ? args.suiteRunId.trim()
       : buildTimestampRunId(new Date(), 1);
   const correlationSessions = new Map<string, RuntimeSuiteCorrelationSession>();
-  const suiteProvidedContext: Record<string, unknown> = {};
+  const suiteProvidedContext: Record<string, unknown> = isRecord(args.priorSuiteContext)
+    ? { ...args.priorSuiteContext }
+    : {};
   let hasFail = planRuns.some((entry) => entry.status === "executed" && entry.runStatus === "fail");
   let hasBlocked = planRuns.some(
     (entry) => entry.status === "blocked" || (entry.status === "executed" && entry.runStatus === "blocked"),
@@ -693,6 +749,27 @@ export async function executeRegressionRuntimeSuite(
     typeof args.maxPlansPerCall === "number" && Number.isInteger(args.maxPlansPerCall) && args.maxPlansPerCall > 0
       ? args.maxPlansPerCall
       : undefined;
+  const plansRootAbs = await resolveRegressionPlansRootAbs(
+    args.workspaceRootAbs,
+    typeof args.projectName === "string" && args.projectName.trim().length > 0 ? args.projectName.trim() : undefined,
+  );
+  for (const priorPlanRun of planRuns) {
+    if (
+      priorPlanRun.status !== "executed" ||
+      priorPlanRun.runStatus === "in_progress" ||
+      typeof priorPlanRun.runId !== "string"
+    ) {
+      continue;
+    }
+    const runDirAbs = path.join(plansRootAbs, priorPlanRun.planName, "runs", priorPlanRun.runId);
+    await collectSuiteCorrelationSession({
+      runDirAbs,
+      planName: priorPlanRun.planName,
+      sessions: correlationSessions,
+      suiteContext: suiteProvidedContext,
+    });
+  }
+  const suiteCallStartedAtMs = Date.now();
   let processedPlansThisCall = 0;
   let nextPlanOrder: number | undefined;
   let stop = false;
@@ -712,6 +789,31 @@ export async function executeRegressionRuntimeSuite(
       nextPlanOrder = plan.order;
       break;
     }
+    const remainingOrchestrationBudgetMs =
+      typeof args.orchestrationTimeoutBudgetMs === "number"
+        ? args.orchestrationTimeoutBudgetMs - (Date.now() - suiteCallStartedAtMs)
+        : undefined;
+    const priorPlanRun = planRuns.find((entry) => entry.order === plan.order);
+    const resumeState =
+      priorPlanRun?.runStatus === "in_progress" && typeof priorPlanRun.runId === "string"
+        ? await readPersistedRegressionPlanState({
+            workspaceRootAbs: args.workspaceRootAbs,
+            ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
+              ? { projectName: args.projectName.trim() }
+              : {}),
+            planName: plan.planName,
+            runId: priorPlanRun.runId,
+          })
+        : null;
+    if (priorPlanRun?.runStatus === "in_progress" && typeof priorPlanRun.runId === "string" && !resumeState) {
+      return {
+        status: "blocked",
+        reasonCode: "suite_progress_missing",
+        requiredUserAction: [
+          `Persist run Artifacts for in_progress plan '${plan.planName}' before resuming suiteRunId '${suiteRunId}'.`,
+        ],
+      };
+    }
     const run = await executeRegressionPlanWorkflow({
       workspaceRootAbs: args.workspaceRootAbs,
       ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
@@ -719,6 +821,7 @@ export async function executeRegressionRuntimeSuite(
         : {}),
       planName: plan.planName,
       mcpInvoke: args.mcpInvoke,
+      ...(typeof priorPlanRun?.runId === "string" ? { runId: priorPlanRun.runId } : {}),
       ...(manifest.runtimeConfig ? { runtimeConfigOverride: manifest.runtimeConfig } : {}),
       ...(plan.runtimeContextName || manifest.runtimeContextName
         ? { runtimeContextName: plan.runtimeContextName ?? manifest.runtimeContextName }
@@ -729,6 +832,10 @@ export async function executeRegressionRuntimeSuite(
         ...(plan.providedContext ?? {}),
         ...suiteProvidedContext,
       },
+      ...(typeof remainingOrchestrationBudgetMs === "number"
+        ? { orchestrationTimeoutBudgetMs: remainingOrchestrationBudgetMs }
+        : {}),
+      ...(resumeState ? { resumeState } : {}),
     });
     if (run.status === "blocked") {
       processedPlansThisCall += 1;
@@ -736,7 +843,7 @@ export async function executeRegressionRuntimeSuite(
       if (isSuiteLevelPreflightBlocker(run.preflight.reasonCode)) {
         suiteLevelBlocked = true;
       }
-      planRuns.push({
+      upsertPlanRun(planRuns, {
         order: plan.order,
         planName: plan.planName,
         status: "blocked",
@@ -752,7 +859,7 @@ export async function executeRegressionRuntimeSuite(
       continue;
     }
     processedPlansThisCall += 1;
-    planRuns.push({
+    upsertPlanRun(planRuns, {
       order: plan.order,
       planName: plan.planName,
       status: "executed",
@@ -760,6 +867,10 @@ export async function executeRegressionRuntimeSuite(
       ...(run.runStatus === "blocked" ? resolveBlockedPlanDetail(run.executionResult as unknown as Record<string, unknown>) : {}),
       runId: run.runId,
     });
+    if (run.runStatus === "in_progress") {
+      nextPlanOrder = plan.order;
+      break;
+    }
     await collectSuiteCorrelationSession({
       runDirAbs: run.artifacts.runDirAbs,
       planName: plan.planName,
@@ -795,7 +906,8 @@ export async function executeRegressionRuntimeSuite(
       planRuns,
       suiteRunId,
       nextPlanOrder,
-      completedPlanCount: planRuns.length,
+      completedPlanCount: countCompletedPlanRuns(planRuns),
+      ...(Object.keys(suiteProvidedContext).length > 0 ? { suiteContext: suiteProvidedContext } : {}),
     };
   }
 
@@ -818,7 +930,7 @@ export async function executeRegressionRuntimeSuite(
     status,
     planRuns,
     suiteRunId,
-    completedPlanCount: planRuns.length,
+    completedPlanCount: countCompletedPlanRuns(planRuns),
   };
   const correlations = await writeSuiteCorrelationResults({
     sessions: correlationSessions,
@@ -826,6 +938,9 @@ export async function executeRegressionRuntimeSuite(
   });
   if (correlations.length > 0) {
     result.correlations = correlations;
+  }
+  if (Object.keys(suiteProvidedContext).length > 0) {
+    result.suiteContext = suiteProvidedContext;
   }
   return result;
 }

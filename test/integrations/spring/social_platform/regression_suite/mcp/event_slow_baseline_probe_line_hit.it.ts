@@ -20,8 +20,36 @@ type ToolResult = {
 };
 
 async function writeJson(filePath: string, payload: Record<string, unknown>): Promise<void> {
+  const nextPayload =
+    path.basename(filePath) === "projects.json" && Array.isArray(payload.workspaces)
+      ? {
+          ...payload,
+          workspaces: payload.workspaces.map((workspace) => {
+            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) return workspace;
+            const defaults =
+              "defaults" in workspace && workspace.defaults && typeof workspace.defaults === "object"
+                ? workspace.defaults
+                : {};
+            const orchestrator =
+              "orchestrator" in defaults && defaults.orchestrator && typeof defaults.orchestrator === "object"
+                ? defaults.orchestrator
+                : {
+                    resumePollMax: 30,
+                    resumePollIntervalMs: 10_000,
+                    resumePollTimeoutMs: 300_000,
+                  };
+            return {
+              ...workspace,
+              defaults: {
+                ...defaults,
+                orchestrator,
+              },
+            };
+          }),
+        }
+      : payload;
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  await fs.writeFile(filePath, `${JSON.stringify(nextPayload, null, 2)}\n`, "utf8");
 }
 
 async function callTool(

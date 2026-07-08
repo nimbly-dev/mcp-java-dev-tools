@@ -93,6 +93,10 @@ type ProbeRegistry = {
   }>;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function extractProbePort(baseUrl: string): number | null {
   try {
     const parsed = new URL(baseUrl);
@@ -1028,16 +1032,11 @@ function selectRuntimeContext(args: {
 export async function resolveProjectContextForRegression(
   args: ResolveProjectContextArgs,
 ): Promise<ProjectContextResolutionResult> {
-  let parsed;
-  try {
-    parsed = await readProjectArtifact(args.projectsFileAbs);
-  } catch {
-    return {
-      status: "blocked",
-      reasonCode: "project_artifact_missing",
-      requiredUserAction: [`Create project artifact at ${args.projectsFileAbs}.`],
-    };
-  }
+  const parsed = await readProjectArtifact(args.projectsFileAbs).catch(() => ({
+    ok: false as const,
+    reasonCode: "project_artifact_missing" as const,
+    errors: [`Create project artifact at ${args.projectsFileAbs}.`],
+  }));
   if (!parsed.ok) {
     return {
       status: "blocked",
@@ -1109,9 +1108,9 @@ export async function resolveProjectContextForRegression(
   const contextPatch: Record<string, unknown> = {
     "runtime.requestTimeoutMs": resolveWorkspaceRequestTimeoutMs(effectiveWorkspace, 20_000),
     "runtime.retryMax": resolveWorkspaceRetryMax(effectiveWorkspace, 1),
-    "runtime.orchestrator.resumePollMax": effectiveWorkspace.defaults?.orchestrator.resumePollMax,
-    "runtime.orchestrator.resumePollIntervalMs": effectiveWorkspace.defaults?.orchestrator.resumePollIntervalMs,
-    "runtime.orchestrator.resumePollTimeoutMs": effectiveWorkspace.defaults?.orchestrator.resumePollTimeoutMs,
+    "runtime.orchestrator.resumePollMax": effectiveWorkspace.defaults?.orchestrator?.resumePollMax,
+    "runtime.orchestrator.resumePollIntervalMs": effectiveWorkspace.defaults?.orchestrator?.resumePollIntervalMs,
+    "runtime.orchestrator.resumePollTimeoutMs": effectiveWorkspace.defaults?.orchestrator?.resumePollTimeoutMs,
   };
   const secretContextKeys = new Set<string>();
 

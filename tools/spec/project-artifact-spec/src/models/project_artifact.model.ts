@@ -143,7 +143,7 @@ export type ProjectWorkspaceEntry = {
   defaults?: {
     requestTimeoutMs?: number;
     retryMax?: number;
-    orchestrator: {
+    orchestrator?: {
       resumePollMax: number;
       resumePollIntervalMs: number;
       resumePollTimeoutMs: number;

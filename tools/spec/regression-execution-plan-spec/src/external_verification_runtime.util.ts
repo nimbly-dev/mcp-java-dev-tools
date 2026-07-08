@@ -6,6 +6,7 @@ import type {
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import type {
   RegressionExternalVerificationPhaseStatus,
+  RegressionExecutionContinuation,
   RegressionRunStatus,
 } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
 import type {
@@ -254,11 +255,17 @@ export async function executeExternalVerifications(args: {
   registry: Map<TransportAdapter["protocol"], TransportAdapter>;
   dependencyStatus: RegressionRunStatus;
   workspaceRootAbs: string;
+  priorResults?: NormalizedExternalVerificationResult[];
+  startVerificationIndex?: number;
+  orchestrationDeadlineEpochMs?: number;
+  nowMs?: () => number;
 }): Promise<{
   phaseStatus: RegressionExternalVerificationPhaseStatus;
   results: NormalizedExternalVerificationResult[];
   resolvedContext: Record<string, unknown>;
+  continuation?: RegressionExecutionContinuation;
 }> {
+  const nowMs = args.nowMs ?? (() => Date.now());
   const verifications = args.externalVerification ?? [];
   if (verifications.length === 0) {
     return {
@@ -276,9 +283,34 @@ export async function executeExternalVerifications(args: {
   }
 
   let resolvedContext = { ...args.resolvedContext };
-  const results: NormalizedExternalVerificationResult[] = [];
+  const results: NormalizedExternalVerificationResult[] = [...(args.priorResults ?? [])];
+  const startVerificationIndex =
+    typeof args.startVerificationIndex === "number" &&
+    Number.isInteger(args.startVerificationIndex) &&
+    args.startVerificationIndex >= 0
+      ? args.startVerificationIndex
+      : 0;
 
-  for (const verification of verifications) {
+  for (let verificationIndex = startVerificationIndex; verificationIndex < verifications.length; verificationIndex += 1) {
+    const verification = verifications[verificationIndex];
+    if (!verification) {
+      continue;
+    }
+    if (
+      typeof args.orchestrationDeadlineEpochMs === "number" &&
+      nowMs() >= args.orchestrationDeadlineEpochMs
+    ) {
+      return {
+        phaseStatus: "in_progress",
+        results,
+        resolvedContext,
+        continuation: {
+          phase: "external_verification",
+          verificationIndex,
+          phaseStartedAt: new Date(nowMs()).toISOString(),
+        },
+      };
+    }
     if (verification.provider.type === "sql") {
       const sqlExecution = await executeSqlExternalVerification({
         verification,

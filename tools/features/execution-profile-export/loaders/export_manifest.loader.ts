@@ -69,6 +69,28 @@ function parsePlanRun(value: unknown): ExecutionProfileExportPlanRun | null {
   };
 }
 
+function toExecutionProfileExportPlanRuns(
+  planRuns: Array<{
+    order: number;
+    planName: string;
+    status: "executed" | "blocked" | "skipped";
+    runStatus?: "pass" | "fail" | "blocked" | "in_progress";
+    blockedReasonCode?: string;
+    runId?: string;
+  }>,
+): ExecutionProfileExportPlanRun[] {
+  return planRuns.map((planRun) => ({
+    order: planRun.order,
+    planName: planRun.planName,
+    status: planRun.status,
+    ...(planRun.runStatus === "pass" || planRun.runStatus === "fail" || planRun.runStatus === "blocked"
+      ? { runStatus: planRun.runStatus }
+      : {}),
+    ...(typeof planRun.blockedReasonCode === "string" ? { blockedReasonCode: planRun.blockedReasonCode } : {}),
+    ...(typeof planRun.runId === "string" ? { runId: planRun.runId } : {}),
+  }));
+}
+
 function parseExportIdTimestamp(exportId: string): number | undefined {
   const match = exportId.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})-/);
   if (!match) return undefined;
@@ -306,7 +328,7 @@ async function deriveManifestFromLatestSuite(args: {
       endedAtIso: new Date(mtimeMs || Date.now()).toISOString(),
       mtimeMs,
       runStatus: suite.status,
-      planRuns: [...suite.planRuns].sort((a, b) => a.order - b.order),
+      planRuns: toExecutionProfileExportPlanRuns([...suite.planRuns].sort((a, b) => a.order - b.order)),
     });
   }
   candidates.sort((a, b) => {
