@@ -1,6 +1,10 @@
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
 import { CONFIG_DEFAULTS } from "@/config/defaults";
 import { createProbeDomain } from "@/tools/core/probe/domain";
+import {
+  executeExecutionOrchestrationResiliencyLoop,
+  resolveExecutionOrchestrationLoopPolicy,
+} from "@/tools/core/execution_orchestration/shared/resiliency.util";
 import { deriveNextActionCode } from "@/utils/failure_diagnostics.util";
 import { executeHttpTransportRequest } from "@/utils/transport_execute_http.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
@@ -185,6 +189,18 @@ export async function executionOrchestrationDomain(input: {
       },
     });
   }
+  const orchestratorDefaults = workspace.defaults?.orchestrator;
+  if (!orchestratorDefaults) {
+    return blockedResponse({
+      reasonCode: "runtime_suite_missing",
+      reason: "runtime_suite_missing",
+      reasonMeta: {
+        projectName,
+        executionProfile,
+        requiredUserAction: ["Add workspaces[].defaults.orchestrator to projects.json."],
+      },
+    });
+  }
 
   const invokeSuiteTool = async ({ toolName, input: toolInput }: { toolName: string; input: Record<string, unknown> }) => {
     if (toolName === "transport_execute") {
@@ -234,17 +250,29 @@ export async function executionOrchestrationDomain(input: {
     };
   };
 
-  const suite =
+  const loopPolicy = resolveExecutionOrchestrationLoopPolicy(orchestratorDefaults);
+  const enableOuterResiliencyLoop =
+    typeof maxPlansPerCall !== "number" &&
+    loopPolicy.effectiveTimeoutBudgetMs > 0;
+  const maxPlansPerPass = enableOuterResiliencyLoop ? 1 : maxPlansPerCall;
+
+  const executeSuitePass = async (state: {
+    suiteRunId?: string;
+    priorSuite?: NonNullable<typeof priorSuite> | null;
+  }, remainingBudgetMs: number) =>
     profile.suiteType === "performance"
       ? await executePerformanceRuntimeSuite({
           workspaceRootAbs: input.workspaceRootAbs,
           projectName,
           executionProfile,
-          ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
-          ...(typeof maxPlansPerCall === "number" ? { maxPlansPerCall } : {}),
-          ...(priorSuite && Array.isArray(priorSuite.planRuns) ? { priorPlanRuns: priorSuite.planRuns } : {}),
-          ...(priorSuite && typeof priorSuite.nextPlanOrder === "number"
-            ? { startPlanOrder: priorSuite.nextPlanOrder }
+          ...(typeof state.suiteRunId === "string" ? { suiteRunId: state.suiteRunId } : {}),
+          ...(typeof maxPlansPerPass === "number" ? { maxPlansPerCall: maxPlansPerPass } : {}),
+          ...(state.priorSuite && Array.isArray(state.priorSuite.planRuns) ? { priorPlanRuns: state.priorSuite.planRuns } : {}),
+          ...(state.priorSuite && typeof state.priorSuite.suiteContext === "object" && state.priorSuite.suiteContext !== null
+            ? { priorSuiteContext: state.priorSuite.suiteContext }
+            : {}),
+          ...(state.priorSuite && typeof state.priorSuite.nextPlanOrder === "number"
+            ? { startPlanOrder: state.priorSuite.nextPlanOrder }
             : {}),
           mcpInvoke: invokeSuiteTool,
         })
@@ -252,14 +280,45 @@ export async function executionOrchestrationDomain(input: {
           workspaceRootAbs: input.workspaceRootAbs,
           projectName,
           executionProfile,
-          ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
-          ...(typeof maxPlansPerCall === "number" ? { maxPlansPerCall } : {}),
-          ...(priorSuite && Array.isArray(priorSuite.planRuns) ? { priorPlanRuns: priorSuite.planRuns } : {}),
-          ...(priorSuite && typeof priorSuite.nextPlanOrder === "number"
-            ? { startPlanOrder: priorSuite.nextPlanOrder }
+          ...(typeof state.suiteRunId === "string" ? { suiteRunId: state.suiteRunId } : {}),
+          ...(typeof maxPlansPerPass === "number" ? { maxPlansPerCall: maxPlansPerPass } : {}),
+          ...(state.priorSuite && Array.isArray(state.priorSuite.planRuns) ? { priorPlanRuns: state.priorSuite.planRuns } : {}),
+          ...(state.priorSuite && typeof state.priorSuite.suiteContext === "object" && state.priorSuite.suiteContext !== null
+            ? { priorSuiteContext: state.priorSuite.suiteContext }
+            : {}),
+          ...(state.priorSuite && typeof state.priorSuite.nextPlanOrder === "number"
+            ? { startPlanOrder: state.priorSuite.nextPlanOrder }
             : {}),
           mcpInvoke: invokeSuiteTool,
+          orchestrationTimeoutBudgetMs: remainingBudgetMs,
         });
+
+  const suite = enableOuterResiliencyLoop
+    ? await executeExecutionOrchestrationResiliencyLoop({
+        projectName,
+        executionProfile,
+        defaults: orchestratorDefaults,
+        ...(typeof suiteRunId === "string" ? { initialSuiteRunId: suiteRunId } : {}),
+        ...(priorSuite ? { initialPriorSuite: priorSuite } : {}),
+        executePass: executeSuitePass,
+        persistSuite: async (nextSuite) => {
+          await writeExecutionOrchestrationSuiteResult({
+            workspaceRootAbs: input.workspaceRootAbs,
+            projectName,
+            suite: nextSuite,
+          });
+        },
+        readPersistedSuite: async (nextSuiteRunId) =>
+          await readExecutionOrchestrationSuiteResult({
+            workspaceRootAbs: input.workspaceRootAbs,
+            projectName,
+            suiteRunId: nextSuiteRunId,
+          }),
+      })
+    : await executeSuitePass({
+        ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
+        ...(priorSuite ? { priorSuite } : {}),
+      }, loopPolicy.effectiveTimeoutBudgetMs);
 
   if ("reasonCode" in suite && suite.status === "blocked") {
     return blockedResponse({
@@ -273,11 +332,13 @@ export async function executionOrchestrationDomain(input: {
     });
   }
 
-  await writeExecutionOrchestrationSuiteResult({
-    workspaceRootAbs: input.workspaceRootAbs,
-    projectName,
-    suite,
-  });
+  if (!enableOuterResiliencyLoop) {
+    await writeExecutionOrchestrationSuiteResult({
+      workspaceRootAbs: input.workspaceRootAbs,
+      projectName,
+      suite,
+    });
+  }
 
   const structuredContent = {
     resultType: "execution_orchestration",

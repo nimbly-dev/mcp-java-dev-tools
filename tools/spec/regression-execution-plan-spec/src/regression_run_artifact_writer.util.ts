@@ -5,6 +5,7 @@ import path from "node:path";
 import type {
   CorrelationIndexRebuildResult,
   CorrelationArtifact,
+  RegressionExecutionContinuation,
   RegressionExternalVerificationPhaseStatus,
   RegressionRunArtifactsWriteResult,
   RegressionRunExecutionResult,
@@ -132,6 +133,11 @@ function normalizeExecutionResultPayload(
   }
   return {
     ...executionResult,
+    ...(typeof executionResult.continuation === "undefined"
+      ? {}
+      : {
+          continuation: normalizeExecutionContinuation(executionResult.continuation),
+        }),
     ...(typeof executionResult.externalVerificationStatus === "undefined"
       ? {}
       : {
@@ -172,11 +178,44 @@ function normalizeExternalVerificationPhaseStatus(
     value === "pass" ||
     value === "fail" ||
     value === "blocked" ||
+    value === "in_progress" ||
     value === "skipped_dependency"
   ) {
     return value;
   }
   throw new Error(invalidErrorCode);
+}
+
+function normalizeExecutionContinuation(
+  value: RegressionExecutionContinuation,
+): RegressionExecutionContinuation {
+  if (
+    value.phase === "watchers" &&
+    Number.isInteger(value.watcherIndex) &&
+    value.watcherIndex >= 0 &&
+    typeof value.phaseStartedAt === "string" &&
+    value.phaseStartedAt.trim().length > 0
+  ) {
+    return {
+      phase: "watchers",
+      watcherIndex: value.watcherIndex,
+      phaseStartedAt: value.phaseStartedAt,
+    };
+  }
+  if (
+    value.phase === "external_verification" &&
+    Number.isInteger(value.verificationIndex) &&
+    value.verificationIndex >= 0 &&
+    typeof value.phaseStartedAt === "string" &&
+    value.phaseStartedAt.trim().length > 0
+  ) {
+    return {
+      phase: "external_verification",
+      verificationIndex: value.verificationIndex,
+      phaseStartedAt: value.phaseStartedAt,
+    };
+  }
+  throw new Error("execution_continuation_invalid");
 }
 
 function normalizeExternalVerificationResults(

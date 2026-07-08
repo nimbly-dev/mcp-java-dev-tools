@@ -2,6 +2,7 @@ import type {
   PlanContract,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import type {
+  RegressionExecutionContinuation,
   RegressionRunStatus,
   RegressionRunWatcherAttempt,
   RegressionWatcherReasonCode,
@@ -78,6 +79,7 @@ export function combinePlanRunStatus(args: {
   triggerStatus: RegressionRunStatus;
   watcherStatus: RegressionWatcherPhaseStatus;
 }): RegressionRunStatus {
+  if (args.triggerStatus === "in_progress" || args.watcherStatus === "in_progress") return "in_progress";
   if (args.triggerStatus === "blocked") return "blocked";
   if (args.triggerStatus === "fail") return "fail";
   if (args.watcherStatus === "blocked") return "blocked";
@@ -91,12 +93,23 @@ export async function executeWatchers(args: {
   registry: Map<TransportProtocol, TransportAdapter>;
   stepRows: RegressionRunStepResult[];
   stepContextsByOrder: Map<number, Record<string, unknown>>;
+  priorWatcherRows?: RegressionRunWatcherResult[];
+  priorWatcherEvidence?: WatcherExecutionEvidence[];
+  startWatcherIndex?: number;
+  currentWatcherStartedAt?: string;
+  orchestrationDeadlineEpochMs?: number;
+  nowMs?: () => number;
+  sleepMs?: (ms: number) => Promise<void>;
 }): Promise<{
   watcherRows: RegressionRunWatcherResult[];
   watcherEvidence: WatcherExecutionEvidence[];
+  phaseStatus: RegressionWatcherPhaseStatus;
+  continuation?: RegressionExecutionContinuation;
 }> {
-  const watcherRows: RegressionRunWatcherResult[] = [];
-  const watcherEvidence: WatcherExecutionEvidence[] = [];
+  const nowMs = args.nowMs ?? (() => Date.now());
+  const sleepMs = args.sleepMs ?? sleep;
+  const watcherRows: RegressionRunWatcherResult[] = [...(args.priorWatcherRows ?? [])];
+  const watcherEvidence: WatcherExecutionEvidence[] = [...(args.priorWatcherEvidence ?? [])];
   const stepStatusByOrder = new Map<number, RegressionRunStepResult>(
     args.stepRows.map((row) => [row.order, row]),
   );
@@ -106,9 +119,40 @@ export async function executeWatchers(args: {
     }
     return lhs.id.localeCompare(rhs.id);
   });
+  const startWatcherIndex =
+    typeof args.startWatcherIndex === "number" && Number.isInteger(args.startWatcherIndex) && args.startWatcherIndex >= 0
+      ? args.startWatcherIndex
+      : 0;
 
-  for (const watcher of watchers) {
-    const startedAt = Date.now();
+  const shouldYield = (): boolean =>
+    typeof args.orchestrationDeadlineEpochMs === "number" && nowMs() >= args.orchestrationDeadlineEpochMs;
+
+  const buildContinuation = (watcherIndex: number, phaseStartedAt: string): RegressionExecutionContinuation => ({
+    phase: "watchers",
+    watcherIndex,
+    phaseStartedAt,
+  });
+
+  for (let watcherIndex = startWatcherIndex; watcherIndex < watchers.length; watcherIndex += 1) {
+    const watcher = watchers[watcherIndex];
+    if (!watcher) {
+      continue;
+    }
+    const phaseStartedAt =
+      watcherIndex === startWatcherIndex && typeof args.currentWatcherStartedAt === "string"
+        ? args.currentWatcherStartedAt
+        : new Date(nowMs()).toISOString();
+    if (shouldYield()) {
+      return {
+        watcherRows,
+        watcherEvidence,
+        phaseStatus: "in_progress",
+        continuation: buildContinuation(watcherIndex, phaseStartedAt),
+      };
+    }
+
+    const startedAtMs = Date.parse(phaseStartedAt);
+    const startedAt = Number.isFinite(startedAtMs) ? startedAtMs : nowMs();
     const dependencyRow = stepStatusByOrder.get(watcher.dependency.stepOrder);
     const watcherContext = args.stepContextsByOrder.get(watcher.dependency.stepOrder) ?? args.resolvedContext;
     const resolvedWaitPolicy = resolveWatcherWaitPolicy({
@@ -138,7 +182,7 @@ export async function executeWatchers(args: {
         status: "blocked_dependency",
         outcome: "blocked",
         attemptCount: 0,
-        durationMs: Math.max(1, Date.now() - startedAt),
+        durationMs: Math.max(1, nowMs() - startedAt),
         waitPolicy,
         reasonCode: "watcher_dependency_invalid",
         reasonMeta: {
@@ -161,7 +205,7 @@ export async function executeWatchers(args: {
         status: "blocked_runtime",
         outcome: "blocked",
         attemptCount: 0,
-        durationMs: Math.max(1, Date.now() - startedAt),
+        durationMs: Math.max(1, nowMs() - startedAt),
         waitPolicy,
         reasonCode: "watcher_configuration_invalid",
         reasonMeta: {
@@ -185,7 +229,7 @@ export async function executeWatchers(args: {
         status: "blocked_runtime",
         outcome: "blocked",
         attemptCount: 0,
-        durationMs: Math.max(1, Date.now() - startedAt),
+        durationMs: Math.max(1, nowMs() - startedAt),
         waitPolicy,
         reasonCode: "watcher_configuration_invalid",
         reasonMeta: {
@@ -204,7 +248,15 @@ export async function executeWatchers(args: {
     let finalOutcome: RegressionRunWatcherOutcome = "blocked";
 
     for (let attempt = 1; attempt <= resolvedWaitPolicy.retryMax; attempt += 1) {
-      const attemptStartedAt = Date.now();
+      if (shouldYield()) {
+        return {
+          watcherRows,
+          watcherEvidence,
+          phaseStatus: "in_progress",
+          continuation: buildContinuation(watcherIndex, phaseStartedAt),
+        };
+      }
+      const attemptStartedAt = nowMs();
       const elapsedBeforeAttempt = attemptStartedAt - startedAt;
       if (elapsedBeforeAttempt >= resolvedWaitPolicy.timeoutMs) {
         finalStatus = "blocked_runtime";
@@ -222,7 +274,7 @@ export async function executeWatchers(args: {
         payload: providerExecution.execution.payload,
         registry: args.registry,
       });
-      const observedAt = new Date().toISOString();
+      const observedAt = new Date(nowMs()).toISOString();
       attempts.push(buildWatcherAttemptRecord({ attempt, transport, observedAt }));
 
       if (transport.status === "blocked_invalid") {
@@ -277,7 +329,7 @@ export async function executeWatchers(args: {
       if (evaluated.status === "blocked_runtime") {
         if (watcherAssertionsAreRetryableMissingPath(evaluated.assertions as Array<Record<string, unknown>>)) {
           if (attempt < watcherMissingPathRetryCap(resolvedWaitPolicy.retryMax)) {
-            const elapsedAfterAttempt = Date.now() - startedAt;
+            const elapsedAfterAttempt = nowMs() - startedAt;
             const remainingMs = resolvedWaitPolicy.timeoutMs - elapsedAfterAttempt;
             if (remainingMs <= 0) {
               finalStatus = "blocked_runtime";
@@ -289,7 +341,22 @@ export async function executeWatchers(args: {
               };
               break;
             }
-            await sleep(Math.min(pollIntervalMs, remainingMs));
+            const sleepDurationMs = Math.min(pollIntervalMs, remainingMs);
+            const deadlineSleepMs =
+              typeof args.orchestrationDeadlineEpochMs === "number"
+                ? args.orchestrationDeadlineEpochMs - nowMs()
+                : undefined;
+            if (typeof deadlineSleepMs === "number" && deadlineSleepMs <= 0) {
+              return {
+                watcherRows,
+                watcherEvidence,
+                phaseStatus: "in_progress",
+                continuation: buildContinuation(watcherIndex, phaseStartedAt),
+              };
+            }
+            await sleepMs(
+              typeof deadlineSleepMs === "number" ? Math.min(sleepDurationMs, deadlineSleepMs) : sleepDurationMs,
+            );
             continue;
           }
           finalStatus = "blocked_runtime";
@@ -313,7 +380,7 @@ export async function executeWatchers(args: {
       finalReasonCode = "watcher_expectation_failed";
 
       if (attempt < resolvedWaitPolicy.retryMax) {
-        const elapsedAfterAttempt = Date.now() - startedAt;
+        const elapsedAfterAttempt = nowMs() - startedAt;
         const remainingMs = resolvedWaitPolicy.timeoutMs - elapsedAfterAttempt;
         if (remainingMs <= 0) {
           finalStatus = "blocked_runtime";
@@ -325,7 +392,22 @@ export async function executeWatchers(args: {
           };
           break;
         }
-        await sleep(Math.min(pollIntervalMs, remainingMs));
+        const sleepDurationMs = Math.min(pollIntervalMs, remainingMs);
+        const deadlineSleepMs =
+          typeof args.orchestrationDeadlineEpochMs === "number"
+            ? args.orchestrationDeadlineEpochMs - nowMs()
+            : undefined;
+        if (typeof deadlineSleepMs === "number" && deadlineSleepMs <= 0) {
+          return {
+            watcherRows,
+            watcherEvidence,
+            phaseStatus: "in_progress",
+            continuation: buildContinuation(watcherIndex, phaseStartedAt),
+          };
+        }
+        await sleepMs(
+          typeof deadlineSleepMs === "number" ? Math.min(sleepDurationMs, deadlineSleepMs) : sleepDurationMs,
+        );
       }
     }
 
@@ -336,7 +418,7 @@ export async function executeWatchers(args: {
       status: finalStatus,
       outcome: finalOutcome,
       attemptCount: attempts.length,
-      durationMs: Math.max(1, Date.now() - startedAt),
+      durationMs: Math.max(1, nowMs() - startedAt),
       waitPolicy,
       ...(typeof finalReasonCode === "string" ? { reasonCode: finalReasonCode } : {}),
       ...(finalReasonMeta ? { reasonMeta: finalReasonMeta } : {}),
@@ -346,7 +428,11 @@ export async function executeWatchers(args: {
     });
   }
 
-  return { watcherRows, watcherEvidence };
+  return {
+    watcherRows,
+    watcherEvidence,
+    phaseStatus: deriveWatcherPhaseStatus(watcherRows),
+  };
 }
 
 function buildTransportReasonMeta(transport: TransportExecutionResult): Record<string, unknown> | undefined {

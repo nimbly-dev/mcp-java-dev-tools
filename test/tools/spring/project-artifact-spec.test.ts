@@ -655,14 +655,24 @@ test("validateProjectArtifact fails closed when runPrerequisite script args cont
   }
 });
 
-test("validateProjectArtifact fails closed when orchestrator defaults are missing", () => {
+test("validateProjectArtifact accepts workspace defaults without orchestrator settings", () => {
   const result = validateProjectArtifact({
-    workspaces: [{ projectRoot: "C:\\workspace\\spring" }],
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        defaults: {
+          requestTimeoutMs: 20_000,
+          retryMax: 3,
+        },
+      },
+    ],
   });
-  assert.equal(result.ok, false);
-  if (!result.ok) {
-    assert.equal(result.reasonCode, "project_artifact_invalid");
-    assert.match(result.errors.join("\n"), /defaults\.orchestrator is required/);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.deepEqual(result.artifact.workspaces[0].defaults, {
+      requestTimeoutMs: 20_000,
+      retryMax: 3,
+    });
   }
 });
 

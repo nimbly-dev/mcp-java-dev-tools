@@ -298,8 +298,8 @@ test("resolveProjectContextForRegression uses workspace defaults retryMax/reques
   }
 });
 
-test("resolveProjectContextForRegression fails closed when orchestrator defaults are omitted from projects.json", async () => {
-  const root = createTestTempDir("project-context-orchestrator-missing");
+test("resolveProjectContextForRegression accepts projects.json without orchestrator defaults", async () => {
+  const root = createTestTempDir("project-context-orchestrator-optional");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
     fs.mkdirSync(path.dirname(projects), { recursive: true });
@@ -315,10 +315,11 @@ test("resolveProjectContextForRegression fails closed when orchestrator defaults
       healthChecksEnabled: false,
     });
 
-    assert.equal(out.status, "blocked");
-    if (out.status === "blocked") {
-      assert.equal(out.reasonCode, "project_artifact_invalid");
-      assert.equal(out.requiredUserAction.some((entry: string) => entry.includes("defaults.orchestrator is required")), true);
+    assert.equal(out.status, "ok");
+    if (out.status === "ok") {
+      assert.equal(out.contextPatch["runtime.orchestrator.resumePollMax"], undefined);
+      assert.equal(out.contextPatch["runtime.orchestrator.resumePollIntervalMs"], undefined);
+      assert.equal(out.contextPatch["runtime.orchestrator.resumePollTimeoutMs"], undefined);
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

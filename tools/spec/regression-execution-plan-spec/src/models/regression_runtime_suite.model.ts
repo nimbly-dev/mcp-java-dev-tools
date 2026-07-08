@@ -35,7 +35,7 @@ export type RuntimeSuitePlanRunResult = {
   order: number;
   planName: string;
   status: "executed" | "blocked" | "skipped";
-  runStatus?: "pass" | "fail" | "blocked";
+  runStatus?: "pass" | "fail" | "blocked" | "in_progress";
   blockedReasonCode?: string;
   blockedReasonMeta?: Record<string, unknown>;
   runId?: string;
@@ -61,4 +61,5 @@ export type RuntimeSuiteRunResult = {
   nextPlanOrder?: number;
   completedPlanCount?: number;
   correlations?: RuntimeSuiteCorrelationResult[];
+  suiteContext?: Record<string, unknown>;
 };

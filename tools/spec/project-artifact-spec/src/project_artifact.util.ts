@@ -684,13 +684,9 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
         .filter((entry): entry is ProjectExternalSystem => entry !== null)
     : [];
   let defaults: ProjectWorkspaceEntry["defaults"] | undefined;
-  if (!isRecord(input.defaults)) {
-    errors.push(`workspaces[${index}].defaults.orchestrator is required`);
-  } else {
+  if (isRecord(input.defaults)) {
     const orchestrator = isRecord(input.defaults.orchestrator) ? input.defaults.orchestrator : null;
-    if (!orchestrator) {
-      errors.push(`workspaces[${index}].defaults.orchestrator is required`);
-    } else {
+    if (orchestrator) {
       const resumePollMax = normalizeRequiredPositiveInteger({
         value: orchestrator.resumePollMax,
         fieldPath: `workspaces[${index}].defaults.orchestrator.resumePollMax`,
@@ -732,6 +728,16 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
           },
         };
       }
+    } else if (
+      typeof input.defaults.requestTimeoutMs === "number" ||
+      typeof input.defaults.retryMax === "number"
+    ) {
+      defaults = {
+        ...(typeof input.defaults.requestTimeoutMs === "number"
+          ? { requestTimeoutMs: input.defaults.requestTimeoutMs }
+          : {}),
+        ...(typeof input.defaults.retryMax === "number" ? { retryMax: input.defaults.retryMax } : {}),
+      };
     }
   }
   const sessionExport = isRecord(input.sessionExport)

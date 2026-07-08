@@ -11,6 +11,7 @@ import type {
   PlanStep,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import type {
+  WatcherExecutionEvidence,
   RegressionRunExecutionResult,
   RegressionRunStepResult,
 } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
@@ -115,6 +116,7 @@ export type ExecuteRegressionPlanWorkflowArgs = {
   projectName?: string;
   planName: string;
   mcpInvoke: McpToolInvoker;
+  runId?: string;
   providedContext?: Record<string, unknown>;
   runtimeContextName?: string;
   executionProfileName?: string;
@@ -122,6 +124,12 @@ export type ExecuteRegressionPlanWorkflowArgs = {
   runtimeConfigOverride?: {
     requestTimeoutMs?: number;
     retryMax?: number;
+  };
+  orchestrationTimeoutBudgetMs?: number;
+  resumeState?: {
+    resolvedContext: Record<string, unknown>;
+    executionResult: RegressionRunExecutionResult;
+    evidence?: Record<string, unknown>;
   };
 };
 
@@ -133,7 +141,7 @@ export type ExecuteRegressionPlanWorkflowResult =
   | {
       status: "executed";
       runId: string;
-      runStatus: "pass" | "fail" | "blocked";
+      runStatus: "pass" | "fail" | "blocked" | "in_progress";
       artifacts: Awaited<ReturnType<typeof writeRegressionRunArtifacts>>;
       executionResult: RegressionRunExecutionResult;
     };
@@ -526,17 +534,18 @@ function combineRunStatusWithExternalVerification(args: {
   triggerStatus: RegressionRunExecutionResult["triggerStatus"];
   watcherStatus: RegressionRunExecutionResult["watcherStatus"];
   externalVerificationStatus: RegressionRunExecutionResult["externalVerificationStatus"];
-}): "pass" | "fail" | "blocked" {
+}): "pass" | "fail" | "blocked" | "in_progress" {
   const baseStatus = combinePlanRunStatus({
     triggerStatus: args.triggerStatus ?? "pass",
     watcherStatus: args.watcherStatus ?? "not_configured",
   });
-  if (baseStatus === "blocked" || baseStatus === "fail") {
+  if (baseStatus === "in_progress" || baseStatus === "blocked" || baseStatus === "fail") {
     return baseStatus;
   }
-  if (
-    args.externalVerificationStatus === "blocked"
-  ) {
+  if (args.externalVerificationStatus === "in_progress") {
+    return "in_progress";
+  }
+  if (args.externalVerificationStatus === "blocked") {
     return "blocked";
   }
   if (args.externalVerificationStatus === "fail") {
@@ -549,6 +558,34 @@ function collectRuntimeSecretContextKeys(resolvedContext: Record<string, unknown
   return Object.keys(resolvedContext)
     .filter((key) => key === "sql.connection" || key.startsWith("sql.connection."))
     .sort((a, b) => a.localeCompare(b));
+}
+
+function cloneWatcherEvidence(value: unknown): WatcherExecutionEvidence[] {
+  return Array.isArray(value) ? (value as WatcherExecutionEvidence[]).map((entry) => ({ ...entry })) : [];
+}
+
+function cloneWatcherResults(value: RegressionRunExecutionResult["watchers"]): NonNullable<RegressionRunExecutionResult["watchers"]> {
+  return Array.isArray(value) ? value.map((entry) => ({ ...entry })) : [];
+}
+
+function cloneExternalVerificationResults(
+  value: RegressionRunExecutionResult["externalVerification"],
+): NonNullable<RegressionRunExecutionResult["externalVerification"]> {
+  return Array.isArray(value) ? value.map((entry) => ({ ...entry })) : [];
+}
+
+function cloneStepRows(value: RegressionRunExecutionResult["steps"]): RegressionRunStepResult[] {
+  return Array.isArray(value) ? value.map((entry) => ({ ...entry })) : [];
+}
+
+function buildResumeBlockedShape(reasonCode: string, requiredUserAction: string[]) {
+  return {
+    status: "blocked_invalid" as const,
+    reasonCode,
+    missing: [],
+    checks: [],
+    requiredUserAction,
+  };
 }
 
 
@@ -587,32 +624,51 @@ export async function executeRegressionPlanWorkflow(
   }
 
   const now = new Date();
-  const runId = buildTimestampRunId(now, 1);
+  const runId =
+    typeof args.runId === "string" && args.runId.trim().length > 0
+      ? args.runId.trim()
+      : buildTimestampRunId(now, 1);
   const startedAt = now.toISOString();
+  const orchestrationDeadlineEpochMs =
+    typeof args.orchestrationTimeoutBudgetMs === "number" && args.orchestrationTimeoutBudgetMs > 0
+      ? now.getTime() + args.orchestrationTimeoutBudgetMs
+      : undefined;
+  const resumeExecutionResult = args.resumeState?.executionResult;
+  const resumeContinuation = resumeExecutionResult?.continuation;
+  const isResumedInProgress =
+    resumeExecutionResult?.status === "in_progress" &&
+    typeof resumeContinuation !== "undefined";
 
-  const resolvedContextInitial = normalizeHttpContextAliases({
-    ...preflightWithDiscovery.resolvedContext,
-    ...resolvePrerequisiteContext(
-      contract.prerequisites,
-      preflightWithDiscovery.resolvedContext,
-    ),
-  });
+  const resolvedContextInitial = isResumedInProgress && args.resumeState
+    ? normalizeHttpContextAliases({ ...args.resumeState.resolvedContext })
+    : normalizeHttpContextAliases({
+        ...preflightWithDiscovery.resolvedContext,
+        ...resolvePrerequisiteContext(
+          contract.prerequisites,
+          preflightWithDiscovery.resolvedContext,
+        ),
+      });
 
   const adapter = createMcpWrappedTransportAdapter(args.mcpInvoke);
   const registry = createTransportRegistry([adapter]);
 
-  let resolvedContext = await resolvePlanExecutionContext({
-    workspaceRootAbs: args.workspaceRootAbs,
-    planName: args.planName,
-    resolvedContext: { ...resolvedContextInitial },
-  });
-  const stepRows: RegressionRunStepResult[] = [];
+  let resolvedContext = isResumedInProgress
+    ? { ...resolvedContextInitial }
+    : await resolvePlanExecutionContext({
+        workspaceRootAbs: args.workspaceRootAbs,
+        planName: args.planName,
+        resolvedContext: { ...resolvedContextInitial },
+      });
+  const stepRows: RegressionRunStepResult[] = isResumedInProgress && resumeExecutionResult
+    ? cloneStepRows(resumeExecutionResult.steps)
+    : [];
   const stepOutputsByOrder: Record<number, Record<string, unknown>> = {};
   const stepEventTimesByOrder: Record<number, number> = {};
   const stepContextsByOrder = new Map<number, Record<string, unknown>>();
-  let hardRuntimeBlocker = false;
+  let hardRuntimeBlocker = resumeExecutionResult?.triggerStatus === "blocked";
   let eventCursorEpochMs = now.getTime();
-  for (const step of [...contract.steps].sort((a, b) => a.order - b.order)) {
+  if (!isResumedInProgress) {
+    for (const step of [...contract.steps].sort((a, b) => a.order - b.order)) {
     if (typeof step.when !== "undefined") {
       const conditionResult = evaluateStepCondition({
         when: step.when,
@@ -823,56 +879,106 @@ export async function executeRegressionPlanWorkflow(
       hardRuntimeBlocker = true;
       break;
     }
+    }
+  } else if (!resumeExecutionResult?.triggerStatus) {
+    return {
+      status: "blocked",
+      preflight: buildResumeBlockedShape("plan_resume_invalid", [
+        `Persist triggerStatus before resuming regression plan '${args.planName}'.`,
+      ]),
+    };
   }
 
   const ended = new Date();
-  const triggerStatus = deriveRunStatusFromStepOutcomes({
-    stepOutcomes: stepRows.map((row) => ({
-      status: row.status as any,
-      required: isStepRequired(contract.steps.find((step) => step.order === row.order && step.id === row.id)),
-    })),
-    hardRuntimeBlocker,
-  });
-  const { watcherRows, watcherEvidence } = await executeWatchers({
+  const triggerStatus = isResumedInProgress && resumeExecutionResult?.triggerStatus
+    ? resumeExecutionResult.triggerStatus
+    : deriveRunStatusFromStepOutcomes({
+        stepOutcomes: stepRows.map((row) => ({
+          status: row.status as any,
+          required: isStepRequired(contract.steps.find((step) => step.order === row.order && step.id === row.id)),
+        })),
+        hardRuntimeBlocker,
+      });
+  const watcherExecution = await executeWatchers({
     contract,
     resolvedContext,
     registry,
     stepRows,
     stepContextsByOrder,
+    ...(resumeContinuation?.phase === "watchers" && resumeExecutionResult
+      ? {
+          priorWatcherRows: cloneWatcherResults(resumeExecutionResult.watchers),
+          priorWatcherEvidence: cloneWatcherEvidence(args.resumeState?.evidence?.watcherExecutions),
+          startWatcherIndex: resumeContinuation.watcherIndex,
+          currentWatcherStartedAt: resumeContinuation.phaseStartedAt,
+        }
+      : {}),
+    ...(typeof orchestrationDeadlineEpochMs === "number" ? { orchestrationDeadlineEpochMs } : {}),
   });
-  const watcherStatus = deriveWatcherPhaseStatus(watcherRows);
-  const externalVerification = await executeExternalVerifications({
-    externalVerification: contract.externalVerification,
-    resolvedContext,
-    registry,
-    dependencyStatus: triggerStatus,
-    workspaceRootAbs: args.workspaceRootAbs,
-  });
+  const watcherRows = watcherExecution.watcherRows;
+  const watcherEvidence = watcherExecution.watcherEvidence;
+  const watcherStatus = watcherExecution.phaseStatus;
+  const externalVerification = watcherStatus === "in_progress"
+    ? {
+        phaseStatus: resumeExecutionResult?.externalVerificationStatus,
+        results: cloneExternalVerificationResults(resumeExecutionResult?.externalVerification),
+        resolvedContext,
+        continuation: undefined,
+      }
+    : await executeExternalVerifications({
+        externalVerification: contract.externalVerification,
+        resolvedContext,
+        registry,
+        dependencyStatus: triggerStatus,
+        workspaceRootAbs: args.workspaceRootAbs,
+        ...(resumeContinuation?.phase === "external_verification" && resumeExecutionResult
+          ? {
+              priorResults: cloneExternalVerificationResults(resumeExecutionResult.externalVerification),
+              startVerificationIndex: resumeContinuation.verificationIndex,
+            }
+          : {}),
+        ...(typeof orchestrationDeadlineEpochMs === "number" ? { orchestrationDeadlineEpochMs } : {}),
+      });
   resolvedContext = externalVerification.resolvedContext;
-  const runStatus = combineRunStatusWithExternalVerification({
-    triggerStatus,
-    watcherStatus,
-    externalVerificationStatus: externalVerification.phaseStatus,
-  });
+  const runStatus =
+    watcherStatus === "in_progress" || externalVerification.phaseStatus === "in_progress"
+      ? "in_progress"
+      : combineRunStatusWithExternalVerification({
+          triggerStatus,
+          watcherStatus,
+          externalVerificationStatus: externalVerification.phaseStatus,
+        });
   const executionResult: RegressionRunExecutionResult = {
     status: runStatus,
     triggerStatus,
     watcherStatus,
-    externalVerificationStatus: externalVerification.phaseStatus,
+    ...(typeof externalVerification.phaseStatus === "undefined"
+      ? {}
+      : { externalVerificationStatus: externalVerification.phaseStatus }),
+    ...(watcherExecution.continuation ? { continuation: watcherExecution.continuation } : {}),
+    ...(externalVerification.continuation ? { continuation: externalVerification.continuation } : {}),
     preflight: preflightWithDiscovery.preflight,
-    startedAt,
+    startedAt: resumeExecutionResult?.startedAt ?? startedAt,
     endedAt: ended.toISOString(),
     steps: stepRows,
     ...(watcherRows.length > 0 ? { watchers: watcherRows } : {}),
     ...(externalVerification.results.length > 0 ? { externalVerification: externalVerification.results } : {}),
   };
 
-  const correlationEvidence = buildPlanCorrelationEvidence({
-    contract,
-    resolvedContext,
-    stepOutputsByOrder,
-    stepEventTimesByOrder,
-  });
+  const correlationEvidence =
+    Object.keys(stepOutputsByOrder).length > 0
+      ? buildPlanCorrelationEvidence({
+          contract,
+          resolvedContext,
+          stepOutputsByOrder,
+          stepEventTimesByOrder,
+        })
+      : (args.resumeState?.evidence
+          ? {
+              ...(args.resumeState.evidence.correlationPolicy ? { correlationPolicy: args.resumeState.evidence.correlationPolicy } : {}),
+              ...(args.resumeState.evidence.correlationEvents ? { correlationEvents: args.resumeState.evidence.correlationEvents } : {}),
+            }
+          : undefined);
 
   const artifacts = await writeRegressionRunArtifacts({
     workspaceRootAbs: args.workspaceRootAbs,

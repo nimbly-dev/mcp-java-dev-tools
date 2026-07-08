@@ -1820,6 +1820,124 @@ test("executeRegressionPlanWorkflow fails closed when watcher timeout is exceede
   }
 });
 
+test("executeRegressionPlanWorkflow returns in_progress during watcher polling and resumes the same runId without rerunning steps", async () => {
+  const root = createTestTempDir("plan-executor-watcher-resume");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "watcher-resume";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 100, retryMax: 3 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
+          expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "search_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://localhost:8082/index/${eventId}",
+              },
+            },
+          },
+          waitPolicy: { timeoutMs: 1_000, retryMax: 3 },
+          expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    let stepCalls = 0;
+    let watcherCalls = 0;
+    const first = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      orchestrationTimeoutBudgetMs: 10,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "POST") {
+          stepCalls += 1;
+          return { structuredContent: { status: "pass", statusCode: 202, durationMs: 1, body: "{\"eventId\":\"evt-500\"}", bodyPreview: "{\"eventId\":\"evt-500\"}" } };
+        }
+        watcherCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 1, body: "{\"state\":\"pending\"}", bodyPreview: "{\"state\":\"pending\"}" } };
+      },
+    });
+
+    assert.equal(first.status, "executed");
+    if (first.status !== "executed") {
+      throw new Error("expected executed result");
+    }
+    assert.equal(first.runStatus, "in_progress");
+    assert.equal(first.executionResult.watcherStatus, "in_progress");
+    assert.equal(first.executionResult.continuation?.phase, "watchers");
+    assert.equal(stepCalls, 1);
+    assert.equal(watcherCalls, 1);
+
+    const resumeState = {
+      resolvedContext: JSON.parse(fs.readFileSync(first.artifacts.contextResolvedPathAbs, "utf8")),
+      executionResult: JSON.parse(fs.readFileSync(first.artifacts.executionResultPathAbs, "utf8")),
+      evidence: JSON.parse(fs.readFileSync(first.artifacts.evidencePathAbs, "utf8")),
+    };
+    const second = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      runId: first.runId,
+      orchestrationTimeoutBudgetMs: 1_000,
+      resumeState,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "POST") {
+          stepCalls += 1;
+          return { structuredContent: { status: "pass", statusCode: 202, durationMs: 1, body: "{\"eventId\":\"evt-500\"}", bodyPreview: "{\"eventId\":\"evt-500\"}" } };
+        }
+        watcherCalls += 1;
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 1, body: "{\"state\":\"ready\"}", bodyPreview: "{\"state\":\"ready\"}" } };
+      },
+    });
+
+    assert.equal(second.status, "executed");
+    if (second.status === "executed") {
+      assert.equal(second.runId, first.runId);
+      assert.equal(second.runStatus, "pass");
+      assert.equal(second.executionResult.watcherStatus, "pass");
+      assert.equal(second.executionResult.continuation, undefined);
+    }
+    assert.equal(stepCalls, 1);
+    assert.equal(watcherCalls, 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionPlanWorkflow marks watcher dependency blocked when dependent step does not pass", async () => {
   const root = createTestTempDir("plan-executor-watcher-dependency");
   try {
