@@ -130,7 +130,7 @@ test("executeExecutionOrchestrationResiliencyLoop sleeps between passes when no 
   assert.deepEqual(sleeps, [25]);
 });
 
-test("executeExecutionOrchestrationResiliencyLoop returns in_progress when timeout budget is exhausted before another pass", async () => {
+test("executeExecutionOrchestrationResiliencyLoop returns blocked terminal timeout classification when timeout budget is exhausted before another pass", async () => {
   let nowMs = 0;
   let executeCalls = 0;
 
@@ -163,11 +163,38 @@ test("executeExecutionOrchestrationResiliencyLoop returns in_progress when timeo
     nowMs: () => nowMs,
   });
 
-  assert.equal(out.status, "in_progress");
+  assert.equal(out.status, "blocked");
+  assert.equal(out.reasonCode, "orchestrator_timeout_budget_exhausted");
   assert.equal(executeCalls, 1);
 });
 
-test("executeExecutionOrchestrationResiliencyLoop does not start another pass when only sub-second budget remains", async () => {
+test("executeExecutionOrchestrationResiliencyLoop returns blocked poll exhaustion when the outer pass limit is reached", async () => {
+  const out = await executeExecutionOrchestrationResiliencyLoop({
+    projectName: "test-project",
+    executionProfile: "long-suite",
+    defaults: {
+      resumePollMax: 1,
+      resumePollIntervalMs: 100,
+      resumePollTimeoutMs: 2_000,
+    },
+    executePass: async () => ({
+      executionProfile: "long-suite",
+      executionPolicy: "continue_on_fail",
+      status: "in_progress",
+      suiteRunId: "suite-poll-limit",
+      nextPlanOrder: 2,
+      completedPlanCount: 1,
+      planRuns: [{ order: 1, planName: "long-plan", status: "executed", runStatus: "pass", runId: "run-1" }],
+    }),
+    persistSuite: async () => {},
+    readPersistedSuite: async () => null,
+  });
+
+  assert.equal(out.status, "blocked");
+  assert.equal(out.reasonCode, "orchestrator_poll_limit_exhausted");
+});
+
+test("executeExecutionOrchestrationResiliencyLoop returns blocked progress-stalled classification when only sub-second budget remains", async () => {
   let nowMs = 0;
   const remainingBudgets: number[] = [];
 
@@ -178,6 +205,16 @@ test("executeExecutionOrchestrationResiliencyLoop does not start another pass wh
       resumePollMax: 5,
       resumePollIntervalMs: 100,
       resumePollTimeoutMs: 2_000,
+    },
+    initialSuiteRunId: "suite-time-budget",
+    initialPriorSuite: {
+      executionProfile: "long-suite",
+      executionPolicy: "continue_on_fail",
+      status: "in_progress",
+      suiteRunId: "suite-time-budget",
+      nextPlanOrder: 2,
+      completedPlanCount: 1,
+      planRuns: [{ order: 1, planName: "long-plan", status: "executed", runStatus: "pass", runId: "run-1" }],
     },
     executePass: async (_state: unknown, remainingBudgetMs: number) => {
       remainingBudgets.push(remainingBudgetMs);
@@ -205,7 +242,8 @@ test("executeExecutionOrchestrationResiliencyLoop does not start another pass wh
     nowMs: () => nowMs,
   });
 
-  assert.equal(out.status, "in_progress");
+  assert.equal(out.status, "blocked");
+  assert.equal(out.reasonCode, "orchestrator_progress_stalled");
   assert.deepEqual(remainingBudgets, [2_000]);
 });
 

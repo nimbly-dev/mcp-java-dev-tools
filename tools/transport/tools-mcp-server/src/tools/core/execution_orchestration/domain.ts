@@ -15,6 +15,10 @@ import {
   readExecutionOrchestrationSuiteResult,
   writeExecutionOrchestrationSuiteResult,
 } from "@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util";
+import type {
+  RuntimeSuiteBlockedResult,
+  RuntimeSuiteRunResult,
+} from "@tools-regression-execution-plan-spec/models/regression_runtime_suite.model";
 import path from "node:path";
 
 function blockedResponse(args: {
@@ -34,6 +38,12 @@ function blockedResponse(args: {
     content: [{ type: "text" as const, text: JSON.stringify(structuredContent, null, 2) }],
     structuredContent,
   };
+}
+
+function isSuiteBlockedResult(
+  value: RuntimeSuiteRunResult | RuntimeSuiteBlockedResult,
+): value is RuntimeSuiteBlockedResult {
+  return "requiredUserAction" in value && !("executionProfile" in value);
 }
 
 export async function executionOrchestrationDomain(input: {
@@ -129,6 +139,8 @@ export async function executionOrchestrationDomain(input: {
         executionPolicy: priorSuite.executionPolicy,
         suiteRunId,
         planRuns: priorSuite.planRuns,
+        ...(typeof priorSuite.reasonCode === "string" ? { reasonCode: priorSuite.reasonCode } : {}),
+        ...(priorSuite.reasonMeta ? { reasonMeta: priorSuite.reasonMeta } : {}),
         ...(typeof priorSuite.completedPlanCount === "number"
           ? { completedPlanCount: priorSuite.completedPlanCount }
           : {}),
@@ -321,7 +333,7 @@ export async function executionOrchestrationDomain(input: {
         ...(priorSuite ? { priorSuite } : {}),
       }, loopPolicy.effectiveTimeoutBudgetMs);
 
-  if ("reasonCode" in suite && suite.status === "blocked") {
+  if (isSuiteBlockedResult(suite)) {
     return blockedResponse({
       reasonCode: suite.reasonCode,
       reason: suite.reasonCode,
@@ -356,6 +368,8 @@ export async function executionOrchestrationDomain(input: {
     planRuns: suite.planRuns,
     ...(typeof suite.nextPlanOrder === "number" ? { nextPlanOrder: suite.nextPlanOrder } : {}),
     ...(typeof suite.completedPlanCount === "number" ? { completedPlanCount: suite.completedPlanCount } : {}),
+    ...(typeof suite.reasonCode === "string" ? { reasonCode: suite.reasonCode } : {}),
+    ...(suite.reasonMeta ? { reasonMeta: suite.reasonMeta } : {}),
     ...(suite.progressSummary ? { progressSummary: suite.progressSummary } : {}),
     ...(Array.isArray(suite.correlations) ? { correlations: suite.correlations } : {}),
   };
