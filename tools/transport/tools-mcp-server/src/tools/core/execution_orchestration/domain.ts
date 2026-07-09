@@ -132,6 +132,7 @@ export async function executionOrchestrationDomain(input: {
         ...(typeof priorSuite.completedPlanCount === "number"
           ? { completedPlanCount: priorSuite.completedPlanCount }
           : {}),
+        ...(priorSuite.progressSummary ? { progressSummary: priorSuite.progressSummary } : {}),
         ...(Array.isArray(priorSuite.correlations) ? { correlations: priorSuite.correlations } : {}),
       };
       return {
@@ -355,6 +356,7 @@ export async function executionOrchestrationDomain(input: {
     planRuns: suite.planRuns,
     ...(typeof suite.nextPlanOrder === "number" ? { nextPlanOrder: suite.nextPlanOrder } : {}),
     ...(typeof suite.completedPlanCount === "number" ? { completedPlanCount: suite.completedPlanCount } : {}),
+    ...(suite.progressSummary ? { progressSummary: suite.progressSummary } : {}),
     ...(Array.isArray(suite.correlations) ? { correlations: suite.correlations } : {}),
   };
   return {
