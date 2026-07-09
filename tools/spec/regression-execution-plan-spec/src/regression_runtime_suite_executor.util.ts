@@ -1,10 +1,13 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
+import type { PlanContract } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import type {
   RuntimeSuiteManifest,
   RuntimeSuiteCorrelationResult,
+  RuntimeSuiteCompletedPlanSummary,
   RuntimeSuitePlanEntry,
+  RuntimeSuiteProgressSummary,
   RuntimeSuiteRunResult,
   RuntimeSuiteScriptPhase,
   RuntimeSuiteScriptRef,
@@ -28,6 +31,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isRuntimeSuiteScriptPhase(value: string): value is RuntimeSuiteScriptPhase {
   return value === "preRuntime" || value === "postRuntime" || value === "postHealthcheck" || value === "prePlan";
+}
+
+function sortPlanContractWatchers(watchers: NonNullable<PlanContract["watchers"]>): NonNullable<PlanContract["watchers"]> {
+  return [...watchers].sort((lhs, rhs) => {
+    if (lhs.dependency.stepOrder !== rhs.dependency.stepOrder) {
+      return lhs.dependency.stepOrder - rhs.dependency.stepOrder;
+    }
+    return lhs.id.localeCompare(rhs.id);
+  });
 }
 
 type CanonicalCorrelationEvent = {
@@ -153,6 +165,9 @@ export async function writeExecutionOrchestrationSuiteResult(args: {
   if (isRecord(args.suite.suiteContext) && Object.keys(args.suite.suiteContext).length > 0) {
     payload.suiteContext = args.suite.suiteContext;
   }
+  if (isRecord(args.suite.progressSummary)) {
+    payload.progressSummary = args.suite.progressSummary;
+  }
   await fs.writeFile(fileAbs, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
   return fileAbs;
 }
@@ -198,6 +213,156 @@ function countCompletedPlanRuns(planRuns: RuntimeSuiteRunResult["planRuns"]): nu
   return planRuns.filter((entry) => entry.status !== "skipped" && entry.runStatus !== "in_progress").length;
 }
 
+function buildCompletedPlanSummary(
+  planRuns: RuntimeSuiteRunResult["planRuns"],
+): RuntimeSuiteCompletedPlanSummary | undefined {
+  const completed = [...planRuns]
+    .filter(
+      (entry) =>
+        entry.status !== "skipped" &&
+        entry.runStatus !== "in_progress" &&
+        (entry.status === "blocked" || typeof entry.runStatus === "string"),
+    )
+    .sort((lhs, rhs) => rhs.order - lhs.order);
+  const latest = completed[0];
+  if (!latest) {
+    return undefined;
+  }
+  return {
+    order: latest.order,
+    planName: latest.planName,
+    status: latest.status === "blocked" ? "blocked" : "executed",
+    ...(latest.runStatus && latest.runStatus !== "in_progress" ? { runStatus: latest.runStatus } : {}),
+    ...(typeof latest.runId === "string" ? { runId: latest.runId } : {}),
+  };
+}
+
+function readContinuationTargetSummary(args: {
+  contract: PlanContract;
+  executionResult: RegressionRunExecutionResult;
+}): NonNullable<RuntimeSuiteProgressSummary["activePlan"]>["waitingOn"] | undefined {
+  const continuation = args.executionResult.continuation;
+  if (!continuation) {
+    return undefined;
+  }
+  if (continuation.phase === "watchers") {
+    const watchers = sortPlanContractWatchers(args.contract.watchers ?? []);
+    const watcher = watchers[continuation.watcherIndex];
+    return {
+      targetType: "watcher",
+      ...(typeof watcher?.id === "string" ? { targetId: watcher.id } : {}),
+      ...(typeof watcher?.provider?.type === "string" ? { providerType: watcher.provider.type } : {}),
+      currentIndex: continuation.watcherIndex + 1,
+      totalCount: watchers.length,
+    };
+  }
+
+  const verification = args.contract.externalVerification?.[continuation.verificationIndex];
+  return {
+    targetType: "external_verification",
+    ...(typeof verification?.id === "string" ? { targetId: verification.id } : {}),
+    ...(typeof verification?.provider?.type === "string" ? { providerType: verification.provider.type } : {}),
+    currentIndex: continuation.verificationIndex + 1,
+    totalCount: args.contract.externalVerification?.length ?? 0,
+  };
+}
+
+async function readPlanContract(args: {
+  workspaceRootAbs: string;
+  projectName?: string;
+  planName: string;
+}): Promise<PlanContract | null> {
+  const plansRootAbs = await resolveRegressionPlansRootAbs(args.workspaceRootAbs, args.projectName);
+  const contract = await readJsonFile(path.join(plansRootAbs, args.planName, "contract.json"));
+  return contract as unknown as PlanContract | null;
+}
+
+async function buildRuntimeSuiteProgressSummary(args: {
+  workspaceRootAbs: string;
+  projectName?: string;
+  manifest: RuntimeSuiteManifest;
+  status: RuntimeSuiteRunResult["status"];
+  planRuns: RuntimeSuiteRunResult["planRuns"];
+  activeExecutionResult?: RegressionRunExecutionResult;
+}): Promise<RuntimeSuiteProgressSummary> {
+  const totalPlanCount = args.manifest.plans.length;
+  const completedPlanCount = countCompletedPlanRuns(args.planRuns);
+  const activePlanRun = args.planRuns.find((entry) => entry.runStatus === "in_progress");
+  const progressState =
+    args.status === "in_progress"
+      ? activePlanRun
+        ? "waiting_in_active_plan"
+        : "ready_for_next_plan"
+      : "terminal";
+  const remainingPlanCount = Math.max(
+    0,
+    totalPlanCount - completedPlanCount - (activePlanRun ? 1 : 0),
+  );
+  const lastCompletedPlan = buildCompletedPlanSummary(args.planRuns);
+
+  const summary: RuntimeSuiteProgressSummary = {
+    progressState,
+    totalPlanCount,
+    completedPlanCount,
+    remainingPlanCount,
+    ...(lastCompletedPlan ? { lastCompletedPlan } : {}),
+  };
+
+  if (!activePlanRun || !args.activeExecutionResult) {
+    return summary;
+  }
+
+  const contract = await readPlanContract(
+    typeof args.projectName === "string"
+      ? {
+          workspaceRootAbs: args.workspaceRootAbs,
+          projectName: args.projectName,
+          planName: activePlanRun.planName,
+        }
+      : {
+          workspaceRootAbs: args.workspaceRootAbs,
+          planName: activePlanRun.planName,
+        },
+  );
+  const continuation = args.activeExecutionResult.continuation;
+  const phase =
+    continuation?.phase ??
+    (args.activeExecutionResult.externalVerificationStatus === "in_progress"
+      ? "external_verification"
+      : args.activeExecutionResult.watcherStatus === "in_progress"
+        ? "watchers"
+        : "trigger");
+
+  const waitingOn = contract && continuation
+    ? readContinuationTargetSummary({ contract, executionResult: args.activeExecutionResult })
+    : undefined;
+
+  summary.activePlan = {
+    order: activePlanRun.order,
+    planName: activePlanRun.planName,
+    ...(typeof activePlanRun.runId === "string" ? { runId: activePlanRun.runId } : {}),
+    phase,
+    ...(typeof continuation?.phaseStartedAt === "string"
+      ? { phaseStartedAt: continuation.phaseStartedAt }
+      : {}),
+    ...(typeof args.activeExecutionResult.endedAt !== "undefined"
+      ? { lastUpdatedAt: args.activeExecutionResult.endedAt }
+      : {}),
+    ...(typeof args.activeExecutionResult.triggerStatus === "string"
+      ? { triggerStatus: args.activeExecutionResult.triggerStatus }
+      : {}),
+    ...(typeof args.activeExecutionResult.watcherStatus === "string"
+      ? { watcherStatus: args.activeExecutionResult.watcherStatus }
+      : {}),
+    ...(typeof args.activeExecutionResult.externalVerificationStatus === "string"
+      ? { externalVerificationStatus: args.activeExecutionResult.externalVerificationStatus }
+      : {}),
+    ...(waitingOn ? { waitingOn } : {}),
+  };
+
+  return summary;
+}
+
 function resolveBlockedPlanDetail(executionResult: Record<string, unknown>): {
   blockedReasonCode?: string;
   blockedReasonMeta?: Record<string, unknown>;
@@ -238,6 +403,164 @@ function asPersistedCorrelationResult(value: unknown): RuntimeSuiteCorrelationRe
     keyType: value.keyType,
     ...(typeof value.keyValue === "string" ? { keyValue: value.keyValue } : {}),
     contributingPlans: value.contributingPlans.map((entry) => String(entry)),
+  };
+}
+
+function asPersistedCompletedPlanSummary(value: unknown): RuntimeSuiteCompletedPlanSummary | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.order !== "number" || !Number.isInteger(value.order) || value.order <= 0) return null;
+  if (typeof value.planName !== "string" || value.planName.trim().length === 0) return null;
+  if (value.status !== "executed" && value.status !== "blocked") return null;
+  if (
+    typeof value.runStatus !== "undefined" &&
+    value.runStatus !== "pass" &&
+    value.runStatus !== "fail" &&
+    value.runStatus !== "blocked"
+  ) {
+    return null;
+  }
+  return {
+    order: value.order,
+    planName: value.planName.trim(),
+    status: value.status,
+    ...(typeof value.runStatus === "string" ? { runStatus: value.runStatus } : {}),
+    ...(typeof value.runId === "string" ? { runId: value.runId } : {}),
+  };
+}
+
+function asPersistedProgressTargetSummary(value: unknown): NonNullable<RuntimeSuiteProgressSummary["activePlan"]>["waitingOn"] | null {
+  if (!isRecord(value)) return null;
+  if (value.targetType !== "watcher" && value.targetType !== "external_verification") return null;
+  if (
+    typeof value.currentIndex !== "number" ||
+    !Number.isInteger(value.currentIndex) ||
+    value.currentIndex <= 0 ||
+    typeof value.totalCount !== "number" ||
+    !Number.isInteger(value.totalCount) ||
+    value.totalCount < 0
+  ) {
+    return null;
+  }
+  return {
+    targetType: value.targetType,
+    ...(typeof value.targetId === "string" ? { targetId: value.targetId } : {}),
+    ...(typeof value.providerType === "string" ? { providerType: value.providerType } : {}),
+    currentIndex: value.currentIndex,
+    totalCount: value.totalCount,
+  };
+}
+
+function asPersistedProgressSummary(value: unknown): RuntimeSuiteProgressSummary | null {
+  if (!isRecord(value)) return null;
+  if (
+    value.progressState !== "ready_for_next_plan" &&
+    value.progressState !== "waiting_in_active_plan" &&
+    value.progressState !== "terminal"
+  ) {
+    return null;
+  }
+  if (
+    typeof value.totalPlanCount !== "number" ||
+    !Number.isInteger(value.totalPlanCount) ||
+    value.totalPlanCount < 0 ||
+    typeof value.completedPlanCount !== "number" ||
+    !Number.isInteger(value.completedPlanCount) ||
+    value.completedPlanCount < 0 ||
+    typeof value.remainingPlanCount !== "number" ||
+    !Number.isInteger(value.remainingPlanCount) ||
+    value.remainingPlanCount < 0
+  ) {
+    return null;
+  }
+
+  let activePlan: RuntimeSuiteProgressSummary["activePlan"] | undefined;
+  if (typeof value.activePlan !== "undefined") {
+    if (!isRecord(value.activePlan)) return null;
+    const waitingOn = typeof value.activePlan.waitingOn === "undefined"
+      ? undefined
+      : asPersistedProgressTargetSummary(value.activePlan.waitingOn);
+    if (typeof value.activePlan.order !== "number" || !Number.isInteger(value.activePlan.order) || value.activePlan.order <= 0) {
+      return null;
+    }
+    if (typeof value.activePlan.planName !== "string" || value.activePlan.planName.trim().length === 0) {
+      return null;
+    }
+    if (
+      value.activePlan.phase !== "trigger" &&
+      value.activePlan.phase !== "watchers" &&
+      value.activePlan.phase !== "external_verification"
+    ) {
+      return null;
+    }
+    if (typeof value.activePlan.waitingOn !== "undefined" && !waitingOn) {
+      return null;
+    }
+    const triggerStatus =
+      value.activePlan.triggerStatus === "pass" ||
+      value.activePlan.triggerStatus === "fail" ||
+      value.activePlan.triggerStatus === "blocked" ||
+      value.activePlan.triggerStatus === "in_progress"
+        ? value.activePlan.triggerStatus
+        : undefined;
+    const watcherStatus =
+      value.activePlan.watcherStatus === "not_configured" ||
+      value.activePlan.watcherStatus === "pass" ||
+      value.activePlan.watcherStatus === "fail" ||
+      value.activePlan.watcherStatus === "blocked" ||
+      value.activePlan.watcherStatus === "in_progress"
+        ? value.activePlan.watcherStatus
+        : undefined;
+    const externalVerificationStatus =
+      value.activePlan.externalVerificationStatus === "not_configured" ||
+      value.activePlan.externalVerificationStatus === "pass" ||
+      value.activePlan.externalVerificationStatus === "fail" ||
+      value.activePlan.externalVerificationStatus === "blocked" ||
+      value.activePlan.externalVerificationStatus === "in_progress" ||
+      value.activePlan.externalVerificationStatus === "skipped_dependency"
+        ? value.activePlan.externalVerificationStatus
+        : undefined;
+    if (typeof value.activePlan.triggerStatus !== "undefined" && !triggerStatus) {
+      return null;
+    }
+    if (typeof value.activePlan.watcherStatus !== "undefined" && !watcherStatus) {
+      return null;
+    }
+    if (typeof value.activePlan.externalVerificationStatus !== "undefined" && !externalVerificationStatus) {
+      return null;
+    }
+    activePlan = {
+      order: value.activePlan.order,
+      planName: value.activePlan.planName.trim(),
+      phase: value.activePlan.phase,
+      ...(typeof value.activePlan.runId === "string" ? { runId: value.activePlan.runId } : {}),
+      ...(typeof value.activePlan.phaseStartedAt === "string"
+        ? { phaseStartedAt: value.activePlan.phaseStartedAt }
+        : {}),
+      ...((typeof value.activePlan.lastUpdatedAt === "string" || value.activePlan.lastUpdatedAt === null)
+        ? { lastUpdatedAt: value.activePlan.lastUpdatedAt as string | null }
+        : {}),
+      ...(triggerStatus ? { triggerStatus } : {}),
+      ...(watcherStatus ? { watcherStatus } : {}),
+      ...(externalVerificationStatus ? { externalVerificationStatus } : {}),
+      ...(waitingOn ? { waitingOn } : {}),
+    };
+  }
+
+  const lastCompletedPlan =
+    typeof value.lastCompletedPlan === "undefined"
+      ? undefined
+      : asPersistedCompletedPlanSummary(value.lastCompletedPlan);
+  if (typeof value.lastCompletedPlan !== "undefined" && !lastCompletedPlan) {
+    return null;
+  }
+
+  return {
+    progressState: value.progressState,
+    totalPlanCount: value.totalPlanCount,
+    completedPlanCount: value.completedPlanCount,
+    remainingPlanCount: value.remainingPlanCount,
+    ...(activePlan ? { activePlan } : {}),
+    ...(lastCompletedPlan ? { lastCompletedPlan } : {}),
   };
 }
 
@@ -285,6 +608,11 @@ export async function readExecutionOrchestrationSuiteResult(args: {
     : undefined;
   if (Array.isArray(parsed.correlations) && correlations && correlations.length !== parsed.correlations.length) return null;
   const suiteContext = isRecord(parsed.suiteContext) ? parsed.suiteContext : undefined;
+  const progressSummary =
+    typeof parsed.progressSummary === "undefined"
+      ? undefined
+      : asPersistedProgressSummary(parsed.progressSummary);
+  if (typeof parsed.progressSummary !== "undefined" && !progressSummary) return null;
   return {
     executionProfile: parsed.executionProfile,
     executionPolicy: parsed.executionPolicy,
@@ -295,6 +623,7 @@ export async function readExecutionOrchestrationSuiteResult(args: {
     ...(typeof parsed.completedPlanCount === "number" ? { completedPlanCount: parsed.completedPlanCount } : {}),
     ...(correlations ? { correlations } : {}),
     ...(suiteContext ? { suiteContext } : {}),
+    ...(progressSummary ? { progressSummary } : {}),
   };
 }
 
@@ -773,6 +1102,7 @@ export async function executeRegressionRuntimeSuite(
   let processedPlansThisCall = 0;
   let nextPlanOrder: number | undefined;
   let stop = false;
+  let activeInProgressExecutionResult: RegressionRunExecutionResult | undefined;
   for (const plan of orderedPlans) {
     if (plan.order < startPlanOrder) {
       continue;
@@ -869,6 +1199,7 @@ export async function executeRegressionRuntimeSuite(
     });
     if (run.runStatus === "in_progress") {
       nextPlanOrder = plan.order;
+      activeInProgressExecutionResult = run.executionResult;
       break;
     }
     await collectSuiteCorrelationSession({
@@ -899,6 +1230,16 @@ export async function executeRegressionRuntimeSuite(
   }
 
   if (typeof nextPlanOrder === "number") {
+    const progressSummary = await buildRuntimeSuiteProgressSummary({
+      workspaceRootAbs: args.workspaceRootAbs,
+      ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
+        ? { projectName: args.projectName.trim() }
+        : {}),
+      manifest,
+      status: "in_progress",
+      planRuns,
+      ...(activeInProgressExecutionResult ? { activeExecutionResult: activeInProgressExecutionResult } : {}),
+    });
     return {
       executionProfile: manifest.executionProfile,
       executionPolicy: manifest.executionPolicy,
@@ -908,6 +1249,7 @@ export async function executeRegressionRuntimeSuite(
       nextPlanOrder,
       completedPlanCount: countCompletedPlanRuns(planRuns),
       ...(Object.keys(suiteProvidedContext).length > 0 ? { suiteContext: suiteProvidedContext } : {}),
+      progressSummary,
     };
   }
 
@@ -931,6 +1273,15 @@ export async function executeRegressionRuntimeSuite(
     planRuns,
     suiteRunId,
     completedPlanCount: countCompletedPlanRuns(planRuns),
+    progressSummary: await buildRuntimeSuiteProgressSummary({
+      workspaceRootAbs: args.workspaceRootAbs,
+      ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
+        ? { projectName: args.projectName.trim() }
+        : {}),
+      manifest,
+      status,
+      planRuns,
+    }),
   };
   const correlations = await writeSuiteCorrelationResults({
     sessions: correlationSessions,

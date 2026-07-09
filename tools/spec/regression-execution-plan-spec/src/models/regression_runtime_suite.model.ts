@@ -1,3 +1,9 @@
+import type {
+  RegressionExternalVerificationPhaseStatus,
+  RegressionRunStatus,
+  RegressionWatcherPhaseStatus,
+} from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
+
 export type RuntimeSuiteExecutionPolicy = "stop_on_fail" | "continue_on_fail";
 export type RuntimeSuitePlanOnFail = "inherit" | "stop" | "continue";
 
@@ -52,6 +58,49 @@ export type RuntimeSuiteCorrelationResult = {
   contributingPlans: string[];
 };
 
+export type RuntimeSuiteProgressState =
+  | "ready_for_next_plan"
+  | "waiting_in_active_plan"
+  | "terminal";
+
+export type RuntimeSuiteProgressTargetSummary = {
+  targetType: "watcher" | "external_verification";
+  targetId?: string;
+  providerType?: string;
+  currentIndex: number;
+  totalCount: number;
+};
+
+export type RuntimeSuiteActivePlanProgressSummary = {
+  order: number;
+  planName: string;
+  runId?: string;
+  phase: "trigger" | "watchers" | "external_verification";
+  phaseStartedAt?: string;
+  lastUpdatedAt?: string | null;
+  triggerStatus?: RegressionRunStatus;
+  watcherStatus?: RegressionWatcherPhaseStatus;
+  externalVerificationStatus?: RegressionExternalVerificationPhaseStatus;
+  waitingOn?: RuntimeSuiteProgressTargetSummary;
+};
+
+export type RuntimeSuiteCompletedPlanSummary = {
+  order: number;
+  planName: string;
+  status: "executed" | "blocked";
+  runStatus?: "pass" | "fail" | "blocked";
+  runId?: string;
+};
+
+export type RuntimeSuiteProgressSummary = {
+  progressState: RuntimeSuiteProgressState;
+  totalPlanCount: number;
+  completedPlanCount: number;
+  remainingPlanCount: number;
+  activePlan?: RuntimeSuiteActivePlanProgressSummary;
+  lastCompletedPlan?: RuntimeSuiteCompletedPlanSummary;
+};
+
 export type RuntimeSuiteRunResult = {
   executionProfile: string;
   status: RuntimeSuiteRunStatus;
@@ -62,4 +111,5 @@ export type RuntimeSuiteRunResult = {
   completedPlanCount?: number;
   correlations?: RuntimeSuiteCorrelationResult[];
   suiteContext?: Record<string, unknown>;
+  progressSummary?: RuntimeSuiteProgressSummary;
 };

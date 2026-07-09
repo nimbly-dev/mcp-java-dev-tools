@@ -1758,6 +1758,352 @@ test("mcp IT: execution_orchestration supports resumable in_progress slicing by 
   }
 });
 
+test("mcp IT: execution_orchestration mirrors persisted watcher progressSummary for long-running resumed waits", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-progress-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-watchers";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "watcher-progress";
+  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  let watcherChecks = 0;
+
+  const appServer = http.createServer(async (req, res) => {
+    if (req.method === "POST" && req.url === "/events") {
+      res.statusCode = 202;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ eventId: "evt-900" }));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/index/evt-900") {
+      watcherChecks += 1;
+      if (watcherChecks === 1) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ state: "pending" }));
+        return;
+      }
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ state: "ready" }));
+      return;
+    }
+    res.statusCode = 404;
+    res.end(JSON.stringify({ reason: "missing" }));
+  });
+  const appPort = await listen(appServer);
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        defaults: {
+          requestTimeoutMs: 100,
+          retryMax: 3,
+          orchestrator: {
+            resumePollMax: 1,
+            resumePollIntervalMs: 5,
+            resumePollTimeoutMs: 20,
+          },
+        },
+        executionProfiles: [
+          {
+            executionProfile: "watcher-progress-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    specVersion: "1.0.0",
+    execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "trigger_event",
+        targetRef: 0,
+        protocol: "http",
+        transport: { http: { method: "POST", pathTemplate: "/events" } },
+        extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
+        expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+      },
+    ],
+    watchers: [
+      {
+        id: "indexed_ready",
+        dependency: { stepOrder: 1 },
+        provider: {
+          type: "http",
+          transport: {
+            request: {
+              method: "GET",
+              url: `http://127.0.0.1:${appPort}/index/\${eventId}`,
+            },
+          },
+        },
+        waitPolicy: { timeoutMs: 1_000, retryMax: 3 },
+        expect: [{ id: "ready", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const first = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "watcher-progress-run",
+      },
+    });
+
+    assert.equal(first.structuredContent?.status, "in_progress");
+    assert.equal((first.structuredContent?.progressSummary as Record<string, unknown>)?.progressState, "waiting_in_active_plan");
+    assert.equal(((first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<string, unknown>)?.phase, "watchers");
+    assert.equal(((((first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<string, unknown>)?.waitingOn as Record<string, unknown>)?.targetId), "indexed_ready");
+
+    const suiteRunId = String(first.structuredContent?.suiteRunId ?? "");
+    const persisted = JSON.parse(
+      await fs.readFile(
+        path.join(workspaceRootAbs, ".mcpjvm", projectName, "suite-runs", suiteRunId, "execution_orchestration.result.json"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    const persistedSummary = persisted.progressSummary as Record<string, unknown>;
+    assert.equal(persistedSummary.progressState, "waiting_in_active_plan");
+    assert.equal(((persistedSummary.activePlan as Record<string, unknown>)?.phase), "watchers");
+    assert.equal(((((persistedSummary.activePlan as Record<string, unknown>)?.waitingOn as Record<string, unknown>)?.targetId)), "indexed_ready");
+
+    await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: projectRootAbs,
+          defaults: {
+            requestTimeoutMs: 100,
+            retryMax: 3,
+            orchestrator: {
+              resumePollMax: 1,
+              resumePollIntervalMs: 5,
+              resumePollTimeoutMs: 1_000,
+            },
+          },
+          executionProfiles: [
+            {
+              executionProfile: "watcher-progress-run",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName, onFail: "inherit" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const second = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "watcher-progress-run",
+        suiteRunId,
+      },
+    });
+
+    assert.equal(second.structuredContent?.status, "pass");
+    assert.equal(watcherChecks, 2);
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("mcp IT: execution_orchestration mirrors persisted external verification progressSummary for long-running resumed waits", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-external-progress-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-external";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const planName = "external-progress";
+  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  let triggerCalls = 0;
+  let verificationCalls = 0;
+
+  const appServer = http.createServer(async (req, res) => {
+    if (req.method === "POST" && req.url === "/tasks") {
+      triggerCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      res.statusCode = 202;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ taskId: "task-900" }));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/tasks/task-900") {
+      verificationCalls += 1;
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ completed: true }));
+      return;
+    }
+    res.statusCode = 404;
+    res.end(JSON.stringify({ reason: "missing" }));
+  });
+  const appPort = await listen(appServer);
+
+  await writeJson(probeConfigAbs, {
+    defaultProfile: "dev",
+    profiles: {
+      dev: {
+        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+      },
+    },
+    workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+  });
+
+  await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+    workspaces: [
+      {
+        projectRoot: projectRootAbs,
+        defaults: {
+          requestTimeoutMs: 100,
+          retryMax: 2,
+          orchestrator: {
+            resumePollMax: 1,
+            resumePollIntervalMs: 5,
+            resumePollTimeoutMs: 10,
+          },
+        },
+        executionProfiles: [
+          {
+            executionProfile: "external-progress-run",
+            executionPolicy: "stop_on_fail",
+            plans: [{ order: 1, planName, onFail: "inherit" }],
+          },
+        ],
+      },
+    ],
+  });
+  await writeJson(path.join(planRootAbs, "metadata.json"), {
+    specVersion: "1.0.0",
+    execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+  });
+  await writeJson(path.join(planRootAbs, "contract.json"), {
+    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: `http://127.0.0.1:${appPort}`,
+      },
+    ],
+    steps: [
+      {
+        order: 1,
+        id: "submit_task",
+        targetRef: 0,
+        protocol: "http",
+        transport: { http: { method: "POST", pathTemplate: "/tasks" } },
+        extract: [{ from: "response.bodyJson.taskId", as: "taskId", required: true }],
+        expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+      },
+    ],
+    externalVerification: [
+      {
+        id: "verify_task_completed",
+        provider: { type: "http" },
+        request: { http: { method: "GET", url: `http://127.0.0.1:${appPort}/tasks/\${taskId}` } },
+        expect: [{ id: "completed", actualPath: "response.bodyJson.completed", operator: "field_equals", expected: true }],
+      },
+    ],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+
+    const first = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "external-progress-run",
+      },
+    });
+
+    assert.equal(first.structuredContent?.status, "in_progress");
+    assert.equal((first.structuredContent?.progressSummary as Record<string, unknown>)?.progressState, "waiting_in_active_plan");
+    assert.equal(((first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<string, unknown>)?.phase, "external_verification");
+    assert.equal(((((first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<string, unknown>)?.waitingOn as Record<string, unknown>)?.targetId), "verify_task_completed");
+
+    const suiteRunId = String(first.structuredContent?.suiteRunId ?? "");
+    const persisted = JSON.parse(
+      await fs.readFile(
+        path.join(workspaceRootAbs, ".mcpjvm", projectName, "suite-runs", suiteRunId, "execution_orchestration.result.json"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    const persistedSummary = persisted.progressSummary as Record<string, unknown>;
+    assert.equal(persistedSummary.progressState, "waiting_in_active_plan");
+    assert.equal(((persistedSummary.activePlan as Record<string, unknown>)?.phase), "external_verification");
+    assert.equal(((((persistedSummary.activePlan as Record<string, unknown>)?.waitingOn as Record<string, unknown>)?.targetId)), "verify_task_completed");
+
+    const second = await callTool(mcp, "execution_orchestration", {
+      action: "execute",
+      input: {
+        projectName,
+        executionProfile: "external-progress-run",
+        suiteRunId,
+      },
+    });
+
+    assert.equal(second.structuredContent?.status, "pass");
+    assert.equal(triggerCalls, 1);
+    assert.equal(verificationCalls, 1);
+  } finally {
+    appServer.close();
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
 test("mcp IT: execution_orchestration executes performance suite profiles through the same MCP Tool", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-performance-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");

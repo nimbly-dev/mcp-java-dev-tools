@@ -429,6 +429,12 @@ Typed request envelope examples:
 | `planRuns` | Ordered cumulative per-plan execution summary for completed progress so far or the final suite result. | `execution_orchestration` | false | `[{"order":1,"planName":"mcp-tool-performance-replay-spec","status":"executed","runStatus":"pass","runId":"06-10-2026-12-07-42AM"}]` |
 | `nextPlanOrder` | Next plan order to execute when `status="in_progress"`. | `execution_orchestration` | false | `2` |
 | `completedPlanCount` | Number of cumulative plans already persisted for the suite run. | `execution_orchestration` | false | `1` |
+| `progressSummary.progressState` | Bounded suite-level resumability summary: `ready_for_next_plan`, `waiting_in_active_plan`, or `terminal`. | `execution_orchestration` | false | `"waiting_in_active_plan"` |
+| `progressSummary.totalPlanCount` | Total plans defined in the selected execution profile. | `execution_orchestration` | false | `3` |
+| `progressSummary.completedPlanCount` | Plans that have reached a terminal per-plan result and are already persisted for the suite run. | `execution_orchestration` | false | `1` |
+| `progressSummary.remainingPlanCount` | Plans not yet completed, excluding the single active `in_progress` plan when present. | `execution_orchestration` | false | `1` |
+| `progressSummary.activePlan` | Optional bounded summary of the current `in_progress` plan when orchestration is waiting inside watcher or external-verification work. | `execution_orchestration` | false | `{"order":2,"planName":"search-consumer","phase":"watchers","triggerStatus":"pass","watcherStatus":"in_progress","waitingOn":{"targetType":"watcher","targetId":"indexed_ready","providerType":"http","currentIndex":1,"totalCount":2}}` |
+| `progressSummary.lastCompletedPlan` | Optional summary of the latest terminal per-plan checkpoint already persisted for the suite run. | `execution_orchestration` | false | `{"order":1,"planName":"producer-trigger","status":"executed","runStatus":"pass","runId":"06-10-2026-12-07-42AM"}` |
 | `correlations` | Optional suite-level cross-plan correlation summary for completed runs. | `execution_orchestration` | false | `[{"correlationSessionId":"order-flow","status":"ok","reasonCode":"ok","keyType":"traceId","contributingPlans":["producer-plan","consumer-plan"]}]` |
 
 HTTP transport diagnostics notes:

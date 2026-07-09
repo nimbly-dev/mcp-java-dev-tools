@@ -4,7 +4,11 @@ const http = require("node:http");
 const fs = require("node:fs");
 const test = require("node:test");
 
-const { executeRegressionRuntimeSuite } = require("@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util");
+const {
+  executeRegressionRuntimeSuite,
+  readExecutionOrchestrationSuiteResult,
+  writeExecutionOrchestrationSuiteResult,
+} = require("@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util");
 const {
   createTestTempDir,
   writeJson,
@@ -325,6 +329,254 @@ test("executeRegressionRuntimeSuite resumes the same in_progress plan without du
     assert.equal(second.suiteRunId, first.suiteRunId);
     assert.equal(stepCalls, 1);
     assert.equal(watcherCalls, 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionRuntimeSuite builds bounded watcher progressSummary for in_progress plan waits", async () => {
+  const root = createTestTempDir("runtime-suite-progress-summary-watcher");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "watcher-progress-plan";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 100, retryMax: 3 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "watcher-progress-suite",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName }],
+            },
+          ],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: {
+        intent: "regression",
+        probeVerification: false,
+        pinStrictProbeKey: false,
+        discoveryPolicy: "allow_discoverable_prerequisites",
+      },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "trigger_event",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
+          expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      watchers: [
+        {
+          id: "search_indexed",
+          dependency: { stepOrder: 1 },
+          provider: {
+            type: "http",
+            transport: {
+              request: {
+                method: "GET",
+                url: "http://localhost:8082/index/${eventId}",
+              },
+            },
+          },
+          waitPolicy: { timeoutMs: 1_000, retryMax: 3 },
+          expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        },
+      ],
+    });
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "watcher-progress-suite",
+      orchestrationTimeoutBudgetMs: 10,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "POST") {
+          return { structuredContent: { status: "pass", statusCode: 202, durationMs: 1, body: "{\"eventId\":\"evt-700\"}", bodyPreview: "{\"eventId\":\"evt-700\"}" } };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 1, body: "{\"state\":\"pending\"}", bodyPreview: "{\"state\":\"pending\"}" } };
+      },
+    });
+
+    assert.equal(out.status, "in_progress");
+    assert.equal(out.progressSummary?.progressState, "waiting_in_active_plan");
+    assert.equal(out.progressSummary?.totalPlanCount, 1);
+    assert.equal(out.progressSummary?.completedPlanCount, 0);
+    assert.equal(out.progressSummary?.remainingPlanCount, 0);
+    assert.equal(out.progressSummary?.activePlan?.planName, planName);
+    assert.equal(out.progressSummary?.activePlan?.phase, "watchers");
+    assert.equal(out.progressSummary?.activePlan?.triggerStatus, "pass");
+    assert.equal(out.progressSummary?.activePlan?.watcherStatus, "in_progress");
+    assert.equal(out.progressSummary?.activePlan?.waitingOn?.targetType, "watcher");
+    assert.equal(out.progressSummary?.activePlan?.waitingOn?.targetId, "search_indexed");
+    assert.equal(out.progressSummary?.activePlan?.waitingOn?.currentIndex, 1);
+    assert.equal(out.progressSummary?.activePlan?.waitingOn?.totalCount, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executeRegressionRuntimeSuite builds bounded external verification progressSummary for in_progress plan waits", async () => {
+  const root = createTestTempDir("runtime-suite-progress-summary-external-verification");
+  try {
+    const projectName = "petclinic-regression";
+    const planName = "external-verification-progress-plan";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          defaults: { requestTimeoutMs: 100, retryMax: 2 },
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [
+            {
+              executionProfile: "external-verification-progress-suite",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName }],
+            },
+          ],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: {
+        intent: "regression",
+        probeVerification: false,
+        pinStrictProbeKey: false,
+        discoveryPolicy: "allow_discoverable_prerequisites",
+      },
+    });
+    writeJson(path.join(planRoot, "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.TasksController", method: "submit", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [
+        {
+          order: 1,
+          id: "submit_task",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "POST", pathTemplate: "/tasks" } },
+          extract: [{ from: "response.bodyJson.taskId", as: "taskId", required: true }],
+          expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        },
+      ],
+      externalVerification: [
+        {
+          id: "verify_task_completed",
+          provider: { type: "http" },
+          request: { http: { method: "GET", url: "http://localhost:8082/tasks/${taskId}" } },
+          expect: [{ id: "completed", actualPath: "response.bodyJson.completed", operator: "field_equals", expected: true }],
+        },
+      ],
+    });
+
+    const out = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "external-verification-progress-suite",
+      orchestrationTimeoutBudgetMs: 10,
+      mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
+        assert.equal(toolName, "transport_execute");
+        const request = input.request as Record<string, unknown>;
+        if (String(request.method) === "POST") {
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          return { structuredContent: { status: "pass", statusCode: 202, durationMs: 1, body: "{\"taskId\":\"task-700\"}", bodyPreview: "{\"taskId\":\"task-700\"}" } };
+        }
+        throw new Error("external verification should not execute before bounded resume");
+      },
+    });
+
+    assert.equal(out.status, "in_progress");
+    assert.equal(out.progressSummary?.progressState, "waiting_in_active_plan");
+    assert.equal(out.progressSummary?.activePlan?.planName, planName);
+    assert.equal(out.progressSummary?.activePlan?.phase, "external_verification");
+    assert.equal(out.progressSummary?.activePlan?.triggerStatus, "pass");
+    assert.equal(out.progressSummary?.activePlan?.watcherStatus, "not_configured");
+    assert.equal(out.progressSummary?.activePlan?.externalVerificationStatus, "in_progress");
+    assert.equal(out.progressSummary?.activePlan?.waitingOn?.targetType, "external_verification");
+    assert.equal(out.progressSummary?.activePlan?.waitingOn?.targetId, "verify_task_completed");
+    assert.equal(out.progressSummary?.activePlan?.waitingOn?.providerType, "http");
+    assert.equal(out.progressSummary?.activePlan?.waitingOn?.currentIndex, 1);
+    assert.equal(out.progressSummary?.activePlan?.waitingOn?.totalCount, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("writeExecutionOrchestrationSuiteResult persists and reloads bounded progressSummary", async () => {
+  const root = createTestTempDir("runtime-suite-progress-summary-persist");
+  try {
+    const projectName = "petclinic-regression";
+    const suiteRunId = "suite-progress-001";
+    await writeExecutionOrchestrationSuiteResult({
+      workspaceRootAbs: root,
+      projectName,
+      suite: {
+        executionProfile: "watcher-progress-suite",
+        executionPolicy: "stop_on_fail",
+        status: "in_progress",
+        suiteRunId,
+        planRuns: [
+          {
+            order: 1,
+            planName: "watcher-progress-plan",
+            status: "executed",
+            runStatus: "in_progress",
+            runId: "run-001",
+          },
+        ],
+        completedPlanCount: 0,
+        progressSummary: {
+          progressState: "waiting_in_active_plan",
+          totalPlanCount: 1,
+          completedPlanCount: 0,
+          remainingPlanCount: 0,
+          activePlan: {
+            order: 1,
+            planName: "watcher-progress-plan",
+            runId: "run-001",
+            phase: "watchers",
+            phaseStartedAt: "2026-07-08T00:00:00.000Z",
+            lastUpdatedAt: "2026-07-08T00:00:05.000Z",
+            triggerStatus: "pass",
+            watcherStatus: "in_progress",
+            waitingOn: {
+              targetType: "watcher",
+              targetId: "search_indexed",
+              providerType: "http",
+              currentIndex: 1,
+              totalCount: 1,
+            },
+          },
+        },
+      },
+    });
+
+    const persisted = await readExecutionOrchestrationSuiteResult({
+      workspaceRootAbs: root,
+      projectName,
+      suiteRunId,
+    });
+
+    assert.equal(persisted?.progressSummary?.progressState, "waiting_in_active_plan");
+    assert.equal(persisted?.progressSummary?.activePlan?.planName, "watcher-progress-plan");
+    assert.equal(persisted?.progressSummary?.activePlan?.waitingOn?.targetId, "search_indexed");
+    assert.equal(persisted?.progressSummary?.activePlan?.waitingOn?.providerType, "http");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
