@@ -158,6 +158,8 @@ export async function writeExecutionOrchestrationSuiteResult(args: {
     planRuns: args.suite.planRuns,
     completedPlanCount: args.suite.completedPlanCount ?? args.suite.planRuns.length,
   };
+  if (typeof args.suite.reasonCode === "string") payload.reasonCode = args.suite.reasonCode;
+  if (isRecord(args.suite.reasonMeta)) payload.reasonMeta = args.suite.reasonMeta;
   if (typeof args.suite.nextPlanOrder === "number") payload.nextPlanOrder = args.suite.nextPlanOrder;
   if (Array.isArray(args.suite.correlations) && args.suite.correlations.length > 0) {
     payload.correlations = args.suite.correlations;
@@ -596,6 +598,8 @@ export async function readExecutionOrchestrationSuiteResult(args: {
   }
   if (parsed.suiteRunId !== suiteRunId) return null;
   if (parsed.executionPolicy !== "stop_on_fail" && parsed.executionPolicy !== "continue_on_fail") return null;
+  if (typeof parsed.reasonCode !== "undefined" && typeof parsed.reasonCode !== "string") return null;
+  if (typeof parsed.reasonMeta !== "undefined" && !isRecord(parsed.reasonMeta)) return null;
   if (!Array.isArray(parsed.planRuns)) return null;
   const planRuns = parsed.planRuns
     .map((entry) => asPersistedPlanRunResult(entry))
@@ -617,6 +621,8 @@ export async function readExecutionOrchestrationSuiteResult(args: {
     executionProfile: parsed.executionProfile,
     executionPolicy: parsed.executionPolicy,
     status: parsed.status,
+    ...(typeof parsed.reasonCode === "string" ? { reasonCode: parsed.reasonCode } : {}),
+    ...(isRecord(parsed.reasonMeta) ? { reasonMeta: parsed.reasonMeta } : {}),
     suiteRunId,
     planRuns,
     ...(typeof parsed.nextPlanOrder === "number" ? { nextPlanOrder: parsed.nextPlanOrder } : {}),

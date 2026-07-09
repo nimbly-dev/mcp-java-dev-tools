@@ -419,7 +419,7 @@ Typed request envelope examples:
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
 | --- | --- | --- | --- | --- |
 | `resultType` | Output discriminator for runtime-suite orchestration. | `execution_orchestration` | true | `"execution_orchestration"` |
-| `status` | Suite status for synchronous execution (`pass`, `fail`, `blocked`, `partial_fail`) or resumable progress checkpoint (`in_progress`). | `execution_orchestration` | true | `"in_progress"` |
+| `status` | Suite status for synchronous execution (`pass`, `fail`, `blocked`, `partial_fail`) or resumable progress checkpoint (`in_progress`). Outer bounded-stop terminal outcomes use `blocked` instead of remaining `in_progress`. | `execution_orchestration` | true | `"blocked"` |
 | `action` | Requested orchestration lifecycle action. | `execution_orchestration` | true | `"execute"` |
 | `projectName` | Explicit project selector for multi-project-safe suite execution. | `execution_orchestration` | true | `"test-project-performance"` |
 | `executionProfile` | Workspace execution profile selected from `projects.json` for either a `regression` or `performance` suite. | `execution_orchestration` | true | `"test-performance-stress-suite"` |
@@ -429,6 +429,8 @@ Typed request envelope examples:
 | `planRuns` | Ordered cumulative per-plan execution summary for completed progress so far or the final suite result. | `execution_orchestration` | false | `[{"order":1,"planName":"mcp-tool-performance-replay-spec","status":"executed","runStatus":"pass","runId":"06-10-2026-12-07-42AM"}]` |
 | `nextPlanOrder` | Next plan order to execute when `status="in_progress"`. | `execution_orchestration` | false | `2` |
 | `completedPlanCount` | Number of cumulative plans already persisted for the suite run. | `execution_orchestration` | false | `1` |
+| `reasonCode` | Deterministic terminal reason code for fail-closed or outer bounded-stop outcomes. Includes `orchestrator_poll_limit_exhausted`, `orchestrator_timeout_budget_exhausted`, and `orchestrator_progress_stalled`. | `execution_orchestration` | false | `"orchestrator_timeout_budget_exhausted"` |
+| `reasonMeta` | Optional compact typed diagnostics for terminal reason-code context such as elapsed budget, remaining budget, or completed outer pass count. | `execution_orchestration` | false | `{"effectiveTimeoutBudgetMs":1000,"elapsedMs":1000}` |
 | `progressSummary.progressState` | Bounded suite-level resumability summary: `ready_for_next_plan`, `waiting_in_active_plan`, or `terminal`. | `execution_orchestration` | false | `"waiting_in_active_plan"` |
 | `progressSummary.totalPlanCount` | Total plans defined in the selected execution profile. | `execution_orchestration` | false | `3` |
 | `progressSummary.completedPlanCount` | Plans that have reached a terminal per-plan result and are already persisted for the suite run. | `execution_orchestration` | false | `1` |
