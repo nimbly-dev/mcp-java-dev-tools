@@ -2,7 +2,7 @@ import type {
   RuntimeMappingsResolveFailure,
   RuntimeMappingsResolveInput,
   RuntimeMappingsResolveResult,
-} from "@/models/synthesis/runtime_mappings.model";
+} from "@tools-registry/models/synthesis/runtime_mappings.model";
 
 const RUNTIME_ATTEMPTED_STRATEGY = "spring_runtime_actuator_mappings";
 

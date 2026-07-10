@@ -1,6 +1,6 @@
-import type { AuthResolution } from "@/models/auth_resolution.model";
+import type { AuthResolution } from "@tools-core/auth_resolution";
 import type { FailureReasonMeta } from "@tools-core/failure_diagnostics.model";
-import type { SynthesisHttpTrigger } from "@/models/synthesis/synthesizer_output.model";
+import type { SynthesisHttpTrigger } from "@tools-registry/models/synthesis/synthesizer_output.model";
 import type { IntentMode, RecipeStatus } from "@tools-core/recipe_constants.util";
 import type {
   ExecutionReadiness,
@@ -10,7 +10,7 @@ import type {
   RecipeCandidate,
   RecipeExecutionPlan,
 } from "@tools-core/recipe_types.util";
-import type { resolveAuthForRecipe } from "@/utils/recipe_generate/auth_resolve.util";
+import type { resolveAuthForRecipe } from "../support/recipe_generate/auth_resolve.util";
 import type { SynthesizerRegistry } from "@tools-registry/plugin.loader";
 import type {
   discoverClassMethods,

@@ -7,7 +7,7 @@ const test = require("node:test");
 const {
   MAX_ADDITIONAL_SOURCE_ROOTS,
   resolveAdditionalSourceRoots,
-} = require("@/utils/source_roots_resolve.util");
+} = require("@tools-feature-route-synthesis");
 
 async function withTempDir(run: (dir: string) => Promise<void>) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "source-roots-resolve-"));

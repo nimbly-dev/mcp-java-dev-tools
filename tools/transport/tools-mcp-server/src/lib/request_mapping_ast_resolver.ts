@@ -6,7 +6,7 @@ import { getContractVersion } from "@/config/contract-version";
 import type {
   JvmAstRequestMappingInput,
   JvmAstRequestMappingResult,
-} from "@/models/synthesis/request_mapping_ast.model";
+} from "@tools-registry/models/synthesis/request_mapping_ast.model";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const AST_RESOLVER_JAR_ENV = "MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR";

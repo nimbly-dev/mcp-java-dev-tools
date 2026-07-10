@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { TRANSPORT_EXECUTE_TOOL } from "@/tools/core/transport_execute/contract";
-import { transportExecuteDomain } from "@tools-feature-transport-execution";
+import { dispatchTransportExecutionAction } from "@tools-feature-transport-execution";
 
 export type TransportExecuteHandlerDeps = {
   allowNonWrappedExecutable: () => boolean;
@@ -15,7 +15,7 @@ export function registerTransportExecuteTool(server: McpServer, deps: TransportE
       inputSchema: TRANSPORT_EXECUTE_TOOL.inputSchema,
     },
     async ({ protocol, request, options }) => {
-      return await transportExecuteDomain({
+      return await dispatchTransportExecutionAction({
         protocol,
         request,
         wrappedOnly: options?.wrappedOnly !== false,

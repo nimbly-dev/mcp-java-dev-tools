@@ -6,7 +6,7 @@ import {
   resolveExecutionOrchestrationLoopPolicy,
 } from "./shared/resiliency";
 import { deriveNextActionCode } from "@tools-core/failure_diagnostics";
-import { executeHttpTransportRequest } from "@/utils/transport_execute_http.util";
+import { executeHttpTransportRequest } from "@tools-feature-transport-execution";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 import {
   buildSuiteStatusArtifactRelPath,

@@ -1,8 +1,6 @@
 import type { RouteSynthesisAction } from "@tools-contracts/route-synthesis";
-import type { RouteSynthesisHandlerDeps } from "@/models/route_synthesis.model";
-import { runClassMethods } from "./actions/class_methods.action";
-import { runRecipeCreate } from "./actions/create_recipe.action";
-import { runTargetInfer } from "./actions/infer_target.action";
+import type { RouteSynthesisHandlerDeps } from "@tools-feature-route-synthesis";
+import { dispatchRouteSynthesisAction } from "./actions";
 
 export async function routeSynthesisDomain(args: {
   action: RouteSynthesisAction;
@@ -12,19 +10,5 @@ export async function routeSynthesisDomain(args: {
   content: Array<{ type: "text"; text: string }>;
   structuredContent: Record<string, unknown>;
 }> {
-  if (args.action === "infer_target") {
-    return await runTargetInfer(
-      {
-        ...args.input,
-        discoveryMode: "ranked_candidates",
-      },
-      args.deps,
-    );
-  }
-
-  if (args.action === "class_methods") {
-    return await runClassMethods(args.input, args.deps);
-  }
-
-  return await runRecipeCreate(args.input, args.deps);
+  return dispatchRouteSynthesisAction(args);
 }

@@ -1,13 +1,13 @@
-import type { SynthesizerFailure } from "@/models/synthesis/synthesizer_failure.model";
+import type { SynthesizerFailure } from "@tools-registry/models/synthesis/synthesizer_failure.model";
 import type {
   RuntimeMappingsResolveResult,
-} from "@/models/synthesis/runtime_mappings.model";
-import type { SynthesizerInput } from "@/models/synthesis/synthesizer_input.model";
+} from "@tools-registry/models/synthesis/runtime_mappings.model";
+import type { SynthesizerInput } from "@tools-registry/models/synthesis/synthesizer_input.model";
 import type {
   JvmAstRequestMappingFailure,
   JvmAstRequestMappingResult,
-} from "@/models/synthesis/request_mapping_ast.model";
-import type { SynthesizerOutput } from "@/models/synthesis/synthesizer_output.model";
+} from "@tools-registry/models/synthesis/request_mapping_ast.model";
+import type { SynthesizerOutput } from "@tools-registry/models/synthesis/synthesizer_output.model";
 import { resolveRequestMappingAst } from "@/lib/request_mapping_ast_resolver";
 import { resolveRequestMappingFromRuntime } from "@/lib/request_mapping_runtime_resolver";
 import {

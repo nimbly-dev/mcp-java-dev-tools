@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { SynthesisRecipeCandidate } from "@/models/synthesis/synthesizer_output.model";
+import type { SynthesisRecipeCandidate } from "@tools-registry/models/synthesis/synthesizer_output.model";
 
 type GatewayRouteConfigSuccess = {
   status: "ok";

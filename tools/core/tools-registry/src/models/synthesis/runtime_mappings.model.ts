@@ -1,4 +1,4 @@
-import type { SynthesisRecipeCandidate } from "@/models/synthesis/synthesizer_output.model";
+import type { SynthesisRecipeCandidate } from "@tools-registry/models/synthesis/synthesizer_output.model";
 
 export type RuntimeMappingsReasonCode =
   | "runtime_mappings_input_required"

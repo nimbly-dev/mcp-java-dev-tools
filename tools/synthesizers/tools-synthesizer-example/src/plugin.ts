@@ -1,8 +1,8 @@
 import { access } from "node:fs/promises";
 
-import type { SynthesizerFailure } from "@/models/synthesis/synthesizer_failure.model";
-import type { SynthesizerInput } from "@/models/synthesis/synthesizer_input.model";
-import type { SynthesizerOutput } from "@/models/synthesis/synthesizer_output.model";
+import type { SynthesizerFailure } from "@tools-registry/models/synthesis/synthesizer_failure.model";
+import type { SynthesizerInput } from "@tools-registry/models/synthesis/synthesizer_input.model";
+import type { SynthesizerOutput } from "@tools-registry/models/synthesis/synthesizer_output.model";
 import { SYNTHESIZER_PLUGIN_API_VERSION } from "@tools-registry/plugin.compat";
 import type { SynthesizerPlugin } from "@tools-registry/plugin.contract";
 

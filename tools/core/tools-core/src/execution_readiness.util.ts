@@ -1,4 +1,4 @@
-import type { AuthResolution } from "@/models/auth_resolution.model";
+import type { AuthResolution } from "@tools-core/auth_resolution";
 import type { IntentMode } from "@tools-core/recipe_constants.util";
 import type {
   ExecutionReadiness,
