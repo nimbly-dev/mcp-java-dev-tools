@@ -138,6 +138,8 @@ function parseReducedExecutionSampleEvent(rawLine: string): ReducedExecutionSamp
 
 function resolveRepoRootCandidates(): string[] {
   return [
+    path.resolve(__dirname, "../../../"),
+    path.resolve(process.cwd()),
     path.resolve(__dirname, "../../../../"),
     path.resolve(__dirname, "../../../../../"),
     path.resolve(__dirname, "../../../.."),

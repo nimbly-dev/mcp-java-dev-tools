@@ -2,7 +2,7 @@
   "name": "@mcp-java-dev-tools/tools-feature-performance-suite",
   "private": true,
   "version": "0.1.0",
-  "description": "Performance suite Feature Module public boundary",
+  "description": "Performance runtime execution and result collection Feature Module",
   "main": "index.ts",
   "types": "index.ts"
 }

@@ -4,7 +4,7 @@ const test = require("node:test");
 const path = require("node:path");
 const fs = require("node:fs");
 
-const { executionOrchestrationDomain } = require("@/tools/core/execution_orchestration/domain");
+const { executionOrchestrationDomain } = require("@tools-feature-execution-orchestration/domain");
 const {
   createTestTempDir,
   writeJson,

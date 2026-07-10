@@ -13,7 +13,7 @@ import {
 import {
   buildPerformanceMstaSummary,
   type PerformanceMstaSummary,
-} from "@tools-regression-execution-plan-spec/performance_msta_summary.util";
+} from "./performance_msta_summary.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 import {
   runJmeterGeneratedHttpWorkload,
