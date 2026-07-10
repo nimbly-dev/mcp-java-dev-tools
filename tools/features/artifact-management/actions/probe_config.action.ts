@@ -1,9 +1,9 @@
 import path from "node:path";
 import * as fs from "node:fs";
 import { loadProbeRegistry, summarizeProbeRegistry } from "@/config/probe-registry";
-import { buildFailClosedArtifactResponse, okArtifactResponse } from "@/tools/core/artifact_management/shared/fail_closed.util";
-import { readJsonFile, writeJsonFile } from "@/tools/core/artifact_management/shared/json_io.util";
-import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "@/tools/core/artifact_management/actions/types";
+import { buildFailClosedArtifactResponse, okArtifactResponse } from "@tools-feature-artifact-management/shared/fail_closed.util";
+import { readJsonFile, writeJsonFile } from "@tools-feature-artifact-management/shared/json_io.util";
+import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "@tools-feature-artifact-management/actions/types";
 
 function buildProbeConfigNotConfiguredResponse(
   request: ArtifactActionRequest<"probe_config">,

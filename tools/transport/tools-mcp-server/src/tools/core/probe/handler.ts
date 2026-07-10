@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { ProbeRequestSchema } from "@/models/inputs";
-import { createProbeDomain } from "@/tools/core/probe/domain";
+import { createProbeDomain, executeProbeAction, type ProbeActionRequest } from "@tools-feature-probe";
 import { PROBE_TOOL } from "@/tools/core/probe/contract";
 import type { ProbeRegistry } from "@/config/probe-registry";
 
@@ -48,22 +48,7 @@ export function registerProbeTools(server: McpServer, cfg: ProbeHandlerConfig): 
         };
       }
 
-      switch (parsed.data.action) {
-        case "actuate":
-          return await domain.enable(parsed.data.input);
-        case "capture":
-          return await domain.getCapture(parsed.data.input);
-        case "check":
-          return await domain.check(parsed.data.input);
-        case "reset":
-          return await domain.reset(parsed.data.input);
-        case "status":
-          return await domain.getStatus(parsed.data.input);
-        case "wait_for_hit":
-          return await domain.waitForHit(parsed.data.input);
-        case "profiler":
-          return await domain.profiler(parsed.data.input);
-      }
+      return await executeProbeAction(domain, parsed.data as ProbeActionRequest);
     },
   );
 }

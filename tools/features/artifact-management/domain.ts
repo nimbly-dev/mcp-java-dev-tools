@@ -1,12 +1,12 @@
 import { ARTIFACT_ACTION_ALLOWLIST, type ArtifactType } from "@/models/inputs/artifact_management/shared/actions.model";
 import type { ArtifactManagementRequest } from "@/models/inputs/artifact_management";
-import type { ArtifactActionContext, ArtifactActionResult } from "@/tools/core/artifact_management/actions/types";
-import { handleProbeConfigArtifact } from "@/tools/core/artifact_management/actions/probe_config.action";
-import { handleProjectContextArtifact } from "@/tools/core/artifact_management/actions/project_context.action";
-import { handleRegressionPlanArtifact } from "@/tools/core/artifact_management/actions/regression_plan.action";
-import { handleRunResultArtifact } from "@/tools/core/artifact_management/actions/run_result.action";
-import { handleExecutionExportArtifact } from "@/tools/core/artifact_management/actions/execution_export.action";
-import { buildFailClosedArtifactResponse } from "@/tools/core/artifact_management/shared/fail_closed.util";
+import type { ArtifactActionContext, ArtifactActionResult } from "@tools-feature-artifact-management/actions/types";
+import { handleProbeConfigArtifact } from "@tools-feature-artifact-management/actions/probe_config.action";
+import { handleProjectContextArtifact } from "@tools-feature-artifact-management/actions/project_context.action";
+import { handleRegressionPlanArtifact } from "@tools-feature-artifact-management/actions/regression_plan.action";
+import { handleRunResultArtifact } from "@tools-feature-artifact-management/actions/run_result.action";
+import { handleExecutionExportArtifact } from "@tools-feature-artifact-management/actions/execution_export.action";
+import { buildFailClosedArtifactResponse } from "@tools-feature-artifact-management/shared/fail_closed.util";
 
 function actionAllowed(artifactType: ArtifactType, action: string): boolean {
   const actions = ARTIFACT_ACTION_ALLOWLIST[artifactType];

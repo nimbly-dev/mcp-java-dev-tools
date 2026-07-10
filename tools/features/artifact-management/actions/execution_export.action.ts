@@ -1,9 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { executionProfileExportDomain } from "@/tools/core/execution_profile_export/domain";
-import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "@/tools/core/artifact_management/actions/types";
-import { buildFailClosedArtifactResponse, okArtifactResponse } from "@/tools/core/artifact_management/shared/fail_closed.util";
-import { resolveProjectName } from "@/tools/core/artifact_management/shared/project_resolution.util";
+import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "@tools-feature-artifact-management/actions/types";
+import { buildFailClosedArtifactResponse, okArtifactResponse } from "@tools-feature-artifact-management/shared/fail_closed.util";
+import { resolveProjectName } from "@tools-feature-artifact-management/shared/project_resolution.util";
 
 export async function handleExecutionExportArtifact(
   ctx: ArtifactActionContext,

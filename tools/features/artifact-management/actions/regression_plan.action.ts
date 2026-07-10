@@ -1,9 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "@/tools/core/artifact_management/actions/types";
-import { buildFailClosedArtifactResponse, okArtifactResponse } from "@/tools/core/artifact_management/shared/fail_closed.util";
-import { readJsonFile, writeJsonFile } from "@/tools/core/artifact_management/shared/json_io.util";
-import { resolveProjectName } from "@/tools/core/artifact_management/shared/project_resolution.util";
+import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "@tools-feature-artifact-management/actions/types";
+import { buildFailClosedArtifactResponse, okArtifactResponse } from "@tools-feature-artifact-management/shared/fail_closed.util";
+import { readJsonFile, writeJsonFile } from "@tools-feature-artifact-management/shared/json_io.util";
+import { resolveProjectName } from "@tools-feature-artifact-management/shared/project_resolution.util";
 import { validateCanonicalPlanContextKeys } from "@tools-regression-execution-plan-spec/suite_context_key_validation.util";
 
 function asStringArray(value: unknown): string[] {

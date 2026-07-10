@@ -96,6 +96,15 @@ export type ProbeProfilerInput = {
   timeoutMs?: number | undefined;
 };
 
+export type ProbeActionRequest =
+  | { action: "actuate"; input: ProbeEnableInput }
+  | { action: "capture"; input: ProbeGetCaptureInput }
+  | { action: "check"; input: ProbeCheckInput }
+  | { action: "reset"; input: ProbeResetInput }
+  | { action: "status"; input: ProbeGetStatusInput }
+  | { action: "wait_for_hit"; input: ProbeWaitForHitInput }
+  | { action: "profiler"; input: ProbeProfilerInput };
+
 function sanitizeRuntime(runtime: unknown): Record<string, unknown> | undefined {
   if (!runtime || typeof runtime !== "object") return undefined;
   const input = runtime as Record<string, unknown>;
@@ -430,6 +439,28 @@ export function createProbeDomain(cfg: ProbeDomainConfig) {
       return await probeProfilerUtil(args);
     },
   };
+}
+
+export async function executeProbeAction(
+  domain: ReturnType<typeof createProbeDomain>,
+  request: ProbeActionRequest,
+) {
+  switch (request.action) {
+    case "actuate":
+      return await domain.enable(request.input);
+    case "capture":
+      return await domain.getCapture(request.input);
+    case "check":
+      return await domain.check(request.input);
+    case "reset":
+      return await domain.reset(request.input);
+    case "status":
+      return await domain.getStatus(request.input);
+    case "wait_for_hit":
+      return await domain.waitForHit(request.input);
+    case "profiler":
+      return await domain.profiler(request.input);
+  }
 }
 
 // Direct domain exports are kept for unit tests and utility-level callers.
