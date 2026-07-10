@@ -1019,18 +1019,8 @@ function isSuiteLevelPreflightBlocker(reasonCode: string | undefined): boolean {
   );
 }
 
-export type ExecuteRegressionRuntimeSuiteArgs = {
-  workspaceRootAbs: string;
-  projectName?: string;
-  executionProfile: string;
-  mcpInvoke: ExecuteRegressionPlanWorkflowArgs["mcpInvoke"];
-  suiteRunId?: string;
-  startPlanOrder?: number;
-  priorPlanRuns?: RuntimeSuiteRunResult["planRuns"];
-  priorSuiteContext?: Record<string, unknown>;
-  maxPlansPerCall?: number;
-  orchestrationTimeoutBudgetMs?: number;
-};
+import type { ExecuteRegressionRuntimeSuiteArgs } from "../models/regression_suite.model";
+export type { ExecuteRegressionRuntimeSuiteArgs } from "../models/regression_suite.model";
 
 export async function executeRegressionRuntimeSuite(
   args: ExecuteRegressionRuntimeSuiteArgs,

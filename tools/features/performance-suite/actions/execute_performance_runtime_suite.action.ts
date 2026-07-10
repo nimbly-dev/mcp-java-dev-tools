@@ -23,8 +23,12 @@ import {
 import { resolvePerformanceWorkloadProvider } from "../support/resolve_performance_workload_provider";
 import {
   parsePerformancePlanMetadata,
-  type PerformancePlanMetadata,
 } from "../support/parse_performance_plan_metadata";
+import type {
+  ExecutePerformancePlanWorkflowArgs,
+  ExecutePerformanceRuntimeSuiteArgs,
+  PerformancePlanContract,
+} from "../models/performance_suite.model";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -95,8 +99,8 @@ import {
   isProfilerDownloadSuccess,
   isProfilerDownloadNotReady,
   type PerformanceEntrypoint,
-  type PerformancePlanContract,
 } from "../support/parse_performance_contract";
+export type { ExecutePerformanceRuntimeSuiteArgs } from "../models/performance_suite.model";
 
 async function readJsonFile(absPath: string): Promise<unknown> {
   const text = await fs.readFile(absPath, "utf8");
@@ -243,21 +247,6 @@ async function verifyHealthcheck(args: {
   }
   return { ok: true };
 }
-
-type ExecutePerformancePlanWorkflowArgs = {
-  workspaceRootAbs: string;
-  projectName: string;
-  planName: string;
-  executionProfileName: string;
-  suiteRunId: string;
-  runtimeContextName?: string;
-  runtimeConfigOverride?: {
-    requestTimeoutMs?: number;
-    retryMax?: number;
-  };
-  providedContext?: Record<string, unknown>;
-  mcpInvoke: (args: { toolName: string; input: Record<string, unknown> }) => Promise<{ structuredContent: Record<string, unknown> }>;
-};
 
 async function executePerformancePlanWorkflow(
   args: ExecutePerformancePlanWorkflowArgs,
@@ -919,17 +908,6 @@ async function executePerformancePlanWorkflow(
     artifacts: { runDirAbs },
   };
 }
-
-export type ExecutePerformanceRuntimeSuiteArgs = {
-  workspaceRootAbs: string;
-  projectName: string;
-  executionProfile: string;
-  mcpInvoke: ExecutePerformancePlanWorkflowArgs["mcpInvoke"];
-  suiteRunId?: string;
-  startPlanOrder?: number;
-  priorPlanRuns?: RuntimeSuiteRunResult["planRuns"];
-  maxPlansPerCall?: number;
-};
 
 export async function executePerformanceRuntimeSuite(
   args: ExecutePerformanceRuntimeSuiteArgs,

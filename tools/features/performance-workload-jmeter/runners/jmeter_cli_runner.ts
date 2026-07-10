@@ -9,6 +9,7 @@ import type {
   JmeterGeneratedHttpRequest,
   JmeterWorkloadProvider,
   JmeterWorkloadRunResult,
+  RunJmeterGeneratedHttpWorkloadArgs,
 } from "../models/jmeter_workload_provider.model";
 import { renderGeneratedHttpJmx } from "../renderers/jmeter_generated_http_jmx.renderer";
 
@@ -21,13 +22,7 @@ async function fileExists(absPath: string): Promise<boolean> {
   }
 }
 
-export type RunJmeterGeneratedHttpWorkloadArgs = {
-  provider: JmeterWorkloadProvider;
-  request: JmeterGeneratedHttpRequest;
-  loadModel: JmeterGeneratedHttpLoadModel;
-  runDirAbs: string;
-  planName: string;
-};
+export type { RunJmeterGeneratedHttpWorkloadArgs } from "../models/jmeter_workload_provider.model";
 
 export async function runJmeterGeneratedHttpWorkload(args: RunJmeterGeneratedHttpWorkloadArgs): Promise<JmeterWorkloadRunResult> {
   const executable = await resolveJmeterExecutable(

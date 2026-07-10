@@ -1,7 +1,7 @@
 import {
   runJmeterGeneratedHttpWorkload,
-  type RunJmeterGeneratedHttpWorkloadArgs,
 } from "../runners/jmeter_cli_runner";
+import type { RunJmeterGeneratedHttpWorkloadArgs } from "../models/jmeter_workload_provider.model";
 
 export type PerformanceWorkloadJmeterActionMap = Readonly<Record<"execute", typeof runJmeterGeneratedHttpWorkload>>;
 export type PerformanceWorkloadJmeterActionRequest = {

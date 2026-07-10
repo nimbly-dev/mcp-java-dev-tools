@@ -13,73 +13,20 @@ function asPositiveInteger(value: unknown): number | undefined {
 function asNonNegativeInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
+import type {
+  PerformanceEntrypoint,
+  PerformanceMstaConfigState,
+  PerformancePlanContract,
+  PersistedPerformanceMstaSummary,
+} from "../models/performance_suite.model";
 import type { PerformanceMstaSummary } from "../performance_msta_summary";
-import type { PerformanceWorkloadProvider } from "../../performance-workload-jmeter";
+export type {
+  PerformanceEntrypoint,
+  PerformanceMstaConfigState,
+  PerformancePlanContract,
+  PersistedPerformanceMstaSummary,
+} from "../models/performance_suite.model";
 import { resolvePerformanceWorkloadProvider } from "./resolve_performance_workload_provider";
-
-export type PerformanceEntrypoint = {
-  transport: {
-    protocol: "http";
-    baseUrl: string;
-    healthCheckPath?: string;
-    wrappedOnly?: boolean;
-    defaultHeaders?: Record<string, string>;
-  };
-  request: {
-    method: string;
-    path: string;
-    queryTemplate?: Record<string, unknown>;
-    headers?: Record<string, string>;
-    body?: unknown;
-  };
-};
-
-export type PerformancePlanContract = {
-  entrypoints: PerformanceEntrypoint[];
-  workloadProvider: PerformanceWorkloadProvider;
-  observationTargets: {
-    requiredLineHits: string[];
-    optionalLineHits?: string[];
-    probeId?: string;
-  };
-  loadModel: {
-    mode: "concurrency";
-    concurrency: number;
-    rampUpSeconds: number;
-    durationSeconds: number;
-  };
-  successCriteria: {
-    maxErrorRatePct: number;
-    minThroughputPerSec: number;
-    p95LatencyMs: number;
-  };
-  analysis?: {
-    executionTiming?: {
-      enabled: true;
-      provider: "async-profiler";
-      event?: string;
-      intervalNanos?: number;
-      outputFormat?: "jfr";
-    };
-    msta?: {
-      enabled: true;
-      mode?: "method_targets" | "target_plus_path";
-      methodTargets: Array<{
-        methodRef: string;
-      }>;
-      includePackages?: string[];
-      allowThirdPartyFrames?: boolean;
-    };
-  };
-};
-
-export type PersistedPerformanceMstaSummary =
-  | PerformanceMstaSummary
-  | {
-      status: "not_configured" | "disabled";
-    };
-
-export type PerformanceMstaConfigState = PersistedPerformanceMstaSummary["status"];
 
 export function parseStringRecord(value: unknown): Record<string, string> | undefined {
   if (!isRecord(value)) return undefined;

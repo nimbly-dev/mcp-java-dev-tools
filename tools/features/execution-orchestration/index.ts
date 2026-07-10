@@ -6,3 +6,4 @@ export {
   resolveExecutionOrchestrationLoopPolicy,
 } from "./shared/resiliency";
 export type ExecutionOrchestrationFeatureModule = "execution-orchestration";
+export type * from "./models/execution_orchestration.model";

@@ -37,7 +37,7 @@ export type JmeterWorkloadRunResult =
         failedRequests: number;
         latenciesMs: number[];
       };
-      artifacts: {
+    artifacts: {
         jmxPathAbs?: string;
         jtlPathAbs?: string;
         logPathAbs?: string;
@@ -51,6 +51,14 @@ export type JmeterWorkloadRunResult =
         jmxPathAbs?: string;
         jtlPathAbs?: string;
         logPathAbs?: string;
-      };
     };
+  };
+
+export type RunJmeterGeneratedHttpWorkloadArgs = {
+  provider: JmeterWorkloadProvider;
+  request: JmeterGeneratedHttpRequest;
+  loadModel: JmeterGeneratedHttpLoadModel;
+  runDirAbs: string;
+  planName: string;
+};
 

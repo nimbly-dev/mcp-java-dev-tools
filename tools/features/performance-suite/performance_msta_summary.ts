@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import type { PerformanceMstaSummary } from "./models/performance_suite.model";
+export type { PerformanceMstaSummary } from "./models/performance_suite.model";
 
 type MstaStatus = "available" | "jfr_missing" | "jfr_parse_failed" | "no_anchor_samples";
 const MAX_REDUCED_EVENT_LINE_LENGTH = 128 * 1024;
@@ -33,29 +35,6 @@ type MstaMethodSummary = {
   pathSteps: MstaMethodStep[];
   strictLineKey?: string;
 };
-
-export type PerformanceMstaSummary =
-  | {
-      status: "available";
-      unit: "ms";
-      jfrPath: string;
-      sourceEventTypes: string[];
-      durationMs: number;
-      provider?: {
-        name: string;
-        event?: string;
-        outputFormat?: string;
-      };
-      mode: "required_line_hits" | "method_targets" | "target_plus_path";
-      methods: MstaMethodSummary[];
-      targets: MstaTargetSummary[];
-    }
-  | {
-      status: "jfr_missing" | "jfr_parse_failed" | "no_anchor_samples";
-      jfrPath?: string;
-      detail: string;
-      unit: "ms";
-    };
 
 type ReducedExecutionSampleEvent = {
   type: string;

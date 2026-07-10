@@ -13,65 +13,19 @@ import type {
   RunPrerequisite,
 } from "@tools-project-artifact-spec/models/project_artifact.model";
 import { readProjectArtifact } from "@tools-feature-artifact-management";
-
-type ProjectContextBlockedReason =
-  | "project_artifact_missing"
-  | "project_artifact_invalid"
-  | "project_reference_invalid"
-  | "workspace_root_invalid"
-  | "env_key_missing"
-  | "script_execution_failed"
-  | "runtime_context_unknown"
-  | "external_system_invalid"
-  | "external_healthcheck_failed";
-
-export type ProjectContextResolutionResult =
-  | {
-      status: "ok";
-      contextPatch: Record<string, unknown>;
-      secretContextKeys: string[];
-      runtimeContextName?: string;
-    }
-  | {
-      status: "blocked";
-      reasonCode: ProjectContextBlockedReason;
-      missing?: string[];
-      checks?: string[];
-      nextAction?: string;
-      requiredUserAction: string[];
-    };
-
-type ResolveProjectContextArgs = {
-  workspaceRootAbs: string;
-  projectsFileAbs: string;
-  env?: Record<string, string | undefined>;
-  runtimeContextName?: string;
-  executionProfileName?: string;
-  defaultsOverride?: {
-    requestTimeoutMs?: number;
-    retryMax?: number;
-  };
-  healthChecksEnabled?: boolean;
-  strictProbeVerification?: boolean;
-  strictProbeBaseUrls?: string[];
-  runtimeStarter?: RuntimeStarter;
-};
+import type {
+  ProjectContextBlockedReason,
+  ProjectContextResolutionResult,
+  ResolveProjectContextArgs,
+  RuntimeStartResult,
+  RuntimeStarter,
+} from "../models/regression_context.model";
+export type { ProjectContextResolutionResult, ResolveProjectContextArgs } from "../models/regression_context.model";
 
 type ResolvedProfileScript = {
   script: ProjectScriptEntry;
   phase: ProjectScriptPhase;
 };
-
-type RuntimeStartResult = {
-  attempted: boolean;
-  success: boolean;
-  detail?: string;
-};
-
-type RuntimeStarter = (args: {
-  runtimeContext: ProjectRuntimeContext;
-  workspaceRootAbs: string;
-}) => Promise<RuntimeStartResult>;
 
 type ProbeRegistry = {
   defaultProfile?: string;

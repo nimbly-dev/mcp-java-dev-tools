@@ -57,3 +57,5 @@ export {
   synthesizeHttpUrl,
 } from "./shared/regression_http_request";
 export type RegressionSuiteFeatureModule = "regression-suite";
+export type * from "./models/regression_suite.model";
+export type * from "./models/regression_context.model";

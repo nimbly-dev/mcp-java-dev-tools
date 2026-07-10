@@ -1,4 +1,5 @@
-import { executePerformanceRuntimeSuite, type ExecutePerformanceRuntimeSuiteArgs } from "./execute_performance_runtime_suite.action";
+import { executePerformanceRuntimeSuite } from "./execute_performance_runtime_suite.action";
+import type { ExecutePerformanceRuntimeSuiteArgs } from "../models/performance_suite.model";
 
 export type PerformanceSuiteActionMap = Readonly<Record<"execute", typeof executePerformanceRuntimeSuite>>;
 export type PerformanceSuiteActionRequest = {

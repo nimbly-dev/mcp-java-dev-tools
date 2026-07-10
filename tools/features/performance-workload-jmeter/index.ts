@@ -7,6 +7,7 @@ export type {
   JmeterWorkloadProvider,
   JmeterWorkloadRunResult,
   PerformanceWorkloadProvider,
+  RunJmeterGeneratedHttpWorkloadArgs,
 } from "./models/jmeter_workload_provider.model";
 
 /** Public performance workload Feature Module surface. */
