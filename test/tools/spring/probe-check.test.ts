@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { probeDiagnose } = require("@/tools/core/probe/domain");
+const { probeDiagnose } = require("@tools-feature-probe/domain");
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {

@@ -1,6 +1,6 @@
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
 import { CONFIG_DEFAULTS } from "@/config/defaults";
-import { createProbeDomain } from "@/tools/core/probe/domain";
+import { createProbeDomain } from "@tools-feature-probe";
 import {
   executeExecutionOrchestrationResiliencyLoop,
   resolveExecutionOrchestrationLoopPolicy,

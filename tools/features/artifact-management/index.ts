@@ -1,2 +1,4 @@
-/** Public Artifact management Feature Module boundary. */
+export { artifactManagementDomain } from "./domain";
+export { buildFailClosedArtifactResponse } from "./shared/fail_closed.util";
+export type { ArtifactActionContext, ArtifactActionResult } from "./actions/types";
 export type ArtifactManagementFeatureModule = "artifact-management";

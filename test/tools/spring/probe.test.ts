@@ -9,7 +9,7 @@ const {
   probeActuate,
   probeProfiler,
   createProbeDomain,
-} = require("@/tools/core/probe/domain");
+} = require("@tools-feature-probe/domain");
 const { LAST_RESET_EPOCH_BY_KEY } = require("@/utils/probe/constants.util");
 
 function jsonResponse(status: number, body: unknown): Response {
