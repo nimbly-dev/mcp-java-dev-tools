@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import { readProjectArtifact } from "../support/project_artifact_io";
 import { validateProjectRootAbs } from "@tools-core/project_root_validate";
 
 type ProjectArtifactRootMatch =

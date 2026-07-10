@@ -7,7 +7,7 @@ import type {
   RegressionRunStepExtractApplyResult,
   RegressionRunStepExtractResult,
 } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
-import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
+import { readValueByPath } from "@tools-core/object_path_read";
 
 function hasNonBlank(value: unknown): boolean {
   return typeof value !== "undefined" && value !== null && String(value).trim() !== "";

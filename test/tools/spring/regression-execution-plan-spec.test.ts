@@ -9,7 +9,7 @@ const {
   resolveWatcherWaitPolicy,
   resolvePrerequisiteContext,
   resolveStepTransport,
-} = require("@tools-regression-execution-plan-spec/regression_execution_plan_spec.util");
+} = require("@tools-feature-regression-suite");
 const {
   validateNormalizedExternalVerificationResultShape,
 } = require("@tools-regression-execution-plan-spec/external_verification_contract.util");

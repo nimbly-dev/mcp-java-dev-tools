@@ -8,7 +8,7 @@ import type {
 import {
   resolveHttpUrlMissingReasonMeta,
   synthesizeHttpUrl,
-} from "../../../spec/regression-execution-plan-spec/src/suite_http_request.util";
+} from "./regression_http_request";
 
 type McpToolInvoker = (args: {
   toolName: string;

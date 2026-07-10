@@ -21,7 +21,7 @@ import {
   buildTimestampRunId,
   resolvePrerequisiteContext,
   resolveStepTransport,
-} from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
+} from "../support/regression_plan_execution";
 import { buildHttpPayload } from "../shared/regression_http_payload";
 import { inferPlanApiBaseUrlFromProbeConfig } from "../shared/regression_plan_base_url";
 import {
@@ -38,8 +38,8 @@ import {
 } from "../shared/external_verification_runtime";
 import {
   normalizeHttpContextAliases,
-} from "../../../spec/regression-execution-plan-spec/src/suite_http_request.util";
-import { readValueByPath } from "../../../spec/regression-execution-plan-spec/src/suite_path_reader.util";
+} from "../shared/regression_http_request";
+import { readValueByPath } from "@tools-core/object_path_read";
 import {
   createMcpWrappedTransportAdapter,
   createTransportRegistry,

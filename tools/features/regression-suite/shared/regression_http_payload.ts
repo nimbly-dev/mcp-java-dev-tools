@@ -1,4 +1,4 @@
-import { synthesizeHttpUrl } from "../../../spec/regression-execution-plan-spec/src/suite_http_request.util";
+import { synthesizeHttpUrl } from "./regression_http_request";
 
 export function buildHttpPayload(args: {
   resolvedTransport: Record<string, unknown>;

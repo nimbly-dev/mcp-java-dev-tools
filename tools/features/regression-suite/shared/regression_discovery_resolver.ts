@@ -8,9 +8,11 @@ import type {
   PreflightResult,
   PreflightStatus,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
-import { buildReplayPreflight } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
-import { resolvePrerequisiteContext } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
-import { resolveStepTransport } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
+import {
+  buildReplayPreflight,
+  resolvePrerequisiteContext,
+  resolveStepTransport,
+} from "../support/regression_plan_execution";
 import { resolveProjectContextForRegression } from "../context/resolve_suite_project_context";
 
 export type DiscoveryOutcome =

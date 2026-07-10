@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { buildReplayPreflight } = require("@tools-regression-execution-plan-spec/regression_execution_plan_spec.util");
+const { buildReplayPreflight } = require("@tools-feature-regression-suite");
 
 function readUtf8(filePath: string): string {
   return fs.readFileSync(filePath, "utf8");

@@ -68,7 +68,12 @@ function isArtifactSpecRuntime(file) {
   const specRoot = path.join(root, "tools", "spec");
   if (!isUnder(file, specRoot)) return false;
   const normalized = relative(file);
-  return normalized.includes("/regression-execution-plan-spec/") && !normalized.includes("/models/") && !normalized.endsWith("regression_artifact_paths.util.ts");
+  if (normalized.includes("/models/")) return false;
+  if (normalized.endsWith("regression_artifact_paths.util.ts")) return false;
+  if (normalized.endsWith("external_verification_contract.util.ts")) return false;
+  if (normalized.endsWith("suite_context_key_validation.util.ts")) return false;
+  if (normalized.endsWith("project_artifact.util.ts")) return false;
+  return normalized.includes("/regression-execution-plan-spec/") || normalized.includes("/project-artifact-spec/");
 }
 
 const forbiddenGlobal = [path.join(root, "tools", "shared"), path.join(root, "tools", "utils", "shared")];
@@ -104,6 +109,9 @@ if (fs.existsSync(featuresRoot)) {
         const importedFeature = resolved ? featureFor(resolved) : undefined;
         if (resolved && isUnder(resolved, path.join(root, "tools", "transport", "tools-mcp-server", "src", "tools"))) {
           failures.push(`${relative(file)} imports Transport Adapter code: ${imported}`);
+        }
+        if (resolved && isArtifactSpecRuntime(resolved)) {
+          failures.push(`${relative(file)} imports Artifact Spec runtime code: ${imported}`);
         }
         if (importedFeature && importedFeature !== feature.name && resolved) {
           const privatePath = normalize(path.relative(path.join(featuresRoot, importedFeature), resolved));

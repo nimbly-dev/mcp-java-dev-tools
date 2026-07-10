@@ -18,8 +18,8 @@ import { executeSqlExternalVerification } from "./external_verification_sql_prov
 import { evaluateStepExpectations } from "../shared/regression_expectation_evaluator";
 import { buildHttpPayload } from "../shared/regression_http_payload";
 import { executeTransportWithRegistry } from "../shared/regression_transport_executor";
-import { applyStepExtractWithDiagnostics } from "../../../spec/regression-execution-plan-spec/src/step_extract.util";
-import { deepResolvePlaceholderValue } from "../../../spec/regression-execution-plan-spec/src/placeholder_resolution.util";
+import { applyStepExtractWithDiagnostics } from "./regression_step_extract";
+import { deepResolvePlaceholderValue } from "@tools-core/placeholder_resolution";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)

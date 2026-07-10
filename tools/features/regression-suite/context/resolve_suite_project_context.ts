@@ -12,7 +12,7 @@ import type {
   ProjectWorkspaceEntry,
   RunPrerequisite,
 } from "@tools-project-artifact-spec/models/project_artifact.model";
-import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import { readProjectArtifact } from "@tools-feature-artifact-management";
 
 type ProjectContextBlockedReason =
   | "project_artifact_missing"

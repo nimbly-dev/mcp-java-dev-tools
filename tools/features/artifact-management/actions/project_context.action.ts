@@ -2,11 +2,10 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 import type { ExecutionProfileEntry, ProjectArtifact } from "@tools-project-artifact-spec/models/project_artifact.model";
 import {
-  readProjectArtifact,
   validateProjectArtifact,
   validateProjectArtifactReferenceIntegrity,
-  writeProjectArtifact,
 } from "@tools-project-artifact-spec/project_artifact.util";
+import { readProjectArtifact, writeProjectArtifact } from "../support/project_artifact_io";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "./types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import {

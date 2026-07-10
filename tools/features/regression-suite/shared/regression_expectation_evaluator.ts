@@ -5,7 +5,7 @@ import type {
   PlanStepExpectationOperator,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 import type { RegressionRunStatus } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
-import { readValueByPath } from "../../../spec/regression-execution-plan-spec/src/suite_path_reader.util";
+import { readValueByPath } from "@tools-core/object_path_read";
 
 export type StepExecutionOutcomeStatus =
   | "pass"

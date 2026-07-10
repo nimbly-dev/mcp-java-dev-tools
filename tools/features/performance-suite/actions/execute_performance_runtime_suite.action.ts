@@ -2,8 +2,8 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 
 import type { RuntimeSuiteManifest, RuntimeSuiteRunResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
-import { buildTimestampRunId } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
-import { deepResolvePlaceholderValue } from "../../../spec/regression-execution-plan-spec/src/placeholder_resolution.util";
+import { buildTimestampRunId } from "@tools-feature-regression-suite";
+import { deepResolvePlaceholderValue } from "@tools-core/placeholder_resolution";
 import { resolvePlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import { resolveProjectContextForRegression } from "@tools-feature-regression-suite";
 import {
@@ -14,7 +14,7 @@ import {
   buildPerformanceMstaSummary,
   type PerformanceMstaSummary,
 } from "../performance_msta_summary";
-import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import { readProjectArtifact } from "@tools-feature-artifact-management";
 import {
   runJmeterGeneratedHttpWorkload,
   type JmeterWorkloadProvider,

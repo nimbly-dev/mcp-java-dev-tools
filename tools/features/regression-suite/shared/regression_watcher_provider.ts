@@ -3,7 +3,7 @@ import type {
   TransportExecutionResult,
   TransportProtocol,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_transport.model";
-import { deepResolvePlaceholderValue } from "../../../spec/regression-execution-plan-spec/src/placeholder_resolution.util";
+import { deepResolvePlaceholderValue } from "@tools-core/placeholder_resolution";
 import { buildHttpPayload } from "../shared/regression_http_payload";
 
 function asRecord(value: unknown): Record<string, unknown> | null {

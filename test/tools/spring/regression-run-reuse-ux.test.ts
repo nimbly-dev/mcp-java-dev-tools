@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { buildReplayPreflight } = require("@tools-regression-execution-plan-spec/regression_execution_plan_spec.util");
+const { buildReplayPreflight } = require("@tools-feature-regression-suite");
 const {
   buildReplayUserMessage,
   resolveReplayInvocation,

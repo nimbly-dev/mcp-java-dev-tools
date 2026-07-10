@@ -4,10 +4,9 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
-  readProjectArtifact,
   validateProjectArtifact,
-  writeProjectArtifact,
 } = require("@tools-project-artifact-spec/project_artifact.util");
+const { readProjectArtifact, writeProjectArtifact } = require("@tools-feature-artifact-management");
 
 function withRequiredDefaults(workspace: Record<string, unknown>): Record<string, unknown> {
   const defaults =
