@@ -117,13 +117,25 @@ Runtime suite branch (`execution_profile`) rules:
    - resume with the same `suiteRunId`
    - trust `nextPlanOrder` from the persisted suite-status artifact
    - fail closed rather than rerunning already completed plans
-11. Do not summarize a runtime-suite `execution_profile` run as completed until the terminal orchestration status is returned.
-12. Do not treat a caller/tool-boundary timeout as the primary execution result when resumable progress is available:
+11. When a plan is still waiting inside `watchers[]` or `externalVerification[]`, resumed orchestration must continue that same in-progress plan:
+   - use persisted `progressSummary.activePlan`
+   - continue the current phase (`watchers` or `external_verification`)
+   - do not reinterpret the wait as a fresh suite start
+12. Use project-owned resiliency defaults from `.mcpjvm/<project_name>/projects.json`:
+   - require `workspaces[].defaults.orchestrator.resumePollMax`
+   - require `workspaces[].defaults.orchestrator.resumePollIntervalMs`
+   - require `workspaces[].defaults.orchestrator.resumePollTimeoutMs`
+   - fail closed rather than inventing plan-level or prompt-level resume policy
+13. Do not summarize a runtime-suite `execution_profile` run as completed until the terminal orchestration status is returned.
+14. Do not treat a caller/tool-boundary timeout as the primary execution result when resumable progress is available:
    - resume the same `suiteRunId`
    - report the final terminal suite status instead of timeout-first narration
-13. Do not reuse a stale suite artifact as the result of a fresh execution request:
+15. Do not reuse a stale suite artifact as the result of a fresh execution request:
    - the maintained workflow must correlate the final summary to the suite run started/resumed in the current request chain
    - fail closed rather than attaching an older suite summary to a new prompt
+16. Long-running example patterns:
+   - watcher-heavy async workflow: trigger producer step, persist `status="in_progress"` with `progressSummary.activePlan.phase="watchers"`, resume the same `suiteRunId` until watcher convergence or bounded outer stop
+   - external-verification-heavy workflow: trigger step plus watcher pass, persist `status="in_progress"` with `progressSummary.activePlan.phase="external_verification"`, resume the same `suiteRunId` until external verification reaches terminal status
 
 ## Context and Read Budget
 
@@ -190,6 +202,11 @@ Use these references/templates:
    - `.mcpjvm/<project_name>/projects.json` with matching workspace `executionProfiles[]`
 12. In multi-project workspaces (multiple `.mcpjvm/*/projects.json`), always pass explicit `projectName` in artifact reads to avoid ambiguity.
 13. Persisted artifact access in this workflow should route through `artifact_management` wherever MCP path is available.
+14. Treat persisted suite status as the canonical resumable state for long-running workflows:
+   - `suiteRunId`
+   - `nextPlanOrder`
+   - `progressSummary.activePlan`
+   - completed `planRuns[]`
 
 ## MCP-First and Wrapped Transport
 

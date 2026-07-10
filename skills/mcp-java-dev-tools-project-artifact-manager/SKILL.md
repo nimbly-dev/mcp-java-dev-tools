@@ -191,6 +191,50 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 4. `defaults.orchestrator.resumePollIntervalMs`: bounded sleep interval between outer orchestration resume passes.
 5. `defaults.orchestrator.resumePollTimeoutMs`: bounded total outer orchestration wait budget.
 6. Keep runtime-operation defaults and outer orchestration defaults small and deterministic for fast fail-closed feedback.
+7. These defaults control resumption of the same `suiteRunId`; they do not authorize rerunning already completed plans.
+8. These defaults are distinct from watcher wait policy:
+   - watcher wait policy governs one downstream completion check inside one plan
+   - orchestrator defaults govern bounded continuation of the whole in-progress suite across tool-call boundaries
+
+## Long-Running Execution Example
+
+Use this shape when execution profiles can wait inside watcher or external-verification phases:
+
+```json
+{
+  "executionProfile": "watcher-sql-run",
+  "runtimeContextName": "terminal-cli",
+  "executionPolicy": "stop_on_fail",
+  "plans": [
+    {
+      "order": 1,
+      "planName": "event-cross-service"
+    }
+  ]
+}
+```
+
+Required workspace defaults:
+
+```json
+{
+  "defaults": {
+    "requestTimeoutMs": 10000,
+    "retryMax": 1,
+    "orchestrator": {
+      "resumePollMax": 30,
+      "resumePollIntervalMs": 10000,
+      "resumePollTimeoutMs": 300000
+    }
+  }
+}
+```
+
+Resumed orchestration semantics:
+
+1. `execution_orchestration` returns `status="in_progress"` with a `suiteRunId` when the suite is still waiting inside the current plan.
+2. Resume with the same `suiteRunId`.
+3. Continue the persisted in-progress plan phase rather than rerunning prior completed plans.
 
 ## Shared Scripts
 

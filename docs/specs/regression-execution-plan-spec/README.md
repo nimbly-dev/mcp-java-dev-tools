@@ -87,6 +87,66 @@ Run artifacts are persisted under the plan package:
 .mcpjvm/regression/<regression_name>/runs/<run_id>/
 ```
 
+## Project-Owned Execution Orchestrator Resiliency
+
+Long-running regression execution depends on project-owned defaults in `.mcpjvm/<project_name>/projects.json`, not plan-level fields.
+
+Required workspace shape:
+
+```json
+{
+  "workspaces": [
+    {
+      "projectRoot": "C:\\repo\\app",
+      "defaults": {
+        "requestTimeoutMs": 10000,
+        "retryMax": 1,
+        "orchestrator": {
+          "resumePollMax": 30,
+          "resumePollIntervalMs": 10000,
+          "resumePollTimeoutMs": 300000
+        }
+      }
+    }
+  ]
+}
+```
+
+Rules:
+
+- `workspaces[].defaults.orchestrator.resumePollMax`, `resumePollIntervalMs`, and `resumePollTimeoutMs` are required for resumable long-running orchestration.
+- These defaults are distinct from watcher wait policy. Watchers govern one bounded downstream completion check inside a plan; orchestrator defaults govern bounded suite continuation across tool-call boundaries.
+- Plans, watchers, and `externalVerification[]` MUST NOT introduce their own orchestrator resume/poll fields.
+
+## Resumed Long-Running Execution
+
+When `execution_orchestration` returns `status="in_progress"`, the next call must resume the same `suiteRunId`.
+
+Resumed behavior is:
+
+1. continue the current in-progress plan
+2. continue the persisted active phase (`watchers` or `external_verification`) when applicable
+3. preserve already completed `planRuns[]`
+4. stop only on terminal suite status or bounded outer resiliency exhaustion
+
+The orchestrator MUST NOT restart from plan order `1` when persisted progress already exists.
+
+### Example Patterns
+
+Watcher-heavy workflow:
+
+- trigger step succeeds
+- watcher remains `in_progress`
+- suite persists `status="in_progress"` with active phase `watchers`
+- resume the same `suiteRunId` until watcher convergence or deterministic outer stop
+
+External-verification-heavy workflow:
+
+- trigger step and watcher phase complete
+- external verification remains `in_progress`
+- suite persists `status="in_progress"` with active phase `external_verification`
+- resume the same `suiteRunId` until external verification reaches a terminal result
+
 ## Artifact-Derived Results Summary
 
 Regression results summaries SHOULD be rendered from persisted artifacts, not transient logs.

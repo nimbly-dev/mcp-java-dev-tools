@@ -52,6 +52,9 @@ If user input conflicts with these rules, fail closed and request clarification.
 8. `steps[].when.left` must reference only `context.*` or prior `step[n].*` (where `n < current step order`).
 9. `watchers[]` is optional and first-class for bounded downstream completion verification after trigger-step success.
 10. `externalVerification[]` is optional and first-class for downstream data-validity verification after trigger/watcher convergence.
+11. Execution Orchestrator resiliency is project-owned:
+   - do not add plan-level resume/poll knobs
+   - rely on `.mcpjvm/<project_name>/projects.json` `workspaces[].defaults.orchestrator.*`
 
 ## Plan Authoring Workflow
 
@@ -148,6 +151,7 @@ For each watcher:
 3. define a bounded provider contract
 4. set deterministic expectations over downstream readiness/completion state
 5. keep watcher semantics complementary to `Correlation`, not a replacement for it
+6. assume watcher waits may span multiple resumed orchestration passes; author expectations for continuation of the same in-progress plan, not repeated reruns of prior completed plans
 
 ### 6) Define optional external verification
 
@@ -166,6 +170,7 @@ Rules:
 1. keep secret-bearing provider configuration out of persisted plan defaults
 2. keep provider contracts vendor-neutral at authoring time
 3. use canonical `${key}` placeholders for context interpolation
+4. assume external verification may be resumed from an already in-progress plan after prior trigger or watcher completion; do not model it as a separate rerun-capable plan
 
 ### 7) Generate `plan.md`
 
@@ -206,6 +211,7 @@ Before finalizing, verify:
 6. `plan.md` semantics match `contract.json`
 7. optional `watchers[]` depend only on prior steps and use bounded completion expectations
 8. optional `externalVerification[]` preserve secret-safe provider configuration boundaries
+9. the plan does not introduce resume policy; long-running continuation depends on project-owned orchestrator defaults
 
 If any check fails, return blocked guidance with exact missing/invalid fields and no speculative defaults.
 
@@ -237,6 +243,7 @@ Stop and return deterministic blocked guidance when:
 10. `steps[].when` references the same or a future step
 11. watcher dependency points to the same or a future step
 12. external verification embeds secret-bearing provider configuration into persisted plan defaults
+13. plan attempts to author orchestrator resume/poll knobs instead of relying on project-owned defaults
 
 ## Base Path Policy (No Assumptions)
 
