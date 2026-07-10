@@ -33,8 +33,11 @@
       "@tools-export-execution-profile/*": ["tools/features/execution-profile-export/*"],
       "@tools-performance-workload-jmeter/*": ["tools/features/performance-workload-jmeter/*"],
       "@tools-regression-execution-plan-spec/*": [
-        "tools/spec/regression-execution-plan-spec/src/*"
+        "tools/spec/regression-execution-plan-spec/src/*",
+        "tools/features/regression-suite/shared/*"
       ],
+      "@tools-regression-suite/*": ["tools/features/regression-suite/shared/*"],
+      "@tools-regression-suite": ["tools/features/regression-suite/index.ts"],
       "@tools-project-artifact-spec/*": ["tools/spec/project-artifact-spec/src/*"]
     },
 
