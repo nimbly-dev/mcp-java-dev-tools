@@ -1,10 +1,5 @@
-export type PerformancePlanMetadata = {
-  specVersion?: string;
-  suiteType: "performance";
-  execution: {
-    intent: "performance";
-  };
-};
+import type { PerformancePlanMetadata } from "../models/performance_suite.model";
+export type { PerformancePlanMetadata } from "../models/performance_suite.model";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

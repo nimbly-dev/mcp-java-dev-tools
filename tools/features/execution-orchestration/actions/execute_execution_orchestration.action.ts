@@ -19,6 +19,10 @@ import type {
   RuntimeSuiteRunResult,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
 import path from "node:path";
+import type {
+  ExecutionOrchestrationActionInput,
+  ExecutionOrchestrationActionResult,
+} from "../models/execution_orchestration.model";
 
 function blockedResponse(args: {
   reasonCode: string;
@@ -45,20 +49,9 @@ function isSuiteBlockedResult(
   return "requiredUserAction" in value && !("executionProfile" in value);
 }
 
-export async function executionOrchestrationDomain(input: {
-  workspaceRootAbs: string;
-  action: "execute";
-  probeConfig?: ProbeDomainConfig;
-  payload: {
-    projectName: string;
-    executionProfile: string;
-    suiteRunId?: string;
-    maxPlansPerCall?: number;
-  };
-}): Promise<{
-  content: Array<{ type: "text"; text: string }>;
-  structuredContent: Record<string, unknown>;
-}> {
+export async function executionOrchestrationDomain(
+  input: ExecutionOrchestrationActionInput,
+): Promise<ExecutionOrchestrationActionResult> {
   if (input.action !== "execute") {
     return blockedResponse({
       reasonCode: "execution_action_not_allowed",

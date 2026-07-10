@@ -55,12 +55,12 @@ type ConditionReasonCode =
   | "step_condition_path_missing"
   | "step_condition_type_mismatch";
 
-type McpToolInvoker = (args: {
-  toolName: string;
-  input: Record<string, unknown>;
-}) => Promise<{
-  structuredContent?: Record<string, unknown>;
-}>;
+import type {
+  ExecuteRegressionPlanWorkflowArgs,
+  ExecuteRegressionPlanWorkflowResult,
+  RegressionMcpToolInvoker,
+} from "../models/regression_suite.model";
+export type { ExecuteRegressionPlanWorkflowArgs, ExecuteRegressionPlanWorkflowResult } from "../models/regression_suite.model";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -110,41 +110,6 @@ function resolveProbeWaitFailure(args: {
   }
   return null;
 }
-
-export type ExecuteRegressionPlanWorkflowArgs = {
-  workspaceRootAbs: string;
-  projectName?: string;
-  planName: string;
-  mcpInvoke: McpToolInvoker;
-  runId?: string;
-  providedContext?: Record<string, unknown>;
-  runtimeContextName?: string;
-  executionProfileName?: string;
-  suiteRunId?: string;
-  runtimeConfigOverride?: {
-    requestTimeoutMs?: number;
-    retryMax?: number;
-  };
-  orchestrationTimeoutBudgetMs?: number;
-  resumeState?: {
-    resolvedContext: Record<string, unknown>;
-    executionResult: RegressionRunExecutionResult;
-    evidence?: Record<string, unknown>;
-  };
-};
-
-export type ExecuteRegressionPlanWorkflowResult =
-  | {
-      status: "blocked";
-      preflight: ReturnType<typeof resolveBlockedShape>;
-    }
-  | {
-      status: "executed";
-      runId: string;
-      runStatus: "pass" | "fail" | "blocked" | "in_progress";
-      artifacts: Awaited<ReturnType<typeof writeRegressionRunArtifacts>>;
-      executionResult: RegressionRunExecutionResult;
-    };
 
 import {
   asPositiveInteger,

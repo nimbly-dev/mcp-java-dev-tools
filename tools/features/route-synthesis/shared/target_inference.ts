@@ -1,40 +1,7 @@
 import * as path from "node:path";
 import { buildJavaIndex } from "@tools-feature-route-synthesis";
-
-export type InferredTarget = {
-  file: string;
-  className?: string;
-  methodName?: string;
-  line?: number | null;
-  declarationLine?: number;
-  endLine?: number;
-  firstExecutableLine?: number | null;
-  lineSelectionStatus?: "validated" | "unresolved";
-  lineSelectionSource?: "runtime_probe_validation";
-  signature?: string;
-  returnsBoolean?: boolean;
-  fqcn?: string;
-  key?: string;
-  reasons: string[];
-};
-
-export type ClassMethodSpan = {
-  methodName: string;
-  signature: string;
-  startLine: number;
-  endLine: number;
-  firstExecutableLine?: number | null;
-  lineSelectionStatus?: "validated" | "unresolved";
-  lineSelectionSource?: "runtime_probe_validation";
-  probeKey?: string;
-};
-
-export type ClassDiscoveryCandidate = {
-  file: string;
-  className: string;
-  fqcn?: string;
-  methods: ClassMethodSpan[];
-};
+import type { ClassDiscoveryCandidate, ClassMethodSpan, InferredTarget } from "../models/target_inference.model";
+export type { ClassDiscoveryCandidate, ClassMethodSpan, InferredTarget } from "../models/target_inference.model";
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

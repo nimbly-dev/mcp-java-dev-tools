@@ -2,6 +2,11 @@ import type {
   RuntimeSuiteBlockedResult,
   RuntimeSuiteRunResult,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+import type {
+  ExecutionOrchestrationLoopDefaults,
+  ExecutionOrchestrationLoopPolicy,
+  ExecutionOrchestrationPassState,
+} from "../models/execution_orchestration.model";
 
 const RAW_TOOL_TIMEOUT_MS = 300_000;
 const RAW_TOOL_TIMEOUT_HEADROOM_MS = 15_000;
@@ -9,16 +14,7 @@ const MIN_EXECUTION_PASS_BUDGET_MS = 1_000;
 
 export const EXECUTION_ORCHESTRATION_TIMEOUT_INTERCEPT_MS = RAW_TOOL_TIMEOUT_MS - RAW_TOOL_TIMEOUT_HEADROOM_MS;
 
-export type ExecutionOrchestrationLoopDefaults = {
-  resumePollMax: number;
-  resumePollIntervalMs: number;
-  resumePollTimeoutMs: number;
-};
-
-type SuitePassState = {
-  suiteRunId?: string;
-  priorSuite?: RuntimeSuiteRunResult | null;
-};
+export type { ExecutionOrchestrationLoopDefaults, ExecutionOrchestrationLoopPolicy } from "../models/execution_orchestration.model";
 
 function withTerminalReason(args: {
   suite: RuntimeSuiteRunResult;
@@ -73,14 +69,6 @@ async function persistTerminalSuite(args: {
   return terminalSuite;
 }
 
-export type ExecutionOrchestrationLoopPolicy = {
-  resumePollMax: number;
-  resumePollIntervalMs: number;
-  resumePollTimeoutMs: number;
-  timeoutInterceptMs: number;
-  effectiveTimeoutBudgetMs: number;
-};
-
 function buildBlockedResult(args: {
   reasonCode: string;
   requiredUserAction: string[];
@@ -114,7 +102,7 @@ export async function executeExecutionOrchestrationResiliencyLoop(args: {
   initialSuiteRunId?: string;
   initialPriorSuite?: RuntimeSuiteRunResult | null;
   executePass: (
-    state: SuitePassState,
+    state: ExecutionOrchestrationPassState,
     remainingBudgetMs: number,
   ) => Promise<RuntimeSuiteRunResult | RuntimeSuiteBlockedResult>;
   persistSuite: (suite: RuntimeSuiteRunResult) => Promise<void>;
@@ -128,7 +116,7 @@ export async function executeExecutionOrchestrationResiliencyLoop(args: {
   const minExecutionPassBudgetMs = Math.min(MIN_EXECUTION_PASS_BUDGET_MS, policy.effectiveTimeoutBudgetMs);
   const startedAtMs = nowMs();
 
-  let state: SuitePassState = {
+  let state: ExecutionOrchestrationPassState = {
     ...(typeof args.initialSuiteRunId === "string" ? { suiteRunId: args.initialSuiteRunId } : {}),
     ...(args.initialPriorSuite ? { priorSuite: args.initialPriorSuite } : {}),
   };
