@@ -1,5 +1,6 @@
 export { executeRegressionPlanWorkflow } from "./actions/execute_regression_plan.action";
 export { executeRegressionRuntimeSuite } from "./actions/execute_regression_runtime_suite.action";
+export { dispatchRegressionSuiteAction } from "./actions";
 export {
   buildSuiteStatusArtifactRelPath,
   readExecutionOrchestrationSuiteResult,

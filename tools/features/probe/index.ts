@@ -1,4 +1,5 @@
-export { createProbeDomain, executeProbeAction } from "./domain";
+export { createProbeDomain, executeProbeAction } from "./actions/probe.action";
+export { dispatchProbeAction } from "./actions";
 export {
   probeActuate,
   probeCaptureGet,
@@ -7,8 +8,9 @@ export {
   probeReset,
   probeStatus,
   probeWaitHit,
-} from "./domain";
-export type { ProbeActionRequest, ProbeDomainConfig } from "./domain";
+} from "./actions/probe.action";
+export type { ProbeActionRequest, ProbeDomainConfig } from "./actions/probe.action";
+export type * from "./models/probe_action.model";
 export type {
   ProbeCapturePreviewPayload,
   ProbeCaptureRecordPayload,

@@ -9,7 +9,7 @@ import { executeHttpTransportRequest } from "@tools-feature-transport-execution"
 import { readProjectArtifact } from "@tools-feature-artifact-management";
 import {
   buildSuiteStatusArtifactRelPath,
-  executeRegressionRuntimeSuite,
+  dispatchRegressionSuiteAction,
   readExecutionOrchestrationSuiteResult,
   writeExecutionOrchestrationSuiteResult,
 } from "@tools-regression-suite";
@@ -284,21 +284,24 @@ export async function executionOrchestrationDomain(
           mcpInvoke: invokeSuiteTool,
           },
         })
-      : await executeRegressionRuntimeSuite({
-          workspaceRootAbs: input.workspaceRootAbs,
-          projectName,
-          executionProfile,
-          ...(typeof state.suiteRunId === "string" ? { suiteRunId: state.suiteRunId } : {}),
-          ...(typeof maxPlansPerPass === "number" ? { maxPlansPerCall: maxPlansPerPass } : {}),
-          ...(state.priorSuite && Array.isArray(state.priorSuite.planRuns) ? { priorPlanRuns: state.priorSuite.planRuns } : {}),
-          ...(state.priorSuite && typeof state.priorSuite.suiteContext === "object" && state.priorSuite.suiteContext !== null
-            ? { priorSuiteContext: state.priorSuite.suiteContext }
-            : {}),
-          ...(state.priorSuite && typeof state.priorSuite.nextPlanOrder === "number"
-            ? { startPlanOrder: state.priorSuite.nextPlanOrder }
-            : {}),
-          mcpInvoke: invokeSuiteTool,
-          orchestrationTimeoutBudgetMs: remainingBudgetMs,
+      : await dispatchRegressionSuiteAction({
+          action: "execute_runtime_suite",
+          input: {
+            workspaceRootAbs: input.workspaceRootAbs,
+            projectName,
+            executionProfile,
+            ...(typeof state.suiteRunId === "string" ? { suiteRunId: state.suiteRunId } : {}),
+            ...(typeof maxPlansPerPass === "number" ? { maxPlansPerCall: maxPlansPerPass } : {}),
+            ...(state.priorSuite && Array.isArray(state.priorSuite.planRuns) ? { priorPlanRuns: state.priorSuite.planRuns } : {}),
+            ...(state.priorSuite && typeof state.priorSuite.suiteContext === "object" && state.priorSuite.suiteContext !== null
+              ? { priorSuiteContext: state.priorSuite.suiteContext }
+              : {}),
+            ...(state.priorSuite && typeof state.priorSuite.nextPlanOrder === "number"
+              ? { startPlanOrder: state.priorSuite.nextPlanOrder }
+              : {}),
+            mcpInvoke: invokeSuiteTool,
+            orchestrationTimeoutBudgetMs: remainingBudgetMs,
+          },
         });
 
   const suite = enableOuterResiliencyLoop

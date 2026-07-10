@@ -1,7 +1,7 @@
 import type { ArtifactManagementRequest } from "@tools-contracts/artifact-management";
-import type { ArtifactActionContext, ArtifactActionResult } from "./actions/types";
-import { dispatchArtifactAction } from "./actions";
-import { buildFailClosedArtifactResponse } from "./shared/fail_closed";
+import type { ArtifactActionContext, ArtifactActionResult } from "./types";
+import { dispatchArtifactAction } from ".";
+import { buildFailClosedArtifactResponse } from "../shared/fail_closed";
 
 export async function artifactManagementDomain(input: {
   workspaceRootAbs: string;

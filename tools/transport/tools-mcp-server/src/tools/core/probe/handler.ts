@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { ProbeRequestSchema } from "@tools-contracts/probe";
 import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
-import { createProbeDomain, executeProbeAction, type ProbeActionRequest } from "@tools-feature-probe";
+import { createProbeDomain, dispatchProbeAction, type ProbeActionRequest } from "@tools-feature-probe";
 import { PROBE_TOOL } from "@/tools/core/probe/contract";
 import type { ProbeRegistry } from "@tools-core/probe-registry";
 
@@ -49,7 +49,7 @@ export function registerProbeTools(server: McpServer, cfg: ProbeHandlerConfig): 
         };
       }
 
-      return await executeProbeAction(domain, parsed.data as ProbeActionRequest);
+      return await dispatchProbeAction(domain, parsed.data as ProbeActionRequest);
     },
   );
 }

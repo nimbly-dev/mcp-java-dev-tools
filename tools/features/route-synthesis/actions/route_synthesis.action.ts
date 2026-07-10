@@ -1,6 +1,6 @@
 import type { RouteSynthesisAction } from "@tools-contracts/route-synthesis";
 import type { RouteSynthesisHandlerDeps } from "@tools-feature-route-synthesis";
-import { dispatchRouteSynthesisAction } from "./actions";
+import { dispatchRouteSynthesisAction } from ".";
 
 export async function routeSynthesisDomain(args: {
   action: RouteSynthesisAction;

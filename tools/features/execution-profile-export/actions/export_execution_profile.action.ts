@@ -1,10 +1,10 @@
-import { exportExecutionProfilePerformancePs1 } from "./execution_profile_export_performance_ps1";
-import { exportExecutionProfilePerformanceSh } from "./execution_profile_export_performance_sh";
-import { exportExecutionProfilePostman } from "./execution_profile_export_postman";
-import { exportExecutionProfilePs1 } from "./execution_profile_export_ps1";
-import { exportExecutionProfileSh } from "./execution_profile_export_sh";
-import { loadExecutionProfileExportTarget } from "./loaders/export_target.loader";
-import { resolveExportIdForExport } from "./loaders/export_selector.loader";
+import { exportExecutionProfilePerformancePs1 } from "../execution_profile_export_performance_ps1";
+import { exportExecutionProfilePerformanceSh } from "../execution_profile_export_performance_sh";
+import { exportExecutionProfilePostman } from "../execution_profile_export_postman";
+import { exportExecutionProfilePs1 } from "../execution_profile_export_ps1";
+import { exportExecutionProfileSh } from "../execution_profile_export_sh";
+import { loadExecutionProfileExportTarget } from "../loaders/export_target.loader";
+import { resolveExportIdForExport } from "../loaders/export_selector.loader";
 
 import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
 
@@ -61,7 +61,7 @@ function parsePostmanReasonMeta(reason: string): Record<string, unknown> {
   return {};
 }
 
-export async function executionProfileExportDomain(input: {
+export async function exportExecutionProfileAction(input: {
   workspaceRootAbs: string;
   projectName?: string;
   exportId?: string;

@@ -1,4 +1,5 @@
-export { routeSynthesisDomain } from "./domain";
+export { routeSynthesisDomain } from "./actions/route_synthesis.action";
+export { dispatchRouteSynthesisAction } from "./actions";
 export { discoverClassMethods, inferTargets } from "./shared/target_inference";
 export { generateRecipe } from "./shared/recipe_generation";
 export type { ClassDiscoveryCandidate, ClassMethodSpan, InferredTarget } from "./models/target_inference.model";
