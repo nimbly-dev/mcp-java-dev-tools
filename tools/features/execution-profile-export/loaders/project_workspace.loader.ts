@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import { readProjectArtifact } from "@tools-feature-artifact-management";
 
 export async function loadProjectWorkspace(input: {
   workspaceRootAbs: string;

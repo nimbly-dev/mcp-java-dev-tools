@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { readValueByPath } from "../../../spec/regression-execution-plan-spec/src/suite_path_reader.util";
+import { readValueByPath } from "@tools-core/object_path_read";
 import type { PlanStepCondition, PlanStepConditionPredicate } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 
 type ConditionReasonCode =

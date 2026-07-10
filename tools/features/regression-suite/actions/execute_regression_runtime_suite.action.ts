@@ -12,7 +12,7 @@ import type {
   RuntimeSuiteScriptPhase,
   RuntimeSuiteScriptRef,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
-import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import { readProjectArtifact } from "@tools-feature-artifact-management";
 import type {
   CorrelationArtifact,
   RegressionRunExecutionResult,
@@ -23,7 +23,7 @@ import {
   type ExecuteRegressionPlanWorkflowArgs,
 } from "./execute_regression_plan.action";
 import { correlateEvents } from "../shared/regression_correlation";
-import { buildTimestampRunId } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
+import { buildTimestampRunId } from "../support/regression_plan_execution";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

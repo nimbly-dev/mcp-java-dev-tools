@@ -7,7 +7,7 @@ import {
 } from "./shared/resiliency";
 import { deriveNextActionCode } from "@tools-core/failure_diagnostics";
 import { executeHttpTransportRequest } from "@tools-feature-transport-execution";
-import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
+import { readProjectArtifact } from "@tools-feature-artifact-management";
 import {
   buildSuiteStatusArtifactRelPath,
   executeRegressionRuntimeSuite,

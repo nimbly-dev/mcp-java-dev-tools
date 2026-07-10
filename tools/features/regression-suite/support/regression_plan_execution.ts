@@ -12,18 +12,18 @@ import type {
 import {
   deepResolvePlaceholderValue,
   normalizePlaceholderSyntaxInString,
-} from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
+} from "@tools-core/placeholder_resolution";
 import {
   applyStepExtract,
   applyStepExtractWithDiagnostics,
   validateStepExtracts,
-} from "@tools-regression-execution-plan-spec/step_extract.util";
+} from "../shared/regression_step_extract";
 import { validateExternalVerificationContract } from "@tools-regression-execution-plan-spec/external_verification_contract.util";
 import {
   resolveWatcherWaitPolicy,
   validateWatchers,
-} from "@tools-regression-execution-plan-spec/regression_watcher_contract.util";
-import { normalizeHttpContextAliases } from "@tools-regression-execution-plan-spec/suite_http_request.util";
+} from "../shared/regression_watcher_policy";
+import { normalizeHttpContextAliases } from "../shared/regression_http_request";
 import { validateCanonicalPlanContextKeys } from "@tools-regression-execution-plan-spec/suite_context_key_validation.util";
 
 export type {

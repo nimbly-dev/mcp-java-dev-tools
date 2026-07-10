@@ -845,28 +845,3 @@ export async function validateProjectArtifactReferenceIntegrity(args: {
   return { ok: true, artifact: args.artifact };
 }
 
-export async function readProjectArtifact(projectsFileAbs: string): Promise<ProjectArtifactValidationResult> {
-  const text = (await fs.readFile(projectsFileAbs, "utf8")).replace(/^\uFEFF/, "");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return {
-      ok: false,
-      reasonCode: "project_artifact_invalid",
-      errors: ["projects.json is not valid JSON"],
-    };
-  }
-  const validated = validateProjectArtifact(parsed);
-  if (!validated.ok) return validated;
-  return validateProjectArtifactReferenceIntegrity({
-    projectsFileAbs,
-    artifact: validated.artifact,
-  });
-}
-
-export async function writeProjectArtifact(projectsFileAbs: string, artifact: ProjectArtifact): Promise<void> {
-  await fs.mkdir(path.dirname(projectsFileAbs), { recursive: true });
-  await fs.writeFile(projectsFileAbs, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-}
-

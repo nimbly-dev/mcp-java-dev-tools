@@ -6,7 +6,7 @@ import type {
   PlanExternalVerificationProviderType,
   PlanStepExpectation,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
-import { normalizePlaceholderSyntaxInString } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
+import { normalizePlaceholderSyntaxInString } from "@tools-core/placeholder_resolution";
 
 function hasNonBlank(value: unknown): boolean {
   return typeof value !== "undefined" && value !== null && String(value).trim() !== "";

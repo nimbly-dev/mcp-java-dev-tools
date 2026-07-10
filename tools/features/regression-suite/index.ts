@@ -26,6 +26,8 @@ export { executeSqlExternalVerification } from "./shared/external_verification_s
 export { resolveDiscoverablePrerequisites, buildReplayPreflightWithDiscovery } from "./shared/regression_discovery_resolver";
 export { writeExecutionProfileExport } from "./shared/regression_execution_profile_export_writer";
 export { evaluateStepExpectations } from "./shared/regression_expectation_evaluator";
+export { applyStepExtract, applyStepExtractWithDiagnostics, validateStepExtracts } from "./shared/regression_step_extract";
+export { resolveWatcherWaitPolicy, validateWatchers } from "./shared/regression_watcher_policy";
 export { executeTransportWithRegistry } from "./shared/regression_transport_executor";
 export {
   createMcpWrappedTransportAdapter,
@@ -42,4 +44,16 @@ export {
   buildReplayUserMessage,
   resolveReplayInvocation,
 } from "./shared/regression_replay_invocation";
+export {
+  buildReplayPreflight,
+  buildTimestampRunId,
+  resolvePrerequisiteContext,
+  resolveStepTransport,
+} from "./support/regression_plan_execution";
+export {
+  joinBaseUrlAndPath,
+  normalizeHttpContextAliases,
+  resolveHttpUrlMissingReasonMeta,
+  synthesizeHttpUrl,
+} from "./shared/regression_http_request";
 export type RegressionSuiteFeatureModule = "regression-suite";

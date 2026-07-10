@@ -13,7 +13,7 @@ import type {
   RegressionRunStepResult,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 import type { TransportAdapter, TransportProtocol, TransportExecutionResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_transport.model";
-import { resolveWatcherWaitPolicy } from "../../../spec/regression-execution-plan-spec/src/regression_watcher_contract.util";
+import { resolveWatcherWaitPolicy } from "./regression_watcher_policy";
 import {
   evaluateStepExpectations,
 } from "../shared/regression_expectation_evaluator";

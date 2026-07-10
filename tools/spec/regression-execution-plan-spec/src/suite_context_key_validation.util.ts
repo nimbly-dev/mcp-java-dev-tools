@@ -3,7 +3,7 @@ import type {
   PlanPrerequisite,
   PlanStep,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
-import { normalizePlaceholderSyntaxInString } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
+import { normalizePlaceholderSyntaxInString } from "@tools-core/placeholder_resolution";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

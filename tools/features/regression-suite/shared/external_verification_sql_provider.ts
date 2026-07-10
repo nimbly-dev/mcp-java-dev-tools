@@ -12,7 +12,7 @@ import type {
 import { validateNormalizedExternalVerificationResultShape } from "../../../spec/regression-execution-plan-spec/src/external_verification_contract.util";
 import { JDBC_SQL_RUNNER_SOURCE } from "./external_verification_sql_jdbc_runner_source";
 import { evaluateStepExpectations } from "../shared/regression_expectation_evaluator";
-import { applyStepExtractWithDiagnostics } from "../../../spec/regression-execution-plan-spec/src/step_extract.util";
+import { applyStepExtractWithDiagnostics } from "./regression_step_extract";
 
 type SqlExecutionFailureCode =
   | "external_verification_connection_unresolved"

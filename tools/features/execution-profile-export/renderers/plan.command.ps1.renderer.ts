@@ -4,7 +4,7 @@ import { asRecord } from "../adapters/http/http_shared";
 import { loadPlanContract } from "../loaders/plan_contract.loader";
 import type { ExecutionProfileExportPlanRun } from "../models/execution_profile_export.model";
 import type { PlanStep } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
-import { resolveStepTransport } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
+import { resolveStepTransport } from "@tools-feature-regression-suite";
 
 function psDoubleQuoted(value: string): string {
   return `"${value.replace(/`/g, "``").replace(/"/g, '`"')}"`;

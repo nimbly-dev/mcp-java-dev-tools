@@ -10,7 +10,7 @@ import { resolveExportDefaults } from "./policy/export_defaults.policy";
 import { resolveOneOffExportDir } from "./sections/shared/oneoff_export_dir";
 import { resolvePlanBaseUrls } from "./sections/sh/plan_execution.section";
 import { resolveRegressionPlansRootAbs } from "../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
-import { resolveStepTransport } from "../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
+import { resolveStepTransport } from "@tools-feature-regression-suite";
 
 import type { ExportExecutionProfilePs1Input } from "./models/execution_profile_export.model";
 
