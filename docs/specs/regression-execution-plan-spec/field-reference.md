@@ -18,6 +18,40 @@
   correlation-index.json
 ```
 
+## Project-Owned Long-Running Defaults (`.mcpjvm/<project>/projects.json`)
+
+Required workspace defaults for resumable long-running orchestration:
+
+- `workspaces[].defaults.orchestrator.resumePollMax` (positive integer)
+- `workspaces[].defaults.orchestrator.resumePollIntervalMs` (positive integer)
+- `workspaces[].defaults.orchestrator.resumePollTimeoutMs` (positive integer, must be `>= resumePollIntervalMs`)
+
+Example:
+
+```json
+{
+  "workspaces": [
+    {
+      "projectRoot": "C:\\repo\\social-platform",
+      "defaults": {
+        "requestTimeoutMs": 10000,
+        "retryMax": 1,
+        "orchestrator": {
+          "resumePollMax": 30,
+          "resumePollIntervalMs": 10000,
+          "resumePollTimeoutMs": 300000
+        }
+      }
+    }
+  ]
+}
+```
+
+Rules:
+
+- Keep these defaults project-owned; do not author plan-level resume/poll fields.
+- Keep watcher wait policy separate from orchestrator resume/poll defaults.
+
 ## `metadata.json`
 
 Required fields:
@@ -202,6 +236,7 @@ Wait inheritance semantics:
 - when `waitPolicy.retryMax` is absent, runtime should inherit the bounded retry window from resolved project/runtime default `runtime.retryMax`
 - watcher-level overrides remain authoritative when explicitly set
 - if runtime execution cannot establish a bounded wait window from watcher overrides or inherited defaults, execution must fail closed
+- watcher waits may span resumed orchestration passes; resumed execution continues the current in-progress plan rather than rerunning already completed plans
 
 Fail-closed watcher contract validations:
 
@@ -236,6 +271,7 @@ Validation rules:
 - placeholder syntax follows transport rules: canonical `${key}`, compatible `{{key}}`, compatible `{{{key}}}`
 - placeholder keys resolve directly from the context map; do not use `context.*` inside `${...}` or `valueFromContext`
 - secret-bearing connection details and inline SQL credentials are not allowed in the public verification contract
+- external verification waits may span resumed orchestration passes; resumed execution continues the current in-progress plan rather than rerunning already completed plans
 
 #### `externalVerification[].request.http`
 
@@ -383,15 +419,20 @@ Canonical run result for a specific run.
 Expected fields:
 
 - `status`
-- `triggerStatus` (optional): trigger/step-phase outcome before watcher aggregation (`pass` | `fail` | `blocked`)
-- `watcherStatus` (optional): watcher-phase aggregate outcome (`not_configured` | `pass` | `fail` | `blocked`)
-- `externalVerificationStatus` (optional): external-verification phase aggregate outcome (`not_configured` | `pass` | `fail` | `blocked` | `skipped_dependency`)
+- `triggerStatus` (optional): trigger/step-phase outcome before watcher aggregation (`pass` | `fail` | `blocked` | `in_progress`)
+- `watcherStatus` (optional): watcher-phase aggregate outcome (`not_configured` | `pass` | `fail` | `blocked` | `in_progress`)
+- `externalVerificationStatus` (optional): external-verification phase aggregate outcome (`not_configured` | `pass` | `fail` | `blocked` | `in_progress` | `skipped_dependency`)
 - `startedAt`, `endedAt`
 - `preflight` block
 - per-step result list
 - optional `watchers[]` result list
 - optional `externalVerification[]` normalized result list
 - failure reason when applicable
+
+Resumed execution semantics:
+
+- `in_progress` indicates the current run is waiting inside the active plan rather than requesting a rerun of completed plans
+- when watcher or external-verification work remains active, the suite-level orchestrator resumes the same `suiteRunId` and continues the persisted active phase
 
 ### `execution.result.json.watchers[]` (optional)
 

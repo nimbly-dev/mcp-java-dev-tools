@@ -61,6 +61,7 @@ Use these checks during `validate` to keep `SKILL.md` concise and deterministic.
 1. Keep orchestrator resiliency configuration under `workspaces[].defaults.orchestrator`.
 2. Keep orchestrator resiliency defaults project-owned; do not introduce plan-level resume/poll knobs.
 3. Keep watcher wait-policy defaults distinct from orchestrator resume/poll defaults.
+4. Validate long-running guidance against resumed `suiteRunId` continuation semantics: current in-progress plan continues; already completed plans do not rerun.
 
 ## Output Contract
 

@@ -31,6 +31,8 @@ Use this checklist before finalizing a crafted plan.
 5. Optional `watchers[]` depend only on prior steps and verify downstream completion/readiness.
 6. Optional `externalVerification[]` verify downstream data validity with provider-matched requests.
 7. Context interpolation uses canonical `${key}` placeholders.
+8. Long-running waits stay inside the current in-progress plan; no step, watcher, or external verification guidance implies rerunning already completed plans.
+9. No plan-level resume/poll fields are authored; Execution Orchestrator resiliency comes from `.mcpjvm/<project_name>/projects.json` `workspaces[].defaults.orchestrator.*`.
 
 ## Secret Boundaries
 

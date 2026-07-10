@@ -93,6 +93,7 @@ Watcher constraints:
 - watcher dependencies cannot reference the same or a future step
 - watcher contracts must remain bounded and fail closed
 - watcher expectations verify downstream completion/readiness, not trigger-path success
+- watcher authoring must assume resumed execution continues the same in-progress plan rather than rerunning already completed plans
 
 ### externalVerification[] (optional)
 
@@ -108,6 +109,17 @@ External verification constraints:
 - secret-bearing provider configuration must not be persisted inline in plan defaults
 - use runtime/project-owned configuration for connection or credential material
 - use canonical `${key}` placeholders for context interpolation
+- external verification authoring must assume resumed execution continues the same in-progress plan rather than restarting prior completed plan work
+
+## Project-Owned Execution Orchestrator Resiliency
+
+- long-running resume behavior is owned by `.mcpjvm/<project_name>/projects.json`
+- required project defaults live under `workspaces[].defaults.orchestrator`
+- canonical fields:
+  - `resumePollMax`
+  - `resumePollIntervalMs`
+  - `resumePollTimeoutMs`
+- plans must not introduce parallel plan-level resume/poll fields
 
 ## plan.md (required)
 
