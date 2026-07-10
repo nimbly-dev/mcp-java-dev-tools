@@ -1,7 +1,7 @@
 import * as path from "node:path";
 
-import type { SynthesizerInput } from "@/models/synthesis/synthesizer_input.model";
-import type { SynthesizerFailure } from "@/models/synthesis/synthesizer_failure.model";
+import type { SynthesizerInput } from "@tools-registry/models/synthesis/synthesizer_input.model";
+import type { SynthesizerFailure } from "@tools-registry/models/synthesis/synthesizer_failure.model";
 import { springSynthesizerPlugin } from "@tools-spring-http/plugin";
 import { assertPluginCompatibility } from "@tools-registry/plugin.compat";
 import type { SynthesizerPlugin, SynthesizerResult } from "@tools-registry/plugin.contract";

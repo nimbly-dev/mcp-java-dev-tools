@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { EXECUTION_PROFILE_EXPORT_TOOL } from "@/tools/core/execution_profile_export/contract";
-import { executionProfileExportDomain } from "@tools-export-execution-profile";
+import { dispatchExecutionProfileExportAction } from "@tools-export-execution-profile";
 
 export type ExecutionProfileExportHandlerDeps = {
   workspaceRootAbs: string;
@@ -90,7 +90,7 @@ export function registerExecutionProfileExportTool(server: McpServer, deps: Exec
         );
       }
 
-      return await executionProfileExportDomain(request);
+      return await dispatchExecutionProfileExportAction(request);
     },
   );
 }

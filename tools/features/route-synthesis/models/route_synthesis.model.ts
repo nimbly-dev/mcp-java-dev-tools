@@ -1,5 +1,5 @@
 import type { ProbeRegistry } from "@tools-core/probe-registry";
-import type { ServerConfig } from "@/config/server-config";
+import type { ServerConfig } from "@tools-core/server_config.model";
 
 export type RouteSynthesisTargetInferenceDeps = {
   config: ServerConfig;

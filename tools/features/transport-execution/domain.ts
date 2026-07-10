@@ -1,5 +1,5 @@
 import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
-import { executeHttpTransportRequest } from "@/utils/transport_execute_http.util";
+import { executeHttpTransportRequest } from "./support/execute_http_request";
 
 function elapsedMs(startEpochMs: number): number {
   const delta = Date.now() - startEpochMs;

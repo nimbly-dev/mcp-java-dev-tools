@@ -1,12 +1,12 @@
 import * as path from "node:path";
 
-import type { RouteSynthesisRecipeGenerationDeps } from "@/models/route_synthesis.model";
-import { renderRecipeTemplate } from "@/lib/recipe_template";
-import { buildRecipeTemplateModel } from "@/models/recipe_output_model";
+import type { RouteSynthesisRecipeGenerationDeps } from "@tools-feature-route-synthesis";
+import { renderRecipeTemplate } from "../support/recipe_template";
+import { buildRecipeTemplateModel } from "@tools-feature-route-synthesis";
 import { validateProjectRootAbs } from "@tools-core/project_root_validate";
 import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
-import { enrichRuntimeCapture } from "@/utils/recipe_generate/runtime_capture_enrich.util";
-import { resolveAdditionalSourceRoots } from "@/utils/source_roots_resolve.util";
+import { enrichRuntimeCapture } from "../support/recipe_generate/runtime_capture_enrich.util";
+import { resolveAdditionalSourceRoots } from "../support/source_roots_resolve";
 import { generateRecipe } from "../shared/recipe_generation";
 
 function resolveProbeBaseUrlForRecipe(args: {

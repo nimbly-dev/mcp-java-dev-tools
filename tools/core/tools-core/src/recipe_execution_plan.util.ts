@@ -1,4 +1,4 @@
-import type { AuthResolution } from "@/models/auth_resolution.model";
+import type { AuthResolution } from "@tools-core/auth_resolution";
 import type { RoutingDecision } from "@tools-core/recipe_intent_routing.util";
 import { redactSecret } from "@/utils/redaction.util";
 import type {

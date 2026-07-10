@@ -5,20 +5,8 @@ import { CliArgs } from "@/config/cli-args";
 import { CONFIG_DEFAULTS } from "@tools-core/probe_defaults";
 import { MCP_ENV, type McpEnvVar } from "@/config/env-vars";
 import { loadProbeRegistry, type ProbeRegistry } from "@tools-core/probe-registry";
-
-export type ServerConfig = {
-  workspaceRootAbs: string;
-  workspaceRootSource: "arg" | "env" | "session" | "cwd";
-  probeBaseUrl: string;
-  probeStatusPath: string;
-  probeResetPath: string;
-  probeCapturePath: string;
-  probeLineSelectionMaxScanLines: number;
-  probeWaitMaxRetries: number;
-  probeWaitUnreachableRetryEnabled: boolean;
-  probeWaitUnreachableMaxRetries: number;
-  probeRegistry?: ProbeRegistry;
-};
+import type { ServerConfig } from "@tools-core/server_config.model";
+export type { ServerConfig } from "@tools-core/server_config.model";
 
 export class ServerConfigLoader {
   private readonly args: CliArgs;

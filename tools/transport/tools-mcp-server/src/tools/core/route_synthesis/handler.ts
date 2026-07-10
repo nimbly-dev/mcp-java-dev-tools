@@ -5,7 +5,7 @@ import {
   type RouteSynthesisAction,
 } from "@tools-contracts/route-synthesis";
 import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
-import type { RouteSynthesisHandlerDeps } from "@/models/route_synthesis.model";
+import type { RouteSynthesisHandlerDeps } from "@tools-feature-route-synthesis";
 import { ROUTE_SYNTHESIS_TOOL } from "@/tools/core/route_synthesis/contract";
 import { routeSynthesisDomain } from "@tools-feature-route-synthesis";
 

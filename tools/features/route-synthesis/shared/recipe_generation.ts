@@ -1,5 +1,5 @@
-import type { AuthResolution } from "@/models/auth_resolution.model";
-import type { SynthesisHttpTrigger } from "@/models/synthesis/synthesizer_output.model";
+import type { AuthResolution } from "@tools-core/auth_resolution";
+import type { SynthesisHttpTrigger } from "@tools-registry/models/synthesis/synthesizer_output.model";
 import { type RecipeStatus } from "@tools-core/recipe_constants.util";
 import { buildExecutionReadiness } from "@tools-core/execution_readiness.util";
 import { buildRecipeExecutionPlan } from "@tools-core/recipe_execution_plan.util";
@@ -13,19 +13,19 @@ import type {
   RecipeCandidate,
   RecipeExecutionPlan,
 } from "@tools-core/recipe_types.util";
-import { resolveAuthForRecipe } from "@/utils/recipe_generate/auth_resolve.util";
+import { resolveAuthForRecipe } from "../support/recipe_generate/auth_resolve.util";
 import {
   defaultStatusForMode,
   buildMissingRequestNextAction,
-} from "@/utils/recipe_generate/mode.util";
-import { normalizeRecipeGenerateInput } from "@/utils/recipe_generate/normalize_input.util";
-import { buildRunNotes } from "@/utils/recipe_generate/run_notes.util";
-import { selectAmbiguousCandidates } from "@/utils/recipe_generate/target_ambiguity.util";
+} from "../support/recipe_generate/mode.util";
+import { normalizeRecipeGenerateInput } from "../support/recipe_generate/normalize_input.util";
+import { buildRunNotes } from "../support/recipe_generate/run_notes.util";
+import { selectAmbiguousCandidates } from "../support/recipe_generate/target_ambiguity.util";
 import type {
   GenerateRecipeDeps,
   GenerateRecipeResult,
   RecipeResultType,
-} from "@/models/recipe_generate.model";
+} from "@tools-feature-route-synthesis";
 import {
   createDefaultSynthesizerRegistry,
 } from "@tools-registry/plugin.loader";
@@ -39,7 +39,7 @@ export type {
   GenerateRecipeDeps,
   GenerateRecipeResult,
   RecipeResultType,
-} from "@/models/recipe_generate.model";
+} from "@tools-feature-route-synthesis";
 
 function deriveApplicationTypeFromSynthesizer(synthesizerUsed?: string): string | undefined {
   if (!synthesizerUsed) return undefined;

@@ -1,14 +1,14 @@
 import * as path from "node:path";
 
-import type { RouteSynthesisTargetInferenceDeps } from "@/models/route_synthesis.model";
+import type { RouteSynthesisTargetInferenceDeps } from "@tools-feature-route-synthesis";
 import { clampInt } from "@tools-core/safety";
 import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
 import { validateProjectRootAbs } from "@tools-core/project_root_validate";
 import {
   RuntimeProbeUnreachableError,
   selectRuntimeValidatedLine,
-} from "@/utils/inference/runtime_line_selection.util";
-import { resolveAdditionalSourceRoots } from "@/utils/source_roots_resolve.util";
+} from "../support/inference/runtime_line_selection.util";
+import { resolveAdditionalSourceRoots } from "../support/source_roots_resolve";
 import {
   discoverClassMethods,
   inferTargets,

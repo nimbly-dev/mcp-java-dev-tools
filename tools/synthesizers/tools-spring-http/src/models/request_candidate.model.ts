@@ -2,7 +2,7 @@ import type {
   SynthesisHttpMethod,
   SynthesisRecipeCandidate,
   SynthesisRequestInferenceSource,
-} from "@/models/synthesis/synthesizer_output.model";
+} from "@tools-registry/models/synthesis/synthesizer_output.model";
 
 export type SpringParamType = {
   name: string;

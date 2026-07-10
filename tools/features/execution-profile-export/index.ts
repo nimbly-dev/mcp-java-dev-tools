@@ -4,6 +4,7 @@ export { exportExecutionProfilePostman } from "./execution_profile_export_postma
 export { exportExecutionProfilePerformancePs1 } from "./execution_profile_export_performance_ps1";
 export { exportExecutionProfilePerformanceSh } from "./execution_profile_export_performance_sh";
 export { executionProfileExportDomain } from "./domain";
+export { dispatchExecutionProfileExportAction } from "./actions";
 export type {
   ExportExecutionProfilePs1Input,
   ExportExecutionProfilePs1Result,

@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { buildRecipeTemplateModel } = require("@/models/recipe_output_model");
+const { buildRecipeTemplateModel } = require("@tools-feature-route-synthesis");
 
 test("recipe template model always reports selected mode", () => {
   const model = buildRecipeTemplateModel({
