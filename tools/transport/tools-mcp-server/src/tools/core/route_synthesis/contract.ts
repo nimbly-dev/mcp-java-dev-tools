@@ -1,8 +1,7 @@
 import { RouteSynthesisInputSchema } from "@/models/inputs";
+import { ROUTE_SYNTHESIS_TOOL_CONTRACT } from "@tools-contracts/route-synthesis";
 
 export const ROUTE_SYNTHESIS_TOOL = {
-  name: "route_synthesis",
-  description:
-    "Canonical Route Synthesis MCP Tool for target inference, class method inventory, and executable request recipe generation.",
+  ...ROUTE_SYNTHESIS_TOOL_CONTRACT,
   inputSchema: RouteSynthesisInputSchema,
 } as const;

@@ -1,5 +1,8 @@
 {
   "name": "@mcp-java-dev-tools/tools-core",
   "private": true,
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "description": "Capability-neutral TypeScript runtime primitives shared by Feature Modules",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
 }

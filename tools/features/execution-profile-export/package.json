@@ -2,5 +2,7 @@
   "name": "@mcp-java-dev-tools/tools-feature-execution-profile-export",
   "private": true,
   "version": "0.1.0",
-  "main": "index.ts"
+  "description": "Execution Profile export Feature Module",
+  "main": "index.ts",
+  "types": "index.ts"
 }

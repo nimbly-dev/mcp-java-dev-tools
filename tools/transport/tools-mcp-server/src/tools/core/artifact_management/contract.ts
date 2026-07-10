@@ -1,8 +1,7 @@
 import { ArtifactManagementRequestSchema } from "@/models/inputs/artifact_management";
+import { ARTIFACT_MANAGEMENT_TOOL_CONTRACT } from "@tools-contracts/artifact-management";
 
 export const ARTIFACT_MANAGEMENT_TOOL = {
-  name: "artifact_management",
-  description:
-    "Unified .mcpjvm artifact lifecycle MCP Tool with strict per-artifactType action allowlists and deterministic fail-closed outputs.",
+  ...ARTIFACT_MANAGEMENT_TOOL_CONTRACT,
   inputSchema: ArtifactManagementRequestSchema,
 } as const;

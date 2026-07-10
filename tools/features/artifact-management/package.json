@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-feature-artifact-management",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Artifact management Feature Module public boundary",
+  "main": "index.ts",
+  "types": "index.ts"
+}

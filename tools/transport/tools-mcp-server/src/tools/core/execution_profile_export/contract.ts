@@ -1,8 +1,7 @@
 import { ExecutionProfileExportInputSchema } from "@/models/inputs";
+import { EXECUTION_PROFILE_EXPORT_TOOL_CONTRACT } from "@tools-contracts/execution-profile-export";
 
 export const EXECUTION_PROFILE_EXPORT_TOOL = {
-  name: "execution_profile_export",
-  description:
-    "Export one persisted Execution Profile into deterministic replay artifacts. Supports regression step replay and performance workload replay with fail-closed mode routing.",
+  ...EXECUTION_PROFILE_EXPORT_TOOL_CONTRACT,
   inputSchema: ExecutionProfileExportInputSchema,
 } as const;

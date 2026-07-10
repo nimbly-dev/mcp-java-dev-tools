@@ -2,5 +2,7 @@
   "name": "@mcp-java-dev-tools/tools-regression-execution-plan-spec",
   "private": true,
   "version": "0.1.0",
-  "main": "src/regression_artifact_paths.util.ts"
+  "description": "Artifact Spec models, validation, and path policy for execution-plan Artifacts",
+  "main": "src/regression_artifact_paths.util.ts",
+  "types": "src/regression_artifact_paths.util.ts"
 }
