@@ -1,6 +1,6 @@
-import type { ProbeRegistry } from "@/config/probe-registry";
+import type { ProbeRegistry } from "@tools-core/probe-registry";
 import type { ToolTextResponse } from "@tools-contracts/output";
-import { buildTextResponse } from "@/utils/probe/response_builders.util";
+import { buildTextResponse } from "./response_builders.util";
 
 function buildProbeSelectionBlockedResponse(args: {
   toolName: string;

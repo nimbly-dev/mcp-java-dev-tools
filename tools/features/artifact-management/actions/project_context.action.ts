@@ -14,7 +14,7 @@ import {
   resolveProjectArtifactByRootAbs,
   resolveProjectName,
 } from "../shared/project_resolution";
-import { validateProjectRootAbs } from "@/utils/project_root_validate.util";
+import { validateProjectRootAbs } from "@tools-core/project_root_validate";
 
 async function dirExists(abs: string): Promise<boolean> {
   try {

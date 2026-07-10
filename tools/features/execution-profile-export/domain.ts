@@ -6,7 +6,7 @@ import { exportExecutionProfileSh } from "./execution_profile_export_sh";
 import { loadExecutionProfileExportTarget } from "./loaders/export_target.loader";
 import { resolveExportIdForExport } from "./loaders/export_selector.loader";
 
-import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
+import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
 
 type ExecutionProfileExportMode = "ps1" | "sh" | "postman";
 

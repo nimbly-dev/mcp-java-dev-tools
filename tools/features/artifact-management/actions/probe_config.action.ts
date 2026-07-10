@@ -1,6 +1,6 @@
 import path from "node:path";
 import * as fs from "node:fs";
-import { loadProbeRegistry, summarizeProbeRegistry } from "@/config/probe-registry";
+import { loadProbeRegistry, summarizeProbeRegistry } from "@tools-core/probe-registry";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import { readJsonFile, writeJsonFile } from "../shared/json_io";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "./types";

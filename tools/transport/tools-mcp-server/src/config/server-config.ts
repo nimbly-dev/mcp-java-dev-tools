@@ -2,9 +2,9 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 
 import { CliArgs } from "@/config/cli-args";
-import { CONFIG_DEFAULTS } from "@/config/defaults";
+import { CONFIG_DEFAULTS } from "@tools-core/probe_defaults";
 import { MCP_ENV, type McpEnvVar } from "@/config/env-vars";
-import { loadProbeRegistry, type ProbeRegistry } from "@/config/probe-registry";
+import { loadProbeRegistry, type ProbeRegistry } from "@tools-core/probe-registry";
 
 export type ServerConfig = {
   workspaceRootAbs: string;

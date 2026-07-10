@@ -1,7 +1,7 @@
 import type { ToolTextResponse } from "@tools-contracts/output";
-import { joinUrl } from "@/utils/probe.util";
-import { probeStatus } from "@/utils/probe/probe_status.util";
-import { readProbeUnreachableErrorMessage, sleep } from "@/utils/probe/wait_policy.util";
+import { joinUrl } from "../../probe.util";
+import { probeStatus } from "../probe_status.util";
+import { readProbeUnreachableErrorMessage, sleep } from "../wait_policy.util";
 
 export type ProbeStatusUnreachableDetails = {
   endpoint: string;

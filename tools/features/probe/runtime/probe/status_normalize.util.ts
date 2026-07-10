@@ -2,7 +2,7 @@ import {
   compactCapturePreview,
   compactRuntimeHints,
   compactStatusPayload,
-} from "@/utils/probe/compact_payload.util";
+} from "./compact_payload.util";
 
 export function readLineValidation(json: Record<string, unknown> | null): {
   lineValidation?: string;

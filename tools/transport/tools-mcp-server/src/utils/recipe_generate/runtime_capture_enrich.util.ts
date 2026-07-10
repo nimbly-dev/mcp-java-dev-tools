@@ -1,6 +1,4 @@
-import { probeStatus } from "@/utils/probe/probe_status.util";
-import type { ProbeCapturePreviewPayload } from "@/models/probe_runtime_capture.model";
-import { compactCapturePreview } from "@/utils/probe/compact_payload.util";
+import { compactCapturePreview, probeStatus, type ProbeCapturePreviewPayload } from "@tools-feature-probe";
 
 export type RuntimeCaptureSummary =
   | {

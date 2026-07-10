@@ -4,7 +4,7 @@ const test = require("node:test");
 const {
   deriveNextActionCode,
   normalizeReasonMeta,
-} = require("@/utils/failure_diagnostics.util");
+} = require("@tools-core/failure_diagnostics");
 
 test("deriveNextActionCode resolves known stable mappings", () => {
   assert.equal(deriveNextActionCode("runtime_unreachable"), "verify_probe_reachability");

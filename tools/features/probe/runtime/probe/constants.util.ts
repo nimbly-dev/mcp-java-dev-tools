@@ -1,4 +1,4 @@
-import { CONFIG_DEFAULTS } from "@/config/defaults";
+import { CONFIG_DEFAULTS } from "@tools-core/probe_defaults";
 
 export const LAST_RESET_EPOCH_BY_KEY = new Map<string, number>();
 

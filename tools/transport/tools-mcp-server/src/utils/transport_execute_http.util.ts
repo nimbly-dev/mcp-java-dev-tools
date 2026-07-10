@@ -1,4 +1,4 @@
-import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
+import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
 
 function toBodyPreview(value: string): string {
   const trimmed = value.trim();

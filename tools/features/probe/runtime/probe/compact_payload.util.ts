@@ -1,4 +1,4 @@
-import type { ProbeCaptureRecordPayload } from "@/models/probe_runtime_capture.model";
+import type { ProbeCaptureRecordPayload } from "@tools-feature-probe";
 
 const ENV_INCLUDE_EXECUTION_PATHS = "MCP_PROBE_INCLUDE_EXECUTION_PATHS";
 

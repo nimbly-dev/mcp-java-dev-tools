@@ -1,4 +1,4 @@
-import type { ProbeRegistry } from "@/config/probe-registry";
+import type { ProbeRegistry } from "@tools-core/probe-registry";
 import type { ServerConfig } from "@/config/server-config";
 
 export type RouteSynthesisTargetInferenceDeps = {

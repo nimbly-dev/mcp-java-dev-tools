@@ -1,4 +1,4 @@
-import { formatProbeOutput } from "@/utils/probe/output.util";
+import { formatProbeOutput } from "./output.util";
 import type { ToolTextResponse } from "@tools-contracts/output";
 
 export function buildTextResponse(

@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { CONFIG_DEFAULTS } from "@/config/defaults";
+import { CONFIG_DEFAULTS } from "@tools-core/probe_defaults";
 
 export type ProbeRuntimeMetadata = {
   platform?: string;

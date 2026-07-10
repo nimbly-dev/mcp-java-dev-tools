@@ -1,9 +1,9 @@
 import * as path from "node:path";
 
 import type { RouteSynthesisTargetInferenceDeps } from "@/models/route_synthesis.model";
-import { clampInt } from "@/lib/safety";
-import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
-import { validateProjectRootAbs } from "@/utils/project_root_validate.util";
+import { clampInt } from "@tools-core/safety";
+import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
+import { validateProjectRootAbs } from "@tools-core/project_root_validate";
 import {
   RuntimeProbeUnreachableError,
   selectRuntimeValidatedLine,

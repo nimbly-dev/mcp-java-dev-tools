@@ -4,7 +4,7 @@ import { ProbeRequestSchema } from "@tools-contracts/probe";
 import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
 import { createProbeDomain, executeProbeAction, type ProbeActionRequest } from "@tools-feature-probe";
 import { PROBE_TOOL } from "@/tools/core/probe/contract";
-import type { ProbeRegistry } from "@/config/probe-registry";
+import type { ProbeRegistry } from "@tools-core/probe-registry";
 
 export type ProbeHandlerConfig = {
   probeBaseUrl: string;

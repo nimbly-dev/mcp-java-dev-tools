@@ -4,7 +4,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { CONFIG_DEFAULTS } = require("@/config/defaults");
+const { CONFIG_DEFAULTS } = require("@tools-core/probe_defaults");
 const { MCP_ENV } = require("@/config/env-vars");
 const { loadConfigFromEnvAndArgs } = require("@/config/server-config");
 
