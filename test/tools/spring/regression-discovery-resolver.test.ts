@@ -7,7 +7,7 @@ const test = require("node:test");
 const {
   buildReplayPreflightWithDiscovery,
   resolveDiscoverablePrerequisites,
-} = require("@tools-regression-execution-plan-spec/regression_discovery_resolver.util");
+} = require("@tools-feature-regression-suite");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");

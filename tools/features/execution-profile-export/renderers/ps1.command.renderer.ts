@@ -1,5 +1,5 @@
-import { escapePsSingleQuoted } from "@tools-export-execution-profile/common";
-import type { Healthcheck, HealthcheckCommand, RuntimeStartup } from "@tools-export-execution-profile/models/execution_profile_export.model";
+import { escapePsSingleQuoted } from "../common";
+import type { Healthcheck, HealthcheckCommand, RuntimeStartup } from "../models/execution_profile_export.model";
 
 export function renderPs1RuntimeStartupSection(startups: RuntimeStartup[], includeRuntimeStartup: boolean): string[] {
   if (!includeRuntimeStartup || startups.length === 0) {

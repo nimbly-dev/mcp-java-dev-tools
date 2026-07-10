@@ -7,11 +7,11 @@ import type {
   PlanPrerequisite,
   PreflightResult,
   PreflightStatus,
-} from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
-import { buildReplayPreflight } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
-import { resolvePrerequisiteContext } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
-import { resolveStepTransport } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
-import { resolveProjectContextForRegression } from "@tools-regression-execution-plan-spec/suite_project_context.util";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
+import { buildReplayPreflight } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
+import { resolvePrerequisiteContext } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
+import { resolveStepTransport } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
+import { resolveProjectContextForRegression } from "../context/resolve_suite_project_context";
 
 export type DiscoveryOutcome =
   | "resolved"

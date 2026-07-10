@@ -1,12 +1,45 @@
-export { executeRegressionPlanWorkflow } from "./shared/regression_plan_executor.util";
-export { executeRegressionRuntimeSuite } from "./shared/regression_runtime_suite_executor.util";
+export { executeRegressionPlanWorkflow } from "./actions/execute_regression_plan.action";
+export { executeRegressionRuntimeSuite } from "./actions/execute_regression_runtime_suite.action";
 export {
   buildSuiteStatusArtifactRelPath,
   readExecutionOrchestrationSuiteResult,
   writeExecutionOrchestrationSuiteResult,
-} from "./shared/regression_runtime_suite_executor.util";
-export { correlateEvents } from "./shared/regression_correlation.util";
-export { writeRegressionRunArtifacts, rebuildCorrelationIndex } from "./shared/regression_run_artifact_writer.util";
-export { renderRegressionRunResultsTable, renderRegressionRunResultsTableFromArtifacts } from "./shared/regression_results_report.util";
-export { renderWatcherResults } from "./shared/regression_watcher_results_report.util";
+} from "./actions/execute_regression_runtime_suite.action";
+export { inferPlanApiBaseUrlFromProbeConfig } from "./shared/regression_plan_base_url";
+export {
+  buildResolvedSecretRedactionMeta,
+  sanitizeSuitePersistedContext,
+} from "./shared/suite_context_redaction";
+export { correlateEvents } from "./shared/regression_correlation";
+export {
+  buildRunArtifactDirAbs,
+  writeRegressionRunArtifacts,
+  rebuildCorrelationIndex,
+} from "./persistence/write_regression_run_artifacts";
+export {
+  renderRegressionRunResultsTable,
+  renderRegressionRunResultsTableFromArtifacts,
+  resolveRegressionRunDirAbs,
+} from "./shared/regression_results_report";
+export { renderWatcherResults } from "./shared/regression_watcher_results_report";
+export { executeSqlExternalVerification } from "./shared/external_verification_sql_provider";
+export { resolveDiscoverablePrerequisites, buildReplayPreflightWithDiscovery } from "./shared/regression_discovery_resolver";
+export { writeExecutionProfileExport } from "./shared/regression_execution_profile_export_writer";
+export { evaluateStepExpectations } from "./shared/regression_expectation_evaluator";
+export { executeTransportWithRegistry } from "./shared/regression_transport_executor";
+export {
+  createMcpWrappedTransportAdapter,
+  createTransportRegistry,
+} from "./shared/regression_transport_executor";
+export { resolveProjectContextForRegression } from "./context/resolve_suite_project_context";
+export {
+  resolveWatcherProviderExecution,
+  normalizeWatcherProviderResult,
+  summarizeWatcherObservation,
+} from "./shared/regression_watcher_provider";
+export { deriveRunStatusFromStepOutcomes } from "./shared/regression_expectation_evaluator";
+export {
+  buildReplayUserMessage,
+  resolveReplayInvocation,
+} from "./shared/regression_replay_invocation";
 export type RegressionSuiteFeatureModule = "regression-suite";

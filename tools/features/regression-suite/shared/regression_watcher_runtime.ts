@@ -1,6 +1,6 @@
 import type {
   PlanContract,
-} from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 import type {
   RegressionExecutionContinuation,
   RegressionRunStatus,
@@ -11,18 +11,18 @@ import type {
   RegressionRunWatcherResult,
   RegressionWatcherPhaseStatus,
   RegressionRunStepResult,
-} from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
-import type { TransportAdapter, TransportProtocol, TransportExecutionResult } from "@tools-regression-execution-plan-spec/models/regression_transport.model";
-import { resolveWatcherWaitPolicy } from "@tools-regression-execution-plan-spec/regression_watcher_contract.util";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
+import type { TransportAdapter, TransportProtocol, TransportExecutionResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_transport.model";
+import { resolveWatcherWaitPolicy } from "../../../spec/regression-execution-plan-spec/src/regression_watcher_contract.util";
 import {
   evaluateStepExpectations,
-} from "@tools-regression-execution-plan-spec/regression_expectation_evaluator.util";
-import { executeTransportWithRegistry } from "@tools-regression-execution-plan-spec/regression_transport_executor.util";
+} from "../shared/regression_expectation_evaluator";
+import { executeTransportWithRegistry } from "../shared/regression_transport_executor";
 import {
   normalizeWatcherProviderResult,
   resolveWatcherProviderExecution,
   summarizeWatcherObservation,
-} from "@tools-regression-execution-plan-spec/regression_watcher_provider.util";
+} from "./regression_watcher_provider";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)

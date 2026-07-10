@@ -5,7 +5,7 @@ const { buildReplayPreflight } = require("@tools-regression-execution-plan-spec/
 const {
   buildReplayUserMessage,
   resolveReplayInvocation,
-} = require("@tools-regression-execution-plan-spec/regression_replay_invocation.util");
+} = require("@tools-feature-regression-suite");
 
 function baseMetadata() {
   return {

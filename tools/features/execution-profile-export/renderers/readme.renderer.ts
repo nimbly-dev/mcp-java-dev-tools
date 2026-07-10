@@ -1,7 +1,7 @@
 import type {
   ExportRuntimeDefaults,
   ExecutionProfileExportManifest,
-} from "@tools-export-execution-profile/models/execution_profile_export.model";
+} from "../models/execution_profile_export.model";
 
 export type ReadmeTemplateInput = {
   manifest: ExecutionProfileExportManifest;

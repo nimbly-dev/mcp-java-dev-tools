@@ -3,7 +3,7 @@ const test = require("node:test");
 
 const {
   renderWatcherResults,
-} = require("@tools-regression-execution-plan-spec/regression_watcher_results_report.util");
+} = require("@tools-feature-regression-suite");
 
 test("renderWatcherResults returns summary and detail rows for watcher outcomes", () => {
   const rendered = renderWatcherResults({

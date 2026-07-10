@@ -1,7 +1,7 @@
 import type {
   RuntimeSuiteBlockedResult,
   RuntimeSuiteRunResult,
-} from "@tools-regression-execution-plan-spec/models/regression_runtime_suite.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
 
 const RAW_TOOL_TIMEOUT_MS = 300_000;
 const RAW_TOOL_TIMEOUT_HEADROOM_MS = 15_000;

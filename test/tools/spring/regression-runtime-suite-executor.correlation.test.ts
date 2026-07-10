@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { executeRegressionRuntimeSuite } = require("@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util");
+const { executeRegressionRuntimeSuite } = require("@tools-feature-regression-suite");
 const {
   createTestTempDir,
   writeJson,

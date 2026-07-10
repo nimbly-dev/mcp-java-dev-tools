@@ -4,11 +4,11 @@ import type {
   TransportExecuteInput,
   TransportExecutionResult,
   TransportProtocol,
-} from "@tools-regression-execution-plan-spec/models/regression_transport.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_transport.model";
 import {
   resolveHttpUrlMissingReasonMeta,
   synthesizeHttpUrl,
-} from "@tools-regression-execution-plan-spec/suite_http_request.util";
+} from "../../../spec/regression-execution-plan-spec/src/suite_http_request.util";
 
 type McpToolInvoker = (args: {
   toolName: string;

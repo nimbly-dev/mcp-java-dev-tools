@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { PlanContract } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import type { PlanContract } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 
 export async function loadPlanContract(input: {
   plansRootAbs: string;

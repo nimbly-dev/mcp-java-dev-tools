@@ -1,11 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
+import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import {
   renderWatcherResults,
   type WatcherReportDetailRow,
   type WatcherReportSummary,
-} from "@tools-regression-execution-plan-spec/regression_watcher_results_report.util";
+} from "./regression_watcher_results_report";
 
 type ReportColumn = "endpoint" | "status" | "http_code" | "duration_ms" | "probe_coverage" | "memory_bytes";
 type ProbeCoverageState = "verified_line_hit" | "http_only_unverified_line" | "unknown" | "n/a";

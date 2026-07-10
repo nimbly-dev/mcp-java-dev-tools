@@ -1,5 +1,5 @@
-import { escapeShSingleQuoted } from "@tools-export-execution-profile/common";
-import type { ShTransportExportAdapter } from "@tools-export-execution-profile/adapters/registry/transport_export_adapter.interface";
+import { escapeShSingleQuoted } from "../../common";
+import type { ShTransportExportAdapter } from "../registry/transport_export_adapter.interface";
 
 export const unsupportedShTransportAdapter: ShTransportExportAdapter = {
   canHandle() {

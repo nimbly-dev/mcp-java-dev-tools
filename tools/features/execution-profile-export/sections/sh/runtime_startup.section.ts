@@ -1,6 +1,6 @@
-import { collectRuntimeStartups } from "@tools-export-execution-profile/collectors/runtime_startups.collector";
-import type { RuntimeStartup } from "@tools-export-execution-profile/models/execution_profile_export.model";
-import { renderShRuntimeStartupSection } from "@tools-export-execution-profile/renderers/sh.command.renderer";
+import { collectRuntimeStartups } from "../../collectors/runtime_startups.collector";
+import type { RuntimeStartup } from "../../models/execution_profile_export.model";
+import { renderShRuntimeStartupSection } from "../../renderers/sh.command.renderer";
 
 export function buildShRuntimeStartupSection(input: {
   workspaceRootAbs: string;

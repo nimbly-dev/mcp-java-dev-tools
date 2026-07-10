@@ -5,7 +5,7 @@ const {
   createMcpWrappedTransportAdapter,
   createTransportRegistry,
   executeTransportWithRegistry,
-} = require("@tools-regression-execution-plan-spec/regression_transport_executor.util");
+} = require("@tools-feature-regression-suite");
 
 test("mcp wrapped transport adapter returns pass for 2xx response", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({

@@ -5,7 +5,7 @@ const {
   normalizeWatcherProviderResult,
   resolveWatcherProviderExecution,
   summarizeWatcherObservation,
-} = require("@tools-regression-execution-plan-spec/regression_watcher_provider.util");
+} = require("@tools-feature-regression-suite");
 
 test("resolveWatcherProviderExecution supports transport-neutral watcher contract with http as first concrete provider", () => {
   const resolved = resolveWatcherProviderExecution({

@@ -1,12 +1,12 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
+import { resolveRegressionPlansRootAbs } from "../../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import {
   inferPlanApiBaseUrlFromProbeConfig,
-} from "@tools-regression-execution-plan-spec/regression_plan_base_url.util";
-import type { ExecutionProfileExportPlanRun } from "@tools-export-execution-profile/models/execution_profile_export.model";
-import { renderShPlanExecutionSection } from "@tools-export-execution-profile/renderers/plan.command.sh.renderer";
+} from "@tools-feature-regression-suite";
+import type { ExecutionProfileExportPlanRun } from "../../models/execution_profile_export.model";
+import { renderShPlanExecutionSection } from "../../renderers/plan.command.sh.renderer";
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)

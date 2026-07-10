@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { probeCaptureGet, probeReset, probeStatus, probeWaitHit } from "@tools-feature-probe/domain";
+import { probeCaptureGet, probeReset, probeStatus, probeWaitHit } from "@tools-feature-probe";
 import {
   buildLineKey,
   findLineNumberBySnippet,

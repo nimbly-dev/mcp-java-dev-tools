@@ -1,9 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { renderGeneratedHttpJmx } from "@tools-performance-workload-jmeter/renderers/jmeter_generated_http_jmx.renderer";
+import { renderGeneratedHttpJmx } from "../performance-workload-jmeter/renderers/jmeter_generated_http_jmx.renderer";
 
-import type { PerformanceExportPlanContract } from "@tools-export-execution-profile/loaders/performance_plan_contract.loader";
+import type { PerformanceExportPlanContract } from "./loaders/performance_plan_contract.loader";
 
 export type PerformanceExportBundlePlan = {
   order: number;

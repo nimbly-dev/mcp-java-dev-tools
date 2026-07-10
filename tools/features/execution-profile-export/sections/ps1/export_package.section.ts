@@ -2,8 +2,8 @@ import type {
   CommandExportArg,
   CommandExportBundledScript,
   CommandExportScriptPhase,
-} from "@tools-export-execution-profile/sections/shared/command_export_package.util";
-import { prepareCommandExportPackage } from "@tools-export-execution-profile/sections/shared/command_export_package.util";
+} from "../shared/command_export_package";
+import { prepareCommandExportPackage } from "../shared/command_export_package";
 
 export type Ps1ExportPackageSections = {
   preRuntimeScriptSection: string[];

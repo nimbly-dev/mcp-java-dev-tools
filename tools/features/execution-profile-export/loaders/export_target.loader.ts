@@ -2,9 +2,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
-import type { ExecutionProfileSuiteType } from "@tools-regression-execution-plan-spec/models/regression_execution_profile_export.model";
+import type { ExecutionProfileSuiteType } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_profile_export.model";
 
-import { asString, isRecord } from "@tools-export-execution-profile/common";
+import { asString, isRecord } from "../common";
 
 type ExportProfilePlan = {
   order: number;

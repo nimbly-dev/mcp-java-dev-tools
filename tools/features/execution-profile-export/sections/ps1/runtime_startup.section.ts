@@ -1,4 +1,4 @@
-import { asString, isRecord } from "@tools-export-execution-profile/common";
+import { asString, isRecord } from "../../common";
 
 function psSingleQuoted(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;

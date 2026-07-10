@@ -1,8 +1,8 @@
 import type { RouteSynthesisAction } from "@tools-contracts/route-synthesis";
 import type { RouteSynthesisHandlerDeps } from "@/models/route_synthesis.model";
-import { runClassMethods } from "@tools-feature-route-synthesis/actions/class_methods.action";
-import { runRecipeCreate } from "@tools-feature-route-synthesis/actions/create_recipe.action";
-import { runTargetInfer } from "@tools-feature-route-synthesis/actions/infer_target.action";
+import { runClassMethods } from "./actions/class_methods.action";
+import { runRecipeCreate } from "./actions/create_recipe.action";
+import { runTargetInfer } from "./actions/infer_target.action";
 
 export async function routeSynthesisDomain(args: {
   action: RouteSynthesisAction;

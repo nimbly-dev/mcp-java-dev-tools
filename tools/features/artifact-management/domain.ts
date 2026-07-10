@@ -1,11 +1,11 @@
 import { ARTIFACT_ACTION_ALLOWLIST, type ArtifactType, type ArtifactManagementRequest } from "@tools-contracts/artifact-management";
-import type { ArtifactActionContext, ArtifactActionResult } from "@tools-feature-artifact-management/actions/types";
-import { handleProbeConfigArtifact } from "@tools-feature-artifact-management/actions/probe_config.action";
-import { handleProjectContextArtifact } from "@tools-feature-artifact-management/actions/project_context.action";
-import { handleRegressionPlanArtifact } from "@tools-feature-artifact-management/actions/regression_plan.action";
-import { handleRunResultArtifact } from "@tools-feature-artifact-management/actions/run_result.action";
-import { handleExecutionExportArtifact } from "@tools-feature-artifact-management/actions/execution_export.action";
-import { buildFailClosedArtifactResponse } from "@tools-feature-artifact-management/shared/fail_closed.util";
+import type { ArtifactActionContext, ArtifactActionResult } from "./actions/types";
+import { handleProbeConfigArtifact } from "./actions/probe_config.action";
+import { handleProjectContextArtifact } from "./actions/project_context.action";
+import { handleRegressionPlanArtifact } from "./actions/regression_plan.action";
+import { handleRunResultArtifact } from "./actions/run_result.action";
+import { handleExecutionExportArtifact } from "./actions/execution_export.action";
+import { buildFailClosedArtifactResponse } from "./shared/fail_closed";
 
 function actionAllowed(artifactType: ArtifactType, action: string): boolean {
   const actions = ARTIFACT_ACTION_ALLOWLIST[artifactType];

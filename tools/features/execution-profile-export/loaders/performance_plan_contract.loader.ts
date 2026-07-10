@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { asString, isRecord } from "@tools-export-execution-profile/common";
+import { asString, isRecord } from "../common";
 
 export type PerformanceExportEntrypoint = {
   transport: {

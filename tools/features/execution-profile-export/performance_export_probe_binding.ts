@@ -1,4 +1,4 @@
-import type { PerformanceExportBundlePlan } from "@tools-export-execution-profile/performance_jmeter_export.util";
+import type { PerformanceExportBundlePlan } from "./performance_jmeter_export";
 
 export function assertPerformanceExportProbeBindingsResolved(plans: PerformanceExportBundlePlan[]): void {
   for (const plan of plans) {

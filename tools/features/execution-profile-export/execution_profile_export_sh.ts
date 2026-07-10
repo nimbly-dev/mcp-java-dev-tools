@@ -1,35 +1,37 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { loadProjectWorkspace } from "@tools-export-execution-profile/loaders/project_workspace.loader";
-import { loadExecutionProfileExportManifest } from "@tools-export-execution-profile/loaders/export_manifest.loader";
+import { loadProjectWorkspace } from "./loaders/project_workspace.loader";
+import { loadExecutionProfileExportManifest } from "./loaders/export_manifest.loader";
 import type {
   ExportExecutionProfilePs1Input,
   ExportExecutionProfilePs1Result,
   ExportRuntimeDefaults,
-} from "@tools-export-execution-profile/models/execution_profile_export.model";
-import { resolveExportDefaults } from "@tools-export-execution-profile/policy/export_defaults.policy";
-import { renderEtaTemplate } from "@tools-export-execution-profile/renderers/eta.renderer";
-import { buildReadmeTemplateModel } from "@tools-export-execution-profile/renderers/readme.renderer";
-import { buildPs1HealthcheckSection } from "@tools-export-execution-profile/sections/ps1/healthcheck.section";
-import { buildPs1PlanExecutionSection } from "@tools-export-execution-profile/sections/ps1/plan_execution.section";
-import { buildPs1PrerequisitesSections } from "@tools-export-execution-profile/sections/ps1/prerequisites.section";
-import { preparePs1ExportPackage } from "@tools-export-execution-profile/sections/ps1/export_package.section";
-import { buildPs1RuntimeStartupSection } from "@tools-export-execution-profile/sections/ps1/runtime_startup.section";
-import { resolveOneOffExportDir } from "@tools-export-execution-profile/sections/shared/oneoff_export_dir.util";
+} from "./models/execution_profile_export.model";
+import { resolveExportDefaults } from "./policy/export_defaults.policy";
+import { renderEtaTemplate } from "./renderers/eta.renderer";
+import { buildShHealthcheckSection } from "./sections/sh/healthcheck.section";
+import { buildShPlanExecutionSection } from "./sections/sh/plan_execution.section";
+import { prepareShExportPackage } from "./sections/sh/export_package.section";
+import { buildShPrerequisitesSections } from "./sections/sh/prerequisites.section";
+import { buildShRuntimeStartupSection } from "./sections/sh/runtime_startup.section";
+import { resolveOneOffExportDir } from "./sections/shared/oneoff_export_dir";
+
+export type ExportExecutionProfileShInput = ExportExecutionProfilePs1Input;
+export type ExportExecutionProfileShResult = ExportExecutionProfilePs1Result;
 
 function joinLines(lines: string[]): string {
   return lines.join("\n");
 }
 
 function resolveDefaults(input: {
-  request: ExportExecutionProfilePs1Input;
+  request: ExportExecutionProfileShInput;
   workspace: Record<string, unknown> | undefined;
 }): ExportRuntimeDefaults {
   return resolveExportDefaults({ request: input.request, workspace: input.workspace });
 }
 
-export async function exportExecutionProfilePs1(input: ExportExecutionProfilePs1Input): Promise<ExportExecutionProfilePs1Result> {
+export async function exportExecutionProfileSh(input: ExportExecutionProfileShInput): Promise<ExportExecutionProfileShResult> {
   const { manifest, projectRootAbs } = await loadExecutionProfileExportManifest({
     workspaceRootAbs: input.workspaceRootAbs,
     exportId: input.exportId,
@@ -48,17 +50,7 @@ export async function exportExecutionProfilePs1(input: ExportExecutionProfilePs1
   const exportDirAbs = resolveOneOffExportDir(projectRootAbs, new Date());
   await fs.mkdir(exportDirAbs, { recursive: true });
 
-  const runtimeStartupSection = buildPs1RuntimeStartupSection({
-    workspaceRootAbs: input.workspaceRootAbs,
-    workspace,
-    runtimeContextName: manifest.runtimeContextName,
-    includeRuntimeStartup: defaults.includeRuntimeStartup,
-  });
-  const healthcheckGateSection = buildPs1HealthcheckSection({
-    workspace,
-    includeHealthcheckGate: defaults.includeHealthcheckGate,
-  });
-  const planExecutionSection = await buildPs1PlanExecutionSection({
+  const planExecutionSection = await buildShPlanExecutionSection({
     workspaceRootAbs: input.workspaceRootAbs,
     ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
       ? { projectName: input.projectName.trim() }
@@ -67,7 +59,7 @@ export async function exportExecutionProfilePs1(input: ExportExecutionProfilePs1
     executionProfile: manifest.executionProfile,
     planRuns: manifest.planRuns,
   });
-  const prerequisitesSections = await buildPs1PrerequisitesSections({
+  const prerequisiteSections = await buildShPrerequisitesSections({
     workspaceRootAbs: input.workspaceRootAbs,
     ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
       ? { projectName: input.projectName.trim() }
@@ -77,7 +69,17 @@ export async function exportExecutionProfilePs1(input: ExportExecutionProfilePs1
     planRuns: manifest.planRuns,
     planExecutionSection,
   });
-  const exportPackageSections = await preparePs1ExportPackage({
+  const runtimeStartupSection = buildShRuntimeStartupSection({
+    workspaceRootAbs: input.workspaceRootAbs,
+    workspace,
+    runtimeContextName: manifest.runtimeContextName,
+    includeRuntimeStartup: defaults.includeRuntimeStartup,
+  });
+  const healthcheckGateSection = buildShHealthcheckSection({
+    workspace,
+    includeHealthcheckGate: defaults.includeHealthcheckGate,
+  });
+  const exportPackageSections = await prepareShExportPackage({
     workspaceRootAbs: input.workspaceRootAbs,
     exportDirAbs,
     workspace,
@@ -86,36 +88,28 @@ export async function exportExecutionProfilePs1(input: ExportExecutionProfilePs1
   });
 
   const scriptText = await renderEtaTemplate({
-    templateFileName: "run-execution-profile.ps1.eta",
+    templateFileName: "run-execution-profile.sh.eta",
     data: {
       manifest,
       includeResolvedSecrets,
-      prerequisitesSection: joinLines(prerequisitesSections.prerequisitesSection),
+      prerequisitesSection: joinLines(prerequisiteSections.prerequisitesSection),
       preRuntimeScriptSection: joinLines(exportPackageSections.preRuntimeScriptSection),
       runtimeStartupSection: joinLines(runtimeStartupSection),
       postRuntimeScriptSection: joinLines(exportPackageSections.postRuntimeScriptSection),
       healthcheckGateSection: joinLines(healthcheckGateSection),
       postHealthcheckScriptSection: joinLines(exportPackageSections.postHealthcheckScriptSection),
-      postStartupAuthSection: joinLines(prerequisitesSections.postStartupAuthSection),
+      postStartupAuthSection: joinLines(prerequisiteSections.postStartupAuthSection),
       prePlanScriptSection: joinLines(exportPackageSections.prePlanScriptSection),
       planExecutionSection: joinLines(planExecutionSection),
     },
   });
 
-  const readmeText = await renderEtaTemplate({
-    templateFileName: "README.execution-profile-export.md.eta",
-    data: buildReadmeTemplateModel({ manifest, defaults, includeResolvedSecrets }),
-  });
-
-  const scriptPathAbs = path.join(exportDirAbs, "run-execution-profile.ps1");
-  const readmePathAbs = path.join(exportDirAbs, "README.ps1.md");
+  const scriptPathAbs = path.join(exportDirAbs, "run-execution-profile.sh");
   await fs.writeFile(scriptPathAbs, scriptText, "utf8");
-  await fs.writeFile(readmePathAbs, readmeText, "utf8");
 
   return {
     exportId: manifest.exportId,
     exportDirAbs,
     scriptPathAbs,
-    readmePathAbs,
   };
 }

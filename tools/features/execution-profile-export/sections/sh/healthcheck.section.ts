@@ -1,9 +1,9 @@
-import { collectHealthchecks } from "@tools-export-execution-profile/collectors/healthchecks.collector";
-import { applyHealthcheckPolicy } from "@tools-export-execution-profile/policy/healthcheck_policy";
+import { collectHealthchecks } from "../../collectors/healthchecks.collector";
+import { applyHealthcheckPolicy } from "../../policy/healthcheck_policy";
 import {
   renderShHealthcheckCommands,
   renderShHealthcheckSection,
-} from "@tools-export-execution-profile/renderers/sh.command.renderer";
+} from "../../renderers/sh.command.renderer";
 
 export function buildShHealthcheckSection(input: {
   workspace: Record<string, unknown> | undefined;

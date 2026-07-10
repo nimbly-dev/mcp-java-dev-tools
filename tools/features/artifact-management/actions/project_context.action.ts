@@ -7,13 +7,13 @@ import {
   validateProjectArtifactReferenceIntegrity,
   writeProjectArtifact,
 } from "@tools-project-artifact-spec/project_artifact.util";
-import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "@tools-feature-artifact-management/actions/types";
-import { buildFailClosedArtifactResponse, okArtifactResponse } from "@tools-feature-artifact-management/shared/fail_closed.util";
+import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "./types";
+import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import {
   listProjectNames,
   resolveProjectArtifactByRootAbs,
   resolveProjectName,
-} from "@tools-feature-artifact-management/shared/project_resolution.util";
+} from "../shared/project_resolution";
 import { validateProjectRootAbs } from "@/utils/project_root_validate.util";
 
 async function dirExists(abs: string): Promise<boolean> {

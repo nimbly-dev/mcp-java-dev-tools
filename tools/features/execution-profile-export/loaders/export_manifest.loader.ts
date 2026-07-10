@@ -1,10 +1,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { ExecutionProfileExportManifest, ExecutionProfileExportPlanRun } from "@tools-export-execution-profile/models/execution_profile_export.model";
+import type { ExecutionProfileExportManifest, ExecutionProfileExportPlanRun } from "../models/execution_profile_export.model";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
-import { readExecutionOrchestrationSuiteResult } from "@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util";
+import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
+import { readExecutionOrchestrationSuiteResult } from "@tools-feature-regression-suite";
 
 function asString(value: unknown): string | undefined {
   if (typeof value !== "string") {

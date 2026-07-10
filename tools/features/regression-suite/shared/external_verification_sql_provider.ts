@@ -8,11 +8,11 @@ import { Worker } from "node:worker_threads";
 import type {
   NormalizedExternalVerificationResult,
   PlanExternalVerification,
-} from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
-import { validateNormalizedExternalVerificationResultShape } from "@tools-regression-execution-plan-spec/external_verification_contract.util";
-import { JDBC_SQL_RUNNER_SOURCE } from "@tools-regression-execution-plan-spec/external_verification_sql_jdbc_runner_source.util";
-import { evaluateStepExpectations } from "@tools-regression-execution-plan-spec/regression_expectation_evaluator.util";
-import { applyStepExtractWithDiagnostics } from "@tools-regression-execution-plan-spec/step_extract.util";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
+import { validateNormalizedExternalVerificationResultShape } from "../../../spec/regression-execution-plan-spec/src/external_verification_contract.util";
+import { JDBC_SQL_RUNNER_SOURCE } from "./external_verification_sql_jdbc_runner_source";
+import { evaluateStepExpectations } from "../shared/regression_expectation_evaluator";
+import { applyStepExtractWithDiagnostics } from "../../../spec/regression-execution-plan-spec/src/step_extract.util";
 
 type SqlExecutionFailureCode =
   | "external_verification_connection_unresolved"

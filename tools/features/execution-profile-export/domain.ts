@@ -1,10 +1,10 @@
-import { exportExecutionProfilePerformancePs1 } from "@tools-export-execution-profile/execution_profile_export_performance_ps1.service";
-import { exportExecutionProfilePerformanceSh } from "@tools-export-execution-profile/execution_profile_export_performance_sh.service";
-import { exportExecutionProfilePostman } from "@tools-export-execution-profile/execution_profile_export_postman.service";
-import { exportExecutionProfilePs1 } from "@tools-export-execution-profile/execution_profile_export_ps1.service";
-import { exportExecutionProfileSh } from "@tools-export-execution-profile/execution_profile_export_sh.service";
-import { loadExecutionProfileExportTarget } from "@tools-export-execution-profile/loaders/export_target.loader";
-import { resolveExportIdForExport } from "@tools-export-execution-profile/loaders/export_selector.loader";
+import { exportExecutionProfilePerformancePs1 } from "./execution_profile_export_performance_ps1";
+import { exportExecutionProfilePerformanceSh } from "./execution_profile_export_performance_sh";
+import { exportExecutionProfilePostman } from "./execution_profile_export_postman";
+import { exportExecutionProfilePs1 } from "./execution_profile_export_ps1";
+import { exportExecutionProfileSh } from "./execution_profile_export_sh";
+import { loadExecutionProfileExportTarget } from "./loaders/export_target.loader";
+import { resolveExportIdForExport } from "./loaders/export_selector.loader";
 
 import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
 

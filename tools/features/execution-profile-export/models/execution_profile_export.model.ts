@@ -4,7 +4,7 @@ import type {
   ExecutionProfileExportManifest,
   ExecutionProfileExportPlanRun,
   ExecutionProfileSuiteType,
-} from "@tools-regression-execution-plan-spec/models/regression_execution_profile_export.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_profile_export.model";
 
 export type {
   ExportExecutionProfilePs1Input,

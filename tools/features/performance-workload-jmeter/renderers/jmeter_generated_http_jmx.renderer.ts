@@ -1,8 +1,8 @@
-import { escapeXml } from "@tools-performance-workload-jmeter/common";
+import { escapeXml } from "../common";
 import type {
   JmeterGeneratedHttpLoadModel,
   JmeterGeneratedHttpRequest,
-} from "@tools-performance-workload-jmeter/models/jmeter_workload_provider.model";
+} from "../models/jmeter_workload_provider.model";
 
 function renderHeaderManager(headers: Record<string, string> | undefined): string {
   if (!headers || Object.keys(headers).length === 0) {

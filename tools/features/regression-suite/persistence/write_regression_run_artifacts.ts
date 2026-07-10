@@ -16,17 +16,17 @@ import type {
   RegressionRunWatcherWaitSummary,
   WatcherExecutionEvidence,
   WriteRegressionRunArtifactsInput,
-} from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
-import type { NormalizedExternalVerificationResult } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
+import type { NormalizedExternalVerificationResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 import {
   validateNormalizedExternalVerificationResultShape,
-} from "@tools-regression-execution-plan-spec/external_verification_contract.util";
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
-import { correlateEvents } from "@tools-regression-execution-plan-spec/regression_correlation.util";
+} from "../../../spec/regression-execution-plan-spec/src/external_verification_contract.util";
+import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
+import { correlateEvents } from "../shared/regression_correlation";
 import {
   buildResolvedSecretRedactionMeta,
   sanitizeSuitePersistedContext,
-} from "@tools-regression-execution-plan-spec/suite_context_redaction.util";
+} from "../shared/suite_context_redaction";
 
 export type {
   CorrelationIndexRebuildResult,
@@ -35,7 +35,7 @@ export type {
   RegressionRunExecutionResult,
   RegressionRunStatus,
   WriteRegressionRunArtifactsInput,
-} from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 
 const RUN_ID_PATTERN =
   /^(?:\d{2}-\d{2}-\d{4}-\d{2}-\d{2}-\d{2}(?:AM|PM)|\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_\d{2}|\d{10,})$/;

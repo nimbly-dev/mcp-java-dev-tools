@@ -1,9 +1,9 @@
-import { escapeShSingleQuoted } from "@tools-export-execution-profile/common";
+import { escapeShSingleQuoted } from "../common";
 import type {
   Healthcheck,
   HealthcheckCommand,
   RuntimeStartup,
-} from "@tools-export-execution-profile/models/execution_profile_export.model";
+} from "../models/execution_profile_export.model";
 
 export function renderShRuntimeStartupSection(startups: RuntimeStartup[], includeRuntimeStartup: boolean): string[] {
   if (!includeRuntimeStartup || startups.length === 0) {

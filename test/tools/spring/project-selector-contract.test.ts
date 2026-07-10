@@ -5,7 +5,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { registerRouteSynthesisTool } = require("@/tools/core/route_synthesis/handler");
-const recipeGenerateDomain = require("@tools-feature-route-synthesis/shared/recipe_generation.util");
+const recipeGenerateDomain = require("../../../tools/features/route-synthesis/shared/recipe_generation");
 
 type RegisteredToolHandler = (input: Record<string, unknown>) => Promise<{
   structuredContent: Record<string, unknown>;

@@ -4,7 +4,7 @@ const test = require("node:test");
 const {
   deriveRunStatusFromStepOutcomes,
   evaluateStepExpectations,
-} = require("@tools-regression-execution-plan-spec/regression_expectation_evaluator.util");
+} = require("@tools-feature-regression-suite");
 
 test("evaluateStepExpectations returns pass when all required expectations pass", () => {
   const evaluated = evaluateStepExpectations({

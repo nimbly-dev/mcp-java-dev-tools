@@ -4,7 +4,7 @@ import { createProbeDomain } from "@tools-feature-probe";
 import {
   executeExecutionOrchestrationResiliencyLoop,
   resolveExecutionOrchestrationLoopPolicy,
-} from "@tools-feature-execution-orchestration/shared/resiliency.util";
+} from "./shared/resiliency";
 import { deriveNextActionCode } from "@/utils/failure_diagnostics.util";
 import { executeHttpTransportRequest } from "@/utils/transport_execute_http.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
@@ -18,7 +18,7 @@ import { executePerformanceRuntimeSuite } from "@tools-feature-performance-suite
 import type {
   RuntimeSuiteBlockedResult,
   RuntimeSuiteRunResult,
-} from "@tools-regression-execution-plan-spec/models/regression_runtime_suite.model";
+} from "../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
 import path from "node:path";
 
 function blockedResponse(args: {
