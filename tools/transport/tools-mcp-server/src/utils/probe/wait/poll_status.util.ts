@@ -1,4 +1,4 @@
-import type { ToolTextResponse } from "@/models/tool_response.model";
+import type { ToolTextResponse } from "@tools-contracts/output";
 import { joinUrl } from "@/utils/probe.util";
 import { probeStatus } from "@/utils/probe/probe_status.util";
 import { readProbeUnreachableErrorMessage, sleep } from "@/utils/probe/wait_policy.util";

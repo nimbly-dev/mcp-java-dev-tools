@@ -5,3 +5,5 @@ export * from "./probe";
 export * from "./reason-codes";
 export * from "./route-synthesis";
 export * from "./transport-execute";
+export * from "./inputs";
+export * from "./output";

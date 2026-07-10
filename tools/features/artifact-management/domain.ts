@@ -1,5 +1,4 @@
-import { ARTIFACT_ACTION_ALLOWLIST, type ArtifactType } from "@/models/inputs/artifact_management/shared/actions.model";
-import type { ArtifactManagementRequest } from "@/models/inputs/artifact_management";
+import { ARTIFACT_ACTION_ALLOWLIST, type ArtifactType, type ArtifactManagementRequest } from "@tools-contracts/artifact-management";
 import type { ArtifactActionContext, ArtifactActionResult } from "@tools-feature-artifact-management/actions/types";
 import { handleProbeConfigArtifact } from "@tools-feature-artifact-management/actions/probe_config.action";
 import { handleProjectContextArtifact } from "@tools-feature-artifact-management/actions/project_context.action";

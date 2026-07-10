@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ProbeRegistrySummary } from "@/config/probe-registry";
-import { ArtifactManagementRequestSchema } from "@/models/inputs/artifact_management";
+import { ArtifactManagementRequestSchema } from "@tools-contracts/artifact-management";
+import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
 import { ARTIFACT_MANAGEMENT_TOOL } from "@/tools/core/artifact_management/contract";
 import { artifactManagementDomain, buildFailClosedArtifactResponse } from "@tools-feature-artifact-management";
 
@@ -56,7 +57,7 @@ export function registerArtifactManagementTool(server: McpServer, deps: Artifact
       const parsed = ArtifactManagementRequestSchema.safeParse(normalizeInputAliases(input));
       if (!parsed.success) {
         return buildFailClosedArtifactResponse({
-          reasonCode: "artifact_request_invalid",
+          reasonCode: MCP_REQUEST_REASON_CODES.artifactInvalid,
           reason: "artifact_management input schema validation failed",
           reasonMeta: {
             failedStep: "input_validation",

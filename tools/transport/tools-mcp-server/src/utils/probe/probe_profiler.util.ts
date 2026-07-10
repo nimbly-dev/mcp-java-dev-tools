@@ -4,7 +4,7 @@ import path from "node:path";
 import { fetchJson } from "@/lib/http";
 import { clampInt, DEFAULT_PROBE_TIMEOUT_MS, HARD_MAX_PROBE_TIMEOUT_MS } from "@/lib/safety";
 import { probeUnreachableMessage, joinUrl } from "@/utils/probe.util";
-import type { ToolTextResponse } from "@/models/tool_response.model";
+import type { ToolTextResponse } from "@tools-contracts/output";
 import { buildTextResponse } from "@/utils/probe/response_builders.util";
 
 function buildProfilerErrorResult(args: {

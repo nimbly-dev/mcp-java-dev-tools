@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { ExecutionOrchestrationRequestSchema } from "@/models/inputs/execution_orchestration";
+import { ExecutionOrchestrationRequestSchema } from "@tools-contracts/execution-orchestration";
+import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
 
 import { EXECUTION_ORCHESTRATION_TOOL } from "@/tools/core/execution_orchestration/contract";
 import { executionOrchestrationDomain } from "@tools-feature-execution-orchestration";
@@ -28,9 +29,9 @@ export function registerExecutionOrchestrationTool(
         }));
         const structuredContent = {
           resultType: "report",
-          status: "execution_request_invalid",
-          reasonCode: "execution_request_invalid",
-          nextActionCode: "execution_request_invalid",
+          status: MCP_REQUEST_REASON_CODES.executionInvalid,
+          reasonCode: MCP_REQUEST_REASON_CODES.executionInvalid,
+          nextActionCode: MCP_REQUEST_REASON_CODES.executionInvalid,
           reason: "execution_orchestration input schema validation failed",
           reasonMeta: { failedStep: "input_validation", issues },
         };

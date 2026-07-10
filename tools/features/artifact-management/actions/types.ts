@@ -1,4 +1,4 @@
-import type { ArtifactManagementRequest } from "@/models/inputs/artifact_management";
+import type { ArtifactManagementRequest } from "@tools-contracts/artifact-management";
 import type { ProbeRegistrySummary } from "@/config/probe-registry";
 
 export type ArtifactActionResult = {

@@ -1,4 +1,4 @@
-import type { ToolTextResponse } from "@/models/tool_response.model";
+import type { ToolTextResponse } from "@tools-contracts/output";
 import { classifyExecutionHitStrictLine, classifyReproStatusStrictLine } from "@/utils/probe/key.util";
 import { formatProbeOutput } from "@/utils/probe/output.util";
 import { buildTextResponse } from "@/utils/probe/response_builders.util";

@@ -14,3 +14,12 @@ export const COMMON_REASON_CODES = {
 } as const;
 
 export type CommonReasonCode = (typeof COMMON_REASON_CODES)[keyof typeof COMMON_REASON_CODES];
+
+export const MCP_REQUEST_REASON_CODES = {
+  probeInvalid: "probe_request_invalid",
+  artifactInvalid: "artifact_request_invalid",
+  executionInvalid: "execution_request_invalid",
+  routeSynthesisInvalid: "route_synthesis_request_invalid",
+} as const;
+
+export type McpReasonCode = string;

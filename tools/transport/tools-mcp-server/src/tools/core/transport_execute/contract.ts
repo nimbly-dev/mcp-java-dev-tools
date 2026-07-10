@@ -1,4 +1,4 @@
-import { TransportExecuteInputSchema } from "@/models/inputs";
+import { TransportExecuteInputSchema } from "@tools-contracts/transport-execute";
 import { TRANSPORT_EXECUTE_TOOL_CONTRACT } from "@tools-contracts/transport-execute";
 
 export const TRANSPORT_EXECUTE_TOOL = {
