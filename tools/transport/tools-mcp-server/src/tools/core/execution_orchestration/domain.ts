@@ -8,13 +8,13 @@ import {
 import { deriveNextActionCode } from "@/utils/failure_diagnostics.util";
 import { executeHttpTransportRequest } from "@/utils/transport_execute_http.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
-import { executePerformanceRuntimeSuite } from "@tools-regression-execution-plan-spec/performance_runtime_suite_executor.util";
 import {
   buildSuiteStatusArtifactRelPath,
+  executePerformanceRuntimeSuite,
   executeRegressionRuntimeSuite,
   readExecutionOrchestrationSuiteResult,
   writeExecutionOrchestrationSuiteResult,
-} from "@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util";
+} from "@tools-regression-suite";
 import type {
   RuntimeSuiteBlockedResult,
   RuntimeSuiteRunResult,

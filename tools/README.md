@@ -44,7 +44,9 @@ These are folder-level placeholders only. Spring HTTP is the only active synthes
   - `features/execution-profile-export`
 - `.mcpjvm/**` Artifact Spec implementations:
   - `spec/project-artifact-spec/src`
-  - `spec/regression-execution-plan-spec/src`
+  - `spec/regression-execution-plan-spec/src` (models, validation contracts, and path policy only)
+- Regression Suite runtime implementation:
+  - `features/regression-suite`
 - Spring HTTP synthesizer runtime implementation:
   - `synthesizers/tools-spring-http/src`
 
