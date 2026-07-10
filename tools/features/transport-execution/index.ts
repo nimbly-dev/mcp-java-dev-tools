@@ -1,2 +1,2 @@
-/** Public transport execution Feature Module boundary. */
+export { transportExecuteDomain } from "./domain";
 export type TransportExecutionFeatureModule = "transport-execution";

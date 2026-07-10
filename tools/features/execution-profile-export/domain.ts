@@ -1,10 +1,8 @@
-import {
-  exportExecutionProfilePerformancePs1,
-  exportExecutionProfilePerformanceSh,
-  exportExecutionProfilePostman,
-  exportExecutionProfilePs1,
-  exportExecutionProfileSh,
-} from "@tools-export-execution-profile/index";
+import { exportExecutionProfilePerformancePs1 } from "@tools-export-execution-profile/execution_profile_export_performance_ps1.service";
+import { exportExecutionProfilePerformanceSh } from "@tools-export-execution-profile/execution_profile_export_performance_sh.service";
+import { exportExecutionProfilePostman } from "@tools-export-execution-profile/execution_profile_export_postman.service";
+import { exportExecutionProfilePs1 } from "@tools-export-execution-profile/execution_profile_export_ps1.service";
+import { exportExecutionProfileSh } from "@tools-export-execution-profile/execution_profile_export_sh.service";
 import { loadExecutionProfileExportTarget } from "@tools-export-execution-profile/loaders/export_target.loader";
 import { resolveExportIdForExport } from "@tools-export-execution-profile/loaders/export_selector.loader";
 

@@ -12,7 +12,7 @@ import { resolveAdditionalSourceRoots } from "@/utils/source_roots_resolve.util"
 import {
   discoverClassMethods,
   inferTargets,
-} from "@/tools/core/route_synthesis/shared/target_inference.util";
+} from "@tools-feature-route-synthesis/shared/target_inference.util";
 
 function resolveProbeBaseUrlForTargetInfer(args: {
   config: RouteSynthesisTargetInferenceDeps["config"];

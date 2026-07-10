@@ -32,7 +32,7 @@ import {
 import {
   discoverClassMethods,
   inferTargets,
-} from "@/tools/core/route_synthesis/shared/target_inference.util";
+} from "@tools-feature-route-synthesis/shared/target_inference.util";
 
 export type { RecipeCandidate, RecipeExecutionPlan } from "@tools-core/recipe_types.util";
 export type {

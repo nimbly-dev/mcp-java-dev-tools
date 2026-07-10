@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { TRANSPORT_EXECUTE_TOOL } from "@/tools/core/transport_execute/contract";
-import { transportExecuteDomain } from "@/tools/core/transport_execute/domain";
+import { transportExecuteDomain } from "@tools-feature-transport-execution";
 
 export type TransportExecuteHandlerDeps = {
   allowNonWrappedExecutable: () => boolean;
