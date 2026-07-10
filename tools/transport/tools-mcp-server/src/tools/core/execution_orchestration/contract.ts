@@ -1,9 +1,8 @@
 import { ExecutionOrchestrationInputSchema } from "@/models/inputs";
+import { EXECUTION_ORCHESTRATION_TOOL_CONTRACT } from "@tools-contracts/execution-orchestration";
 
 export const EXECUTION_ORCHESTRATION_TOOL = {
-  name: "execution_orchestration",
-  description:
-    "Canonical runtime suite orchestrator for execution profiles. Executes ordered plans and persists canonical run artifacts with deterministic fail-closed behavior.",
+  ...EXECUTION_ORCHESTRATION_TOOL_CONTRACT,
   inputSchema: ExecutionOrchestrationInputSchema,
 } as const;
 

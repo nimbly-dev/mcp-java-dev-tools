@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-feature-route-synthesis",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Route Synthesis Feature Module public boundary",
+  "main": "index.ts",
+  "types": "index.ts"
+}

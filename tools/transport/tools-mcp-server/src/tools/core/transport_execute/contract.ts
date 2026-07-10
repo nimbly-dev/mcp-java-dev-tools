@@ -1,9 +1,8 @@
 import { TransportExecuteInputSchema } from "@/models/inputs";
+import { TRANSPORT_EXECUTE_TOOL_CONTRACT } from "@tools-contracts/transport-execute";
 
 export const TRANSPORT_EXECUTE_TOOL = {
-  name: "transport_execute",
-  description:
-    "Execute transport request via MCP wrapper only. Fail-closed when wrapped execution policy is violated.",
+  ...TRANSPORT_EXECUTE_TOOL_CONTRACT,
   inputSchema: TransportExecuteInputSchema,
 } as const;
 

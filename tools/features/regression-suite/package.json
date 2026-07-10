@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-feature-regression-suite",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Regression suite Feature Module public boundary",
+  "main": "index.ts",
+  "types": "index.ts"
+}

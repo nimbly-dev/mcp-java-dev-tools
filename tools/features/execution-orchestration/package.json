@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-feature-execution-orchestration",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Execution orchestration Feature Module public boundary",
+  "main": "index.ts",
+  "types": "index.ts"
+}

@@ -48,6 +48,21 @@ These are folder-level placeholders only. Spring HTTP is the only active synthes
 - Spring HTTP synthesizer runtime implementation:
   - `synthesizers/tools-spring-http/src`
 
+## Feature Module boundary conventions
+
+- Every Feature Module has a public `index.ts` entrypoint.
+- Action selection belongs in `actions/index.ts` as a typed dispatch map; it
+  contains no product behavior.
+- `shared/**` is Feature-private. A Feature Module must not import another
+  Feature Module's `shared/**` path, and Transport Adapters must not import
+  Feature-private code directly.
+- Real multi-feature consumers have a named owner under `tools/core/**`,
+  `tools/contracts/**`, or `tools/spec/**`.
+- Anonymous global `tools/shared/**` and `utils/shared/**` directories are
+  prohibited.
+
+Run `npm run boundaries:check` to enforce these structural rules.
+
 ## Runtime External Synthesizer Loading
 - Configure external plugin module specifiers with:
   - `MCP_SYNTHESIZER_PLUGIN_MODULES`

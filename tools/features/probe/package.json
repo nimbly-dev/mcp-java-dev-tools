@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-feature-probe",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Probe Feature Module public boundary",
+  "main": "index.ts",
+  "types": "index.ts"
+}

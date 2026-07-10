@@ -1,5 +1,8 @@
 {
   "name": "@mcp-java-dev-tools/tools-registry",
   "private": true,
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "description": "Synthesizer registry and compatibility loading primitives",
+  "main": "src/plugin.loader.ts",
+  "types": "src/plugin.contract.ts"
 }
