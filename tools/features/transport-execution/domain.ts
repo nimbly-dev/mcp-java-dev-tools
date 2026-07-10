@@ -1,4 +1,4 @@
-import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
+import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
 import { executeHttpTransportRequest } from "@/utils/transport_execute_http.util";
 
 function elapsedMs(startEpochMs: number): number {

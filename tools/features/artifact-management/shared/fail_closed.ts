@@ -1,4 +1,4 @@
-import { deriveNextActionCode } from "@/utils/failure_diagnostics.util";
+import { deriveNextActionCode } from "@tools-core/failure_diagnostics";
 import type { ArtifactActionResult } from "../actions/types";
 
 export function buildFailClosedArtifactResponse(args: {

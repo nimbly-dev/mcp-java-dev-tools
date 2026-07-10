@@ -1,11 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { fetchJson } from "@/lib/http";
-import { clampInt, DEFAULT_PROBE_TIMEOUT_MS, HARD_MAX_PROBE_TIMEOUT_MS } from "@/lib/safety";
-import { probeUnreachableMessage, joinUrl } from "@/utils/probe.util";
+import { fetchJson } from "@tools-core/http";
+import { clampInt, DEFAULT_PROBE_TIMEOUT_MS, HARD_MAX_PROBE_TIMEOUT_MS } from "@tools-core/safety";
+import { probeUnreachableMessage, joinUrl } from "../probe.util";
 import type { ToolTextResponse } from "@tools-contracts/output";
-import { buildTextResponse } from "@/utils/probe/response_builders.util";
+import { buildTextResponse } from "./response_builders.util";
 
 function buildProfilerErrorResult(args: {
   responseStatus: number;

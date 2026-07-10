@@ -1,46 +1,7 @@
-import { ARTIFACT_ACTION_ALLOWLIST, type ArtifactType, type ArtifactManagementRequest } from "@tools-contracts/artifact-management";
+import type { ArtifactManagementRequest } from "@tools-contracts/artifact-management";
 import type { ArtifactActionContext, ArtifactActionResult } from "./actions/types";
-import { handleProbeConfigArtifact } from "./actions/probe_config.action";
-import { handleProjectContextArtifact } from "./actions/project_context.action";
-import { handleRegressionPlanArtifact } from "./actions/regression_plan.action";
-import { handleRunResultArtifact } from "./actions/run_result.action";
-import { handleExecutionExportArtifact } from "./actions/execution_export.action";
+import { dispatchArtifactAction } from "./actions";
 import { buildFailClosedArtifactResponse } from "./shared/fail_closed";
-
-function actionAllowed(artifactType: ArtifactType, action: string): boolean {
-  const actions = ARTIFACT_ACTION_ALLOWLIST[artifactType];
-  return (actions as readonly string[]).includes(action);
-}
-
-export async function dispatchArtifactAction(
-  ctx: ArtifactActionContext,
-  request: ArtifactManagementRequest,
-): Promise<ArtifactActionResult> {
-  if (!actionAllowed(request.artifactType, request.action)) {
-    return buildFailClosedArtifactResponse({
-      reasonCode: "artifact_action_not_allowed",
-      reason: `action '${request.action}' is not permitted for artifactType '${request.artifactType}'`,
-      reasonMeta: {
-        artifactType: request.artifactType,
-        action: request.action,
-        allowedActions: [...ARTIFACT_ACTION_ALLOWLIST[request.artifactType]],
-      },
-    });
-  }
-  if (request.artifactType === "probe_config") {
-    return await handleProbeConfigArtifact(ctx, request);
-  }
-  if (request.artifactType === "project_context") {
-    return await handleProjectContextArtifact(ctx, request);
-  }
-  if (request.artifactType === "regression_plan") {
-    return await handleRegressionPlanArtifact(ctx, request);
-  }
-  if (request.artifactType === "run_result") {
-    return await handleRunResultArtifact(ctx, request);
-  }
-  return await handleExecutionExportArtifact(ctx, request);
-}
 
 export async function artifactManagementDomain(input: {
   workspaceRootAbs: string;

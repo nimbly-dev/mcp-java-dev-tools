@@ -1,11 +1,11 @@
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
-import { CONFIG_DEFAULTS } from "@/config/defaults";
+import { CONFIG_DEFAULTS } from "@tools-core/probe_defaults";
 import { createProbeDomain } from "@tools-feature-probe";
 import {
   executeExecutionOrchestrationResiliencyLoop,
   resolveExecutionOrchestrationLoopPolicy,
 } from "./shared/resiliency";
-import { deriveNextActionCode } from "@/utils/failure_diagnostics.util";
+import { deriveNextActionCode } from "@tools-core/failure_diagnostics";
 import { executeHttpTransportRequest } from "@/utils/transport_execute_http.util";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 import {

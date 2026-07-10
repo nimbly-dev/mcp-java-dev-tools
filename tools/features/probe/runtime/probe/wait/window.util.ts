@@ -1,4 +1,4 @@
-import { LAST_RESET_EPOCH_BY_KEY } from "@/utils/probe/constants.util";
+import { LAST_RESET_EPOCH_BY_KEY } from "../constants.util";
 
 export type ProbeWaitWindow = {
   waitStartMs: number;

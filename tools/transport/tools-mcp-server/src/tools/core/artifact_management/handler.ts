@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ProbeRegistrySummary } from "@/config/probe-registry";
+import type { ProbeRegistrySummary } from "@tools-core/probe-registry";
 import { ArtifactManagementRequestSchema } from "@tools-contracts/artifact-management";
 import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
 import { ARTIFACT_MANAGEMENT_TOOL } from "@/tools/core/artifact_management/contract";

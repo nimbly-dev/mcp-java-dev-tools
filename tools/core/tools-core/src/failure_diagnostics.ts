@@ -1,4 +1,4 @@
-import type { FailureReasonMeta } from "@/models/failure_diagnostics.model";
+import type { FailureReasonMeta } from "@tools-core/failure_diagnostics.model";
 
 const NEXT_ACTION_CODE_BY_REASON: Record<string, string> = {
   project_selector_required: "provide_project_root",

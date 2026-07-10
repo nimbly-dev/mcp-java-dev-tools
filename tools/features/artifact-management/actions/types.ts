@@ -1,5 +1,5 @@
 import type { ArtifactManagementRequest } from "@tools-contracts/artifact-management";
-import type { ProbeRegistrySummary } from "@/config/probe-registry";
+import type { ProbeRegistrySummary } from "@tools-core/probe-registry";
 
 export type ArtifactActionResult = {
   content: Array<{ type: "text"; text: string }>;

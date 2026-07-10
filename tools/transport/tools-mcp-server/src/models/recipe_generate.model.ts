@@ -1,5 +1,5 @@
 import type { AuthResolution } from "@/models/auth_resolution.model";
-import type { FailureReasonMeta } from "@/models/failure_diagnostics.model";
+import type { FailureReasonMeta } from "@tools-core/failure_diagnostics.model";
 import type { SynthesisHttpTrigger } from "@/models/synthesis/synthesizer_output.model";
 import type { IntentMode, RecipeStatus } from "@tools-core/recipe_constants.util";
 import type {

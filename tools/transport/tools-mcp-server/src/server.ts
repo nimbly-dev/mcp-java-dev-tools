@@ -6,8 +6,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
-import { CONFIG_DEFAULTS } from "@/config/defaults";
-import { loadProbeRegistry, summarizeProbeRegistry, type ProbeRegistrySummary } from "@/config/probe-registry";
+import { CONFIG_DEFAULTS } from "@tools-core/probe_defaults";
+import { loadProbeRegistry, summarizeProbeRegistry, type ProbeRegistrySummary } from "@tools-core/probe-registry";
 import { registerRouteSynthesisTool } from "@/tools/core/route_synthesis/handler";
 import { registerProbeTools } from "@/tools/core/probe/handler";
 import { registerTransportExecuteTool } from "@/tools/core/transport_execute/handler";
