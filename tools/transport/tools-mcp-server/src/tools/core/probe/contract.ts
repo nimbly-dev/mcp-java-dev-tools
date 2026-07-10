@@ -1,4 +1,4 @@
-import { ProbeInputSchema } from "@/models/inputs";
+import { ProbeInputSchema } from "@tools-contracts/probe";
 import { PROBE_TOOL_CONTRACT } from "@tools-contracts/probe";
 
 export const PROBE_TOOL = {

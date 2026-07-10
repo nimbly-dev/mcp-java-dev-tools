@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import { ProbeRequestSchema } from "@/models/inputs";
+import { ProbeRequestSchema } from "@tools-contracts/probe";
+import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
 import { createProbeDomain, executeProbeAction, type ProbeActionRequest } from "@tools-feature-probe";
 import { PROBE_TOOL } from "@/tools/core/probe/contract";
 import type { ProbeRegistry } from "@/config/probe-registry";
@@ -36,9 +37,9 @@ export function registerProbeTools(server: McpServer, cfg: ProbeHandlerConfig): 
         }));
         const structuredContent = {
           resultType: "report",
-          status: "probe_request_invalid",
-          reasonCode: "probe_request_invalid",
-          nextActionCode: "probe_request_invalid",
+          status: MCP_REQUEST_REASON_CODES.probeInvalid,
+          reasonCode: MCP_REQUEST_REASON_CODES.probeInvalid,
+          nextActionCode: MCP_REQUEST_REASON_CODES.probeInvalid,
           reason: "probe input schema validation failed",
           reasonMeta: { failedStep: "input_validation", issues },
         };

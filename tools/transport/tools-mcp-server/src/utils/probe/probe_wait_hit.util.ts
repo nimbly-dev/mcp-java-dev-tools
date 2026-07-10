@@ -7,7 +7,7 @@ import {
   HARD_MAX_PROBE_TIMEOUT_MS,
   HARD_MAX_PROBE_WAIT_MAX_RETRIES,
 } from "@/lib/safety";
-import type { ToolTextResponse } from "@/models/tool_response.model";
+import type { ToolTextResponse } from "@tools-contracts/output";
 import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
 import { joinUrl, parseProbeSnapshot } from "@/utils/probe.util";
 import { isLineKey, resolveProbeKey } from "@/utils/probe/key.util";

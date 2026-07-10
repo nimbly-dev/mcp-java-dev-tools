@@ -3,7 +3,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   RouteSynthesisActionSchema,
   type RouteSynthesisAction,
-} from "@/models/inputs";
+} from "@tools-contracts/route-synthesis";
+import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
 import type { RouteSynthesisHandlerDeps } from "@/models/route_synthesis.model";
 import { ROUTE_SYNTHESIS_TOOL } from "@/tools/core/route_synthesis/contract";
 import { routeSynthesisDomain } from "@tools-feature-route-synthesis";
@@ -12,7 +13,7 @@ function toInvalidRequestResponse(message: string) {
   const structuredContent = {
     resultType: "report",
     status: "blocked_invalid",
-    reasonCode: "route_synthesis_request_invalid",
+    reasonCode: MCP_REQUEST_REASON_CODES.routeSynthesisInvalid,
     nextActionCode: "fix_route_synthesis_request",
     failedStep: "input_validation",
     reason: message,

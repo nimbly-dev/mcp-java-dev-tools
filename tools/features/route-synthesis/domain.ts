@@ -1,4 +1,4 @@
-import type { RouteSynthesisAction } from "@/models/inputs";
+import type { RouteSynthesisAction } from "@tools-contracts/route-synthesis";
 import type { RouteSynthesisHandlerDeps } from "@/models/route_synthesis.model";
 import { runClassMethods } from "@tools-feature-route-synthesis/actions/class_methods.action";
 import { runRecipeCreate } from "@tools-feature-route-synthesis/actions/create_recipe.action";

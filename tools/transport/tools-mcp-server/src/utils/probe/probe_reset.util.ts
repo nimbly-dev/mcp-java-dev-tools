@@ -1,6 +1,6 @@
 import { fetchJson } from "@/lib/http";
 import { clampInt, DEFAULT_PROBE_TIMEOUT_MS, HARD_MAX_PROBE_TIMEOUT_MS } from "@/lib/safety";
-import type { ToolTextResponse } from "@/models/tool_response.model";
+import type { ToolTextResponse } from "@tools-contracts/output";
 import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
 import { joinUrl, probeUnreachableMessage } from "@/utils/probe.util";
 import { formatProbeOutput } from "@/utils/probe/output.util";

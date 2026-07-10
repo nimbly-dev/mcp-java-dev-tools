@@ -1,5 +1,5 @@
 import type { ProbeRegistry } from "@/config/probe-registry";
-import type { ToolTextResponse } from "@/models/tool_response.model";
+import type { ToolTextResponse } from "@tools-contracts/output";
 import { buildTextResponse } from "@/utils/probe/response_builders.util";
 
 function buildProbeSelectionBlockedResponse(args: {
