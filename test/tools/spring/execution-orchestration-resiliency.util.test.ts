@@ -5,7 +5,7 @@ const {
   EXECUTION_ORCHESTRATION_TIMEOUT_INTERCEPT_MS,
   executeExecutionOrchestrationResiliencyLoop,
   resolveExecutionOrchestrationLoopPolicy,
-} = require("@/tools/core/execution_orchestration/shared/resiliency.util");
+} = require("@tools-feature-execution-orchestration/shared/resiliency.util");
 
 test("resolveExecutionOrchestrationLoopPolicy caps effective timeout budget below raw tool timeout", () => {
   const policy = resolveExecutionOrchestrationLoopPolicy({

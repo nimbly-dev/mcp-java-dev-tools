@@ -1,6 +1,5 @@
 export { executeRegressionPlanWorkflow } from "./shared/regression_plan_executor.util";
 export { executeRegressionRuntimeSuite } from "./shared/regression_runtime_suite_executor.util";
-export { executePerformanceRuntimeSuite } from "./shared/performance_runtime_suite_executor.util";
 export {
   buildSuiteStatusArtifactRelPath,
   readExecutionOrchestrationSuiteResult,

@@ -24,6 +24,8 @@
       "@tools-feature-regression-suite/*": ["tools/features/regression-suite/*"],
       "@tools-feature-performance-suite": ["tools/features/performance-suite/index.ts"],
       "@tools-feature-performance-suite/*": ["tools/features/performance-suite/*"],
+      "@tools-feature-performance-workload-jmeter": ["tools/features/performance-workload-jmeter/index.ts"],
+      "@tools-feature-performance-workload-jmeter/*": ["tools/features/performance-workload-jmeter/*"],
       "@tools-feature-route-synthesis": ["tools/features/route-synthesis/index.ts"],
       "@tools-feature-route-synthesis/*": ["tools/features/route-synthesis/*"],
       "@tools-feature-transport-execution": ["tools/features/transport-execution/index.ts"],

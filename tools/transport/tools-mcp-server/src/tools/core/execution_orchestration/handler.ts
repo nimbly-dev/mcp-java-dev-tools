@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ExecutionOrchestrationRequestSchema } from "@/models/inputs/execution_orchestration";
 
 import { EXECUTION_ORCHESTRATION_TOOL } from "@/tools/core/execution_orchestration/contract";
-import { executionOrchestrationDomain } from "@/tools/core/execution_orchestration/domain";
+import { executionOrchestrationDomain } from "@tools-feature-execution-orchestration";
 
 export type ExecutionOrchestrationHandlerDeps = {
   workspaceRootAbs: string;
