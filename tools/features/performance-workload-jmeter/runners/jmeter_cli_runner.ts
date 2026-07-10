@@ -21,13 +21,15 @@ async function fileExists(absPath: string): Promise<boolean> {
   }
 }
 
-export async function runJmeterGeneratedHttpWorkload(args: {
+export type RunJmeterGeneratedHttpWorkloadArgs = {
   provider: JmeterWorkloadProvider;
   request: JmeterGeneratedHttpRequest;
   loadModel: JmeterGeneratedHttpLoadModel;
   runDirAbs: string;
   planName: string;
-}): Promise<JmeterWorkloadRunResult> {
+};
+
+export async function runJmeterGeneratedHttpWorkload(args: RunJmeterGeneratedHttpWorkloadArgs): Promise<JmeterWorkloadRunResult> {
   const executable = await resolveJmeterExecutable(
     typeof args.provider.options?.installationPath === "string"
       ? {

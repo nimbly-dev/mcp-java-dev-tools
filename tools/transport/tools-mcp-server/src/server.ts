@@ -298,6 +298,18 @@ async function main() {
   });
   registerExecutionOrchestrationTool(server, {
     workspaceRootAbs: cfg.workspaceRootAbs,
+    probeConfig: {
+      probeBaseUrl: cfg.probeBaseUrl,
+      probeStatusPath: cfg.probeStatusPath,
+      probeResetPath: cfg.probeResetPath,
+      probeActuatePath,
+      probeCapturePath: cfg.probeCapturePath,
+      probeProfilerPath,
+      probeWaitMaxRetries: cfg.probeWaitMaxRetries,
+      probeWaitUnreachableRetryEnabled: cfg.probeWaitUnreachableRetryEnabled,
+      probeWaitUnreachableMaxRetries: cfg.probeWaitUnreachableMaxRetries,
+      ...(cfg.probeRegistry ? { getProbeRegistry: () => cfg.probeRegistry } : {}),
+    },
   });
 
   const transport = new StdioServerTransport();

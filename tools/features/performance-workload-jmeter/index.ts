@@ -1,4 +1,5 @@
 export { runJmeterGeneratedHttpWorkload } from "./runners/jmeter_cli_runner";
+export { dispatchPerformanceWorkloadJmeterAction } from "./actions/index";
 export type {
   BuiltinWorkloadProvider,
   JmeterGeneratedHttpLoadModel,

@@ -1,10 +1,9 @@
-import { loadConfigFromEnvAndArgs } from "@/config/server-config";
 import { CONFIG_DEFAULTS } from "@tools-core/probe_defaults";
-import { createProbeDomain } from "@tools-feature-probe";
+import { createProbeDomain, type ProbeDomainConfig } from "@tools-feature-probe";
 import {
   executeExecutionOrchestrationResiliencyLoop,
   resolveExecutionOrchestrationLoopPolicy,
-} from "./shared/resiliency";
+} from "../shared/resiliency";
 import { deriveNextActionCode } from "@tools-core/failure_diagnostics";
 import { executeHttpTransportRequest } from "@tools-feature-transport-execution";
 import { readProjectArtifact } from "@tools-feature-artifact-management";
@@ -14,11 +13,11 @@ import {
   readExecutionOrchestrationSuiteResult,
   writeExecutionOrchestrationSuiteResult,
 } from "@tools-regression-suite";
-import { executePerformanceRuntimeSuite } from "@tools-feature-performance-suite";
+import { dispatchPerformanceSuiteAction } from "@tools-feature-performance-suite";
 import type {
   RuntimeSuiteBlockedResult,
   RuntimeSuiteRunResult,
-} from "../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
 import path from "node:path";
 
 function blockedResponse(args: {
@@ -49,6 +48,7 @@ function isSuiteBlockedResult(
 export async function executionOrchestrationDomain(input: {
   workspaceRootAbs: string;
   action: "execute";
+  probeConfig?: ProbeDomainConfig;
   payload: {
     projectName: string;
     executionProfile: string;
@@ -92,19 +92,18 @@ export async function executionOrchestrationDomain(input: {
     });
   }
 
-  const cfg = loadConfigFromEnvAndArgs(process.argv);
-  const probeDomain = createProbeDomain({
-    probeBaseUrl: cfg.probeBaseUrl,
-    probeStatusPath: cfg.probeStatusPath,
-    probeResetPath: cfg.probeResetPath,
+  const probeConfig = input.probeConfig ?? {
+    probeBaseUrl: "",
+    probeStatusPath: CONFIG_DEFAULTS.PROBE_STATUS_PATH,
+    probeResetPath: CONFIG_DEFAULTS.PROBE_RESET_PATH,
     probeActuatePath: CONFIG_DEFAULTS.PROBE_ACTUATE_PATH,
-    probeCapturePath: cfg.probeCapturePath,
+    probeCapturePath: CONFIG_DEFAULTS.PROBE_CAPTURE_PATH,
     probeProfilerPath: CONFIG_DEFAULTS.PROBE_PROFILER_PATH,
-    probeWaitMaxRetries: cfg.probeWaitMaxRetries,
-    probeWaitUnreachableRetryEnabled: cfg.probeWaitUnreachableRetryEnabled,
-    probeWaitUnreachableMaxRetries: cfg.probeWaitUnreachableMaxRetries,
-    ...(cfg.probeRegistry ? { getProbeRegistry: () => cfg.probeRegistry } : {}),
-  });
+    probeWaitMaxRetries: CONFIG_DEFAULTS.PROBE_WAIT_MAX_RETRIES,
+    probeWaitUnreachableRetryEnabled: CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_RETRY_ENABLED,
+    probeWaitUnreachableMaxRetries: CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES,
+  } satisfies ProbeDomainConfig;
+  const probeDomain = createProbeDomain(probeConfig);
 
   let priorSuite:
     | Awaited<ReturnType<typeof readExecutionOrchestrationSuiteResult>>
@@ -217,7 +216,7 @@ export async function executionOrchestrationDomain(input: {
 
   const invokeSuiteTool = async ({ toolName, input: toolInput }: { toolName: string; input: Record<string, unknown> }) => {
     if (toolName === "transport_execute") {
-      if (toolInput.wrappedOnly !== false && (cfg.probeRegistry?.allowNonWrappedExecutable ?? false)) {
+      if (toolInput.wrappedOnly !== false && (probeConfig.getProbeRegistry?.()?.allowNonWrappedExecutable ?? false)) {
         return {
           structuredContent: {
             status: "blocked_invalid",
@@ -274,7 +273,9 @@ export async function executionOrchestrationDomain(input: {
     priorSuite?: NonNullable<typeof priorSuite> | null;
   }, remainingBudgetMs: number) =>
     profile.suiteType === "performance"
-      ? await executePerformanceRuntimeSuite({
+      ? await dispatchPerformanceSuiteAction({
+          action: "execute",
+          input: {
           workspaceRootAbs: input.workspaceRootAbs,
           projectName,
           executionProfile,
@@ -288,6 +289,7 @@ export async function executionOrchestrationDomain(input: {
             ? { startPlanOrder: state.priorSuite.nextPlanOrder }
             : {}),
           mcpInvoke: invokeSuiteTool,
+          },
         })
       : await executeRegressionRuntimeSuite({
           workspaceRootAbs: input.workspaceRootAbs,

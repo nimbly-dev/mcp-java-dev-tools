@@ -1,4 +1,5 @@
-export { executionOrchestrationDomain } from "./domain";
+export { executionOrchestrationDomain } from "./actions/execute_execution_orchestration.action";
+export { dispatchExecutionOrchestrationAction } from "./actions/index";
 export {
   EXECUTION_ORCHESTRATION_TIMEOUT_INTERCEPT_MS,
   executeExecutionOrchestrationResiliencyLoop,
