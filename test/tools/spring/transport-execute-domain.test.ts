@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const test = require("node:test");
 
-const { transportExecuteDomain } = require("@/tools/core/transport_execute/domain");
+const { transportExecuteDomain } = require("@tools-feature-transport-execution/domain");
 
 async function createServer(statusCode: number, body: string) {
   const server = http.createServer((_req: any, res: any) => {

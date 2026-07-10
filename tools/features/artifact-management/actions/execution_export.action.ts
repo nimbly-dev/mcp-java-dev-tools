@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { executionProfileExportDomain } from "@/tools/core/execution_profile_export/domain";
+import { executionProfileExportDomain } from "@tools-export-execution-profile";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "@tools-feature-artifact-management/actions/types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "@tools-feature-artifact-management/shared/fail_closed.util";
 import { resolveProjectName } from "@tools-feature-artifact-management/shared/project_resolution.util";

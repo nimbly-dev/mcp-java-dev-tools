@@ -15,7 +15,7 @@ import type { SynthesizerRegistry } from "@tools-registry/plugin.loader";
 import type {
   discoverClassMethods,
   inferTargets,
-} from "@/tools/core/route_synthesis/shared/target_inference.util";
+} from "@tools-feature-route-synthesis";
 
 export type RecipeResultType = "recipe" | "report";
 

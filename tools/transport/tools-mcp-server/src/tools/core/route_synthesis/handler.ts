@@ -6,9 +6,7 @@ import {
 } from "@/models/inputs";
 import type { RouteSynthesisHandlerDeps } from "@/models/route_synthesis.model";
 import { ROUTE_SYNTHESIS_TOOL } from "@/tools/core/route_synthesis/contract";
-import {
-  routeSynthesisDomain,
-} from "@/tools/core/route_synthesis/domain";
+import { routeSynthesisDomain } from "@tools-feature-route-synthesis";
 
 function toInvalidRequestResponse(message: string) {
   const structuredContent = {

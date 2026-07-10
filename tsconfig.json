@@ -29,6 +29,7 @@
       "@tools-feature-transport-execution": ["tools/features/transport-execution/index.ts"],
       "@tools-feature-transport-execution/*": ["tools/features/transport-execution/*"],
       "@tools-spring-http/*": ["tools/synthesizers/tools-spring-http/src/*"],
+      "@tools-export-execution-profile": ["tools/features/execution-profile-export/index.ts"],
       "@tools-export-execution-profile/*": ["tools/features/execution-profile-export/*"],
       "@tools-performance-workload-jmeter/*": ["tools/features/performance-workload-jmeter/*"],
       "@tools-regression-execution-plan-spec/*": [

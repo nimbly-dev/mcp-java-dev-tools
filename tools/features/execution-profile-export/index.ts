@@ -3,6 +3,7 @@ export { exportExecutionProfileSh } from "@tools-export-execution-profile/execut
 export { exportExecutionProfilePostman } from "@tools-export-execution-profile/execution_profile_export_postman.service";
 export { exportExecutionProfilePerformancePs1 } from "@tools-export-execution-profile/execution_profile_export_performance_ps1.service";
 export { exportExecutionProfilePerformanceSh } from "@tools-export-execution-profile/execution_profile_export_performance_sh.service";
+export { executionProfileExportDomain } from "@tools-export-execution-profile/domain";
 export type {
   ExportExecutionProfilePs1Input,
   ExportExecutionProfilePs1Result,
