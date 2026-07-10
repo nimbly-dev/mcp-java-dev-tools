@@ -16,7 +16,7 @@ import {
 } from "../performance_msta_summary";
 import { readProjectArtifact } from "@tools-feature-artifact-management";
 import {
-  runJmeterGeneratedHttpWorkload,
+  dispatchPerformanceWorkloadJmeterAction,
   type JmeterWorkloadProvider,
   type PerformanceWorkloadProvider,
 } from "../../performance-workload-jmeter/index";
@@ -591,12 +591,15 @@ async function executePerformancePlanWorkflow(
       if (typeof resolved.request.timeoutMs === "number") {
         jmeterRequest.timeoutMs = resolved.request.timeoutMs;
       }
-      const jmeterResult = await runJmeterGeneratedHttpWorkload({
+      const jmeterResult = await dispatchPerformanceWorkloadJmeterAction({
+        action: "execute",
+        input: {
         provider: contract.workloadProvider as JmeterWorkloadProvider,
         request: jmeterRequest,
         loadModel: contract.loadModel,
         runDirAbs,
         planName: args.planName,
+        },
       });
       workloadProviderArtifacts = jmeterResult.artifacts;
       if (jmeterResult.status === "blocked") {

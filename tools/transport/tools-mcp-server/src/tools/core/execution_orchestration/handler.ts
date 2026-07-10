@@ -1,12 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ExecutionOrchestrationRequestSchema } from "@tools-contracts/execution-orchestration";
 import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
+import type { ProbeDomainConfig } from "@tools-feature-probe";
 
 import { EXECUTION_ORCHESTRATION_TOOL } from "@/tools/core/execution_orchestration/contract";
-import { executionOrchestrationDomain } from "@tools-feature-execution-orchestration";
+import { dispatchExecutionOrchestrationAction } from "@tools-feature-execution-orchestration";
 
 export type ExecutionOrchestrationHandlerDeps = {
   workspaceRootAbs: string;
+  probeConfig: ProbeDomainConfig;
 };
 
 export function registerExecutionOrchestrationTool(
@@ -41,17 +43,10 @@ export function registerExecutionOrchestrationTool(
         };
       }
 
-      return await executionOrchestrationDomain({
+      return await dispatchExecutionOrchestrationAction({
         workspaceRootAbs: deps.workspaceRootAbs,
-        action: parsed.data.action,
-        payload: {
-          projectName: parsed.data.input.projectName,
-          executionProfile: parsed.data.input.executionProfile,
-          ...(typeof parsed.data.input.suiteRunId === "string" ? { suiteRunId: parsed.data.input.suiteRunId } : {}),
-          ...(typeof parsed.data.input.maxPlansPerCall === "number"
-            ? { maxPlansPerCall: parsed.data.input.maxPlansPerCall }
-            : {}),
-        },
+        probeConfig: deps.probeConfig,
+        request: parsed.data,
       });
     },
   );
