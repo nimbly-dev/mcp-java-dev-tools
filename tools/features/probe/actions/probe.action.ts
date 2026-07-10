@@ -1,109 +1,27 @@
-import { probeActuate as probeActuateUtil } from "./runtime/probe/probe_actuate.util";
-import { probeCaptureGet as probeCaptureGetUtil } from "./runtime/probe/probe_capture_get.util";
-import { probeProfiler as probeProfilerUtil } from "./runtime/probe/probe_profiler.util";
-import { probeReset as probeResetUtil } from "./runtime/probe/probe_reset.util";
-import { resolveProbeBaseUrl } from "./runtime/probe/probe_route_resolver.util";
-import { probeStatus as probeStatusUtil } from "./runtime/probe/probe_status.util";
-import { probeWaitHit as probeWaitHitUtil } from "./runtime/probe/probe_wait_hit.util";
+import { probeActuate as probeActuateUtil } from "../runtime/probe/probe_actuate.util";
+import { probeCaptureGet as probeCaptureGetUtil } from "../runtime/probe/probe_capture_get.util";
+import { probeProfiler as probeProfilerUtil } from "../runtime/probe/probe_profiler.util";
+import { probeReset as probeResetUtil } from "../runtime/probe/probe_reset.util";
+import { resolveProbeBaseUrl } from "../runtime/probe/probe_route_resolver.util";
+import { probeStatus as probeStatusUtil } from "../runtime/probe/probe_status.util";
+import { probeWaitHit as probeWaitHitUtil } from "../runtime/probe/probe_wait_hit.util";
 import { fetchJson } from "@tools-core/http";
 import { clampInt, DEFAULT_PROBE_TIMEOUT_MS, HARD_MAX_PROBE_TIMEOUT_MS } from "@tools-core/safety";
 import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
-import { joinUrl } from "./runtime/probe.util";
-import { formatProbeOutput } from "./runtime/probe/output.util";
-import type { ProbeRegistry } from "@tools-core/probe-registry";
-
-export type ProbeDomainConfig = {
-  probeBaseUrl: string;
-  probeStatusPath: string;
-  probeResetPath: string;
-  probeActuatePath: string;
-  probeCapturePath: string;
-  probeProfilerPath: string;
-  probeWaitMaxRetries: number;
-  probeWaitUnreachableRetryEnabled: boolean;
-  probeWaitUnreachableMaxRetries: number;
-  getProbeRegistry?: () => ProbeRegistry | undefined;
-};
-
-export type ProbeEnableInput = {
-  baseUrl?: string | undefined;
-  probeId?: string | undefined;
-  action: "arm" | "disarm";
-  sessionId: string;
-  actuatorId?: string | undefined;
-  targetKey?: string | undefined;
-  returnBoolean?: boolean | undefined;
-  ttlMs?: number | undefined;
-  timeoutMs?: number | undefined;
-};
-
-export type ProbeCheckInput = {
-  baseUrl?: string | undefined;
-  probeId?: string | undefined;
-  http?:
-    | {
-        headers?: Record<string, string> | undefined;
-      }
-    | undefined;
-  timeoutMs?: number | undefined;
-};
-
-export type ProbeGetCaptureInput = {
-  captureId: string;
-  baseUrl?: string | undefined;
-  probeId?: string | undefined;
-  timeoutMs?: number | undefined;
-};
-
-export type ProbeGetStatusInput = {
-  key?: string | undefined;
-  keys?: string[] | undefined;
-  lineHint?: number | undefined;
-  baseUrl?: string | undefined;
-  probeId?: string | undefined;
-  timeoutMs?: number | undefined;
-};
-
-export type ProbeResetInput = {
-  key?: string | undefined;
-  keys?: string[] | undefined;
-  className?: string | undefined;
-  lineHint?: number | undefined;
-  baseUrl?: string | undefined;
-  probeId?: string | undefined;
-  timeoutMs?: number | undefined;
-};
-
-export type ProbeWaitForHitInput = {
-  key: string;
-  lineHint?: number | undefined;
-  baseUrl?: string | undefined;
-  probeId?: string | undefined;
-  timeoutMs?: number | undefined;
-  pollIntervalMs?: number | undefined;
-  maxRetries?: number | undefined;
-};
-
-export type ProbeProfilerInput = {
-  action: "start" | "stop" | "reset" | "status" | "download";
-  sessionId?: string | undefined;
-  event?: string | undefined;
-  intervalNanos?: number | undefined;
-  outputPath?: string | undefined;
-  outputFormat?: "jfr" | undefined;
-  baseUrl?: string | undefined;
-  probeId?: string | undefined;
-  timeoutMs?: number | undefined;
-};
-
-export type ProbeActionRequest =
-  | { action: "actuate"; input: ProbeEnableInput }
-  | { action: "capture"; input: ProbeGetCaptureInput }
-  | { action: "check"; input: ProbeCheckInput }
-  | { action: "reset"; input: ProbeResetInput }
-  | { action: "status"; input: ProbeGetStatusInput }
-  | { action: "wait_for_hit"; input: ProbeWaitForHitInput }
-  | { action: "profiler"; input: ProbeProfilerInput };
+import { joinUrl } from "../runtime/probe.util";
+import { formatProbeOutput } from "../runtime/probe/output.util";
+import type {
+  ProbeActionRequest,
+  ProbeCheckInput,
+  ProbeDomainConfig,
+  ProbeEnableInput,
+  ProbeGetCaptureInput,
+  ProbeGetStatusInput,
+  ProbeProfilerInput,
+  ProbeResetInput,
+  ProbeWaitForHitInput,
+} from "../models/probe_action.model";
+export type * from "../models/probe_action.model";
 
 function sanitizeRuntime(runtime: unknown): Record<string, unknown> | undefined {
   if (!runtime || typeof runtime !== "object") return undefined;

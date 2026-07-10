@@ -7,7 +7,7 @@ import {
 import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
 import type { RouteSynthesisHandlerDeps } from "@tools-feature-route-synthesis";
 import { ROUTE_SYNTHESIS_TOOL } from "@/tools/core/route_synthesis/contract";
-import { routeSynthesisDomain } from "@tools-feature-route-synthesis";
+import { dispatchRouteSynthesisAction } from "@tools-feature-route-synthesis";
 
 function toInvalidRequestResponse(message: string) {
   const structuredContent = {
@@ -43,7 +43,7 @@ export async function runRouteSynthesis(
   }
 
   const action: RouteSynthesisAction = parsedAction.data;
-  return await routeSynthesisDomain({
+  return await dispatchRouteSynthesisAction({
     action,
     input: request.input as Record<string, unknown>,
     deps,

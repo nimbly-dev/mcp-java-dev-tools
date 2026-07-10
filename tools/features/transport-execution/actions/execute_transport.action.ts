@@ -1,5 +1,5 @@
 import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
-import { executeHttpTransportRequest } from "./support/execute_http_request";
+import { executeHttpTransportRequest } from "../support/execute_http_request";
 
 function elapsedMs(startEpochMs: number): number {
   const delta = Date.now() - startEpochMs;
@@ -7,7 +7,7 @@ function elapsedMs(startEpochMs: number): number {
   return Math.max(1, Math.round(delta));
 }
 
-export async function transportExecuteDomain(args: {
+export async function transportExecuteAction(args: {
   protocol: "http" | "grpc" | "kafka" | "custom";
   request: Record<string, unknown>;
   wrappedOnly: boolean;
