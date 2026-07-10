@@ -39,8 +39,8 @@ async function writeJson(filePath: string, payload: Record<string, unknown>): Pr
                 ? defaults.orchestrator
                 : {
                     resumePollMax: 30,
-                    resumePollIntervalMs: 10_000,
-                    resumePollTimeoutMs: 300_000,
+                    resumePollIntervalMs: 10000,
+                    resumePollTimeoutMs: 300000,
                   };
             return {
               ...workspace,
@@ -1907,6 +1907,7 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
     assert.equal(((persistedSummary.activePlan as Record<string, unknown>)?.phase), "watchers");
     assert.equal(((((persistedSummary.activePlan as Record<string, unknown>)?.waitingOn as Record<string, unknown>)?.targetId)), "indexed_ready");
 
+    const watcherChecksBeforeTerminalResume = watcherChecks;
     await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
       workspaces: [
         {
@@ -1917,7 +1918,7 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
             orchestrator: {
               resumePollMax: 1,
               resumePollIntervalMs: 5,
-              resumePollTimeoutMs: 1_000,
+              resumePollTimeoutMs: 1000,
             },
           },
           executionProfiles: [
@@ -1942,7 +1943,7 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
 
     assert.equal(second.structuredContent?.status, "blocked");
     assert.equal(second.structuredContent?.reasonCode, "orchestrator_poll_limit_exhausted");
-    assert.equal(watcherChecks, 0);
+    assert.equal(watcherChecks, watcherChecksBeforeTerminalResume);
   } finally {
     appServer.close();
     await mcp?.close();

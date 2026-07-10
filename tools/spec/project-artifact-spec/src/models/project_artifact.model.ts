@@ -140,10 +140,10 @@ export type ProjectWorkspaceEntry = {
     includeHealthcheckGate?: boolean;
     includeResolvedSecrets?: boolean;
   };
-  defaults?: {
+  defaults: {
     requestTimeoutMs?: number;
     retryMax?: number;
-    orchestrator?: {
+    orchestrator: {
       resumePollMax: number;
       resumePollIntervalMs: number;
       resumePollTimeoutMs: number;

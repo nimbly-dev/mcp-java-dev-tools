@@ -37,8 +37,8 @@ async function writeJson(filePath: string, payload: Record<string, unknown>): Pr
                 ? defaults.orchestrator
                 : {
                     resumePollMax: 30,
-                    resumePollIntervalMs: 10_000,
-                    resumePollTimeoutMs: 300_000,
+                    resumePollIntervalMs: 10000,
+                    resumePollTimeoutMs: 300000,
                   };
             return {
               ...workspace,

@@ -30,8 +30,8 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
                 ? defaults.orchestrator
                 : {
                     resumePollMax: 30,
-                    resumePollIntervalMs: 10_000,
-                    resumePollTimeoutMs: 300_000,
+                    resumePollIntervalMs: 10000,
+                    resumePollTimeoutMs: 300000,
                   };
             return {
               ...workspace,
@@ -288,8 +288,8 @@ test("resolveProjectContextForRegression uses workspace defaults retryMax/reques
       assert.equal(out.contextPatch["runtime.requestTimeoutMs"], 500);
       assert.equal(out.contextPatch["runtime.retryMax"], 2);
       assert.equal(out.contextPatch["runtime.orchestrator.resumePollMax"], 30);
-      assert.equal(out.contextPatch["runtime.orchestrator.resumePollIntervalMs"], 10_000);
-      assert.equal(out.contextPatch["runtime.orchestrator.resumePollTimeoutMs"], 300_000);
+      assert.equal(out.contextPatch["runtime.orchestrator.resumePollIntervalMs"], 10000);
+      assert.equal(out.contextPatch["runtime.orchestrator.resumePollTimeoutMs"], 300000);
     }
     assert.equal(attempts, 2);
   } finally {
@@ -298,8 +298,8 @@ test("resolveProjectContextForRegression uses workspace defaults retryMax/reques
   }
 });
 
-test("resolveProjectContextForRegression accepts projects.json without orchestrator defaults", async () => {
-  const root = createTestTempDir("project-context-orchestrator-optional");
+test("resolveProjectContextForRegression fails closed when projects.json omits orchestrator defaults", async () => {
+  const root = createTestTempDir("project-context-orchestrator-required");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
     fs.mkdirSync(path.dirname(projects), { recursive: true });
@@ -315,11 +315,10 @@ test("resolveProjectContextForRegression accepts projects.json without orchestra
       healthChecksEnabled: false,
     });
 
-    assert.equal(out.status, "ok");
-    if (out.status === "ok") {
-      assert.equal(out.contextPatch["runtime.orchestrator.resumePollMax"], undefined);
-      assert.equal(out.contextPatch["runtime.orchestrator.resumePollIntervalMs"], undefined);
-      assert.equal(out.contextPatch["runtime.orchestrator.resumePollTimeoutMs"], undefined);
+    assert.equal(out.status, "blocked");
+    if (out.status === "blocked") {
+      assert.equal(out.reasonCode, "project_artifact_invalid");
+      assert.match(out.requiredUserAction.join("\n"), /workspaces\[0\]\.defaults is required/);
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

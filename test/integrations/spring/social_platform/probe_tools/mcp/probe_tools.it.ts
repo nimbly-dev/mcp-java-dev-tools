@@ -129,7 +129,7 @@ async function resolveFixtureActuationKey(): Promise<string> {
   });
 }
 
-const ACTUATION_TTL_MS = 15_000;
+const ACTUATION_TTL_MS = 15000;
 const postServiceProjectsFileAbs = path.join(
   socialPlatformRootAbs,
   ".mcpjvm",
@@ -172,7 +172,18 @@ async function disarmActuation(sessionId: string) {
 
 test.before(async () => {
   await writeJson(postServiceProjectsFileAbs, {
-    workspaces: [{ projectRoot: postAppProjectRootAbs }],
+    workspaces: [
+      {
+        projectRoot: postAppProjectRootAbs,
+        defaults: {
+          orchestrator: {
+            resumePollMax: 30,
+            resumePollIntervalMs: 10000,
+            resumePollTimeoutMs: 300000,
+          },
+        },
+      },
+    ],
   });
   runtime = await startPostAppWithAgent();
   mcp = await startMcpClient({
@@ -224,7 +235,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
 
   const check = await callProbe("check", {
     baseUrl: runtime.probeBaseUrl,
-    timeoutMs: 5_000,
+    timeoutMs: 5000,
   });
   assert.equal(check.structuredContent.checks.reset.ok, true);
   assert.equal(check.structuredContent.checks.status.ok, true);
@@ -303,7 +314,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   const waited = await callProbe("wait_for_hit", {
     key,
     baseUrl: runtime.probeBaseUrl,
-    timeoutMs: 10_000,
+    timeoutMs: 10000,
     pollIntervalMs: 250,
     maxRetries: 2,
   });
@@ -431,7 +442,7 @@ test("mcp IT: actuate forces deterministic fixture branch outcomes for the same 
     const deniedWait = await callProbe("wait_for_hit", {
       key,
       baseUrl: runtime.probeBaseUrl,
-      timeoutMs: 10_000,
+      timeoutMs: 10000,
       pollIntervalMs: 250,
       maxRetries: 2,
     });
@@ -462,7 +473,7 @@ test("mcp IT: actuate forces deterministic fixture branch outcomes for the same 
     const allowedWait = await callProbe("wait_for_hit", {
       key,
       baseUrl: runtime.probeBaseUrl,
-      timeoutMs: 10_000,
+      timeoutMs: 10000,
       pollIntervalMs: 250,
       maxRetries: 2,
     });
@@ -501,7 +512,7 @@ test("mcp IT: actuate with unresolved strict line target fails closed during res
   const invalidWait = await callProbe("wait_for_hit", {
     key: invalidLineKey,
     baseUrl: runtime.probeBaseUrl,
-    timeoutMs: 2_000,
+    timeoutMs: 2000,
     pollIntervalMs: 200,
     maxRetries: 1,
   });
@@ -512,7 +523,7 @@ test("mcp IT: actuate with unresolved strict line target fails closed during res
 
   const check = await callProbe("check", {
     baseUrl: runtime.probeBaseUrl,
-    timeoutMs: 5_000,
+    timeoutMs: 5000,
   });
   assert.equal(check.structuredContent.checks.status.json.runtime.mode, "observe");
 });
@@ -580,7 +591,7 @@ test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, i
   const invalidWait = await callProbe("wait_for_hit", {
     key: invalidLineKey,
     baseUrl: runtime.probeBaseUrl,
-    timeoutMs: 2_000,
+    timeoutMs: 2000,
     pollIntervalMs: 200,
     maxRetries: 1,
   });

@@ -15,8 +15,32 @@ function createTestTempDir(prefix: string): string {
 }
 
 function writeJson(filePath: string, payload: Record<string, unknown>): void {
+  const normalizedPayload =
+    path.basename(filePath) === "projects.json" && Array.isArray(payload.workspaces)
+      ? {
+          ...payload,
+          workspaces: payload.workspaces.map((workspace) => {
+            const entry = workspace as Record<string, unknown>;
+            const defaults =
+              entry.defaults && typeof entry.defaults === "object"
+                ? (entry.defaults as Record<string, unknown>)
+                : {};
+            return {
+              ...entry,
+              defaults: {
+                ...defaults,
+                orchestrator: {
+                  resumePollMax: 30,
+                  resumePollIntervalMs: 10000,
+                  resumePollTimeoutMs: 300000,
+                },
+              },
+            };
+          }),
+        }
+      : payload;
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  fs.writeFileSync(filePath, `${JSON.stringify(normalizedPayload, null, 2)}\n`, "utf8");
 }
 
 test("executeRegressionPlanWorkflow runs plan and writes artifacts without regression-specific MCP tool", async () => {
@@ -1429,7 +1453,15 @@ test("executeRegressionPlanWorkflow executes watcher as bounded post-step verifi
       workspaces: [
         {
           projectRoot: root,
-          defaults: { requestTimeoutMs: 120, retryMax: 3 },
+          defaults: {
+            requestTimeoutMs: 120,
+            retryMax: 3,
+            orchestrator: {
+              resumePollMax: 30,
+              resumePollIntervalMs: 10000,
+              resumePollTimeoutMs: 300000,
+            },
+          },
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
         },
       ],
@@ -1866,7 +1898,7 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
               },
             },
           },
-          waitPolicy: { timeoutMs: 1_000, retryMax: 3 },
+          waitPolicy: { timeoutMs: 1000, retryMax: 3 },
           expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
         },
       ],
@@ -1910,7 +1942,7 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
       workspaceRootAbs: root,
       planName,
       runId: first.runId,
-      orchestrationTimeoutBudgetMs: 1_000,
+      orchestrationTimeoutBudgetMs: 1000,
       resumeState,
       mcpInvoke: async ({ toolName, input }: { toolName: string; input: Record<string, unknown> }) => {
         assert.equal(toolName, "transport_execute");

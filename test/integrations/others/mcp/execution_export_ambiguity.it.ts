@@ -50,6 +50,13 @@ async function writeProjectArtifacts(args: {
     workspaces: [
       {
         projectRoot: projectRootAbs,
+        defaults: {
+          orchestrator: {
+            resumePollMax: 30,
+            resumePollIntervalMs: 10000,
+            resumePollTimeoutMs: 300000,
+          },
+        },
         scripts: [
           {
             name: "setup-js",

@@ -11,6 +11,19 @@ type ToolResult = {
   structuredContent?: Record<string, unknown>;
 };
 
+const REQUIRED_ORCHESTRATOR_DEFAULTS = {
+  resumePollMax: 30,
+  resumePollIntervalMs: 10000,
+  resumePollTimeoutMs: 300000,
+};
+
+function withRequiredDefaults(workspace: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...workspace,
+    defaults: { orchestrator: REQUIRED_ORCHESTRATOR_DEFAULTS },
+  };
+}
+
 async function callTool(
   mcp: Awaited<ReturnType<typeof startMcpClient>>,
   name: string,
@@ -54,7 +67,7 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
   const projectsFileAbs = path.join(mcpjvmRoot, projectName, "projects.json");
   await writeJson(projectsFileAbs, {
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: projectRootAbs,
         scripts: [
           {
@@ -72,7 +85,7 @@ test("mcp IT: artifact_management covers probe_config/regression_plan/run_result
             plans: [{ order: 1, planName: "gateway-route-smoke-spec", onFail: "inherit" }],
           },
         ],
-      },
+      }),
     ],
   });
 
@@ -277,10 +290,10 @@ test("mcp IT: artifact_management run_result read honors explicit projectName in
   });
 
   await writeJson(path.join(mcpjvmRoot, otherProjectName, "projects.json"), {
-    workspaces: [{ projectRoot: path.join(workspaceRootAbs, "other-app") }],
+    workspaces: [withRequiredDefaults({ projectRoot: path.join(workspaceRootAbs, "other-app") })],
   });
   await writeJson(path.join(mcpjvmRoot, targetProjectName, "projects.json"), {
-    workspaces: [{ projectRoot: path.join(workspaceRootAbs, "target-app") }],
+    workspaces: [withRequiredDefaults({ projectRoot: path.join(workspaceRootAbs, "target-app") })],
   });
 
   const runRoot = path.join(
@@ -356,7 +369,7 @@ test("mcp IT: artifact_management run_result watcher queries are bounded and det
   });
 
   await writeJson(path.join(mcpjvmRoot, projectName, "projects.json"), {
-    workspaces: [{ projectRoot: path.join(workspaceRootAbs, "app") }],
+    workspaces: [withRequiredDefaults({ projectRoot: path.join(workspaceRootAbs, "app") })],
   });
 
   const runRoot = path.join(mcpjvmRoot, projectName, "plans", "regression", "cross-service-plan", "runs", "07-06-2026-10-10-10AM");

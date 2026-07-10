@@ -19,8 +19,8 @@ function withRequiredDefaults(workspace: Record<string, unknown>): Record<string
       ? (defaults.orchestrator as Record<string, unknown>)
       : {
           resumePollMax: 30,
-          resumePollIntervalMs: 10_000,
-          resumePollTimeoutMs: 300_000,
+          resumePollIntervalMs: 10000,
+          resumePollTimeoutMs: 300000,
         };
   return {
     ...workspace,
@@ -37,56 +37,16 @@ function createTestTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(base, `${prefix}-`));
 }
 
-test("validateProjectArtifact accepts minimal valid shape", () => {
+test("validateProjectArtifact fails closed when workspace defaults are absent", () => {
   const result = validateProjectArtifact({
     workspaces: [
-      withRequiredDefaults({
-        projectRoot: "C:\\workspace\\spring",
-        envFile: ".env",
-        variables: {
-          bearerTokenEnv: "AUTH_BEARER_TOKEN",
-        },
-        runtimeContexts: [
-          {
-            name: "terminal-cli",
-            mode: "terminal",
-            autoStart: true,
-            autoStopOnFinish: true,
-            startups: [
-              {
-                name: "customers-service",
-                command: "java",
-                args: ["-jar", "target/app.jar"],
-                appdir: ".",
-              },
-            ],
-          },
-          { name: "docker-compose", mode: "docker", composeFile: "docker-compose.yml" },
-        ],
-        externalSystems: [
-          {
-            name: "postgres",
-            kind: "database",
-            host: "localhost",
-            port: 5432,
-            healthChecks: [
-              {
-                id: "tcp-open",
-                type: "tcp",
-                target: "localhost:5432",
-                required: true,
-              },
-            ],
-          },
-        ],
-      }),
+      { projectRoot: "C:\\workspace\\spring" },
     ],
   });
 
-  assert.equal(result.ok, true);
-  if (result.ok) {
-    assert.equal(result.artifact.workspaces.length, 1);
-    assert.equal(result.artifact.workspaces[0].variables?.bearerTokenEnv, "AUTH_BEARER_TOKEN");
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.errors.join("\n"), /workspaces\[0\]\.defaults is required/);
   }
 });
 
@@ -655,7 +615,7 @@ test("validateProjectArtifact fails closed when runPrerequisite script args cont
   }
 });
 
-test("validateProjectArtifact accepts workspace defaults without orchestrator settings", () => {
+test("validateProjectArtifact fails closed when orchestrator defaults are absent", () => {
   const result = validateProjectArtifact({
     workspaces: [
       {
@@ -667,11 +627,39 @@ test("validateProjectArtifact accepts workspace defaults without orchestrator se
       },
     ],
   });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.errors.join("\n"), /workspaces\[0\]\.defaults\.orchestrator is required/);
+  }
+});
+
+test("validateProjectArtifact normalizes the required orchestrator defaults shape", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        defaults: {
+          requestTimeoutMs: 20_000,
+          retryMax: 3,
+          orchestrator: {
+            resumePollMax: 30,
+            resumePollIntervalMs: 10000,
+            resumePollTimeoutMs: 300000,
+          },
+        },
+      },
+    ],
+  });
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.deepEqual(result.artifact.workspaces[0].defaults, {
       requestTimeoutMs: 20_000,
       retryMax: 3,
+      orchestrator: {
+        resumePollMax: 30,
+        resumePollIntervalMs: 10000,
+        resumePollTimeoutMs: 300000,
+      },
     });
   }
 });
@@ -684,8 +672,8 @@ test("validateProjectArtifact fails closed when orchestrator defaults are invali
         defaults: {
           orchestrator: {
             resumePollMax: 0,
-            resumePollIntervalMs: 10_000,
-            resumePollTimeoutMs: 5_000,
+            resumePollIntervalMs: 10000,
+            resumePollTimeoutMs: 5000,
           },
         },
       },

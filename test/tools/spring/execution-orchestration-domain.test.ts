@@ -51,7 +51,7 @@ test("executionOrchestrationDomain resumes persisted suite progress by suiteRunI
             orchestrator: {
               resumePollMax: 3,
               resumePollIntervalMs: 10,
-              resumePollTimeoutMs: 120_000,
+              resumePollTimeoutMs: 120000,
             },
           },
           executionProfiles: [
@@ -233,7 +233,7 @@ test("executionOrchestrationDomain auto-resumes fresh calls without explicit max
             orchestrator: {
               resumePollMax: 3,
               resumePollIntervalMs: 10,
-              resumePollTimeoutMs: 120_000,
+              resumePollTimeoutMs: 120000,
             },
           },
           executionProfiles: [

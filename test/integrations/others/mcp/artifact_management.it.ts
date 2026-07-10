@@ -12,6 +12,22 @@ type ToolResult = {
   structuredContent?: Record<string, unknown>;
 };
 
+const REQUIRED_ORCHESTRATOR_DEFAULTS = {
+  resumePollMax: 30,
+  resumePollIntervalMs: 10000,
+  resumePollTimeoutMs: 300000,
+};
+
+function withRequiredDefaults(workspace: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...workspace,
+    defaults: {
+      ...(workspace.defaults && typeof workspace.defaults === "object" ? workspace.defaults : {}),
+      orchestrator: REQUIRED_ORCHESTRATOR_DEFAULTS,
+    },
+  };
+}
+
 async function callTool(
   mcp: Awaited<ReturnType<typeof startMcpClient>>,
   name: string,
@@ -59,7 +75,7 @@ test("mcp IT: artifact_management enforces typed envelope and returns project_co
 
   await writeJson(projectsFileAbs, {
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: workspaceRootAbs,
         runtimeContexts: [
           {
@@ -76,7 +92,7 @@ test("mcp IT: artifact_management enforces typed envelope and returns project_co
             plans: [{ order: 1, planName: "gateway-route-smoke-spec" }],
           },
         ],
-      },
+      }),
     ],
   });
   await writeRegressionPlan({
@@ -122,6 +138,33 @@ test("mcp IT: artifact_management enforces typed envelope and returns project_co
   }
 });
 
+test("mcp IT: artifact_management project_context validate rejects missing orchestrator defaults", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-required-orchestrator-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project";
+  const projectsFileAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
+
+  await writeJson(projectsFileAbs, {
+    workspaces: [{ projectRoot: workspaceRootAbs }],
+  });
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({ workspaceRootAbs, probeBaseUrl: "http://127.0.0.1:9191" });
+    const out = await callTool(mcp, "artifact_management", {
+      artifactType: "project_context",
+      action: "validate",
+      input: { projectName },
+    });
+    assert.equal(out.structuredContent?.status, "project_artifact_invalid");
+    assert.equal(out.structuredContent?.reasonCode, "project_artifact_invalid");
+    assert.match(String(out.structuredContent?.reason ?? ""), /workspaces\[0\]\.defaults is required/i);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
+
 test("mcp IT: artifact_management project_context validate fails closed on absolute envFile", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-invalid-envfile-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
@@ -130,10 +173,10 @@ test("mcp IT: artifact_management project_context validate fails closed on absol
 
   await writeJson(projectsFileAbs, {
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: workspaceRootAbs,
         envFile: "C:\\workspace\\spring\\.env",
-      },
+      }),
     ],
   });
 
@@ -170,7 +213,7 @@ test("mcp IT: artifact_management project_context validate fails closed on missi
 
   await writeJson(projectsFileAbs, {
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: workspaceRootAbs,
         executionProfiles: [
           {
@@ -179,7 +222,7 @@ test("mcp IT: artifact_management project_context validate fails closed on missi
             plans: [{ order: 1, planName: "missing-regression-plan" }],
           },
         ],
-      },
+      }),
     ],
   });
 
@@ -228,14 +271,14 @@ test("mcp IT: artifact_management project_context upsert fails closed on unsuppo
         projectName,
         payload: {
           workspaces: [
-            {
+            withRequiredDefaults({
               projectRoot: workspaceRootAbs,
               variables: {
                 bearerTokenEnv: "AUTH_BEARER_TOKEN",
                 tenantIdEnv: "TENANT_ID",
                 baseUrlEnv: "BASE_URL",
               },
-            },
+            }),
           ],
         },
       },
@@ -263,9 +306,9 @@ test("mcp IT: artifact_management project_context validate returns root inspecti
   await fs.writeFile(path.join(projectRootAbs, "pom.xml"), "<project/>", "utf8");
   await writeJson(projectsFileAbs, {
     workspaces: [
-      {
+      withRequiredDefaults({
         projectRoot: projectRootAbs,
-      },
+      }),
     ],
   });
 

@@ -10,8 +10,8 @@ const {
 test("resolveExecutionOrchestrationLoopPolicy caps effective timeout budget below raw tool timeout", () => {
   const policy = resolveExecutionOrchestrationLoopPolicy({
     resumePollMax: 30,
-    resumePollIntervalMs: 10_000,
-    resumePollTimeoutMs: 600_000,
+    resumePollIntervalMs: 10000,
+    resumePollTimeoutMs: 600000,
   });
 
   assert.equal(policy.timeoutInterceptMs, EXECUTION_ORCHESTRATION_TIMEOUT_INTERCEPT_MS);
@@ -29,7 +29,7 @@ test("executeExecutionOrchestrationResiliencyLoop resumes persisted in_progress 
     defaults: {
       resumePollMax: 3,
       resumePollIntervalMs: 25,
-      resumePollTimeoutMs: 120_000,
+      resumePollTimeoutMs: 120000,
     },
     executePass: async (state: { suiteRunId?: string; priorSuite?: Record<string, unknown> | null }) => {
       passStates.push({
@@ -85,7 +85,7 @@ test("executeExecutionOrchestrationResiliencyLoop sleeps between passes when no 
     defaults: {
       resumePollMax: 2,
       resumePollIntervalMs: 25,
-      resumePollTimeoutMs: 120_000,
+      resumePollTimeoutMs: 120000,
     },
     initialSuiteRunId: "suite-01",
     initialPriorSuite: {
@@ -175,7 +175,7 @@ test("executeExecutionOrchestrationResiliencyLoop returns blocked poll exhaustio
     defaults: {
       resumePollMax: 1,
       resumePollIntervalMs: 100,
-      resumePollTimeoutMs: 2_000,
+      resumePollTimeoutMs: 2000,
     },
     executePass: async () => ({
       executionProfile: "long-suite",
@@ -204,7 +204,7 @@ test("executeExecutionOrchestrationResiliencyLoop returns blocked progress-stall
     defaults: {
       resumePollMax: 5,
       resumePollIntervalMs: 100,
-      resumePollTimeoutMs: 2_000,
+      resumePollTimeoutMs: 2000,
     },
     initialSuiteRunId: "suite-time-budget",
     initialPriorSuite: {
@@ -254,7 +254,7 @@ test("executeExecutionOrchestrationResiliencyLoop fails closed when persisted su
     defaults: {
       resumePollMax: 2,
       resumePollIntervalMs: 25,
-      resumePollTimeoutMs: 120_000,
+      resumePollTimeoutMs: 120000,
     },
     executePass: async () => ({
       executionProfile: "watcher-suite",

@@ -17,8 +17,32 @@ function createTestTempDir(prefix: string): string {
 }
 
 function writeJson(filePath: string, payload: Record<string, unknown>): void {
+  const normalizedPayload =
+    path.basename(filePath) === "projects.json" && Array.isArray(payload.workspaces)
+      ? {
+          ...payload,
+          workspaces: payload.workspaces.map((workspace) => {
+            const entry = workspace as Record<string, unknown>;
+            const defaults =
+              entry.defaults && typeof entry.defaults === "object"
+                ? (entry.defaults as Record<string, unknown>)
+                : {};
+            return {
+              ...entry,
+              defaults: {
+                ...defaults,
+                orchestrator: {
+                  resumePollMax: 30,
+                  resumePollIntervalMs: 10000,
+                  resumePollTimeoutMs: 300000,
+                },
+              },
+            };
+          }),
+        }
+      : payload;
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  fs.writeFileSync(filePath, `${JSON.stringify(normalizedPayload, null, 2)}\n`, "utf8");
 }
 
 function writePerformancePlan(

@@ -683,63 +683,61 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
         .map((entry, i) => normalizeExternalSystem(entry, i, errors))
         .filter((entry): entry is ProjectExternalSystem => entry !== null)
     : [];
+  const defaultsFieldPath = `workspaces[${index}].defaults`;
+  if (!("defaults" in input)) {
+    errors.push(`${defaultsFieldPath} is required`);
+  }
+  const defaultsInput = isRecord(input.defaults) ? input.defaults : null;
+  if ("defaults" in input && !defaultsInput) {
+    errors.push(`${defaultsFieldPath} must be an object`);
+  }
+
   let defaults: ProjectWorkspaceEntry["defaults"] | undefined;
-  if (isRecord(input.defaults)) {
-    const orchestrator = isRecord(input.defaults.orchestrator) ? input.defaults.orchestrator : null;
-    if (orchestrator) {
-      const resumePollMax = normalizeRequiredPositiveInteger({
-        value: orchestrator.resumePollMax,
-        fieldPath: `workspaces[${index}].defaults.orchestrator.resumePollMax`,
-        errors,
-      });
-      const resumePollIntervalMs = normalizeRequiredPositiveInteger({
-        value: orchestrator.resumePollIntervalMs,
-        fieldPath: `workspaces[${index}].defaults.orchestrator.resumePollIntervalMs`,
-        errors,
-      });
-      const resumePollTimeoutMs = normalizeRequiredPositiveInteger({
-        value: orchestrator.resumePollTimeoutMs,
-        fieldPath: `workspaces[${index}].defaults.orchestrator.resumePollTimeoutMs`,
-        errors,
-      });
-      if (
-        typeof resumePollIntervalMs === "number" &&
-        typeof resumePollTimeoutMs === "number" &&
-        resumePollTimeoutMs < resumePollIntervalMs
-      ) {
-        errors.push(
-          `workspaces[${index}].defaults.orchestrator.resumePollTimeoutMs must be >= resumePollIntervalMs`,
-        );
-      }
-      if (
-        typeof resumePollMax === "number" &&
-        typeof resumePollIntervalMs === "number" &&
-        typeof resumePollTimeoutMs === "number"
-      ) {
-        defaults = {
-          ...(typeof input.defaults.requestTimeoutMs === "number"
-            ? { requestTimeoutMs: input.defaults.requestTimeoutMs }
-            : {}),
-          ...(typeof input.defaults.retryMax === "number" ? { retryMax: input.defaults.retryMax } : {}),
-          orchestrator: {
-            resumePollMax,
-            resumePollIntervalMs,
-            resumePollTimeoutMs,
-          },
-        };
-      }
-    } else if (
-      typeof input.defaults.requestTimeoutMs === "number" ||
-      typeof input.defaults.retryMax === "number"
+  const orchestratorFieldPath = `${defaultsFieldPath}.orchestrator`;
+  const orchestrator = defaultsInput && isRecord(defaultsInput.orchestrator) ? defaultsInput.orchestrator : null;
+  if (defaultsInput && !("orchestrator" in defaultsInput)) {
+    errors.push(`${orchestratorFieldPath} is required`);
+  } else if (defaultsInput && !orchestrator) {
+    errors.push(`${orchestratorFieldPath} must be an object`);
+  }
+  if (defaultsInput && orchestrator) {
+    const resumePollMax = normalizeRequiredPositiveInteger({
+      value: orchestrator.resumePollMax,
+      fieldPath: `${orchestratorFieldPath}.resumePollMax`,
+      errors,
+    });
+    const resumePollIntervalMs = normalizeRequiredPositiveInteger({
+      value: orchestrator.resumePollIntervalMs,
+      fieldPath: `${orchestratorFieldPath}.resumePollIntervalMs`,
+      errors,
+    });
+    const resumePollTimeoutMs = normalizeRequiredPositiveInteger({
+      value: orchestrator.resumePollTimeoutMs,
+      fieldPath: `${orchestratorFieldPath}.resumePollTimeoutMs`,
+      errors,
+    });
+    if (
+      typeof resumePollIntervalMs === "number" &&
+      typeof resumePollTimeoutMs === "number" &&
+      resumePollTimeoutMs < resumePollIntervalMs
+    ) {
+      errors.push(`${orchestratorFieldPath}.resumePollTimeoutMs must be >= resumePollIntervalMs`);
+    }
+    if (
+      typeof resumePollMax === "number" &&
+      typeof resumePollIntervalMs === "number" &&
+      typeof resumePollTimeoutMs === "number"
     ) {
       defaults = {
-        ...(typeof input.defaults.requestTimeoutMs === "number"
-          ? { requestTimeoutMs: input.defaults.requestTimeoutMs }
+        ...(typeof defaultsInput.requestTimeoutMs === "number"
+          ? { requestTimeoutMs: defaultsInput.requestTimeoutMs }
           : {}),
-        ...(typeof input.defaults.retryMax === "number" ? { retryMax: input.defaults.retryMax } : {}),
+        ...(typeof defaultsInput.retryMax === "number" ? { retryMax: defaultsInput.retryMax } : {}),
+        orchestrator: { resumePollMax, resumePollIntervalMs, resumePollTimeoutMs },
       };
     }
   }
+  if (!defaults) return null;
   const sessionExport = isRecord(input.sessionExport)
     ? (() => {
         const normalized = {
@@ -767,7 +765,7 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
     ...(runPrerequisites.length > 0 ? { runPrerequisites } : {}),
     ...(externalSystems.length > 0 ? { externalSystems } : {}),
     ...(sessionExport ? { sessionExport } : {}),
-    ...(defaults ? { defaults } : {}),
+    defaults,
   };
 }
 
