@@ -1,5 +1,5 @@
-import { asString, isRecord } from "@tools-export-execution-profile/common";
-import type { Healthcheck } from "@tools-export-execution-profile/models/execution_profile_export.model";
+import { asString, isRecord } from "../common";
+import type { Healthcheck } from "../models/execution_profile_export.model";
 
 export function collectHealthchecks(workspace: Record<string, unknown> | undefined): Healthcheck[] {
   if (!workspace) {

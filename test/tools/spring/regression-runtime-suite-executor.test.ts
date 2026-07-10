@@ -8,7 +8,7 @@ const {
   executeRegressionRuntimeSuite,
   readExecutionOrchestrationSuiteResult,
   writeExecutionOrchestrationSuiteResult,
-} = require("@tools-regression-execution-plan-spec/regression_runtime_suite_executor.util");
+} = require("@tools-feature-regression-suite");
 const {
   createTestTempDir,
   writeJson,

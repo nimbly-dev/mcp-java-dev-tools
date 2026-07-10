@@ -1,8 +1,8 @@
-import { toShellEnvKey } from "@tools-export-execution-profile/common";
-import { loadPlanContract } from "@tools-export-execution-profile/loaders/plan_contract.loader";
-import type { ExecutionProfileExportPlanRun } from "@tools-export-execution-profile/models/execution_profile_export.model";
-import { resolvePlanBaseUrls } from "@tools-export-execution-profile/sections/sh/plan_execution.section";
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
+import { toShellEnvKey } from "../../common";
+import { loadPlanContract } from "../../loaders/plan_contract.loader";
+import type { ExecutionProfileExportPlanRun } from "../../models/execution_profile_export.model";
+import { resolvePlanBaseUrls } from "../sh/plan_execution.section";
+import { resolveRegressionPlansRootAbs } from "../../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 
 type RequiredInput = {
   envKey: string;

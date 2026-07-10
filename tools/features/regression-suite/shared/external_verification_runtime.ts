@@ -3,23 +3,23 @@ import type {
   ExternalVerificationExtractResult,
   NormalizedExternalVerificationResult,
   PlanExternalVerification,
-} from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 import type {
   RegressionExternalVerificationPhaseStatus,
   RegressionExecutionContinuation,
   RegressionRunStatus,
-} from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 import type {
   TransportAdapter,
   TransportExecutionResult,
-} from "@tools-regression-execution-plan-spec/models/regression_transport.model";
-import { validateNormalizedExternalVerificationResultShape } from "@tools-regression-execution-plan-spec/external_verification_contract.util";
-import { executeSqlExternalVerification } from "@tools-regression-execution-plan-spec/external_verification_sql_provider.util";
-import { evaluateStepExpectations } from "@tools-regression-execution-plan-spec/regression_expectation_evaluator.util";
-import { buildHttpPayload } from "@tools-regression-execution-plan-spec/regression_http_payload.util";
-import { executeTransportWithRegistry } from "@tools-regression-execution-plan-spec/regression_transport_executor.util";
-import { applyStepExtractWithDiagnostics } from "@tools-regression-execution-plan-spec/step_extract.util";
-import { deepResolvePlaceholderValue } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_transport.model";
+import { validateNormalizedExternalVerificationResultShape } from "../../../spec/regression-execution-plan-spec/src/external_verification_contract.util";
+import { executeSqlExternalVerification } from "./external_verification_sql_provider";
+import { evaluateStepExpectations } from "../shared/regression_expectation_evaluator";
+import { buildHttpPayload } from "../shared/regression_http_payload";
+import { executeTransportWithRegistry } from "../shared/regression_transport_executor";
+import { applyStepExtractWithDiagnostics } from "../../../spec/regression-execution-plan-spec/src/step_extract.util";
+import { deepResolvePlaceholderValue } from "../../../spec/regression-execution-plan-spec/src/placeholder_resolution.util";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)

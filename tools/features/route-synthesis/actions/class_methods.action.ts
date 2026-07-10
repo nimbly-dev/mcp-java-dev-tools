@@ -1,6 +1,6 @@
 import {
   runTargetInfer,
-} from "@tools-feature-route-synthesis/actions/infer_target.action";
+} from "./infer_target.action";
 import type { RouteSynthesisTargetInferenceDeps } from "@/models/route_synthesis.model";
 
 export async function runClassMethods(

@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { executionProfileExportDomain } = require("@tools-export-execution-profile/domain");
+const { executionProfileExportDomain } = require("@tools-export-execution-profile");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");

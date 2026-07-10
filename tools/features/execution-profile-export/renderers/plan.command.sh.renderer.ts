@@ -1,9 +1,9 @@
-import { escapeShSingleQuoted } from "@tools-export-execution-profile/common";
-import { toShellEnvKey } from "@tools-export-execution-profile/common";
-import { loadPlanContract } from "@tools-export-execution-profile/loaders/plan_contract.loader";
-import type { ExecutionProfileExportPlanRun } from "@tools-export-execution-profile/models/execution_profile_export.model";
-import { renderShTransportStep } from "@tools-export-execution-profile/adapters/registry/transport_export_adapter.registry";
-import type { PlanStep } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import { escapeShSingleQuoted } from "../common";
+import { toShellEnvKey } from "../common";
+import { loadPlanContract } from "../loaders/plan_contract.loader";
+import type { ExecutionProfileExportPlanRun } from "../models/execution_profile_export.model";
+import { renderShTransportStep } from "../adapters/registry/transport_export_adapter.registry";
+import type { PlanStep } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 
 function appendPlanFailClosed(lines: string[], reason: string): void {
   lines.push(`echo 'export_plan_blocked: ${escapeShSingleQuoted(reason)}' >&2`);

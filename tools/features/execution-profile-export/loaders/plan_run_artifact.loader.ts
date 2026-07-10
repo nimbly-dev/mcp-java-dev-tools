@@ -1,9 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { LoadedPlanRunArtifacts } from "@tools-export-execution-profile/models/transport_export.model";
-import type { PlanContract } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
-import type { RegressionRunExecutionResult } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
+import type { LoadedPlanRunArtifacts } from "../models/transport_export.model";
+import type { PlanContract } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
+import type { RegressionRunExecutionResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 
 async function readJson<T>(filePathAbs: string): Promise<T | null> {
   try {

@@ -5,8 +5,8 @@ const os = require("node:os");
 const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
-const { executePerformanceRuntimeSuite } = require("@tools-feature-performance-suite/performance_runtime_suite_executor.util");
-const { buildPerformanceMstaSummary } = require("@tools-feature-performance-suite/performance_msta_summary.util");
+const { executePerformanceRuntimeSuite } = require("@tools-feature-performance-suite");
+const { buildPerformanceMstaSummary } = require("@tools-feature-performance-suite");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 

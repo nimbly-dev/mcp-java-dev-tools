@@ -5,8 +5,8 @@ import type {
   ExecutionProfileExportManifest,
   WriteExecutionProfileExportInput,
   WriteExecutionProfileExportResult,
-} from "@tools-regression-execution-plan-spec/models/regression_execution_profile_export.model";
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_profile_export.model";
+import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 
 function sanitizeExportId(exportId: string): string {
   const normalized = exportId.trim();

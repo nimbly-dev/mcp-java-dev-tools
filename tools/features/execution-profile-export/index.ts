@@ -1,21 +1,21 @@
-export { exportExecutionProfilePs1 } from "@tools-export-execution-profile/execution_profile_export_ps1.service";
-export { exportExecutionProfileSh } from "@tools-export-execution-profile/execution_profile_export_sh.service";
-export { exportExecutionProfilePostman } from "@tools-export-execution-profile/execution_profile_export_postman.service";
-export { exportExecutionProfilePerformancePs1 } from "@tools-export-execution-profile/execution_profile_export_performance_ps1.service";
-export { exportExecutionProfilePerformanceSh } from "@tools-export-execution-profile/execution_profile_export_performance_sh.service";
-export { executionProfileExportDomain } from "@tools-export-execution-profile/domain";
+export { exportExecutionProfilePs1 } from "./execution_profile_export_ps1";
+export { exportExecutionProfileSh } from "./execution_profile_export_sh";
+export { exportExecutionProfilePostman } from "./execution_profile_export_postman";
+export { exportExecutionProfilePerformancePs1 } from "./execution_profile_export_performance_ps1";
+export { exportExecutionProfilePerformanceSh } from "./execution_profile_export_performance_sh";
+export { executionProfileExportDomain } from "./domain";
 export type {
   ExportExecutionProfilePs1Input,
   ExportExecutionProfilePs1Result,
   ExecutionProfileExportManifest,
   ExecutionProfileExportPlanRun,
   ExecutionProfileSuiteType,
-} from "@tools-export-execution-profile/models/execution_profile_export.model";
+} from "./models/execution_profile_export.model";
 export type {
   ExportExecutionProfileShInput,
   ExportExecutionProfileShResult,
-} from "@tools-export-execution-profile/execution_profile_export_sh.service";
+} from "./execution_profile_export_sh";
 export type {
   ExportExecutionProfilePostmanInput,
   ExportExecutionProfilePostmanResult,
-} from "@tools-export-execution-profile/execution_profile_export_postman.service";
+} from "./execution_profile_export_postman";

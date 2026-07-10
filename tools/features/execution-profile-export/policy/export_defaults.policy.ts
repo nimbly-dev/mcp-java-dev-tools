@@ -1,5 +1,5 @@
-import { isRecord } from "@tools-export-execution-profile/common";
-import type { ExportExecutionProfilePs1Input, ExportRuntimeDefaults } from "@tools-export-execution-profile/models/execution_profile_export.model";
+import { isRecord } from "../common";
+import type { ExportExecutionProfilePs1Input, ExportRuntimeDefaults } from "../models/execution_profile_export.model";
 
 export function resolveExportDefaults(input: {
   request: ExportExecutionProfilePs1Input;

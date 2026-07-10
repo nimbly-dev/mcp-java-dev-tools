@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { correlateEvents } = require("@tools-regression-execution-plan-spec/regression_correlation.util");
+const { correlateEvents } = require("@tools-feature-regression-suite");
 
 test("correlateEvents returns deterministic ordered timeline when correlation is valid", () => {
   const result = correlateEvents(

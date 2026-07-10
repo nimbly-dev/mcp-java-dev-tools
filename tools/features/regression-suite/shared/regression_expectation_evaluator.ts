@@ -3,9 +3,9 @@ import { isDeepStrictEqual } from "node:util";
 import type {
   PlanStepExpectation,
   PlanStepExpectationOperator,
-} from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
-import type { RegressionRunStatus } from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
-import { readValueByPath } from "@tools-regression-execution-plan-spec/suite_path_reader.util";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
+import type { RegressionRunStatus } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
+import { readValueByPath } from "../../../spec/regression-execution-plan-spec/src/suite_path_reader.util";
 
 export type StepExecutionOutcomeStatus =
   | "pass"

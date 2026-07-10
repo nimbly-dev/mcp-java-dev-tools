@@ -2,15 +2,15 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
-import { collectJmeterJtlMetrics } from "@tools-performance-workload-jmeter/collectors/jmeter_jtl_result.collector";
-import { resolveJmeterExecutable } from "@tools-performance-workload-jmeter/loaders/jmeter_installation.loader";
+import { collectJmeterJtlMetrics } from "../collectors/jmeter_jtl_result.collector";
+import { resolveJmeterExecutable } from "../loaders/jmeter_installation.loader";
 import type {
   JmeterGeneratedHttpLoadModel,
   JmeterGeneratedHttpRequest,
   JmeterWorkloadProvider,
   JmeterWorkloadRunResult,
-} from "@tools-performance-workload-jmeter/models/jmeter_workload_provider.model";
-import { renderGeneratedHttpJmx } from "@tools-performance-workload-jmeter/renderers/jmeter_generated_http_jmx.renderer";
+} from "../models/jmeter_workload_provider.model";
+import { renderGeneratedHttpJmx } from "../renderers/jmeter_generated_http_jmx.renderer";
 
 async function fileExists(absPath: string): Promise<boolean> {
   try {

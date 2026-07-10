@@ -6,7 +6,7 @@ const { DatabaseSync } = require("node:sqlite");
 
 const {
   executeSqlExternalVerification,
-} = require("@tools-regression-execution-plan-spec/external_verification_sql_provider.util");
+} = require("@tools-feature-regression-suite");
 
 type JdbcExecutionMockArgs = {
   connection: {

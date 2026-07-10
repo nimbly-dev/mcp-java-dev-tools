@@ -1,8 +1,8 @@
-import type { PlanContract } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import type { PlanContract } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 import type {
   RegressionRunExecutionResult,
   RegressionRunStepResult,
-} from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 
 export type LoadedPlanRunArtifacts = {
   contract: PlanContract;

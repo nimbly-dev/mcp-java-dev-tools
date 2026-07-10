@@ -1,5 +1,5 @@
 import { deriveNextActionCode } from "@/utils/failure_diagnostics.util";
-import type { ArtifactActionResult } from "@tools-feature-artifact-management/actions/types";
+import type { ArtifactActionResult } from "../actions/types";
 
 export function buildFailClosedArtifactResponse(args: {
   reasonCode: string;

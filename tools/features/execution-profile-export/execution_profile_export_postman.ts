@@ -3,16 +3,16 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import vm from "node:vm";
 
-import { loadExecutionProfileExportManifest } from "@tools-export-execution-profile/loaders/export_manifest.loader";
-import { loadPlanContract } from "@tools-export-execution-profile/loaders/plan_contract.loader";
-import { loadProjectWorkspace } from "@tools-export-execution-profile/loaders/project_workspace.loader";
-import { resolveExportDefaults } from "@tools-export-execution-profile/policy/export_defaults.policy";
-import { resolveOneOffExportDir } from "@tools-export-execution-profile/sections/shared/oneoff_export_dir.util";
-import { resolvePlanBaseUrls } from "@tools-export-execution-profile/sections/sh/plan_execution.section";
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
-import { resolveStepTransport } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+import { loadExecutionProfileExportManifest } from "./loaders/export_manifest.loader";
+import { loadPlanContract } from "./loaders/plan_contract.loader";
+import { loadProjectWorkspace } from "./loaders/project_workspace.loader";
+import { resolveExportDefaults } from "./policy/export_defaults.policy";
+import { resolveOneOffExportDir } from "./sections/shared/oneoff_export_dir";
+import { resolvePlanBaseUrls } from "./sections/sh/plan_execution.section";
+import { resolveRegressionPlansRootAbs } from "../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
+import { resolveStepTransport } from "../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
 
-import type { ExportExecutionProfilePs1Input } from "@tools-export-execution-profile/models/execution_profile_export.model";
+import type { ExportExecutionProfilePs1Input } from "./models/execution_profile_export.model";
 
 export type ExportExecutionProfilePostmanInput = ExportExecutionProfilePs1Input;
 export type ExportExecutionProfilePostmanResult = {

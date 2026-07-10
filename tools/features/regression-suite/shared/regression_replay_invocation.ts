@@ -1,11 +1,11 @@
-import type { PreflightResult } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import type { PreflightResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 import type {
   ReplayInvocationInput,
   ReplayInvocationResolution,
   ReplayReference,
   ReplayReferenceKind,
   ReplayUserMessage,
-} from "@tools-regression-execution-plan-spec/models/regression_replay_invocation.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_replay_invocation.model";
 
 export type {
   ReplayInvocationInput,
@@ -13,7 +13,7 @@ export type {
   ReplayReference,
   ReplayReferenceKind,
   ReplayUserMessage,
-} from "@tools-regression-execution-plan-spec/models/regression_replay_invocation.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_replay_invocation.model";
 
 const RUN_ID_PATTERN =
   /^(?:\d{2}-\d{2}-\d{4}-\d{2}-\d{2}-\d{2}(?:AM|PM)|\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_\d{2}|\d{10,})$/;

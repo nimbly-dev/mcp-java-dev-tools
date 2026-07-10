@@ -6,7 +6,7 @@ const test = require("node:test");
 const {
   renderRegressionRunResultsTable,
   resolveRegressionRunDirAbs,
-} = require("@tools-regression-execution-plan-spec/regression_results_report.util");
+} = require("@tools-feature-regression-suite");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");

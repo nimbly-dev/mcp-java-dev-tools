@@ -1,7 +1,7 @@
-import type { ShTransportExportAdapter } from "@tools-export-execution-profile/adapters/registry/transport_export_adapter.interface";
-import { asRecord } from "@tools-export-execution-profile/adapters/http/http_shared.util";
-import { toShellEnvKey } from "@tools-export-execution-profile/common";
-import { resolveStepTransport } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+import type { ShTransportExportAdapter } from "../registry/transport_export_adapter.interface";
+import { asRecord } from "./http_shared";
+import { toShellEnvKey } from "../../common";
+import { resolveStepTransport } from "../../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
 
 function normalizePlaceholders(value: string): string {
   return value.replace(/\$\{([^}]+)\}/g, (_full, key: string) => `\${${toShellEnvKey(key)}}`);

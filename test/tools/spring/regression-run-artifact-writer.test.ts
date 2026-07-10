@@ -7,7 +7,7 @@ const {
   buildRunArtifactDirAbs,
   rebuildCorrelationIndex,
   writeRegressionRunArtifacts,
-} = require("@tools-regression-execution-plan-spec/regression_run_artifact_writer.util");
+} = require("@tools-feature-regression-suite");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");

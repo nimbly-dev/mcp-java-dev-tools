@@ -1,28 +1,28 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { loadExecutionProfileExportTarget } from "@tools-export-execution-profile/loaders/export_target.loader";
-import { loadPerformancePlanContract } from "@tools-export-execution-profile/loaders/performance_plan_contract.loader";
-import { resolveProbeBaseUrlForExport } from "@tools-export-execution-profile/loaders/probe_export_binding.loader";
-import { loadProjectWorkspace } from "@tools-export-execution-profile/loaders/project_workspace.loader";
+import { loadExecutionProfileExportTarget } from "./loaders/export_target.loader";
+import { loadPerformancePlanContract } from "./loaders/performance_plan_contract.loader";
+import { resolveProbeBaseUrlForExport } from "./loaders/probe_export_binding.loader";
+import { loadProjectWorkspace } from "./loaders/project_workspace.loader";
 import type {
   ExportExecutionProfilePs1Input,
   ExportExecutionProfilePs1Result,
   ExportRuntimeDefaults,
   ExecutionProfileExportManifest,
-} from "@tools-export-execution-profile/models/execution_profile_export.model";
-import { resolveExportDefaults } from "@tools-export-execution-profile/policy/export_defaults.policy";
-import { renderEtaTemplate } from "@tools-export-execution-profile/renderers/eta.renderer";
+} from "./models/execution_profile_export.model";
+import { resolveExportDefaults } from "./policy/export_defaults.policy";
+import { renderEtaTemplate } from "./renderers/eta.renderer";
 import {
   emitPerformanceExportJmeterArtifacts,
   type PerformanceExportBundlePlan,
-} from "@tools-export-execution-profile/performance_jmeter_export.util";
-import { assertPerformanceExportProbeBindingsResolved } from "@tools-export-execution-profile/performance_export_probe_binding.util";
-import { buildReadmeTemplateModel } from "@tools-export-execution-profile/renderers/readme.renderer";
-import { preparePs1ExportPackage } from "@tools-export-execution-profile/sections/ps1/export_package.section";
-import { buildPs1HealthcheckSection } from "@tools-export-execution-profile/sections/ps1/healthcheck.section";
-import { buildPs1RuntimeStartupSection } from "@tools-export-execution-profile/sections/ps1/runtime_startup.section";
-import { resolveOneOffExportDir } from "@tools-export-execution-profile/sections/shared/oneoff_export_dir.util";
+} from "./performance_jmeter_export";
+import { assertPerformanceExportProbeBindingsResolved } from "./performance_export_probe_binding";
+import { buildReadmeTemplateModel } from "./renderers/readme.renderer";
+import { preparePs1ExportPackage } from "./sections/ps1/export_package.section";
+import { buildPs1HealthcheckSection } from "./sections/ps1/healthcheck.section";
+import { buildPs1RuntimeStartupSection } from "./sections/ps1/runtime_startup.section";
+import { resolveOneOffExportDir } from "./sections/shared/oneoff_export_dir";
 
 function joinLines(lines: string[]): string {
   return lines.join("\n");

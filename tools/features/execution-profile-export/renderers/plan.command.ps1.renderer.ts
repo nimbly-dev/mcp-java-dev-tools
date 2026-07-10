@@ -1,10 +1,10 @@
-import { escapePsSingleQuoted } from "@tools-export-execution-profile/common";
-import { toShellEnvKey } from "@tools-export-execution-profile/common";
-import { asRecord } from "@tools-export-execution-profile/adapters/http/http_shared.util";
-import { loadPlanContract } from "@tools-export-execution-profile/loaders/plan_contract.loader";
-import type { ExecutionProfileExportPlanRun } from "@tools-export-execution-profile/models/execution_profile_export.model";
-import type { PlanStep } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
-import { resolveStepTransport } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+import { escapePsSingleQuoted } from "../common";
+import { toShellEnvKey } from "../common";
+import { asRecord } from "../adapters/http/http_shared";
+import { loadPlanContract } from "../loaders/plan_contract.loader";
+import type { ExecutionProfileExportPlanRun } from "../models/execution_profile_export.model";
+import type { PlanStep } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
+import { resolveStepTransport } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
 
 function psDoubleQuoted(value: string): string {
   return `"${value.replace(/`/g, "``").replace(/"/g, '`"')}"`;

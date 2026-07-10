@@ -1,7 +1,7 @@
-import type { ExecutionProfileExportPlanRun } from "@tools-export-execution-profile/models/execution_profile_export.model";
-import { renderPs1PlanExecutionSection } from "@tools-export-execution-profile/renderers/plan.command.ps1.renderer";
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
-import { resolvePlanBaseUrls } from "@tools-export-execution-profile/sections/sh/plan_execution.section";
+import type { ExecutionProfileExportPlanRun } from "../../models/execution_profile_export.model";
+import { renderPs1PlanExecutionSection } from "../../renderers/plan.command.ps1.renderer";
+import { resolveRegressionPlansRootAbs } from "../../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
+import { resolvePlanBaseUrls } from "../sh/plan_execution.section";
 
 export async function buildPs1PlanExecutionSection(input: {
   workspaceRootAbs: string;

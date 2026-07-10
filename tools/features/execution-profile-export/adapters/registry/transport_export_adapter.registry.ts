@@ -1,7 +1,7 @@
-import type { ShStepRenderArgs, ShTransportRenderResult } from "@tools-export-execution-profile/models/transport_export.model";
-import type { ShTransportExportAdapter } from "@tools-export-execution-profile/adapters/registry/transport_export_adapter.interface";
-import { httpShTransportAdapter } from "@tools-export-execution-profile/adapters/http/http_sh.adapter";
-import { unsupportedShTransportAdapter } from "@tools-export-execution-profile/adapters/fallback/unsupported_sh.adapter";
+import type { ShStepRenderArgs, ShTransportRenderResult } from "../../models/transport_export.model";
+import type { ShTransportExportAdapter } from "./transport_export_adapter.interface";
+import { httpShTransportAdapter } from "../http/http_sh.adapter";
+import { unsupportedShTransportAdapter } from "../fallback/unsupported_sh.adapter";
 
 const adapters: ShTransportExportAdapter[] = [httpShTransportAdapter, unsupportedShTransportAdapter];
 

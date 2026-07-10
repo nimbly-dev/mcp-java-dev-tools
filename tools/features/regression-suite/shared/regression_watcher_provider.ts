@@ -1,10 +1,10 @@
-import type { PlanWatcher } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import type { PlanWatcher } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 import type {
   TransportExecutionResult,
   TransportProtocol,
-} from "@tools-regression-execution-plan-spec/models/regression_transport.model";
-import { deepResolvePlaceholderValue } from "@tools-regression-execution-plan-spec/placeholder_resolution.util";
-import { buildHttpPayload } from "@tools-regression-execution-plan-spec/regression_http_payload.util";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_transport.model";
+import { deepResolvePlaceholderValue } from "../../../spec/regression-execution-plan-spec/src/placeholder_resolution.util";
+import { buildHttpPayload } from "../shared/regression_http_payload";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)

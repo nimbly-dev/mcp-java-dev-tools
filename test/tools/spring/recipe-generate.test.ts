@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { generateRecipe } = require("@tools-feature-route-synthesis/shared/recipe_generation.util");
+const { generateRecipe } = require("@tools-feature-route-synthesis");
 
 const okAuth = {
   required: "unknown",

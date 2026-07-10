@@ -1,6 +1,6 @@
-import { asString, isRecord } from "@tools-export-execution-profile/common";
-import type { RuntimeStartup } from "@tools-export-execution-profile/models/execution_profile_export.model";
-import { shellDoubleQuote, toWorkspaceShellPath } from "@tools-export-execution-profile/shell_path.util";
+import { asString, isRecord } from "../common";
+import type { RuntimeStartup } from "../models/execution_profile_export.model";
+import { shellDoubleQuote, toWorkspaceShellPath } from "../shell_path";
 
 export function collectRuntimeStartups(input: {
   workspace: Record<string, unknown> | undefined;

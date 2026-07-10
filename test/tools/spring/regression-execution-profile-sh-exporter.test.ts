@@ -3,8 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { writeExecutionProfileExport } = require("@tools-regression-execution-plan-spec/regression_execution_profile_export_writer.util");
-const { exportExecutionProfileSh } = require("@tools-export-execution-profile/index");
+const { writeExecutionProfileExport } = require("@tools-feature-regression-suite");
+const { exportExecutionProfileSh } = require("@tools-export-execution-profile");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");

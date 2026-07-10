@@ -7,7 +7,7 @@ import { validateProjectRootAbs } from "@/utils/project_root_validate.util";
 import { deriveNextActionCode, normalizeReasonMeta } from "@/utils/failure_diagnostics.util";
 import { enrichRuntimeCapture } from "@/utils/recipe_generate/runtime_capture_enrich.util";
 import { resolveAdditionalSourceRoots } from "@/utils/source_roots_resolve.util";
-import { generateRecipe } from "@tools-feature-route-synthesis/shared/recipe_generation.util";
+import { generateRecipe } from "../shared/recipe_generation";
 
 function resolveProbeBaseUrlForRecipe(args: {
   defaultProbeBaseUrl: RouteSynthesisRecipeGenerationDeps["probeBaseUrl"];

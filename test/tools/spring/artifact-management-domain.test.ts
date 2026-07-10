@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { artifactManagementDomain } = require("@tools-feature-artifact-management/domain");
+const { artifactManagementDomain } = require("@tools-feature-artifact-management");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");

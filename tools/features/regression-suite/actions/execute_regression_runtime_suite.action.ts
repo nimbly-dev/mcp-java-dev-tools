@@ -1,7 +1,7 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
-import type { PlanContract } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import type { PlanContract } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 import type {
   RuntimeSuiteManifest,
   RuntimeSuiteCorrelationResult,
@@ -11,19 +11,19 @@ import type {
   RuntimeSuiteRunResult,
   RuntimeSuiteScriptPhase,
   RuntimeSuiteScriptRef,
-} from "@tools-regression-execution-plan-spec/models/regression_runtime_suite.model";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 import type {
   CorrelationArtifact,
   RegressionRunExecutionResult,
-} from "@tools-regression-execution-plan-spec/models/regression_run_artifact.model";
-import { resolveRegressionPlansRootAbs } from "@tools-regression-execution-plan-spec/regression_artifact_paths.util";
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
+import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import {
   executeRegressionPlanWorkflow,
   type ExecuteRegressionPlanWorkflowArgs,
-} from "@tools-regression-execution-plan-spec/regression_plan_executor.util";
-import { correlateEvents } from "@tools-regression-execution-plan-spec/regression_correlation.util";
-import { buildTimestampRunId } from "@tools-regression-execution-plan-spec/regression_execution_plan_spec.util";
+} from "./execute_regression_plan.action";
+import { correlateEvents } from "../shared/regression_correlation";
+import { buildTimestampRunId } from "../../../spec/regression-execution-plan-spec/src/regression_execution_plan_spec.util";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
