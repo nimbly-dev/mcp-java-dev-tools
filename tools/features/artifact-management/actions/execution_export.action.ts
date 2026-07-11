@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { executionProfileExportDomain } from "@tools-export-execution-profile";
+import { dispatchExecutionProfileExportAction } from "@tools-export-execution-profile";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "./types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import { resolveProjectName } from "../shared/project_resolution";
@@ -16,7 +16,7 @@ export async function handleExecutionExportArtifact(
         reason: "mode is required for execution_export generate",
       });
     }
-    return await executionProfileExportDomain({
+    return await dispatchExecutionProfileExportAction({
       workspaceRootAbs: ctx.workspaceRootAbs,
       ...(request.input.projectName ? { projectName: request.input.projectName } : {}),
       mode: request.input.mode,

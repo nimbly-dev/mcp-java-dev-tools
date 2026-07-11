@@ -49,7 +49,7 @@ function isSuiteBlockedResult(
   return "requiredUserAction" in value && !("executionProfile" in value);
 }
 
-export async function executionOrchestrationDomain(
+export async function executeExecutionOrchestrationAction(
   input: ExecutionOrchestrationActionInput,
 ): Promise<ExecutionOrchestrationActionResult> {
   if (input.action !== "execute") {

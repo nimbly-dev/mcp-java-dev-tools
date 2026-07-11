@@ -4,7 +4,17 @@ const test = require("node:test");
 const path = require("node:path");
 const fs = require("node:fs");
 
-const { executionOrchestrationDomain } = require("@tools-feature-execution-orchestration");
+const { dispatchExecutionOrchestrationAction } = require("@tools-feature-execution-orchestration");
+const executionOrchestrationDomain = (input: Record<string, unknown>) =>
+  dispatchExecutionOrchestrationAction({
+    workspaceRootAbs: input.workspaceRootAbs,
+    request: {
+      action: "execute",
+      input: {
+        ...(input.payload as Record<string, unknown>),
+      },
+    },
+  });
 const {
   createTestTempDir,
   writeJson,

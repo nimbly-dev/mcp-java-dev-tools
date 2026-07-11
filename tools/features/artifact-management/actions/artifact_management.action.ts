@@ -3,7 +3,7 @@ import type { ArtifactActionContext, ArtifactActionResult } from "./types";
 import { dispatchArtifactAction } from ".";
 import { buildFailClosedArtifactResponse } from "../shared/fail_closed";
 
-export async function artifactManagementDomain(input: {
+export async function dispatchArtifactManagementAction(input: {
   workspaceRootAbs: string;
   getProbeRegistrySummary?: ArtifactActionContext["getProbeRegistrySummary"];
   reloadProbeRegistry?: ArtifactActionContext["reloadProbeRegistry"];

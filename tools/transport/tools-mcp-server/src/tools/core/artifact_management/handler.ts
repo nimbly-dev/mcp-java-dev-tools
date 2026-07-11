@@ -3,7 +3,7 @@ import type { ProbeRegistrySummary } from "@tools-core/probe-registry";
 import { ArtifactManagementRequestSchema } from "@tools-contracts/artifact-management";
 import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
 import { ARTIFACT_MANAGEMENT_TOOL } from "@/tools/core/artifact_management/contract";
-import { artifactManagementDomain, buildFailClosedArtifactResponse } from "@tools-feature-artifact-management";
+import { dispatchArtifactManagementAction, buildFailClosedArtifactResponse } from "@tools-feature-artifact-management";
 
 export type ArtifactManagementHandlerDeps = {
   workspaceRootAbs: string;
@@ -69,7 +69,7 @@ export function registerArtifactManagementTool(server: McpServer, deps: Artifact
           },
         });
       }
-      return await artifactManagementDomain({
+      return await dispatchArtifactManagementAction({
         workspaceRootAbs: deps.workspaceRootAbs,
         ...(deps.getProbeRegistrySummary ? { getProbeRegistrySummary: deps.getProbeRegistrySummary } : {}),
         ...(deps.reloadProbeRegistry ? { reloadProbeRegistry: deps.reloadProbeRegistry } : {}),

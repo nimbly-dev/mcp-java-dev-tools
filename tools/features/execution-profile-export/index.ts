@@ -3,7 +3,6 @@ export { exportExecutionProfileSh } from "./execution_profile_export_sh";
 export { exportExecutionProfilePostman } from "./execution_profile_export_postman";
 export { exportExecutionProfilePerformancePs1 } from "./execution_profile_export_performance_ps1";
 export { exportExecutionProfilePerformanceSh } from "./execution_profile_export_performance_sh";
-export { exportExecutionProfileAction as executionProfileExportDomain } from "./actions/export_execution_profile.action";
 export { dispatchExecutionProfileExportAction } from "./actions";
 export type {
   ExportExecutionProfilePs1Input,

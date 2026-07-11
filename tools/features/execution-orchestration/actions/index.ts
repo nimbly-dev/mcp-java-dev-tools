@@ -1,17 +1,17 @@
 import type { ExecutionOrchestrationRequest } from "@tools-contracts/execution-orchestration";
 import type { ProbeDomainConfig } from "@tools-feature-probe";
-import { executionOrchestrationDomain } from "./execute_execution_orchestration.action";
+import { executeExecutionOrchestrationAction } from "./execute_execution_orchestration.action";
 
-export type ExecutionOrchestrationActionMap = Readonly<Record<"execute", typeof executionOrchestrationDomain>>;
+export type ExecutionOrchestrationActionMap = Readonly<Record<"execute", typeof executeExecutionOrchestrationAction>>;
 
 export function dispatchExecutionOrchestrationAction(args: {
   workspaceRootAbs: string;
   probeConfig?: ProbeDomainConfig;
   request: ExecutionOrchestrationRequest;
-}): ReturnType<typeof executionOrchestrationDomain> {
+}): ReturnType<typeof executeExecutionOrchestrationAction> {
   switch (args.request.action) {
     case "execute":
-      return executionOrchestrationDomain({
+      return executeExecutionOrchestrationAction({
         workspaceRootAbs: args.workspaceRootAbs,
         action: args.request.action,
         ...(args.probeConfig ? { probeConfig: args.probeConfig } : {}),
