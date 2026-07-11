@@ -595,6 +595,9 @@ export function normalizeCorrelationPayload(
     ...(typeof correlation.keyValue === "string" ? { keyValue: correlation.keyValue } : {}),
     window: correlation.window,
     ...(Array.isArray(correlation.expectedFlow) ? { expectedFlow: correlation.expectedFlow } : {}),
+    ...(Array.isArray(correlation.strictLineExpectations)
+      ? { strictLineExpectations: correlation.strictLineExpectations }
+      : {}),
     timeline,
     ...(Array.isArray(correlation.evidenceRefs) ? { evidenceRefs: correlation.evidenceRefs } : {}),
     ...(typeof correlation.generatedAtEpochMs === "number"
