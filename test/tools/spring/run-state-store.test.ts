@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { openRunStateStore, upsertRunStateArtifact } = require("@tools-feature-artifact-management");
+const { openRunStateStore, persistRegressionSuiteState, upsertRunStateArtifact } = require("@tools-feature-artifact-management");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
@@ -18,7 +18,7 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
     assert.equal(first.ok, true);
     if (!first.ok) return;
     assert.match(first.databasePathAbs.replaceAll("\\", "/"), /\.mcpjvm\/alpha\/run-state\.sqlite$/);
-    assert.equal(first.schemaVersion, 1);
+    assert.equal(first.schemaVersion, 2);
     assert.deepEqual(upsertRunStateArtifact(first, {
       artifactKind: "execution_result",
       pathRel: ".mcpjvm/alpha/plans/regression/p1/runs/r1/execution.result.json",
@@ -33,7 +33,7 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
     assert.equal(second.ok, true);
     if (second.ok) second.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
 
@@ -56,7 +56,7 @@ test("run-state store fails closed for invalid project and Artifact paths", asyn
     if (!invalidPath.ok) assert.equal(invalidPath.reasonCode, "state_store_path_invalid");
     store.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
 
@@ -83,7 +83,7 @@ test("run-state store fails closed for a mismatched project or unsupported schem
     assert.equal(unsupported.ok, false);
     if (!unsupported.ok) assert.equal(unsupported.reasonCode, "state_store_schema_unsupported");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
 
@@ -102,6 +102,36 @@ test("run-state store preserves a corrupt database and returns rebuild guidance"
     }
     assert.equal(fs.readFileSync(databasePath, "utf8"), "not a SQLite database");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("run-state store persists suite and plan checkpoints with revision protection", async () => {
+  const root = createTestTempDir("run-state-suite-checkpoint");
+  try {
+    const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(store.ok, true);
+    if (!store.ok) return;
+    const first = persistRegressionSuiteState({
+      store,
+      checkpoint: {
+        suiteRunId: "suite-1", executionProfile: "regression", status: "in_progress",
+        startedAtEpochMs: 10, updatedAtEpochMs: 10, nextPlanOrder: 2,
+        activePlanName: "p1", activePlanOrder: 1, activeRunId: "run-1", activePhase: "watchers",
+        continuation: { phase: "watchers", watcherIndex: 0 },
+      },
+      planRuns: [{ planName: "p1", runId: "run-1", status: "executed", runStatus: "in_progress", runDirPathRel: ".mcpjvm/alpha/plans/regression/p1/runs/run-1" }],
+    });
+    assert.deepEqual(first, { ok: true, revision: 1 });
+    const stale = persistRegressionSuiteState({
+      store,
+      checkpoint: { suiteRunId: "suite-1", executionProfile: "regression", status: "in_progress", startedAtEpochMs: 10, updatedAtEpochMs: 11, expectedRevision: 0 },
+      planRuns: [],
+    });
+    assert.equal(stale.ok, false);
+    if (!stale.ok) assert.equal(stale.reasonCode, "suite_checkpoint_stale_revision");
+    store.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });

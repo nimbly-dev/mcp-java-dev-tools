@@ -5,7 +5,7 @@ const { DatabaseSync } = require("node:sqlite") as {
   DatabaseSync: new (location: string) => RunStateDatabase;
 };
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 const BUSY_TIMEOUT_MS = 5_000;
 
 type RunStateDatabase = {
@@ -56,6 +56,74 @@ export type RunStateArtifactLink = {
   checksum?: string;
 };
 
+export type RegressionSuiteCheckpoint = {
+  suiteRunId: string;
+  executionProfile: string;
+  status: "pass" | "fail" | "blocked" | "partial_fail" | "in_progress";
+  startedAtEpochMs: number;
+  updatedAtEpochMs: number;
+  nextPlanOrder?: number;
+  activePlanName?: string;
+  activePlanOrder?: number;
+  activeRunId?: string;
+  activePhase?: "trigger" | "watchers" | "external_verification";
+  continuation?: Record<string, unknown>;
+  completedAtEpochMs?: number;
+  reasonCode?: string;
+  expectedRevision?: number;
+  ownerId?: string;
+  leaseExpiresAtEpochMs?: number;
+};
+
+export type RegressionPlanRunProjection = {
+  planName: string;
+  runId: string;
+  status: "executed" | "blocked" | "skipped";
+  runDirPathRel: string;
+  planOrder?: number;
+  runStatus?: "pass" | "fail" | "blocked" | "in_progress";
+  stepCount?: number;
+  failedStepCount?: number;
+  startedAtEpochMs?: number;
+  completedAtEpochMs?: number;
+  reasonCode?: string;
+};
+
+export type RunStateCheckpointFailure = {
+  ok: false;
+  reasonCode:
+    | "suite_checkpoint_conflict"
+    | "suite_checkpoint_stale_revision"
+    | "suite_checkpoint_owner_active"
+    | "suite_checkpoint_lease_expired"
+    | "suite_checkpoint_invalid"
+    | "suite_state_transition_invalid"
+    | "run_state_persist_failed";
+  reason: string;
+  nextAction: "resume_same_suite" | "retry_state_store" | "correct_checkpoint_input";
+  reasonMeta?: Record<string, unknown>;
+};
+
+export type PersistRegressionSuiteStateResult =
+  | { ok: true; revision: number }
+  | RunStateCheckpointFailure
+  | RunStateStoreFailure;
+
+export type PersistedRegressionSuiteCheckpoint = {
+  suiteRunId: string;
+  executionProfile: string;
+  status: RegressionSuiteCheckpoint["status"];
+  revision: number;
+  startedAtEpochMs: number;
+  updatedAtEpochMs: number;
+  nextPlanOrder?: number;
+  activePlanName?: string;
+  activePlanOrder?: number;
+  activeRunId?: string;
+  activePhase?: RegressionSuiteCheckpoint["activePhase"];
+  continuation?: Record<string, unknown>;
+};
+
 const MIGRATIONS = [
   {
     version: 1,
@@ -84,6 +152,51 @@ const MIGRATIONS = [
         checksum TEXT,
         created_at_epoch_ms INTEGER NOT NULL,
         UNIQUE(project_name, artifact_kind, path_rel)
+      );
+    `,
+  },
+  {
+    version: 2,
+    name: "regression_suite_checkpoints",
+    checksum: "sha256:43cd9a83284fd48258975d0bb8c25828483e15911e3aab2df28583bf9e7c6804",
+    sql: `
+      CREATE TABLE suite_runs (
+        suite_run_pk INTEGER PRIMARY KEY,
+        project_name TEXT NOT NULL,
+        suite_run_id TEXT NOT NULL,
+        execution_profile TEXT,
+        status TEXT NOT NULL,
+        next_plan_order INTEGER,
+        active_plan_name TEXT,
+        active_plan_order INTEGER,
+        active_run_id TEXT,
+        active_phase TEXT CHECK(active_phase IN ('trigger', 'watchers', 'external_verification')),
+        continuation_json TEXT,
+        owner_id TEXT,
+        lease_expires_at_epoch_ms INTEGER,
+        revision INTEGER NOT NULL DEFAULT 0,
+        started_at_epoch_ms INTEGER NOT NULL,
+        updated_at_epoch_ms INTEGER NOT NULL,
+        completed_at_epoch_ms INTEGER,
+        reason_code TEXT,
+        UNIQUE(project_name, suite_run_id)
+      );
+      CREATE TABLE plan_runs (
+        plan_run_pk INTEGER PRIMARY KEY,
+        suite_run_pk INTEGER REFERENCES suite_runs(suite_run_pk),
+        project_name TEXT NOT NULL,
+        plan_name TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        plan_order INTEGER,
+        status TEXT NOT NULL,
+        step_count INTEGER,
+        failed_step_count INTEGER,
+        started_at_epoch_ms INTEGER,
+        completed_at_epoch_ms INTEGER,
+        revision INTEGER NOT NULL DEFAULT 0,
+        reason_code TEXT,
+        run_dir_path_rel TEXT NOT NULL,
+        UNIQUE(project_name, plan_name, run_id)
       );
     `,
   },
@@ -246,4 +359,130 @@ export function upsertRunStateArtifact(store: OpenRunStateStore, artifact: RunSt
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+function checkpointFailure(
+  reasonCode: RunStateCheckpointFailure["reasonCode"],
+  reason: string,
+  nextAction: RunStateCheckpointFailure["nextAction"],
+  reasonMeta?: Record<string, unknown>,
+): RunStateCheckpointFailure {
+  return { ok: false, reasonCode, reason, nextAction, ...(reasonMeta ? { reasonMeta } : {}) };
+}
+
+function isTerminalSuiteStatus(status: string): boolean {
+  return status === "pass" || status === "fail" || status === "blocked" || status === "partial_fail";
+}
+
+/**
+ * Persists a Regression Suite checkpoint after canonical Artifacts were written.
+ * The caller supplies expectedRevision when resuming an existing suite to prevent
+ * concurrent/stale calls from advancing the same suiteRunId.
+ */
+export function persistRegressionSuiteState(args: {
+  store: OpenRunStateStore;
+  checkpoint: RegressionSuiteCheckpoint;
+  planRuns: RegressionPlanRunProjection[];
+}): PersistRegressionSuiteStateResult {
+  const checkpoint = args.checkpoint;
+  if (!checkpoint.suiteRunId.trim() || !checkpoint.executionProfile.trim() || !Number.isInteger(checkpoint.startedAtEpochMs) || !Number.isInteger(checkpoint.updatedAtEpochMs)) {
+    return checkpointFailure("suite_checkpoint_invalid", "suite checkpoint identity and timestamps are required", "correct_checkpoint_input");
+  }
+  if (checkpoint.continuation && JSON.stringify(checkpoint.continuation).length > 16_384) {
+    return checkpointFailure("suite_checkpoint_invalid", "suite checkpoint continuation exceeds the bounded size", "correct_checkpoint_input");
+  }
+  try {
+    const db = args.store.database;
+    db.exec("BEGIN IMMEDIATE;");
+    try {
+      const existing = db.prepare("SELECT suite_run_pk, status, revision, owner_id, lease_expires_at_epoch_ms FROM suite_runs WHERE project_name = ? AND suite_run_id = ?").get(args.store.projectName, checkpoint.suiteRunId);
+      const currentRevision = typeof existing?.revision === "number" ? existing.revision : 0;
+      if (typeof checkpoint.expectedRevision === "number" && existing && checkpoint.expectedRevision !== currentRevision) {
+        db.exec("ROLLBACK;");
+        return checkpointFailure("suite_checkpoint_stale_revision", "suite checkpoint revision is stale", "resume_same_suite", { expectedRevision: checkpoint.expectedRevision, currentRevision, suiteRunId: checkpoint.suiteRunId });
+      }
+      if (existing && typeof existing.status === "string" && isTerminalSuiteStatus(existing.status) && existing.status !== checkpoint.status) {
+        db.exec("ROLLBACK;");
+        return checkpointFailure("suite_state_transition_invalid", "a terminal suite checkpoint cannot be advanced", "resume_same_suite", { suiteRunId: checkpoint.suiteRunId, status: existing.status });
+      }
+      const now = checkpoint.updatedAtEpochMs;
+      const nextRevision = currentRevision + 1;
+      db.prepare(`INSERT INTO suite_runs (project_name, suite_run_id, execution_profile, status, next_plan_order, active_plan_name, active_plan_order, active_run_id, active_phase, continuation_json, owner_id, lease_expires_at_epoch_ms, revision, started_at_epoch_ms, updated_at_epoch_ms, completed_at_epoch_ms, reason_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(project_name, suite_run_id) DO UPDATE SET
+          execution_profile = excluded.execution_profile, status = excluded.status, next_plan_order = excluded.next_plan_order,
+          active_plan_name = excluded.active_plan_name, active_plan_order = excluded.active_plan_order, active_run_id = excluded.active_run_id,
+          active_phase = excluded.active_phase, continuation_json = excluded.continuation_json, owner_id = excluded.owner_id,
+          lease_expires_at_epoch_ms = excluded.lease_expires_at_epoch_ms, revision = excluded.revision,
+          updated_at_epoch_ms = excluded.updated_at_epoch_ms, completed_at_epoch_ms = excluded.completed_at_epoch_ms, reason_code = excluded.reason_code`).run(
+        args.store.projectName, checkpoint.suiteRunId.trim(), checkpoint.executionProfile.trim(), checkpoint.status,
+        checkpoint.nextPlanOrder ?? null, checkpoint.activePlanName ?? null, checkpoint.activePlanOrder ?? null, checkpoint.activeRunId ?? null,
+        checkpoint.activePhase ?? null, checkpoint.continuation ? JSON.stringify(checkpoint.continuation) : null,
+        checkpoint.ownerId ?? null, checkpoint.leaseExpiresAtEpochMs ?? null, nextRevision, checkpoint.startedAtEpochMs, now,
+        checkpoint.completedAtEpochMs ?? null, checkpoint.reasonCode ?? null,
+      );
+      const suiteRow = db.prepare("SELECT suite_run_pk FROM suite_runs WHERE project_name = ? AND suite_run_id = ?").get(args.store.projectName, checkpoint.suiteRunId);
+      const suiteRunPk = suiteRow?.suite_run_pk;
+      if (typeof suiteRunPk !== "number") throw new Error("suite_checkpoint_missing_after_upsert");
+      for (const planRun of args.planRuns) {
+        if (!planRun.planName.trim() || !planRun.runId.trim() || !isSafeRelativePath(planRun.runDirPathRel)) {
+          db.exec("ROLLBACK;");
+          return checkpointFailure("suite_checkpoint_invalid", "plan-run identity and workspace-relative Artifact path are required", "correct_checkpoint_input");
+        }
+        db.prepare(`INSERT INTO plan_runs (suite_run_pk, project_name, plan_name, run_id, plan_order, status, step_count, failed_step_count, started_at_epoch_ms, completed_at_epoch_ms, revision, reason_code, run_dir_path_rel)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+          ON CONFLICT(project_name, plan_name, run_id) DO UPDATE SET
+            suite_run_pk = excluded.suite_run_pk, plan_order = excluded.plan_order, status = excluded.status, step_count = excluded.step_count,
+            failed_step_count = excluded.failed_step_count, started_at_epoch_ms = excluded.started_at_epoch_ms,
+            completed_at_epoch_ms = excluded.completed_at_epoch_ms, revision = plan_runs.revision + 1, reason_code = excluded.reason_code,
+            run_dir_path_rel = excluded.run_dir_path_rel`).run(
+          suiteRunPk, args.store.projectName, planRun.planName.trim(), planRun.runId.trim(), planRun.planOrder ?? null, planRun.status,
+          planRun.stepCount ?? null, planRun.failedStepCount ?? null, planRun.startedAtEpochMs ?? null, planRun.completedAtEpochMs ?? null,
+          planRun.reasonCode ?? null, planRun.runDirPathRel.replaceAll("\\", "/"),
+        );
+      }
+      db.exec("COMMIT;");
+      return { ok: true, revision: nextRevision };
+    } catch (error) {
+      try { db.exec("ROLLBACK;"); } catch { /* transaction already closed */ }
+      throw error;
+    }
+  } catch (error) {
+    return checkpointFailure("run_state_persist_failed", "suite checkpoint could not be persisted", "retry_state_store", {
+      error: error instanceof Error ? error.message : String(error),
+      suiteRunId: checkpoint.suiteRunId,
+    });
+  }
+}
+
+/** Reads only bounded operational checkpoint fields; canonical Artifacts remain execution evidence. */
+export function readRegressionSuiteCheckpoint(args: {
+  store: OpenRunStateStore;
+  suiteRunId: string;
+}): PersistedRegressionSuiteCheckpoint | null {
+  const row = args.store.database.prepare(`SELECT suite_run_id, execution_profile, status, revision, started_at_epoch_ms, updated_at_epoch_ms,
+    next_plan_order, active_plan_name, active_plan_order, active_run_id, active_phase, continuation_json
+    FROM suite_runs WHERE project_name = ? AND suite_run_id = ?`).get(args.store.projectName, args.suiteRunId);
+  if (!row || typeof row.suite_run_id !== "string" || typeof row.execution_profile !== "string" || typeof row.status !== "string" || typeof row.revision !== "number" || typeof row.started_at_epoch_ms !== "number" || typeof row.updated_at_epoch_ms !== "number") return null;
+  let continuation: Record<string, unknown> | undefined;
+  if (typeof row.continuation_json === "string") {
+    try {
+      const parsed = JSON.parse(row.continuation_json) as unknown;
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) continuation = parsed as Record<string, unknown>;
+    } catch { return null; }
+  }
+  return {
+    suiteRunId: row.suite_run_id,
+    executionProfile: row.execution_profile,
+    status: row.status as RegressionSuiteCheckpoint["status"],
+    revision: row.revision,
+    startedAtEpochMs: row.started_at_epoch_ms,
+    updatedAtEpochMs: row.updated_at_epoch_ms,
+    ...(typeof row.next_plan_order === "number" ? { nextPlanOrder: row.next_plan_order } : {}),
+    ...(typeof row.active_plan_name === "string" ? { activePlanName: row.active_plan_name } : {}),
+    ...(typeof row.active_plan_order === "number" ? { activePlanOrder: row.active_plan_order } : {}),
+    ...(typeof row.active_run_id === "string" ? { activeRunId: row.active_run_id } : {}),
+    ...(row.active_phase === "trigger" || row.active_phase === "watchers" || row.active_phase === "external_verification" ? { activePhase: row.active_phase } : {}),
+    ...(continuation ? { continuation } : {}),
+  };
 }

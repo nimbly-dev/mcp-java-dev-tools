@@ -6,7 +6,13 @@ import {
 } from "../shared/resiliency";
 import { deriveNextActionCode } from "@tools-core/failure_diagnostics";
 import { executeHttpTransportRequest } from "@tools-feature-transport-execution";
-import { readProjectArtifact } from "@tools-feature-artifact-management";
+import {
+  openRunStateStore,
+  persistRegressionSuiteState,
+  readRegressionSuiteCheckpoint,
+  readProjectArtifact,
+  upsertRunStateArtifact,
+} from "@tools-feature-artifact-management";
 import {
   buildSuiteStatusArtifactRelPath,
   dispatchRegressionSuiteAction,
@@ -47,6 +53,73 @@ function isSuiteBlockedResult(
   value: RuntimeSuiteRunResult | RuntimeSuiteBlockedResult,
 ): value is RuntimeSuiteBlockedResult {
   return "requiredUserAction" in value && !("executionProfile" in value);
+}
+
+class CheckpointPersistenceError extends Error {
+  constructor(readonly reasonCode: string) {
+    super(reasonCode);
+  }
+}
+
+async function persistSQLiteSuiteCheckpoint(args: {
+  workspaceRootAbs: string;
+  projectName: string;
+  suite: RuntimeSuiteRunResult;
+}): Promise<void> {
+  const suiteRunId = args.suite.suiteRunId?.trim();
+  if (!suiteRunId) throw new CheckpointPersistenceError("suite_checkpoint_invalid");
+  const store = await openRunStateStore({
+    workspaceRootAbs: args.workspaceRootAbs,
+    projectName: args.projectName,
+  });
+  if (!store.ok) throw new CheckpointPersistenceError(store.reasonCode);
+  try {
+    const priorCheckpoint = readRegressionSuiteCheckpoint({ store, suiteRunId });
+    const activePlan = args.suite.progressSummary?.activePlan;
+    const now = Date.now();
+    const persisted = persistRegressionSuiteState({
+      store,
+      checkpoint: {
+        suiteRunId,
+        executionProfile: args.suite.executionProfile,
+        status: args.suite.status,
+        startedAtEpochMs: priorCheckpoint?.startedAtEpochMs ?? now,
+        updatedAtEpochMs: now,
+        ...(typeof args.suite.nextPlanOrder === "number" ? { nextPlanOrder: args.suite.nextPlanOrder } : {}),
+        ...(activePlan ? {
+          activePlanName: activePlan.planName,
+          activePlanOrder: activePlan.order,
+          ...(typeof activePlan.runId === "string" ? { activeRunId: activePlan.runId } : {}),
+          activePhase: activePlan.phase,
+        } : {}),
+        ...(args.suite.status === "in_progress" ? {} : { completedAtEpochMs: now }),
+        ...(typeof args.suite.reasonCode === "string" ? { reasonCode: args.suite.reasonCode } : {}),
+        ...(priorCheckpoint ? { expectedRevision: priorCheckpoint.revision } : {}),
+      },
+      planRuns: args.suite.planRuns
+        .filter((entry) => typeof entry.runId === "string" && entry.runId.length > 0)
+        .map((entry) => ({
+          planName: entry.planName,
+          runId: String(entry.runId),
+          status: entry.status,
+          runDirPathRel: `.mcpjvm/${args.projectName}/plans/regression/${entry.planName}/runs/${entry.runId}`,
+          planOrder: entry.order,
+          ...(entry.runStatus ? { runStatus: entry.runStatus } : {}),
+          ...(entry.runStatus !== "in_progress" ? { completedAtEpochMs: now } : {}),
+          ...(typeof entry.blockedReasonCode === "string" ? { reasonCode: entry.blockedReasonCode } : {}),
+        })),
+    });
+    if (!persisted.ok) throw new CheckpointPersistenceError(persisted.reasonCode);
+    const linked = upsertRunStateArtifact(store, {
+      artifactKind: "execution_orchestration",
+      pathRel: buildSuiteStatusArtifactRelPath({ projectName: args.projectName, suiteRunId }),
+      suiteRunId,
+      createdAtEpochMs: now,
+    });
+    if (!linked.ok) throw new CheckpointPersistenceError(linked.reasonCode);
+  } finally {
+    store.close();
+  }
 }
 
 export async function executeExecutionOrchestrationAction(
@@ -304,8 +377,10 @@ export async function executeExecutionOrchestrationAction(
           },
         });
 
-  const suite = enableOuterResiliencyLoop
-    ? await executeExecutionOrchestrationResiliencyLoop({
+  let suite: RuntimeSuiteRunResult | RuntimeSuiteBlockedResult;
+  try {
+    suite = enableOuterResiliencyLoop
+      ? await executeExecutionOrchestrationResiliencyLoop({
         projectName,
         executionProfile,
         defaults: orchestratorDefaults,
@@ -318,6 +393,13 @@ export async function executeExecutionOrchestrationAction(
             projectName,
             suite: nextSuite,
           });
+          if (profile.suiteType === "regression") {
+            await persistSQLiteSuiteCheckpoint({
+              workspaceRootAbs: input.workspaceRootAbs,
+              projectName,
+              suite: nextSuite,
+            });
+          }
         },
         readPersistedSuite: async (nextSuiteRunId) =>
           await readExecutionOrchestrationSuiteResult({
@@ -325,11 +407,21 @@ export async function executeExecutionOrchestrationAction(
             projectName,
             suiteRunId: nextSuiteRunId,
           }),
-      })
-    : await executeSuitePass({
+        })
+      : await executeSuitePass({
         ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
         ...(priorSuite ? { priorSuite } : {}),
-      }, loopPolicy.effectiveTimeoutBudgetMs);
+        }, loopPolicy.effectiveTimeoutBudgetMs);
+  } catch (error) {
+    if (error instanceof CheckpointPersistenceError) {
+      return blockedResponse({
+        reasonCode: error.reasonCode,
+        reason: error.reasonCode,
+        reasonMeta: { projectName, executionProfile },
+      });
+    }
+    throw error;
+  }
 
   if (isSuiteBlockedResult(suite)) {
     return blockedResponse({
@@ -349,6 +441,24 @@ export async function executeExecutionOrchestrationAction(
       projectName,
       suite,
     });
+    if (profile.suiteType === "regression") {
+      try {
+        await persistSQLiteSuiteCheckpoint({
+          workspaceRootAbs: input.workspaceRootAbs,
+          projectName,
+          suite,
+        });
+      } catch (error) {
+        if (error instanceof CheckpointPersistenceError) {
+          return blockedResponse({
+            reasonCode: error.reasonCode,
+            reason: error.reasonCode,
+            reasonMeta: { projectName, executionProfile },
+          });
+        }
+        throw error;
+      }
+    }
   }
 
   const structuredContent = {
