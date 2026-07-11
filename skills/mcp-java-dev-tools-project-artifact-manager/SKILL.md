@@ -45,6 +45,10 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 .mcpjvm/<project-name>/projects.json
 ```
 
+## Run-state Store Foundation
+
+Regression operational state uses a separate local SQLite store at `.mcpjvm/<project-name>/run-state.sqlite`. It is owned by the Artifact Management Feature Module, not by this Skill Workflow or by an always-on service. Keep `projectName` explicit, persist only workspace-relative Artifact paths, and fail closed on a locked, corrupt, or unsupported store. Rebuild or backfill is an explicit maintenance operation; never delete or silently recreate a failed store.
+
 ## Required Shape
 
 ```json
