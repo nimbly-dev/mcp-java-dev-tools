@@ -39,6 +39,7 @@ export type PreflightReasonCode =
   | "correlation_session_missing"
   | "correlation_window_invalid"
   | "correlation_key_invalid"
+  | "correlation_expectation_invalid"
   | "watcher_id_invalid"
   | "watcher_dependency_invalid"
   | "watcher_provider_invalid"
@@ -353,6 +354,22 @@ export type BuildPreflightArgs = {
 
 export type CorrelationKeyType = "traceId" | "requestId" | "messageId";
 export type CorrelationSourceType = "header" | "json_path" | "capture_field";
+export type CorrelationSelectorPolicy = "exact_instance" | "any_instance" | "all_instances" | "aggregate" | "quorum";
+export type CorrelationCountOperator = "exact" | "at_least" | "at_most" | "range";
+
+export type PlanCorrelationLineExpectation = {
+  strictLineKey: string;
+  sequenceOrder: number;
+  /** Required when the same Strict Line Key appears in more than one expected stage. */
+  stepOrder?: number;
+  selectorPolicy: CorrelationSelectorPolicy;
+  operator: CorrelationCountOperator;
+  expectedHitDelta?: number;
+  expectedMinHitDelta?: number;
+  expectedMaxHitDelta?: number;
+  label?: string;
+  probeIds?: string[];
+};
 
 export type PlanCorrelationPolicy = {
   enabled: boolean;
@@ -373,6 +390,7 @@ export type PlanCorrelationPolicy = {
   };
   probeIds: string[];
   expectedFlow?: string[];
+  strictLineExpectations?: PlanCorrelationLineExpectation[];
   matchPolicy: {
     requireExactKeyMatch: boolean;
     requireWindowMatch: boolean;

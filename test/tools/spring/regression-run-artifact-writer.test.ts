@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const { DatabaseSync } = require("node:sqlite");
 
 const {
   buildRunArtifactDirAbs,
@@ -130,12 +131,26 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
             probeId: "course-service",
             timestampEpochMs: 1767265201200,
             lineKey: "com.example.CourseController#get:22",
+            sequenceOrder: 2,
+            selectorPolicy: "exact_instance",
+            operator: "exact",
+            expectedHitDelta: 1,
+            runtimeInstanceId: "course-instance-1",
+            baselineHitCount: 4,
+            currentHitCount: 5,
           },
           {
             eventId: "e-1",
             probeId: "gateway-service",
             timestampEpochMs: 1767265200100,
             lineKey: "com.example.GatewayController#route:88",
+            sequenceOrder: 1,
+            selectorPolicy: "exact_instance",
+            operator: "exact",
+            expectedHitDelta: 1,
+            runtimeInstanceId: "gateway-instance-1",
+            baselineHitCount: 9,
+            currentHitCount: 10,
           },
         ],
         evidenceRefs: ["ev-1", "ev-2"],
@@ -147,13 +162,13 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
     assert.ok(fs.existsSync(written.executionResultPathAbs));
     assert.ok(fs.existsSync(written.evidencePathAbs));
     assert.ok(fs.existsSync(written.correlationPathAbs));
-    assert.ok(fs.existsSync(written.correlationIndexPathAbs));
+    assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "test-project", "correlation-index.json")), false);
+    assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "test-project", "run-state.sqlite")), true);
 
     const context = readJson(written.contextResolvedPathAbs);
     const result = readJson(written.executionResultPathAbs);
     const evidence = readJson(written.evidencePathAbs);
     const correlation = readJson(written.correlationPathAbs);
-    const correlationIndex = readJson(written.correlationIndexPathAbs);
 
     assert.equal(
       written.runDirAbs,
@@ -181,8 +196,10 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
     assert.equal(correlation.timeline[0].eventId, "e-1");
     assert.equal(correlation.timeline[1].eventId, "e-2");
     assert.match(String(written.correlationPathAbs).replaceAll("\\", "/"), /\/correlation\/correlation\.json$/);
-    assert.equal(correlationIndex.entries.length, 1);
-    assert.equal(correlationIndex.entries[0].correlationSessionId, "sess-2026-04-19");
+    const database = new DatabaseSync(path.join(root, ".mcpjvm", projectName, "run-state.sqlite"));
+    assert.equal(database.prepare("SELECT count(*) AS count FROM correlation_probe_observations").get().count, 2);
+    assert.equal(database.prepare("SELECT matched_line_count AS count FROM correlation_runs").get().count, 2);
+    database.close();
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -185,9 +185,10 @@ Use these references/templates:
    - `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/context.resolved.json`
    - `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/execution.result.json`
    - `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/evidence.json`
-   - `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/correlation.json`
+   - `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/correlation/correlation.json`
 2. Workspace index path:
-   - `.mcpjvm/correlation-index.json`
+   - `.mcpjvm/<project_name>/run-state.sqlite` is the writable operational correlation projection.
+   - canonical per-run Artifacts remain execution evidence; do not write `correlation-index.json` during execution.
 3. `execution.result.json` step entries MUST include `durationMs`.
 4. Correlation uses canonical `correlationPolicy` + `correlationEvents`.
 5. Do not author `correlation.json` directly; use canonical artifact writer flow.
@@ -208,6 +209,8 @@ Use these references/templates:
    - `progressSummary.activePlan`
    - completed `planRuns[]`
 15. SQLite operational state is never a replacement for canonical run Artifacts. Persist canonical evidence first, then persist the checkpoint; a checkpoint-persistence failure blocks safe continuation and must return deterministic recovery guidance.
+16. Correlation projection must preserve the same `runId` and `correlationSessionId`; a fresh suite run must not reuse a terminal Correlation result from an older run merely because its key matches.
+17. Treat persisted Probe scope state as historical observation only. Live Sidecar Probe state and runtime-instance identity remain authoritative.
 
 ## MCP-First and Wrapped Transport
 

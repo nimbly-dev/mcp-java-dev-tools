@@ -236,15 +236,36 @@ export function buildPlanCorrelationEvidence(args: {
       asString(target?.runtimeVerification?.probeId) ??
       (correlation.probeIds.length === 1 ? correlation.probeIds[0] : undefined);
     if (!probeId) continue;
+    const strictLineKey = typeof target?.runtimeVerification?.strictProbeKey === "string"
+      ? target.runtimeVerification.strictProbeKey
+      : undefined;
+    const expectation = strictLineKey
+      ? correlation.strictLineExpectations?.find(
+          (entry) =>
+            entry.strictLineKey === strictLineKey &&
+            (entry.stepOrder === undefined || entry.stepOrder === step.order),
+        )
+      : undefined;
+    const probeEvidence = asRecord(stepOutput.probe);
     correlationEvents.push({
       eventId: `${step.id}:${step.order}`,
       probeId,
       timestampEpochMs,
       keyType: correlation.key.type,
       ...(keyValue ? { keyValue } : {}),
-      ...(typeof target?.runtimeVerification?.strictProbeKey === "string"
-        ? { lineKey: target.runtimeVerification.strictProbeKey }
-        : {}),
+      ...(strictLineKey ? { lineKey: strictLineKey } : {}),
+      ...(expectation ? {
+        sequenceOrder: expectation.sequenceOrder,
+        ...(typeof expectation.stepOrder === "number" ? { stepOrder: expectation.stepOrder } : {}),
+        selectorPolicy: expectation.selectorPolicy,
+        operator: expectation.operator,
+        ...(typeof expectation.expectedHitDelta === "number" ? { expectedHitDelta: expectation.expectedHitDelta } : {}),
+        ...(typeof expectation.expectedMinHitDelta === "number" ? { expectedMinHitDelta: expectation.expectedMinHitDelta } : {}),
+        ...(typeof expectation.expectedMaxHitDelta === "number" ? { expectedMaxHitDelta: expectation.expectedMaxHitDelta } : {}),
+      } : {}),
+      ...(typeof probeEvidence?.runtimeInstanceId === "string" ? { runtimeInstanceId: probeEvidence.runtimeInstanceId } : {}),
+      ...(typeof probeEvidence?.baselineHitCount === "number" ? { baselineHitCount: probeEvidence.baselineHitCount } : {}),
+      ...(typeof probeEvidence?.currentHitCount === "number" ? { currentHitCount: probeEvidence.currentHitCount } : {}),
       eventType: step.protocol,
     });
   }
@@ -269,6 +290,9 @@ export function buildPlanCorrelationEvidence(args: {
       maxWindowMs: correlation.window.maxWindowMs,
       ...(Array.isArray(correlation.expectedFlow)
         ? { expectedFlow: correlation.expectedFlow }
+        : {}),
+      ...(Array.isArray(correlation.strictLineExpectations)
+        ? { strictLineExpectations: correlation.strictLineExpectations }
         : {}),
       ...(typeof correlation.window.startEpochMs === "number"
         ? { startEpochMs: correlation.window.startEpochMs }

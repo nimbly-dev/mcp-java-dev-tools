@@ -66,6 +66,7 @@ Use this workflow only for strict one-line verification runs.
 19. Execute probe flow:
    - `probe` with `action=reset` -> trigger HTTP request -> `probe` with `action=wait_for_hit` / `action=status`
 20. Cleanup (disable actuation when used).
+21. When a Regression Suite records a Strict Line observation, report baseline, final count, and delta as historical evidence. Do not claim a Probe remains armed from a stored snapshot; live Sidecar status is authoritative.
 
 ## Prerequisites
 

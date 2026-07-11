@@ -189,10 +189,19 @@ export async function executeRegressionPlanWorkflow(
       const strictProbeKey = target?.runtimeVerification?.strictProbeKey;
       const targetProbeId = target?.runtimeVerification?.probeId;
       const strictProbeWaitForHit = target?.runtimeVerification?.waitForHit;
+      const correlationEnabled = contract.correlation?.enabled === true;
+      const strictLineCorrelationEnabled =
+        correlationEnabled &&
+        typeof strictProbeKey === "string" &&
+        contract.correlation?.strictLineExpectations?.some(
+          (expectation) => expectation.strictLineKey === strictProbeKey,
+        ) === true;
       const strictProbeEnabled =
         metadata.execution.probeVerification === true &&
         typeof strictProbeKey === "string" &&
         strictProbeKey.trim().length > 0;
+      let baselineHitCount: number | undefined;
+      let runtimeInstanceId: string | undefined;
 
       if (strictProbeEnabled) {
         const resetIn: Record<string, unknown> = { key: strictProbeKey as string };
@@ -219,6 +228,31 @@ export async function executeRegressionPlanWorkflow(
             reasonCode: "probe_reset_failed",
           });
           break;
+        }
+        if (strictLineCorrelationEnabled) {
+          const baselineOut = await args.mcpInvoke({
+            toolName: "probe",
+            input: { action: "status", input: resetIn },
+          });
+          const baselineStructured = asRecord(baselineOut.structuredContent);
+          const baselineResponse = asRecord(baselineStructured?.response);
+          const baselineJson = asRecord(baselineResponse?.json);
+          const baselineRuntime = asRecord(baselineJson?.runtime);
+          if (typeof baselineJson?.hitCount !== "number" || typeof baselineRuntime?.sessionId !== "string" || !baselineRuntime.sessionId.trim()) {
+            hardRuntimeBlocker = true;
+            stepRows.push({
+              order: step.order,
+              id: step.id,
+              status: "blocked_runtime",
+              durationMs: 1,
+              statusCode: 0,
+              assertions: [],
+              reasonCode: "correlation_runtime_instance_missing",
+            });
+            break;
+          }
+          baselineHitCount = baselineJson.hitCount;
+          runtimeInstanceId = baselineRuntime.sessionId;
         }
       }
 
@@ -292,10 +326,38 @@ export async function executeRegressionPlanWorkflow(
         }
         const waitResult = asRecord(waitStructured?.result);
         const hit = waitResult?.hit === true;
+        let currentHitCount: number | undefined;
+        if (strictLineCorrelationEnabled) {
+          const finalOut = await args.mcpInvoke({
+            toolName: "probe",
+            input: { action: "status", input: waitIn },
+          });
+          const finalStructured = asRecord(finalOut.structuredContent);
+          const finalResponse = asRecord(finalStructured?.response);
+          const finalJson = asRecord(finalResponse?.json);
+          const finalRuntime = asRecord(finalJson?.runtime);
+          if (typeof finalJson?.hitCount !== "number" || typeof finalRuntime?.sessionId !== "string" || finalRuntime.sessionId !== runtimeInstanceId) {
+            hardRuntimeBlocker = true;
+            stepRows.push({
+              order: step.order,
+              id: step.id,
+              status: "blocked_runtime",
+              durationMs: transport.durationMs,
+              statusCode: transport.statusCode ?? 0,
+              assertions: [],
+              reasonCode: "correlation_runtime_instance_changed",
+            });
+            break;
+          }
+          currentHitCount = finalJson.hitCount;
+        }
         stepEnvelope.probe = {
           hit,
           key: strictProbeKey,
           ...(typeof targetProbeId === "string" ? { probeId: targetProbeId } : {}),
+          ...(typeof baselineHitCount === "number" ? { baselineHitCount } : {}),
+          ...(typeof currentHitCount === "number" ? { currentHitCount } : {}),
+          ...(runtimeInstanceId ? { runtimeInstanceId } : {}),
           coverage: hit ? "verified_line_hit" : "http_only_unverified_line",
         };
       }

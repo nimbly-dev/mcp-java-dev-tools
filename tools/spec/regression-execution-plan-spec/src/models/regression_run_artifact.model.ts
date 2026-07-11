@@ -285,6 +285,16 @@ export type CorrelationTimelineEvent = {
   lineKey?: string;
   eventType?: string;
   evidenceRef?: string;
+  sequenceOrder?: number;
+  selectorPolicy?: "exact_instance" | "any_instance" | "all_instances" | "aggregate" | "quorum";
+  operator?: "exact" | "at_least" | "at_most" | "range";
+  expectedHitDelta?: number;
+  expectedMinHitDelta?: number;
+  expectedMaxHitDelta?: number;
+  runtimeInstanceId?: string;
+  baselineHitCount?: number;
+  currentHitCount?: number;
+  stepOrder?: number;
 };
 
 export type CorrelationArtifact = {
@@ -300,6 +310,17 @@ export type CorrelationArtifact = {
     maxWindowMs: number;
   };
   expectedFlow?: string[];
+  strictLineExpectations?: Array<{
+    strictLineKey: string;
+    sequenceOrder: number;
+    stepOrder?: number;
+    selectorPolicy: "exact_instance" | "any_instance" | "all_instances" | "aggregate" | "quorum";
+    operator: "exact" | "at_least" | "at_most" | "range";
+    expectedHitDelta?: number;
+    expectedMinHitDelta?: number;
+    expectedMaxHitDelta?: number;
+    label?: string;
+  }>;
   timeline: CorrelationTimelineEvent[];
   evidenceRefs?: string[];
   generatedAtEpochMs?: number;

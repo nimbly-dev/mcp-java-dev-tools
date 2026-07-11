@@ -424,7 +424,7 @@ export function validateCorrelationPolicy(correlation: PlanCorrelationPolicy | u
   | {
       ok: false;
       reasonCode:
-        "correlation_session_missing" | "correlation_window_invalid" | "correlation_key_invalid";
+        "correlation_session_missing" | "correlation_window_invalid" | "correlation_key_invalid" | "correlation_expectation_invalid";
       requiredUserAction: string[];
     } {
   if (!correlation || correlation.enabled !== true) return { ok: true };
@@ -439,6 +439,50 @@ export function validateCorrelationPolicy(correlation: PlanCorrelationPolicy | u
       reasonCode: "correlation_key_invalid",
       requiredUserAction: ["Set correlation.key.type to traceId|requestId|messageId."],
     };
+  }
+  const expectations = correlation.strictLineExpectations;
+  if (expectations) {
+    const seen = new Set<string>();
+    const lineKeyCounts = new Map<string, number>();
+    for (const expectation of expectations) {
+      lineKeyCounts.set(
+        expectation.strictLineKey,
+        (lineKeyCounts.get(expectation.strictLineKey) ?? 0) + 1,
+      );
+    }
+    for (const expectation of expectations) {
+      const key = `${expectation.sequenceOrder}:${expectation.strictLineKey}`;
+      const strictLineKeyValid = /^[\w.$]+#[\w$<>]+:\d+$/.test(expectation.strictLineKey);
+      const selectorValid = ["exact_instance", "any_instance", "all_instances", "aggregate", "quorum"].includes(expectation.selectorPolicy);
+      const operatorValid = ["exact", "at_least", "at_most", "range"].includes(expectation.operator);
+      const exactCountValid = expectation.operator === "range"
+        ? Number.isInteger(expectation.expectedMinHitDelta) && Number.isInteger(expectation.expectedMaxHitDelta)
+          && expectation.expectedMinHitDelta !== undefined && expectation.expectedMaxHitDelta !== undefined
+          && expectation.expectedMinHitDelta >= 0 && expectation.expectedMaxHitDelta >= expectation.expectedMinHitDelta
+        : Number.isInteger(expectation.expectedHitDelta) && expectation.expectedHitDelta !== undefined && expectation.expectedHitDelta >= 0;
+      if (!strictLineKeyValid || !Number.isInteger(expectation.sequenceOrder) || expectation.sequenceOrder < 1 || !selectorValid || !operatorValid || !exactCountValid || seen.has(key)) {
+        return {
+          ok: false,
+          reasonCode: "correlation_expectation_invalid",
+          requiredUserAction: ["Set unique ordered Strict Line expectations with valid selector policy and bounded count operator."],
+        };
+      }
+      if (expectation.selectorPolicy !== "exact_instance") {
+        return {
+          ok: false,
+          reasonCode: "correlation_expectation_invalid",
+          requiredUserAction: ["Use selectorPolicy=exact_instance until frozen multi-instance Probe membership is available."],
+        };
+      }
+      if (lineKeyCounts.get(expectation.strictLineKey)! > 1 && (!Number.isInteger(expectation.stepOrder) || expectation.stepOrder! < 1)) {
+        return {
+          ok: false,
+          reasonCode: "correlation_expectation_invalid",
+          requiredUserAction: ["Set stepOrder on every repeated Strict Line expectation to map it to one deterministic plan step."],
+        };
+      }
+      seen.add(key);
+    }
   }
   if (
     typeof correlation.window?.maxWindowMs !== "number" ||

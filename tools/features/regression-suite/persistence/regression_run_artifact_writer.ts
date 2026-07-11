@@ -8,6 +8,7 @@
 import { promises as fs } from "node:fs";
 import { readdirSync, statSync, type Dirent } from "node:fs";
 import path from "node:path";
+import { openRunStateStore, persistCorrelationSession, upsertCorrelationObservation } from "@tools-feature-artifact-management";
 
 import type {
   CorrelationIndexRebuildResult,
@@ -97,6 +98,15 @@ function toCorrelationArtifactFromEvidence(args: {
         keyType: asCorrelationKeyType(event.keyType),
         ...(typeof event.keyValue === "string" ? { keyValue: event.keyValue } : {}),
         ...(typeof event.lineKey === "string" ? { lineKey: event.lineKey } : {}),
+        ...(typeof event.sequenceOrder === "number" ? { sequenceOrder: event.sequenceOrder } : {}),
+        ...(event.selectorPolicy === "exact_instance" || event.selectorPolicy === "any_instance" || event.selectorPolicy === "all_instances" || event.selectorPolicy === "aggregate" || event.selectorPolicy === "quorum" ? { selectorPolicy: event.selectorPolicy } : {}),
+        ...(event.operator === "exact" || event.operator === "at_least" || event.operator === "at_most" || event.operator === "range" ? { operator: event.operator } : {}),
+        ...(typeof event.expectedHitDelta === "number" ? { expectedHitDelta: event.expectedHitDelta } : {}),
+        ...(typeof event.expectedMinHitDelta === "number" ? { expectedMinHitDelta: event.expectedMinHitDelta } : {}),
+        ...(typeof event.expectedMaxHitDelta === "number" ? { expectedMaxHitDelta: event.expectedMaxHitDelta } : {}),
+        ...(typeof event.runtimeInstanceId === "string" ? { runtimeInstanceId: event.runtimeInstanceId } : {}),
+        ...(typeof event.baselineHitCount === "number" ? { baselineHitCount: event.baselineHitCount } : {}),
+        ...(typeof event.currentHitCount === "number" ? { currentHitCount: event.currentHitCount } : {}),
       };
     })
     .filter((event) => event.eventId && event.probeId && Number.isFinite(event.timestampEpochMs));
@@ -150,6 +160,9 @@ function toCorrelationArtifactFromEvidence(args: {
       maxWindowMs,
     },
     ...(Array.isArray(expectedFlow) ? { expectedFlow } : {}),
+    ...(Array.isArray(policyRaw.strictLineExpectations)
+      ? { strictLineExpectations: policyRaw.strictLineExpectations as unknown as NonNullable<CorrelationArtifact["strictLineExpectations"]> }
+      : {}),
     timeline,
     generatedAtEpochMs: args.now.getTime(),
   };
@@ -161,57 +174,6 @@ function asCorrelationVerdict(value: unknown): "ok" | "fail_closed" {
 
 function asCorrelationReasonCode(value: unknown): string {
   return typeof value === "string" && value.trim().length > 0 ? value : "insufficient_evidence";
-}
-
-function normalizeCanonicalIndexEntry(
-  typed: Record<string, unknown>,
-): RegressionCorrelationIndexEntry | null {
-  const runId = typeof typed.runId === "string" ? typed.runId : "";
-  const planName = typeof typed.planName === "string" ? typed.planName : "";
-  const runPath = typeof typed.runPath === "string" ? typed.runPath : "";
-  if (!runId || !planName || !runPath) return null;
-  return {
-    runId,
-    planName,
-    runPath,
-    generatedAtEpochMs: typeof typed.generatedAtEpochMs === "number" ? typed.generatedAtEpochMs : 0,
-    status: asCorrelationVerdict(typed.status),
-    reasonCode: asCorrelationReasonCode(typed.reasonCode),
-    keyType: asCorrelationKeyType(typed.keyType),
-    ...(typeof typed.keyValue === "string" ? { keyValue: typed.keyValue } : {}),
-    ...(typeof typed.correlationSessionId === "string"
-      ? { correlationSessionId: typed.correlationSessionId }
-      : {}),
-    window: isRecord(typed.window) ? normalizeWindowRecord(typed.window) : { maxWindowMs: 0 },
-    probeIds: Array.isArray(typed.probeIds) ? typed.probeIds.map((v) => String(v)) : [],
-  };
-}
-
-function toIndexEntryFromRunArtifact(args: {
-  workspaceRootAbs: string;
-  planName: string;
-  runId: string;
-  runDirAbs: string;
-  correlation: CorrelationArtifact;
-  now: Date;
-}): RegressionCorrelationIndexEntry {
-  return {
-    runId: args.runId,
-    planName: args.planName,
-    runPath: path.relative(args.workspaceRootAbs, args.runDirAbs).replaceAll("\\", "/"),
-    generatedAtEpochMs: args.correlation.generatedAtEpochMs ?? args.now.getTime(),
-    status: args.correlation.status,
-    reasonCode: args.correlation.reasonCode,
-    keyType: args.correlation.keyType,
-    ...(typeof args.correlation.keyValue === "string"
-      ? { keyValue: args.correlation.keyValue }
-      : {}),
-    ...(typeof args.correlation.correlationSessionId === "string"
-      ? { correlationSessionId: args.correlation.correlationSessionId }
-      : {}),
-    window: args.correlation.window,
-    probeIds: Array.from(new Set(args.correlation.timeline.map((event) => event.probeId))).sort(),
-  };
 }
 
 function correlationFileToIndexEntry(args: {
@@ -268,73 +230,6 @@ function normalizeWindowRecord(input: Record<string, unknown>): {
     ...(typeof input.endEpochMs === "number" ? { endEpochMs: input.endEpochMs } : {}),
     maxWindowMs: Number(input.maxWindowMs ?? 0),
   };
-}
-
-async function updateCorrelationIndex(args: {
-  workspaceRootAbs: string;
-  projectName?: string;
-  correlation: CorrelationArtifact;
-  runId: string;
-  planName: string;
-  runDirAbs: string;
-  now: Date;
-}): Promise<string> {
-  const { projectRootAbs } = await resolveProjectRootAbs({
-    workspaceRootAbs: args.workspaceRootAbs,
-    ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
-      ? { projectName: args.projectName.trim() }
-      : {}),
-  });
-  const indexPathAbs = path.join(projectRootAbs, "correlation-index.json");
-  let entries: RegressionCorrelationIndexEntry[] = [];
-  try {
-    const current = JSON.parse(await fs.readFile(indexPathAbs, "utf8")) as { entries?: unknown };
-    if (Array.isArray(current.entries)) {
-      entries = current.entries
-        .filter((item) => isRecord(item))
-        .map((item) => normalizeCanonicalIndexEntry(item as Record<string, unknown>))
-        .filter((entry): entry is RegressionCorrelationIndexEntry => entry !== null);
-    }
-  } catch {
-    entries = [];
-  }
-
-  const nextEntry = toIndexEntryFromRunArtifact({
-    workspaceRootAbs: args.workspaceRootAbs,
-    planName: args.planName,
-    runId: args.runId,
-    runDirAbs: args.runDirAbs,
-    correlation: args.correlation,
-    now: args.now,
-  });
-
-  const filtered = entries.filter(
-    (entry) => !(entry.planName === args.planName && entry.runId === args.runId),
-  );
-  const withNext = filtered.concat(nextEntry);
-  const existingEntries: RegressionCorrelationIndexEntry[] = [];
-  for (const entry of withNext) {
-    const runAbs = path.join(args.workspaceRootAbs, entry.runPath);
-    try {
-      const stat = await fs.stat(runAbs);
-      if (stat.isDirectory()) existingEntries.push(entry);
-    } catch {
-      // prune stale index entry
-    }
-  }
-  existingEntries.sort((a, b) => {
-    if (a.generatedAtEpochMs !== b.generatedAtEpochMs)
-      return a.generatedAtEpochMs - b.generatedAtEpochMs;
-    return `${a.planName}:${a.runId}`.localeCompare(`${b.planName}:${b.runId}`);
-  });
-
-  await fs.mkdir(path.dirname(indexPathAbs), { recursive: true });
-  await writeJsonFile(indexPathAbs, {
-    version: 1,
-    generatedAt: args.now.toISOString(),
-    entries: existingEntries,
-  });
-  return indexPathAbs;
 }
 
 export async function rebuildCorrelationIndex(args: {
@@ -552,7 +447,6 @@ export async function writeRegressionRunArtifacts(
   await writeJsonFile(evidencePathAbs, evidencePayload);
 
   let writtenCorrelationPathAbs: string | undefined;
-  let writtenCorrelationIndexPathAbs: string | undefined;
   const correlation = args.correlation
     ? args.correlation
     : toCorrelationArtifactFromEvidence({
@@ -568,17 +462,42 @@ export async function writeRegressionRunArtifacts(
     ) as Record<string, unknown>;
     await writeJsonFile(correlationPathAbs, correlationPayload);
     writtenCorrelationPathAbs = correlationPathAbs;
-    writtenCorrelationIndexPathAbs = await updateCorrelationIndex({
-      workspaceRootAbs: args.workspaceRootAbs,
-      ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
-        ? { projectName: args.projectName.trim() }
-        : {}),
-      correlation,
-      runId: args.runId,
-      planName: args.planRef.name,
-      runDirAbs,
-      now,
-    });
+    const project = await resolveProjectRootAbs({ workspaceRootAbs: args.workspaceRootAbs, ...(typeof args.projectName === "string" && args.projectName.trim() ? { projectName: args.projectName.trim() } : {}) });
+    const store = await openRunStateStore({ workspaceRootAbs: args.workspaceRootAbs, projectName: project.projectName });
+    if (!store.ok) throw new Error(store.reasonCode);
+    try {
+      const session = persistCorrelationSession({
+        store,
+        projectName: project.projectName,
+        session: {
+          planName: args.planRef.name,
+          runId: args.runId,
+          correlationSessionId: correlation.correlationSessionId ?? args.runId,
+          keyType: correlation.keyType,
+          ...(typeof correlation.keyValue === "string" ? { keyValue: correlation.keyValue } : {}),
+          maxWindowMs: correlation.window.maxWindowMs,
+          startedAtEpochMs: correlation.window.startEpochMs ?? correlation.generatedAtEpochMs ?? now.getTime(),
+          status: correlation.status !== "ok" ? "fail_closed" : correlation.strictLineExpectations?.length ? "collecting" : "correlated",
+          reasonCode: correlation.status !== "ok" ? correlation.reasonCode : correlation.strictLineExpectations?.length ? "collecting" : "ok",
+          correlationPathRel: path.relative(args.workspaceRootAbs, correlationPathAbs).replaceAll("\\", "/"),
+          ...(Array.isArray(correlation.strictLineExpectations)
+            ? { expectations: correlation.strictLineExpectations }
+            : {}),
+        },
+      });
+      if (!session.ok) throw new Error(session.reasonCode);
+      for (const [index, event] of correlation.timeline.entries()) {
+        const eventRecord = event as unknown as Record<string, unknown>;
+        const runtimeInstanceId = typeof eventRecord.runtimeInstanceId === "string" ? eventRecord.runtimeInstanceId : undefined;
+        const baselineHitCount = typeof eventRecord.baselineHitCount === "number" ? eventRecord.baselineHitCount : undefined;
+        const currentHitCount = typeof eventRecord.currentHitCount === "number" ? eventRecord.currentHitCount : undefined;
+        if (!event.lineKey || !runtimeInstanceId || baselineHitCount === undefined || currentHitCount === undefined) continue;
+        const operator = eventRecord.operator === "exact" || eventRecord.operator === "at_most" || eventRecord.operator === "range" ? eventRecord.operator : "at_least";
+        const selectorPolicy = eventRecord.selectorPolicy === "exact_instance" || eventRecord.selectorPolicy === "any_instance" || eventRecord.selectorPolicy === "all_instances" || eventRecord.selectorPolicy === "quorum" ? eventRecord.selectorPolicy : "aggregate";
+        const persisted = upsertCorrelationObservation({ store, projectName: project.projectName, planName: args.planRef.name, runId: args.runId, correlationSessionId: correlation.correlationSessionId ?? args.runId, maxWindowMs: correlation.window.maxWindowMs, observation: { strictLineKey: event.lineKey, sequenceOrder: typeof eventRecord.sequenceOrder === "number" ? eventRecord.sequenceOrder : index + 1, selectorPolicy, operator, ...(typeof eventRecord.expectedHitDelta === "number" ? { expectedHitDelta: eventRecord.expectedHitDelta } : { expectedHitDelta: 1 }), ...(typeof eventRecord.expectedMinHitDelta === "number" ? { expectedMinHitDelta: eventRecord.expectedMinHitDelta } : {}), ...(typeof eventRecord.expectedMaxHitDelta === "number" ? { expectedMaxHitDelta: eventRecord.expectedMaxHitDelta } : {}), probeId: event.probeId, runtimeInstanceId, baselineHitCount, currentHitCount, observedAtEpochMs: event.timestampEpochMs } });
+        if (!persisted.ok) throw new Error(persisted.reasonCode);
+      }
+    } finally { store.close(); }
   }
 
   return {
@@ -587,8 +506,5 @@ export async function writeRegressionRunArtifacts(
     executionResultPathAbs,
     evidencePathAbs,
     ...(writtenCorrelationPathAbs ? { correlationPathAbs: writtenCorrelationPathAbs } : {}),
-    ...(writtenCorrelationIndexPathAbs
-      ? { correlationIndexPathAbs: writtenCorrelationIndexPathAbs }
-      : {}),
   };
 }

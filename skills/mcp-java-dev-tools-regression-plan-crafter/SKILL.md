@@ -55,6 +55,8 @@ If user input conflicts with these rules, fail closed and request clarification.
 11. Execution Orchestrator resiliency is project-owned:
    - do not add plan-level resume/poll knobs
    - rely on `.mcpjvm/<project_name>/projects.json` `workspaces[].defaults.orchestrator.*`
+12. When `correlation.enabled=true`, author `strictLineExpectations[]` for Strict Line evidence that requires persistence. Each expectation has a unique `sequenceOrder`, `strictLineKey`, `selectorPolicy=exact_instance`, count operator (`exact|at_least|at_most|range`), and bounded expected delta or range. Multi-instance selector policies remain fail-closed until frozen membership execution support is available.
+13. Use one aggregate expectation for repeated processing (for example a 500-item reindex); do not create one expectation per Line Hit. Pair non-isolated count evidence with a Watcher or external verification.
 
 ## Plan Authoring Workflow
 

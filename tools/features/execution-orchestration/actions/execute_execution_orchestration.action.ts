@@ -7,9 +7,11 @@ import {
 import { deriveNextActionCode } from "@tools-core/failure_diagnostics";
 import { executeHttpTransportRequest } from "@tools-feature-transport-execution";
 import {
+  acquireRegressionSuiteLease,
   openRunStateStore,
   persistRegressionSuiteState,
   readRegressionSuiteCheckpoint,
+  releaseRegressionSuiteLease,
   readProjectArtifact,
   upsertRunStateArtifact,
 } from "@tools-feature-artifact-management";
@@ -25,6 +27,7 @@ import type {
   RuntimeSuiteRunResult,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import type {
   ExecutionOrchestrationActionInput,
   ExecutionOrchestrationActionResult,
@@ -65,6 +68,7 @@ async function persistSQLiteSuiteCheckpoint(args: {
   workspaceRootAbs: string;
   projectName: string;
   suite: RuntimeSuiteRunResult;
+  ownerId: string;
 }): Promise<void> {
   const suiteRunId = args.suite.suiteRunId?.trim();
   if (!suiteRunId) throw new CheckpointPersistenceError("suite_checkpoint_invalid");
@@ -95,6 +99,8 @@ async function persistSQLiteSuiteCheckpoint(args: {
         ...(args.suite.status === "in_progress" ? {} : { completedAtEpochMs: now }),
         ...(typeof args.suite.reasonCode === "string" ? { reasonCode: args.suite.reasonCode } : {}),
         ...(priorCheckpoint ? { expectedRevision: priorCheckpoint.revision } : {}),
+        ownerId: args.ownerId,
+        leaseExpiresAtEpochMs: now + 30_000,
       },
       planRuns: args.suite.planRuns
         .filter((entry) => typeof entry.runId === "string" && entry.runId.length > 0)
@@ -139,6 +145,7 @@ export async function executeExecutionOrchestrationAction(
     typeof input.payload.suiteRunId === "string" && input.payload.suiteRunId.trim().length > 0
       ? input.payload.suiteRunId.trim()
       : undefined;
+  const checkpointOwnerId = randomUUID();
   const maxPlansPerCall =
     typeof input.payload.maxPlansPerCall === "number" && Number.isInteger(input.payload.maxPlansPerCall)
       ? input.payload.maxPlansPerCall
@@ -175,6 +182,34 @@ export async function executeExecutionOrchestrationAction(
     | Awaited<ReturnType<typeof readExecutionOrchestrationSuiteResult>>
     | null = null;
   if (typeof suiteRunId === "string") {
+    const stateStore = await openRunStateStore({ workspaceRootAbs: input.workspaceRootAbs, projectName });
+    if (!stateStore.ok) {
+      return blockedResponse({
+        reasonCode: stateStore.reasonCode,
+        reason: stateStore.reasonCode,
+        reasonMeta: { projectName, executionProfile, suiteRunId },
+      });
+    }
+    const checkpoint = readRegressionSuiteCheckpoint({ store: stateStore, suiteRunId });
+    if (!checkpoint) {
+      stateStore.close();
+      return blockedResponse({
+        reasonCode: "suite_resume_evidence_missing",
+        reason: "suite_resume_evidence_missing",
+        reasonMeta: { projectName, executionProfile, suiteRunId },
+      });
+    }
+    if (checkpoint.executionProfile !== executionProfile) {
+      stateStore.close();
+      return blockedResponse({
+        reasonCode: "suite_resume_identity_mismatch",
+        reason: "suite_resume_identity_mismatch",
+        reasonMeta: { projectName, executionProfile, suiteRunId },
+      });
+    }
+    const lease = acquireRegressionSuiteLease({ store: stateStore, suiteRunId, ownerId: checkpointOwnerId, nowEpochMs: Date.now(), leaseDurationMs: 30_000 });
+    stateStore.close();
+    if (!lease.ok) return blockedResponse({ reasonCode: lease.reasonCode, reason: lease.reasonCode, reasonMeta: { projectName, executionProfile, suiteRunId } });
     priorSuite = await readExecutionOrchestrationSuiteResult({
       workspaceRootAbs: input.workspaceRootAbs,
       projectName,
@@ -182,8 +217,8 @@ export async function executeExecutionOrchestrationAction(
     });
     if (!priorSuite) {
       return blockedResponse({
-        reasonCode: "suite_progress_missing",
-        reason: "suite_progress_missing",
+        reasonCode: "suite_resume_evidence_missing",
+        reason: "suite_resume_evidence_missing",
         reasonMeta: { projectName, executionProfile, suiteRunId },
       });
     }
@@ -398,6 +433,7 @@ export async function executeExecutionOrchestrationAction(
               workspaceRootAbs: input.workspaceRootAbs,
               projectName,
               suite: nextSuite,
+              ownerId: checkpointOwnerId,
             });
           }
         },
@@ -447,6 +483,7 @@ export async function executeExecutionOrchestrationAction(
           workspaceRootAbs: input.workspaceRootAbs,
           projectName,
           suite,
+          ownerId: checkpointOwnerId,
         });
       } catch (error) {
         if (error instanceof CheckpointPersistenceError) {
@@ -458,6 +495,14 @@ export async function executeExecutionOrchestrationAction(
         }
         throw error;
       }
+    }
+  }
+
+  if (profile.suiteType === "regression" && typeof suite.suiteRunId === "string") {
+    const store = await openRunStateStore({ workspaceRootAbs: input.workspaceRootAbs, projectName });
+    if (store.ok) {
+      try { releaseRegressionSuiteLease({ store, suiteRunId: suite.suiteRunId, ownerId: checkpointOwnerId, nowEpochMs: Date.now() }); }
+      finally { store.close(); }
     }
   }
 

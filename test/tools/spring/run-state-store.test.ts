@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { openRunStateStore, persistRegressionSuiteState, upsertRunStateArtifact } = require("@tools-feature-artifact-management");
+const { openRunStateStore, persistCorrelationSession, persistRegressionSuiteState, upsertCorrelationObservation, upsertRunStateArtifact } = require("@tools-feature-artifact-management");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
@@ -18,7 +18,7 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
     assert.equal(first.ok, true);
     if (!first.ok) return;
     assert.match(first.databasePathAbs.replaceAll("\\", "/"), /\.mcpjvm\/alpha\/run-state\.sqlite$/);
-    assert.equal(first.schemaVersion, 2);
+    assert.equal(first.schemaVersion, 3);
     assert.deepEqual(upsertRunStateArtifact(first, {
       artifactKind: "execution_result",
       pathRel: ".mcpjvm/alpha/plans/regression/p1/runs/r1/execution.result.json",
@@ -130,6 +130,114 @@ test("run-state store persists suite and plan checkpoints with revision protecti
     });
     assert.equal(stale.ok, false);
     if (!stale.ok) assert.equal(stale.reasonCode, "suite_checkpoint_stale_revision");
+    store.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("run-state store aggregates repeated Strict Line observations without per-hit rows", async () => {
+  const root = createTestTempDir("correlation-aggregate");
+  try {
+    const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(store.ok, true);
+    if (!store.ok) return;
+    const base = { store, projectName: "alpha", planName: "p1", runId: "r1", correlationSessionId: "session-1", maxWindowMs: 1000 };
+    const observation = { strictLineKey: "com.example.Job#run:42", sequenceOrder: 1, selectorPolicy: "aggregate", operator: "exact", expectedHitDelta: 500, probeId: "worker", runtimeInstanceId: "instance-1", baselineHitCount: 10, currentHitCount: 10, observedAtEpochMs: 1 };
+    assert.equal(upsertCorrelationObservation({ ...base, observation }).ok, true);
+    const matched = upsertCorrelationObservation({ ...base, observation: { ...observation, currentHitCount: 510, observedAtEpochMs: 2 } });
+    assert.deepEqual(matched, { ok: true, revision: 1, observedHitDelta: 500, status: "matched" });
+    assert.equal(store.database.prepare("SELECT count(*) AS count FROM correlation_probe_observations").get()?.count, 1);
+    assert.equal(store.database.prepare("SELECT observed_hit_delta AS delta FROM correlation_probe_observations").get()?.delta, 500);
+    const nonMonotonic = upsertCorrelationObservation({ ...base, observation: { ...observation, currentHitCount: 509, observedAtEpochMs: 3 } });
+    assert.equal(nonMonotonic.ok, false);
+    if (!nonMonotonic.ok) assert.equal(nonMonotonic.reasonCode, "correlation_hit_count_non_monotonic");
+    store.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("run-state store rejects stale revisions, excess counts, and changed runtime instances", async () => {
+  const root = createTestTempDir("correlation-fail-closed");
+  try {
+    const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(store.ok, true);
+    if (!store.ok) return;
+    const base = { store, projectName: "alpha", planName: "p1", runId: "r1", correlationSessionId: "session-1", maxWindowMs: 1000 };
+    const observation = { strictLineKey: "com.example.Job#run:42", sequenceOrder: 1, selectorPolicy: "exact_instance" as const, operator: "exact" as const, expectedHitDelta: 1, probeId: "worker", runtimeInstanceId: "instance-1", baselineHitCount: 0, currentHitCount: 0, observedAtEpochMs: 1 };
+    assert.equal(upsertCorrelationObservation({ ...base, observation }).ok, true);
+    const stale = upsertCorrelationObservation({ ...base, observation: { ...observation, expectedRevision: 1, observedAtEpochMs: 2 } });
+    assert.equal(stale.ok, false);
+    if (!stale.ok) assert.equal(stale.reasonCode, "correlation_revision_conflict");
+    const exceeded = upsertCorrelationObservation({ ...base, observation: { ...observation, currentHitCount: 2, observedAtEpochMs: 3 } });
+    assert.equal(exceeded.ok, false);
+    if (!exceeded.ok) assert.equal(exceeded.reasonCode, "correlation_expectation_exceeded");
+    const runtimeChanged = upsertCorrelationObservation({ ...base, observation: { ...observation, runtimeInstanceId: "instance-2", observedAtEpochMs: 4 } });
+    assert.equal(runtimeChanged.ok, false);
+    if (!runtimeChanged.ok) assert.equal(runtimeChanged.reasonCode, "correlation_runtime_instance_changed");
+    store.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("run-state store persists a correlation session and hashed key without retaining the raw key", async () => {
+  const root = createTestTempDir("correlation-session");
+  try {
+    const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(store.ok, true);
+    if (!store.ok) return;
+    const result = persistCorrelationSession({
+      store,
+      projectName: "alpha",
+      session: {
+        planName: "p1",
+        runId: "r1",
+        correlationSessionId: "session-1",
+        keyType: "traceId",
+        keyValue: "sensitive-trace-value",
+        maxWindowMs: 1000,
+        startedAtEpochMs: 1,
+        status: "fail_closed",
+        reasonCode: "no_matching_events",
+        correlationPathRel: ".mcpjvm/alpha/plans/regression/p1/runs/r1/correlation/correlation.json",
+      },
+    });
+    assert.deepEqual(result, { ok: true, revision: 0 });
+    assert.equal(store.database.prepare("SELECT key_value_sanitized FROM correlation_keys").get()?.key_value_sanitized, null);
+    assert.match(String(store.database.prepare("SELECT key_value_hash FROM correlation_keys").get()?.key_value_hash), /^[a-f0-9]{64}$/);
+    assert.equal(store.database.prepare("SELECT correlation_path_rel FROM correlation_runs").get()?.correlation_path_rel, ".mcpjvm/alpha/plans/regression/p1/runs/r1/correlation/correlation.json");
+    store.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("declared Strict Line expectations remain collecting until their observation is persisted", async () => {
+  const root = createTestTempDir("correlation-declared-expectation");
+  try {
+    const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(store.ok, true);
+    if (!store.ok) return;
+    const session = persistCorrelationSession({
+      store,
+      projectName: "alpha",
+      session: {
+        planName: "p1",
+        runId: "r1",
+        correlationSessionId: "session-1",
+        keyType: "traceId",
+        maxWindowMs: 1000,
+        startedAtEpochMs: 1,
+        status: "collecting",
+        reasonCode: "collecting",
+        expectations: [{ strictLineKey: "com.example.Job#run:42", sequenceOrder: 1, selectorPolicy: "exact_instance", operator: "exact", expectedHitDelta: 1 }],
+      },
+    });
+    assert.equal(session.ok, true);
+    assert.equal(store.database.prepare("SELECT status FROM correlation_runs").get()?.status, "collecting");
+    assert.equal(store.database.prepare("SELECT count(*) AS count FROM correlation_line_expectations").get()?.count, 1);
     store.close();
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
