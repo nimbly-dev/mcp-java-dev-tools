@@ -1,40 +1,16 @@
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { PerformanceMstaSummary } from "./models/performance_suite.model";
+import type {
+  PerformanceMstaMethodStep as MstaMethodStep,
+  PerformanceMstaMethodSummary as MstaMethodSummary,
+  PerformanceMstaSummary,
+  PerformanceMstaTargetSummary as MstaTargetSummary,
+} from "./models/performance_suite.model";
 export type { PerformanceMstaSummary } from "./models/performance_suite.model";
 
-type MstaStatus = "available" | "jfr_missing" | "jfr_parse_failed" | "no_anchor_samples";
 const MAX_REDUCED_EVENT_LINE_LENGTH = 128 * 1024;
 const MAX_PATH_VARIANTS_PER_ANCHOR = 20_000;
-
-type MstaMethodStep = {
-  stepOrder: number;
-  methodRef: string;
-  target: boolean;
-  samples: number;
-  estimatedTimePct: number;
-  estimatedTimeMs: number;
-};
-
-type MstaTargetSummary = {
-  strictLineKey: string;
-  anchorMethod: string;
-  anchoredSampleCount: number;
-  dominantPathSampleCount: number;
-  dominantPathSamplePct: number;
-  dominantPathApproxTimeMs: number;
-  steps: MstaMethodStep[];
-};
-
-type MstaMethodSummary = {
-  methodRef: string;
-  estimatedTimeMs: number;
-  estimatedTimePct: number;
-  samples: number;
-  pathSteps: MstaMethodStep[];
-  strictLineKey?: string;
-};
 
 type ReducedExecutionSampleEvent = {
   type: string;
@@ -80,7 +56,10 @@ function compressAdjacent(values: string[]): string[] {
   return out;
 }
 
-function extractAnchorPathSample(args: { methods: string[]; anchorMethod: string }): string[] | null {
+function extractAnchorPathSample(args: {
+  methods: string[];
+  anchorMethod: string;
+}): string[] | null {
   const anchorIndex = args.methods.findIndex((method) => method === args.anchorMethod);
   if (anchorIndex < 0) return null;
   const pathFromAnchorToLeaf = compressAdjacent(args.methods.slice(0, anchorIndex + 1).reverse());
@@ -125,7 +104,9 @@ function resolveRepoRootCandidates(): string[] {
   ];
 }
 
-async function resolveReducedJfrInvocation(jfrPath: string): Promise<ReducedJfrInvocation | { detail: string }> {
+async function resolveReducedJfrInvocation(
+  jfrPath: string,
+): Promise<ReducedJfrInvocation | { detail: string }> {
   const override = process.env.MCP_JAVA_DEV_TOOLS_JFR_EXTRACTOR?.trim();
   if (override) {
     return {
@@ -192,7 +173,9 @@ async function streamReducedJfrSamples(args: {
     let failureDetail: string | null = null;
     const sourceEventTypes = new Set<string>();
 
-    const settle = (result: { ok: true; sourceEventTypes: string[] } | { ok: false; detail: string }) => {
+    const settle = (
+      result: { ok: true; sourceEventTypes: string[] } | { ok: false; detail: string },
+    ) => {
       if (settled) return;
       settled = true;
       resolve(result);
@@ -264,7 +247,10 @@ async function streamReducedJfrSamples(args: {
   });
 }
 
-async function resolveReadableJfrPath(rawPath: string | undefined, runDirAbs: string): Promise<string | null> {
+async function resolveReadableJfrPath(
+  rawPath: string | undefined,
+  runDirAbs: string,
+): Promise<string | null> {
   const candidates: string[] = [];
   if (typeof rawPath === "string" && rawPath.trim().length > 0) {
     const trimmed = rawPath.trim();
@@ -293,7 +279,9 @@ async function resolveReadableJfrPath(rawPath: string | undefined, runDirAbs: st
   return null;
 }
 
-function extractProfilerOutputPath(profilerStopResult: Record<string, unknown> | undefined): string | undefined {
+function extractProfilerOutputPath(
+  profilerStopResult: Record<string, unknown> | undefined,
+): string | undefined {
   if (!profilerStopResult) return undefined;
   const result =
     typeof profilerStopResult.result === "object" && profilerStopResult.result !== null
@@ -344,8 +332,12 @@ export async function buildPerformanceMstaSummary(args: {
         .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
         .map((entry) => entry.trim())
     : [];
-  const fallbackTargets = args.requiredLineHits.map((lineKey) => normalizeLineKeyToAnchorMethod(lineKey));
-  const anchorMethods = Array.from(new Set(explicitMethodTargets.length > 0 ? explicitMethodTargets : fallbackTargets));
+  const fallbackTargets = args.requiredLineHits.map((lineKey) =>
+    normalizeLineKeyToAnchorMethod(lineKey),
+  );
+  const anchorMethods = Array.from(
+    new Set(explicitMethodTargets.length > 0 ? explicitMethodTargets : fallbackTargets),
+  );
   const strictLineKeyByMethod = new Map<string, string>();
   for (const lineKey of args.requiredLineHits) {
     const methodRef = normalizeLineKeyToAnchorMethod(lineKey);
@@ -365,12 +357,21 @@ export async function buildPerformanceMstaSummary(args: {
         if (!pathSample) continue;
         aggregation.anchoredSampleCount += event.samples;
         const pathKey = pathSample.join(" -> ");
-        if (!aggregation.pathCounts.has(pathKey) && aggregation.pathCounts.size >= MAX_PATH_VARIANTS_PER_ANCHOR) {
+        if (
+          !aggregation.pathCounts.has(pathKey) &&
+          aggregation.pathCounts.size >= MAX_PATH_VARIANTS_PER_ANCHOR
+        ) {
           throw new Error(`msta_path_variant_limit_exceeded:anchor=${anchorMethod}`);
         }
-        aggregation.pathCounts.set(pathKey, (aggregation.pathCounts.get(pathKey) ?? 0) + event.samples);
+        aggregation.pathCounts.set(
+          pathKey,
+          (aggregation.pathCounts.get(pathKey) ?? 0) + event.samples,
+        );
         for (const method of pathSample) {
-          aggregation.methodCounts.set(method, (aggregation.methodCounts.get(method) ?? 0) + event.samples);
+          aggregation.methodCounts.set(
+            method,
+            (aggregation.methodCounts.get(method) ?? 0) + event.samples,
+          );
         }
       }
     },
@@ -392,7 +393,9 @@ export async function buildPerformanceMstaSummary(args: {
       continue;
     }
 
-    const dominantPathEntry = [...aggregation.pathCounts.entries()].sort((left, right) => right[1] - left[1])[0];
+    const dominantPathEntry = [...aggregation.pathCounts.entries()].sort(
+      (left, right) => right[1] - left[1],
+    )[0];
     if (!dominantPathEntry) continue;
     const [dominantPathKey, dominantPathCount] = dominantPathEntry;
     const dominantPath = dominantPathKey.split(" -> ");
@@ -416,14 +419,22 @@ export async function buildPerformanceMstaSummary(args: {
         anchoredSampleCount: aggregation.anchoredSampleCount,
         dominantPathSampleCount: dominantPathCount,
         dominantPathSamplePct: toPercent(dominantPathCount, aggregation.anchoredSampleCount),
-        dominantPathApproxTimeMs: toApproxTimeMs(dominantPathCount, aggregation.anchoredSampleCount, args.durationMs),
+        dominantPathApproxTimeMs: toApproxTimeMs(
+          dominantPathCount,
+          aggregation.anchoredSampleCount,
+          args.durationMs,
+        ),
         steps,
       });
     }
 
     methods.push({
       methodRef: anchorMethod,
-      estimatedTimeMs: toApproxTimeMs(dominantPathCount, aggregation.anchoredSampleCount, args.durationMs),
+      estimatedTimeMs: toApproxTimeMs(
+        dominantPathCount,
+        aggregation.anchoredSampleCount,
+        args.durationMs,
+      ),
       estimatedTimePct: toPercent(dominantPathCount, aggregation.anchoredSampleCount),
       samples: aggregation.anchoredSampleCount,
       pathSteps: steps,
@@ -447,7 +458,7 @@ export async function buildPerformanceMstaSummary(args: {
     sourceEventTypes: streamed.sourceEventTypes,
     ...(args.provider ? { provider: args.provider } : {}),
     durationMs: args.durationMs,
-    mode: explicitMethodTargets.length > 0 ? args.mode ?? "method_targets" : "required_line_hits",
+    mode: explicitMethodTargets.length > 0 ? (args.mode ?? "method_targets") : "required_line_hits",
     methods,
     targets,
   };

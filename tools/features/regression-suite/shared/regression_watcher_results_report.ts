@@ -1,45 +1,12 @@
-type WatcherSummaryStatus = "not_configured" | "pass" | "fail" | "blocked";
-type WatcherDetailStatus = "pass" | "fail_assertion" | "blocked_dependency" | "blocked_runtime";
-type WatcherOutcome = "verified" | "failed_expectation" | "timed_out" | "blocked";
-
-export type WatcherReportSummary = {
-  triggerStatus: string;
-  watcherStatus: WatcherSummaryStatus;
-  watcherCount: number;
-  verifiedCount: number;
-  failedExpectationCount: number;
-  timedOutCount: number;
-  blockedCount: number;
-};
-
-export type WatcherReportDetailRow = {
-  id: string;
-  dependencyStepOrder: number;
-  status: WatcherDetailStatus;
-  outcome: WatcherOutcome;
-  attemptCount: number;
-  durationMs: number;
-  timeoutMs: string;
-  retryMax: string;
-  reasonCode: string;
-};
-
-export type WatcherReportResult = {
-  summary: WatcherReportSummary;
-  rows: WatcherReportDetailRow[];
-  table: string;
-};
-
-type WatcherReportColumn =
-  | "id"
-  | "dependency_step"
-  | "status"
-  | "outcome"
-  | "attempt_count"
-  | "duration_ms"
-  | "timeout_ms"
-  | "retry_max"
-  | "reason_code";
+import type {
+  WatcherDetailStatus,
+  WatcherOutcome,
+  WatcherReportColumn,
+  WatcherReportDetailRow,
+  WatcherReportResult,
+  WatcherReportSummary,
+  WatcherSummaryStatus,
+} from "../models/regression_report.model";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -124,7 +91,9 @@ function toWatcherRecords(executionResult: Record<string, unknown>): Record<stri
   if (!Array.isArray(executionResult.watchers)) {
     return [];
   }
-  return executionResult.watchers.filter((entry): entry is Record<string, unknown> => isRecord(entry));
+  return executionResult.watchers.filter((entry): entry is Record<string, unknown> =>
+    isRecord(entry),
+  );
 }
 
 function deriveTriggerStatus(executionResult: Record<string, unknown>): string {
@@ -136,7 +105,9 @@ function deriveTriggerStatus(executionResult: Record<string, unknown>): string {
   const steps = Array.isArray(executionResult.steps)
     ? executionResult.steps.filter((entry): entry is Record<string, unknown> => isRecord(entry))
     : [];
-  if (steps.some((step) => step.status === "blocked_runtime" || step.status === "blocked_dependency")) {
+  if (
+    steps.some((step) => step.status === "blocked_runtime" || step.status === "blocked_dependency")
+  ) {
     return "blocked";
   }
   if (steps.some((step) => step.status === "fail_assertion" || step.status === "fail_http")) {

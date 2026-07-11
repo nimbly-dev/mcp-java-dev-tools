@@ -5,6 +5,12 @@ import type {
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_transport.model";
 import { deepResolvePlaceholderValue } from "@tools-core/placeholder_resolution";
 import { buildHttpPayload } from "../shared/regression_http_payload";
+import type {
+  WatcherObservationSummary,
+  WatcherProviderExecution,
+  WatcherProviderResultEnvelope,
+  WatcherResponseBodyFormat,
+} from "../models/regression_watcher.model";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -28,56 +34,12 @@ function tryParseJson(value: string): unknown {
   }
 }
 
-export type WatcherResponseBodyFormat = "auto" | "json" | "text";
-
-export type WatcherProviderExecution = {
-  providerType: string;
-  protocol: TransportProtocol;
-  payload: Record<string, unknown>;
-  responseBodyFormat: WatcherResponseBodyFormat;
-};
-
-export type WatcherProviderResultEnvelope = {
-  status: "pass" | "fail";
-  provider: {
-    type: string;
-    protocol: TransportProtocol;
-    responseBodyFormat: WatcherResponseBodyFormat;
-  };
-  response: {
-    statusCode: number;
-    body: string;
-    bodyFormat: "text" | "json";
-    headers?: Record<string, string>;
-    bodyJson?: unknown;
-  };
-  transport: {
-    status: TransportExecutionResult["status"];
-    durationMs: number;
-    reasonCode: string | null;
-  };
-};
-
-export type WatcherObservationSummary = {
-  status: "pass" | "fail";
-  provider: {
-    type: string;
-    protocol: TransportProtocol;
-    responseBodyFormat: WatcherResponseBodyFormat;
-  };
-  response: {
-    statusCode: number;
-    bodyFormat: "text" | "json";
-    bodyBytes: number;
-    headerNames?: string[];
-    hasBodyJson: boolean;
-  };
-  transport: {
-    status: TransportExecutionResult["status"];
-    durationMs: number;
-    reasonCode: string | null;
-  };
-};
+export type {
+  WatcherObservationSummary,
+  WatcherProviderExecution,
+  WatcherProviderResultEnvelope,
+  WatcherResponseBodyFormat,
+} from "../models/regression_watcher.model";
 
 export function resolveWatcherProviderExecution(args: {
   watcher: PlanWatcher;
@@ -150,7 +112,9 @@ export function resolveWatcherProviderExecution(args: {
     context: args.context,
   });
   const inheritedTimeoutMs =
-    typeof payload.timeoutMs === "number" && Number.isFinite(payload.timeoutMs) && payload.timeoutMs > 0
+    typeof payload.timeoutMs === "number" &&
+    Number.isFinite(payload.timeoutMs) &&
+    payload.timeoutMs > 0
       ? Math.floor(payload.timeoutMs)
       : typeof args.context["runtime.requestTimeoutMs"] === "number" &&
           Number.isFinite(args.context["runtime.requestTimeoutMs"]) &&
@@ -181,7 +145,9 @@ export function resolveWatcherProviderExecution(args: {
 export function summarizeWatcherObservation(
   envelope: WatcherProviderResultEnvelope,
 ): WatcherObservationSummary {
-  const headerNames = envelope.response.headers ? Object.keys(envelope.response.headers).sort() : [];
+  const headerNames = envelope.response.headers
+    ? Object.keys(envelope.response.headers).sort()
+    : [];
   return {
     status: envelope.status,
     provider: envelope.provider,
@@ -201,11 +167,16 @@ export function normalizeWatcherProviderResult(args: {
   transport: TransportExecutionResult;
 }):
   | { ok: true; envelope: WatcherProviderResultEnvelope }
-  | { ok: false; reasonCode: "watcher_response_normalization_failed"; reasonMeta: Record<string, unknown> } {
+  | {
+      ok: false;
+      reasonCode: "watcher_response_normalization_failed";
+      reasonMeta: Record<string, unknown>;
+    } {
   const responseBody = args.transport.bodyText ?? args.transport.bodyPreview ?? "";
   const parsedBody = tryParseJson(responseBody);
   const expectsJson = args.execution.responseBodyFormat === "json";
-  const parsedJson = expectsJson || args.execution.responseBodyFormat === "auto" ? parsedBody : undefined;
+  const parsedJson =
+    expectsJson || args.execution.responseBodyFormat === "auto" ? parsedBody : undefined;
 
   if (expectsJson && typeof parsedJson === "undefined") {
     return {

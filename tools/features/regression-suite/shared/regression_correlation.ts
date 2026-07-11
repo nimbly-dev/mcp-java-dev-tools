@@ -1,44 +1,26 @@
-export type CorrelationKeyType = "traceId" | "requestId" | "messageId";
-export type CorrelationFailureReason =
-  | "missing_correlation_key"
-  | "window_exceeded"
-  | "no_matching_events"
-  | "ambiguous_correlation"
-  | "flow_expectation_mismatch";
-
-export type CorrelationInputEvent = {
-  eventId: string;
-  probeId: string;
-  timestampEpochMs: number;
-  keyType: CorrelationKeyType;
-  keyValue?: string;
-  lineKey?: string;
-};
-
-export type CorrelationPolicy = {
-  keyType: CorrelationKeyType;
-  keyValue: string;
-  maxWindowMs: number;
-  expectedFlow?: string[];
-};
-
-export type CorrelationMatchResult =
-  | {
-      status: "ok";
-      timeline: CorrelationInputEvent[];
-      reasonCode: "ok";
-    }
-  | {
-      status: "fail_closed";
-      timeline: CorrelationInputEvent[];
-      reasonCode: CorrelationFailureReason;
-    };
+import type {
+  CorrelationFailureReason,
+  CorrelationInputEvent,
+  CorrelationKeyType,
+  CorrelationMatchResult,
+  CorrelationPolicy,
+} from "../models/regression_suite.model";
+export type {
+  CorrelationFailureReason,
+  CorrelationInputEvent,
+  CorrelationKeyType,
+  CorrelationMatchResult,
+  CorrelationPolicy,
+} from "../models/regression_suite.model";
 
 function normalizeString(value: string): string {
   return value.trim();
 }
 
-function sortEvents(events: CorrelationInputEvent[], expectedFlow?: string[]): CorrelationInputEvent[] {
+function sortEvents(
+  events: CorrelationInputEvent[],
+  expectedFlow?: string[],
+): CorrelationInputEvent[] {
   const flowIndex = new Map<string, number>();
   if (Array.isArray(expectedFlow)) {
     expectedFlow.forEach((probeId, idx) => flowIndex.set(probeId, idx));
@@ -61,7 +43,8 @@ function hasFlowViolation(timeline: CorrelationInputEvent[], expectedFlow: strin
   for (let i = 1; i < indexes.length; i += 1) {
     const current = indexes[i];
     const previous = indexes[i - 1];
-    if (typeof current === "number" && typeof previous === "number" && current < previous) return true;
+    if (typeof current === "number" && typeof previous === "number" && current < previous)
+      return true;
   }
   return false;
 }

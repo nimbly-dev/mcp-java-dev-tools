@@ -1,62 +1,18 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
-import {
-  renderWatcherResults,
-  type WatcherReportDetailRow,
-  type WatcherReportSummary,
-} from "./regression_watcher_results_report";
-
-type ReportColumn = "endpoint" | "status" | "http_code" | "duration_ms" | "probe_coverage" | "memory_bytes";
-type ProbeCoverageState = "verified_line_hit" | "http_only_unverified_line" | "unknown" | "n/a";
-
-type StepRow = {
-  order: number;
-  endpoint: string;
-  status: string;
-  httpCode: string;
-  durationMs: string;
-  probeCoverage: ProbeCoverageState;
-  memoryBytes: string;
-};
-
-type RenderArgs = {
-  executionResult: Record<string, unknown>;
-  evidence: Record<string, unknown>;
-  memoryMetricDefined: boolean;
-  correlation?: Record<string, unknown>;
-};
-
-type RenderResult = {
-  columns: ReportColumn[];
-  rows: StepRow[];
-  table: string;
-  watchers?: {
-    summary: WatcherReportSummary;
-    rows: WatcherReportDetailRow[];
-    table: string;
-  };
-  correlation?: {
-    status: "ok" | "fail_closed";
-    reasonCode: string;
-    keyType?: string;
-    keyValue?: string;
-    matchedEvents: number;
-    correlationSessionId?: string;
-  };
-};
-
-type RenderFromArtifactsArgs = {
-  runDirAbs: string;
-  memoryMetricDefined: boolean;
-};
-
-type ResolveRunDirArgs = {
-  workspaceRootAbs: string;
-  projectName?: string;
-  planName?: string;
-  runId?: string;
-};
+import { renderWatcherResults } from "./regression_watcher_results_report";
+import type {
+  ProbeCoverageState,
+  RenderArgs,
+  RenderFromArtifactsArgs,
+  RenderResult,
+  ReportColumn,
+  ResolveRunDirArgs,
+  StepRow,
+  WatcherReportDetailRow,
+  WatcherReportSummary,
+} from "../models/regression_report.model";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -80,7 +36,9 @@ function asCorrelationStatus(value: unknown): "ok" | "fail_closed" {
 
 function toStepRecords(executionResult: Record<string, unknown>): Record<string, unknown>[] {
   if (Array.isArray(executionResult.steps)) {
-    return executionResult.steps.filter((entry): entry is Record<string, unknown> => isRecord(entry));
+    return executionResult.steps.filter((entry): entry is Record<string, unknown> =>
+      isRecord(entry),
+    );
   }
   if (isRecord(executionResult.steps)) {
     return Object.entries(executionResult.steps)
@@ -104,7 +62,10 @@ function resolveEndpoint(step: Record<string, unknown>): string {
   return asString(step.id, "unknown_step");
 }
 
-function resolveProbeCoverage(step: Record<string, unknown>, evidence: Record<string, unknown>): ProbeCoverageState {
+function resolveProbeCoverage(
+  step: Record<string, unknown>,
+  evidence: Record<string, unknown>,
+): ProbeCoverageState {
   const normalizeProbeCoverage = (value: string): ProbeCoverageState => {
     const normalized = value.trim().toLowerCase();
     if (normalized.length === 0) return "unknown";
@@ -132,7 +93,10 @@ function resolveProbeCoverage(step: Record<string, unknown>, evidence: Record<st
   return "unknown";
 }
 
-function resolveMemoryBytes(step: Record<string, unknown>, evidence: Record<string, unknown>): string {
+function resolveMemoryBytes(
+  step: Record<string, unknown>,
+  evidence: Record<string, unknown>,
+): string {
   const stepMemory = asNumber(step.memoryBytes);
   if (stepMemory !== null) return String(stepMemory);
 
@@ -198,9 +162,17 @@ export function renderRegressionRunResultsTable(args: RenderArgs): RenderResult 
         memoryBytes: resolveMemoryBytes(step, evidence),
       };
     })
-    .sort((a, b) => (a.order !== b.order ? a.order - b.order : a.endpoint.localeCompare(b.endpoint)));
+    .sort((a, b) =>
+      a.order !== b.order ? a.order - b.order : a.endpoint.localeCompare(b.endpoint),
+    );
 
-  const columns: ReportColumn[] = ["endpoint", "status", "http_code", "duration_ms", "probe_coverage"];
+  const columns: ReportColumn[] = [
+    "endpoint",
+    "status",
+    "http_code",
+    "duration_ms",
+    "probe_coverage",
+  ];
   if (args.memoryMetricDefined) {
     columns.push("memory_bytes");
   }
@@ -221,13 +193,19 @@ export function renderRegressionRunResultsTable(args: RenderArgs): RenderResult 
     ? {
         status: asCorrelationStatus(args.correlation.status),
         reasonCode: asString(args.correlation.reasonCode, "insufficient_evidence"),
-        ...(typeof args.correlation.keyType === "string" ? { keyType: args.correlation.keyType } : {}),
-        ...(typeof args.correlation.keyValue === "string" ? { keyValue: args.correlation.keyValue } : {}),
-        matchedEvents: typeof args.correlation.matchedEvents === "number" && Number.isFinite(args.correlation.matchedEvents)
-          ? args.correlation.matchedEvents
-          : Array.isArray(args.correlation.timeline)
-            ? args.correlation.timeline.length
-            : 0,
+        ...(typeof args.correlation.keyType === "string"
+          ? { keyType: args.correlation.keyType }
+          : {}),
+        ...(typeof args.correlation.keyValue === "string"
+          ? { keyValue: args.correlation.keyValue }
+          : {}),
+        matchedEvents:
+          typeof args.correlation.matchedEvents === "number" &&
+          Number.isFinite(args.correlation.matchedEvents)
+            ? args.correlation.matchedEvents
+            : Array.isArray(args.correlation.timeline)
+              ? args.correlation.timeline.length
+              : 0,
         ...(typeof args.correlation.correlationSessionId === "string"
           ? { correlationSessionId: args.correlation.correlationSessionId }
           : {}),

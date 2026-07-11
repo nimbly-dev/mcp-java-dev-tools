@@ -13,7 +13,7 @@ import {
   resolvePrerequisiteContext,
   resolveStepTransport,
 } from "../support/regression_plan_execution";
-import { resolveProjectContextForRegression } from "../context/resolve_suite_project_context";
+import { resolveProjectContextForRegression } from "../context/project_context_resolution";
 
 export type DiscoveryOutcome =
   | "resolved"
@@ -151,9 +151,10 @@ function resolveFirstHttpTargetUrl(args: {
   for (const step of steps) {
     if (step.protocol !== "http") continue;
     const resolvedTransport = resolveStepTransport(step, effectiveContext);
-    const http = typeof resolvedTransport.http === "object" && resolvedTransport.http !== null
-      ? (resolvedTransport.http as Record<string, unknown>)
-      : null;
+    const http =
+      typeof resolvedTransport.http === "object" && resolvedTransport.http !== null
+        ? (resolvedTransport.http as Record<string, unknown>)
+        : null;
     if (!http) continue;
     const directUrl = asString(http.url);
     if (directUrl) return directUrl;
@@ -233,8 +234,7 @@ async function waitForFirstHttpTargetReachability(args: {
   providedContext: Record<string, unknown>;
   timeoutMs?: number;
 }): Promise<
-  | { ok: true }
-  | { ok: false; check: string; nextAction: string; requiredUserAction: string[] }
+  { ok: true } | { ok: false; check: string; nextAction: string; requiredUserAction: string[] }
 > {
   const targetUrl = resolveFirstHttpTargetUrl(args);
   if (!targetUrl) return { ok: true };
@@ -268,7 +268,9 @@ function resolveProbeBaseUrl(args: {
   if (typeof contextValue === "string" && contextValue.trim().length > 0) {
     return contextValue.trim();
   }
-  const fromPrerequisite = args.contract.prerequisites.find((entry) => entry.key === "probeBaseUrl");
+  const fromPrerequisite = args.contract.prerequisites.find(
+    (entry) => entry.key === "probeBaseUrl",
+  );
   if (typeof fromPrerequisite?.default === "string" && fromPrerequisite.default.trim().length > 0) {
     return fromPrerequisite.default.trim();
   }
@@ -355,13 +357,15 @@ function discoverablePrerequisites(args: {
   contract: PlanContract;
   providedContext: Record<string, unknown>;
 }): DiscoverablePrerequisite[] {
-  return args.contract.prerequisites.filter((prerequisite): prerequisite is DiscoverablePrerequisite => {
-    if (!prerequisite.required) return false;
-    if (prerequisite.provisioning !== "discoverable") return false;
-    if (hasNonBlank(args.providedContext[prerequisite.key])) return false;
-    if (typeof prerequisite.default !== "undefined") return false;
-    return true;
-  });
+  return args.contract.prerequisites.filter(
+    (prerequisite): prerequisite is DiscoverablePrerequisite => {
+      if (!prerequisite.required) return false;
+      if (prerequisite.provisioning !== "discoverable") return false;
+      if (hasNonBlank(args.providedContext[prerequisite.key])) return false;
+      if (typeof prerequisite.default !== "undefined") return false;
+      return true;
+    },
+  );
 }
 
 function mergeDiscoveredContext(args: {
@@ -497,7 +501,13 @@ export async function resolveDiscoverablePrerequisites(
       reasonCode: firstBlocked.reasonCode,
       discoveredContext,
       records,
-      requiredUserAction: [...new Set(records.filter((record) => record.outcome !== "resolved").map((entry) => entry.requiredUserAction))],
+      requiredUserAction: [
+        ...new Set(
+          records
+            .filter((record) => record.outcome !== "resolved")
+            .map((entry) => entry.requiredUserAction),
+        ),
+      ],
     };
   }
 
@@ -538,7 +548,9 @@ export async function buildReplayPreflightWithDiscovery(
         ...mergedProvidedContext,
       };
       const overriddenKeys = new Set(Object.keys(args.providedContext));
-      secretContextKeys = projectContext.secretContextKeys.filter((key) => !overriddenKeys.has(key));
+      secretContextKeys = projectContext.secretContextKeys.filter(
+        (key) => !overriddenKeys.has(key),
+      );
     } else {
       projectContextArg = {
         status: "blocked",
@@ -626,7 +638,10 @@ export async function buildReplayPreflightWithDiscovery(
   });
 
   if (discovery.status === "blocked") {
-    const blockedStatus = statusForOutcome(discovery.records.find((record) => record.outcome !== "resolved")?.outcome ?? "blocked_runtime_error");
+    const blockedStatus = statusForOutcome(
+      discovery.records.find((record) => record.outcome !== "resolved")?.outcome ??
+        "blocked_runtime_error",
+    );
     const blockedPreflight: PreflightResult = {
       status: blockedStatus,
       reasonCode: discovery.reasonCode,

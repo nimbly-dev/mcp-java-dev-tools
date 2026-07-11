@@ -1,4 +1,16 @@
-import type { ProjectRuntimeContext } from "@tools-project-artifact-spec/models/project_artifact.model";
+import type {
+  ProjectRuntimeContext,
+  ProjectScriptEntry,
+  ProjectScriptPhase,
+} from "@tools-project-artifact-spec/models/project_artifact.model";
+
+export type ResolvedProfileScript = { script: ProjectScriptEntry; phase: ProjectScriptPhase };
+
+export type ProbeRegistry = {
+  defaultProfile?: string;
+  profiles?: Record<string, { probes?: Record<string, { include?: string[]; baseUrl?: string }> }>;
+  workspaces?: Array<{ root?: string; profile?: string }>;
+};
 
 export type ProjectContextBlockedReason =
   | "project_artifact_missing"
@@ -12,7 +24,12 @@ export type ProjectContextBlockedReason =
   | "external_healthcheck_failed";
 
 export type ProjectContextResolutionResult =
-  | { status: "ok"; contextPatch: Record<string, unknown>; secretContextKeys: string[]; runtimeContextName?: string }
+  | {
+      status: "ok";
+      contextPatch: Record<string, unknown>;
+      secretContextKeys: string[];
+      runtimeContextName?: string;
+    }
   | {
       status: "blocked";
       reasonCode: ProjectContextBlockedReason;
@@ -36,4 +53,7 @@ export type ResolveProjectContextArgs = {
 };
 
 export type RuntimeStartResult = { attempted: boolean; success: boolean; detail?: string };
-export type RuntimeStarter = (args: { runtimeContext: ProjectRuntimeContext; workspaceRootAbs: string }) => Promise<RuntimeStartResult>;
+export type RuntimeStarter = (args: {
+  runtimeContext: ProjectRuntimeContext;
+  workspaceRootAbs: string;
+}) => Promise<RuntimeStartResult>;

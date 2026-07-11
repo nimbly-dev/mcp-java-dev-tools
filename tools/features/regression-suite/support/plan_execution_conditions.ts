@@ -1,13 +1,11 @@
 import { isDeepStrictEqual } from "node:util";
 import { readValueByPath } from "@tools-core/object_path_read";
-import type { PlanStepCondition, PlanStepConditionPredicate } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
-
-type ConditionReasonCode =
-  | "step_condition_malformed"
-  | "step_condition_operator_invalid"
-  | "step_condition_forward_reference"
-  | "step_condition_path_missing"
-  | "step_condition_type_mismatch";
+import type {
+  PlanStepCondition,
+  PlanStepConditionPredicate,
+} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
+import type { ConditionReasonCode } from "../models/regression_suite.model";
+export type { CorrelationKeyResolution } from "../models/regression_suite.model";
 
 export function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
@@ -16,13 +14,6 @@ export function asString(value: unknown): string | undefined {
 export function asPositiveInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }
-
-export type CorrelationKeyResolution = {
-  keyValue?: string;
-  sourceType?: "header" | "json_path" | "capture_field";
-  sourcePath?: string;
-  reasonCode?: "correlation_key_extraction_failed";
-};
 
 export function tryParseJson(value: string): unknown {
   try {
@@ -199,4 +190,3 @@ export function resolveBlockedShape(preflight: {
     requiredUserAction: preflight.requiredUserAction,
   };
 }
-

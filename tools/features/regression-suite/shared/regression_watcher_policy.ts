@@ -4,6 +4,7 @@ import type {
   PlanWatcher,
   PlanWatcherWaitPolicy,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
+import type { ResolvedWatcherWaitPolicy } from "../models/regression_watcher.model";
 
 function hasNonBlank(value: unknown): boolean {
   return typeof value !== "undefined" && value !== null && String(value).trim() !== "";
@@ -63,7 +64,9 @@ function validateWatcherExpectationEntries(args: {
     return {
       ok: false,
       reasonCode: "watcher_expectations_missing",
-      requiredUserAction: [`Add deterministic ${contractPath} entries for watcher '${args.ownerId}'.`],
+      requiredUserAction: [
+        `Add deterministic ${contractPath} entries for watcher '${args.ownerId}'.`,
+      ],
     };
   }
 
@@ -101,7 +104,10 @@ function validateWatcherExpectationEntries(args: {
         ],
       };
     }
-    if (expectationNeedsExpected(expectation.operator) && typeof expectation.expected === "undefined") {
+    if (
+      expectationNeedsExpected(expectation.operator) &&
+      typeof expectation.expected === "undefined"
+    ) {
       return {
         ok: false,
         reasonCode: "watcher_expectation_invalid",
@@ -115,12 +121,7 @@ function validateWatcherExpectationEntries(args: {
   return { ok: true };
 }
 
-export type ResolvedWatcherWaitPolicy = {
-  timeoutMs?: number;
-  timeoutSource: "watcher_override" | "project_default" | "unresolved";
-  retryMax?: number;
-  retrySource: "watcher_override" | "project_default" | "unresolved";
-};
+export type { ResolvedWatcherWaitPolicy } from "../models/regression_watcher.model";
 
 export function resolveWatcherWaitPolicy(args: {
   watcher: Pick<PlanWatcher, "waitPolicy">;
@@ -187,13 +188,19 @@ export function validateWatchers(
       return {
         ok: false,
         reasonCode: "watcher_id_invalid",
-        requiredUserAction: [`Ensure watcher id '${watcherId}' is unique within contract.watchers[].`],
+        requiredUserAction: [
+          `Ensure watcher id '${watcherId}' is unique within contract.watchers[].`,
+        ],
       };
     }
     watcherIds.add(watcherId);
 
     const dependency = watcher.dependency;
-    if (!isRecord(dependency) || !asPositiveInteger(dependency.stepOrder) || !validStepOrders.has(dependency.stepOrder)) {
+    if (
+      !isRecord(dependency) ||
+      !asPositiveInteger(dependency.stepOrder) ||
+      !validStepOrders.has(dependency.stepOrder)
+    ) {
       return {
         ok: false,
         reasonCode: "watcher_dependency_invalid",
@@ -216,8 +223,8 @@ export function validateWatchers(
       };
     }
     if (
-      typeof provider.transport !== "undefined" && !isRecord(provider.transport) ||
-      typeof provider.config !== "undefined" && !isRecord(provider.config)
+      (typeof provider.transport !== "undefined" && !isRecord(provider.transport)) ||
+      (typeof provider.config !== "undefined" && !isRecord(provider.config))
     ) {
       return {
         ok: false,
@@ -238,11 +245,12 @@ export function validateWatchers(
     }
     if (hasConfig) {
       const providerConfig = provider.config as Record<string, unknown>;
-      const responseConfig = typeof providerConfig.response === "undefined"
-        ? undefined
-        : isRecord(providerConfig.response)
-          ? providerConfig.response
-          : null;
+      const responseConfig =
+        typeof providerConfig.response === "undefined"
+          ? undefined
+          : isRecord(providerConfig.response)
+            ? providerConfig.response
+            : null;
       if (responseConfig === null) {
         return {
           ok: false,
@@ -273,15 +281,19 @@ export function validateWatchers(
         return {
           ok: false,
           reasonCode: "watcher_wait_policy_invalid",
-          requiredUserAction: [`Set watcher '${watcherId}' waitPolicy to an object when overriding wait defaults.`],
+          requiredUserAction: [
+            `Set watcher '${watcherId}' waitPolicy to an object when overriding wait defaults.`,
+          ],
         };
       }
       const waitPolicyKeys = Object.keys(waitPolicy);
       if (
         waitPolicyKeys.length === 0 ||
         waitPolicyKeys.some((key) => key !== "timeoutMs" && key !== "retryMax") ||
-        (typeof waitPolicy.timeoutMs !== "undefined" && typeof asPositiveInteger(waitPolicy.timeoutMs) === "undefined") ||
-        (typeof waitPolicy.retryMax !== "undefined" && typeof asPositiveInteger(waitPolicy.retryMax) === "undefined")
+        (typeof waitPolicy.timeoutMs !== "undefined" &&
+          typeof asPositiveInteger(waitPolicy.timeoutMs) === "undefined") ||
+        (typeof waitPolicy.retryMax !== "undefined" &&
+          typeof asPositiveInteger(waitPolicy.retryMax) === "undefined")
       ) {
         return {
           ok: false,

@@ -5,7 +5,7 @@ export {
   buildSuiteStatusArtifactRelPath,
   readExecutionOrchestrationSuiteResult,
   writeExecutionOrchestrationSuiteResult,
-} from "./actions/execute_regression_runtime_suite.action";
+} from "./support/regression_suite_state";
 export { inferPlanApiBaseUrlFromProbeConfig } from "./shared/regression_plan_base_url";
 export {
   buildResolvedSecretRedactionMeta,
@@ -16,7 +16,7 @@ export {
   buildRunArtifactDirAbs,
   writeRegressionRunArtifacts,
   rebuildCorrelationIndex,
-} from "./persistence/write_regression_run_artifacts";
+} from "./persistence/regression_run_artifact_writer";
 export {
   renderRegressionRunResultsTable,
   renderRegressionRunResultsTableFromArtifacts,
@@ -24,17 +24,24 @@ export {
 } from "./shared/regression_results_report";
 export { renderWatcherResults } from "./shared/regression_watcher_results_report";
 export { executeSqlExternalVerification } from "./shared/external_verification_sql_provider";
-export { resolveDiscoverablePrerequisites, buildReplayPreflightWithDiscovery } from "./shared/regression_discovery_resolver";
+export {
+  resolveDiscoverablePrerequisites,
+  buildReplayPreflightWithDiscovery,
+} from "./shared/regression_discovery_resolver";
 export { writeExecutionProfileExport } from "./shared/regression_execution_profile_export_writer";
 export { evaluateStepExpectations } from "./shared/regression_expectation_evaluator";
-export { applyStepExtract, applyStepExtractWithDiagnostics, validateStepExtracts } from "./shared/regression_step_extract";
+export {
+  applyStepExtract,
+  applyStepExtractWithDiagnostics,
+  validateStepExtracts,
+} from "./shared/regression_step_extract";
 export { resolveWatcherWaitPolicy, validateWatchers } from "./shared/regression_watcher_policy";
 export { executeTransportWithRegistry } from "./shared/regression_transport_executor";
 export {
   createMcpWrappedTransportAdapter,
   createTransportRegistry,
 } from "./shared/regression_transport_executor";
-export { resolveProjectContextForRegression } from "./context/resolve_suite_project_context";
+export { resolveProjectContextForRegression } from "./context/project_context_resolution";
 export {
   resolveWatcherProviderExecution,
   normalizeWatcherProviderResult,
