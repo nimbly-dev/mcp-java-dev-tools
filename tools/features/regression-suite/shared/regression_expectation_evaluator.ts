@@ -6,52 +6,27 @@ import type {
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
 import type { RegressionRunStatus } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 import { readValueByPath } from "@tools-core/object_path_read";
+import type {
+  AssertionEvaluationReasonCode,
+  AssertionEvaluationStatus,
+  DeriveRunStatusArgs,
+  EvaluateStepExpectationsResult,
+  StepAssertionEvaluation,
+  StepExecutionOutcomeStatus,
+} from "../models/regression_expectation.model";
+export type {
+  AssertionEvaluationReasonCode,
+  AssertionEvaluationStatus,
+  DeriveRunStatusArgs,
+  EvaluateStepExpectationsResult,
+  StepAssertionEvaluation,
+  StepExecutionOutcomeStatus,
+} from "../models/regression_expectation.model";
 
-export type StepExecutionOutcomeStatus =
-  | "pass"
-  | "fail_assertion"
-  | "fail_http"
-  | "blocked_dependency"
-  | "blocked_runtime"
-  | "skipped_condition_false";
-
-export type AssertionEvaluationStatus = "pass" | "fail" | "blocked_invalid";
-
-export type AssertionEvaluationReasonCode =
-  | "ok"
-  | "actual_path_missing"
-  | "operator_unknown"
-  | "operator_expected_missing"
-  | "type_mismatch"
-  | "regex_invalid"
-  | "predicate_false";
-
-export type StepAssertionEvaluation = {
-  id: string;
-  operator: PlanStepExpectationOperator;
-  actualPath: string;
-  required: boolean;
-  status: AssertionEvaluationStatus;
-  reasonCode: AssertionEvaluationReasonCode;
-  actual?: unknown;
-  expected?: unknown;
-  message?: string;
-};
-
-export type EvaluateStepExpectationsResult = {
-  assertions: StepAssertionEvaluation[];
-  status: StepExecutionOutcomeStatus;
-};
-
-export type DeriveRunStatusArgs = {
-  stepOutcomes: Array<{
-    status: StepExecutionOutcomeStatus;
-    required?: boolean;
-  }>;
-  hardRuntimeBlocker: boolean;
-};
-
-function withOptionalMessage<T extends Record<string, unknown>>(base: T, message: string | undefined): T {
+function withOptionalMessage<T extends Record<string, unknown>>(
+  base: T,
+  message: string | undefined,
+): T {
   if (typeof message === "string" && message.length > 0) {
     return { ...base, message };
   }
@@ -165,7 +140,8 @@ function evaluatePredicate(args: {
     }
     return {
       status: compareComparableNumeric(actualNumeric, expectedNumeric) >= 0 ? "pass" : "fail",
-      reasonCode: compareComparableNumeric(actualNumeric, expectedNumeric) >= 0 ? "ok" : "predicate_false",
+      reasonCode:
+        compareComparableNumeric(actualNumeric, expectedNumeric) >= 0 ? "ok" : "predicate_false",
     };
   }
   if (operator === "numeric_lte") {
@@ -176,7 +152,8 @@ function evaluatePredicate(args: {
     }
     return {
       status: compareComparableNumeric(actualNumeric, expectedNumeric) <= 0 ? "pass" : "fail",
-      reasonCode: compareComparableNumeric(actualNumeric, expectedNumeric) <= 0 ? "ok" : "predicate_false",
+      reasonCode:
+        compareComparableNumeric(actualNumeric, expectedNumeric) <= 0 ? "ok" : "predicate_false",
     };
   }
   if (operator === "contains") {
@@ -262,30 +239,39 @@ export function evaluateStepExpectations(args: {
     const actual = resolveActualPath(args.stepResult, expectation.actualPath);
     if (typeof actual === "undefined") {
       assertions.push(
-        withOptionalMessage({
-        id: expectation.id,
-        operator: expectation.operator,
-        actualPath: expectation.actualPath,
-        required,
-        status: "blocked_invalid",
-        reasonCode: "actual_path_missing",
-        expected: expectation.expected,
-        }, expectation.message),
+        withOptionalMessage(
+          {
+            id: expectation.id,
+            operator: expectation.operator,
+            actualPath: expectation.actualPath,
+            required,
+            status: "blocked_invalid",
+            reasonCode: "actual_path_missing",
+            expected: expectation.expected,
+          },
+          expectation.message,
+        ),
       );
       continue;
     }
 
-    if (operatorNeedsExpected(expectation.operator) && typeof expectation.expected === "undefined") {
+    if (
+      operatorNeedsExpected(expectation.operator) &&
+      typeof expectation.expected === "undefined"
+    ) {
       assertions.push(
-        withOptionalMessage({
-        id: expectation.id,
-        operator: expectation.operator,
-        actualPath: expectation.actualPath,
-        required,
-        status: "blocked_invalid",
-        reasonCode: "operator_expected_missing",
-        actual,
-        }, expectation.message),
+        withOptionalMessage(
+          {
+            id: expectation.id,
+            operator: expectation.operator,
+            actualPath: expectation.actualPath,
+            required,
+            status: "blocked_invalid",
+            reasonCode: "operator_expected_missing",
+            actual,
+          },
+          expectation.message,
+        ),
       );
       continue;
     }
@@ -297,16 +283,19 @@ export function evaluateStepExpectations(args: {
     });
 
     assertions.push(
-      withOptionalMessage({
-      id: expectation.id,
-      operator: expectation.operator,
-      actualPath: expectation.actualPath,
-      required,
-      status: predicate.status,
-      reasonCode: predicate.reasonCode,
-      actual,
-      expected: expectation.expected,
-      }, expectation.message),
+      withOptionalMessage(
+        {
+          id: expectation.id,
+          operator: expectation.operator,
+          actualPath: expectation.actualPath,
+          required,
+          status: predicate.status,
+          reasonCode: predicate.reasonCode,
+          actual,
+          expected: expectation.expected,
+        },
+        expectation.message,
+      ),
     );
   }
 
