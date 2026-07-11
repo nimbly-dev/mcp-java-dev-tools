@@ -270,3 +270,6 @@ When crafting or updating plans, output:
 1. Do not create additional MCP tools beyond the existing `artifact_management` path.
 2. Do not execute regression runs from this skill.
 3. Do not write `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>` artifacts manually.
+## Watcher Persistence Contract
+
+Watcher wait policies must resolve to a bounded timeout, retry limit, and polling interval before execution. Scope each Watcher to its dependency step and stable job/scheduler identity when available so a persisted continuation can resume the same Watcher without rerunning its trigger or resetting its deadline.

@@ -97,6 +97,7 @@ export async function executeWatchers(args: {
   priorWatcherEvidence?: WatcherExecutionEvidence[];
   startWatcherIndex?: number;
   currentWatcherStartedAt?: string;
+  continuation?: RegressionExecutionContinuation;
   orchestrationDeadlineEpochMs?: number;
   nowMs?: () => number;
   sleepMs?: (ms: number) => Promise<void>;
@@ -127,10 +128,33 @@ export async function executeWatchers(args: {
   const shouldYield = (): boolean =>
     typeof args.orchestrationDeadlineEpochMs === "number" && nowMs() >= args.orchestrationDeadlineEpochMs;
 
-  const buildContinuation = (watcherIndex: number, phaseStartedAt: string): RegressionExecutionContinuation => ({
+  const buildContinuation = (watcherIndex: number, phaseStartedAt: string, state?: {
+    watcherName?: string;
+    dependencyStepOrder?: number;
+    providerType?: string;
+    deadlineAtEpochMs?: number;
+    timeoutMs?: number;
+    pollIntervalMs?: number;
+    retryMax?: number;
+    attempts?: RegressionRunWatcherAttempt[];
+    nextAttemptAt?: string;
+    lastObservation?: Record<string, unknown>;
+    lastAssertion?: RegressionRunWatcherResult["assertions"];
+  }): RegressionExecutionContinuation => ({
     phase: "watchers",
     watcherIndex,
     phaseStartedAt,
+    ...(state?.watcherName ? { watcherName: state.watcherName } : {}),
+    ...(typeof state?.dependencyStepOrder === "number" ? { dependencyStepOrder: state.dependencyStepOrder } : {}),
+    ...(state?.providerType ? { providerType: state.providerType } : {}),
+    ...(typeof state?.deadlineAtEpochMs === "number" ? { deadlineAtEpochMs: state.deadlineAtEpochMs } : {}),
+    ...(typeof state?.timeoutMs === "number" ? { timeoutMs: state.timeoutMs } : {}),
+    ...(typeof state?.pollIntervalMs === "number" ? { pollIntervalMs: state.pollIntervalMs } : {}),
+    ...(typeof state?.retryMax === "number" ? { retryMax: state.retryMax } : {}),
+    ...(state?.attempts && state.attempts.length > 0 ? { attemptCount: state.attempts.length, attempts: state.attempts.slice(-25) } : {}),
+    ...(state?.nextAttemptAt ? { nextAttemptAt: state.nextAttemptAt } : {}),
+    ...(state?.lastObservation ? { lastObservation: state.lastObservation } : {}),
+    ...(state?.lastAssertion ? { lastAssertion: { assertions: state.lastAssertion } } : {}),
   });
 
   for (let watcherIndex = startWatcherIndex; watcherIndex < watchers.length; watcherIndex += 1) {
@@ -142,23 +166,25 @@ export async function executeWatchers(args: {
       watcherIndex === startWatcherIndex && typeof args.currentWatcherStartedAt === "string"
         ? args.currentWatcherStartedAt
         : new Date(nowMs()).toISOString();
-    if (shouldYield()) {
-      return {
-        watcherRows,
-        watcherEvidence,
-        phaseStatus: "in_progress",
-        continuation: buildContinuation(watcherIndex, phaseStartedAt),
-      };
-    }
-
     const startedAtMs = Date.parse(phaseStartedAt);
     const startedAt = Number.isFinite(startedAtMs) ? startedAtMs : nowMs();
     const dependencyRow = stepStatusByOrder.get(watcher.dependency.stepOrder);
     const watcherContext = args.stepContextsByOrder.get(watcher.dependency.stepOrder) ?? args.resolvedContext;
-    const resolvedWaitPolicy = resolveWatcherWaitPolicy({
-      watcher,
-      providedContext: watcherContext,
-    });
+    const persistedContinuation =
+      watcherIndex === startWatcherIndex && args.continuation?.phase === "watchers" && args.continuation.watcherIndex === watcherIndex
+        ? args.continuation
+        : undefined;
+    const resolvedWaitPolicy = persistedContinuation && typeof persistedContinuation.timeoutMs === "number" && typeof persistedContinuation.retryMax === "number"
+      ? {
+          timeoutMs: persistedContinuation.timeoutMs,
+          retryMax: persistedContinuation.retryMax,
+          timeoutSource: "watcher_override" as const,
+          retrySource: "watcher_override" as const,
+        }
+      : resolveWatcherWaitPolicy({
+          watcher,
+          providedContext: watcherContext,
+        });
     const pollIntervalMs = resolveWatcherPollIntervalMs({
       timeoutMs: resolvedWaitPolicy.timeoutMs,
       retryMax: resolvedWaitPolicy.retryMax,
@@ -167,7 +193,28 @@ export async function executeWatchers(args: {
       ...resolvedWaitPolicy,
       ...(typeof pollIntervalMs === "number" ? { pollIntervalMs } : {}),
     };
-    const attempts: RegressionRunWatcherAttempt[] = [];
+    const watcherDeadlineAtEpochMs = persistedContinuation?.deadlineAtEpochMs
+      ?? (typeof resolvedWaitPolicy.timeoutMs === "number" ? startedAtMs + resolvedWaitPolicy.timeoutMs : startedAtMs);
+    if (shouldYield()) {
+      return {
+        watcherRows,
+        watcherEvidence,
+        phaseStatus: "in_progress",
+        continuation: buildContinuation(watcherIndex, phaseStartedAt, {
+          watcherName: watcher.id,
+          dependencyStepOrder: watcher.dependency.stepOrder,
+          providerType: watcher.provider.type,
+          deadlineAtEpochMs: watcherDeadlineAtEpochMs,
+          ...(typeof resolvedWaitPolicy.timeoutMs === "number" ? { timeoutMs: resolvedWaitPolicy.timeoutMs } : {}),
+          ...(typeof pollIntervalMs === "number" ? { pollIntervalMs } : {}),
+          ...(typeof resolvedWaitPolicy.retryMax === "number" ? { retryMax: resolvedWaitPolicy.retryMax } : {}),
+        }),
+      };
+    }
+    const attempts: RegressionRunWatcherAttempt[] =
+      watcherIndex === startWatcherIndex && args.continuation?.phase === "watchers" && args.continuation.watcherIndex === watcherIndex
+        ? [...(args.continuation?.attempts ?? [])]
+        : [];
 
     const persistWatcher = (watcherRow: RegressionRunWatcherResult): void => {
       watcherRows.push(watcherRow);
@@ -177,6 +224,8 @@ export async function executeWatchers(args: {
     if (!dependencyRow || dependencyRow.status !== "pass") {
       persistWatcher({
         id: watcher.id,
+        startedAtEpochMs: startedAt,
+        deadlineAtEpochMs: watcherDeadlineAtEpochMs,
         dependencyStepOrder: watcher.dependency.stepOrder,
         providerType: watcher.provider.type,
         status: "blocked_dependency",
@@ -200,6 +249,8 @@ export async function executeWatchers(args: {
     ) {
       persistWatcher({
         id: watcher.id,
+        startedAtEpochMs: startedAt,
+        deadlineAtEpochMs: watcherDeadlineAtEpochMs,
         dependencyStepOrder: watcher.dependency.stepOrder,
         providerType: watcher.provider.type,
         status: "blocked_runtime",
@@ -224,6 +275,8 @@ export async function executeWatchers(args: {
       const providerReasonMeta = asRecord(providerExecution.reasonMeta);
       persistWatcher({
         id: watcher.id,
+        startedAtEpochMs: startedAt,
+        deadlineAtEpochMs: watcherDeadlineAtEpochMs,
         dependencyStepOrder: watcher.dependency.stepOrder,
         providerType: watcher.provider.type,
         status: "blocked_runtime",
@@ -240,25 +293,30 @@ export async function executeWatchers(args: {
       continue;
     }
 
-    let finalAssertions: RegressionRunWatcherResult["assertions"] | undefined;
-    let finalObservation: Record<string, unknown> | undefined;
+    let finalAssertions: RegressionRunWatcherResult["assertions"] | undefined =
+      args.continuation?.phase === "watchers" && args.continuation.watcherIndex === watcherIndex
+        ? args.continuation.lastAssertion?.assertions as RegressionRunWatcherResult["assertions"] | undefined
+        : undefined;
+    let finalObservation: Record<string, unknown> | undefined =
+      args.continuation?.phase === "watchers" && args.continuation.watcherIndex === watcherIndex
+        ? args.continuation.lastObservation
+        : undefined;
     let finalReasonCode: RegressionWatcherReasonCode | undefined;
     let finalReasonMeta: Record<string, unknown> | undefined;
     let finalStatus: RegressionRunWatcherResult["status"] = "blocked_runtime";
     let finalOutcome: RegressionRunWatcherOutcome = "blocked";
 
-    for (let attempt = 1; attempt <= resolvedWaitPolicy.retryMax; attempt += 1) {
+    for (let attempt = attempts.length + 1; attempt <= resolvedWaitPolicy.retryMax; attempt += 1) {
       if (shouldYield()) {
         return {
           watcherRows,
           watcherEvidence,
           phaseStatus: "in_progress",
-          continuation: buildContinuation(watcherIndex, phaseStartedAt),
+          continuation: buildContinuation(watcherIndex, phaseStartedAt, { watcherName: watcher.id, dependencyStepOrder: watcher.dependency.stepOrder, providerType: watcher.provider.type, deadlineAtEpochMs: watcherDeadlineAtEpochMs, ...(typeof resolvedWaitPolicy.timeoutMs === "number" ? { timeoutMs: resolvedWaitPolicy.timeoutMs } : {}), pollIntervalMs, ...(typeof resolvedWaitPolicy.retryMax === "number" ? { retryMax: resolvedWaitPolicy.retryMax } : {}), attempts, ...(finalObservation ? { lastObservation: finalObservation } : {}), ...(finalAssertions ? { lastAssertion: finalAssertions } : {}) }),
         };
       }
       const attemptStartedAt = nowMs();
-      const elapsedBeforeAttempt = attemptStartedAt - startedAt;
-      if (elapsedBeforeAttempt >= resolvedWaitPolicy.timeoutMs) {
+      if (attemptStartedAt >= watcherDeadlineAtEpochMs) {
         finalStatus = "blocked_runtime";
         finalOutcome = "timed_out";
         finalReasonCode = "watcher_timeout";
@@ -329,8 +387,7 @@ export async function executeWatchers(args: {
       if (evaluated.status === "blocked_runtime") {
         if (watcherAssertionsAreRetryableMissingPath(evaluated.assertions as Array<Record<string, unknown>>)) {
           if (attempt < watcherMissingPathRetryCap(resolvedWaitPolicy.retryMax)) {
-            const elapsedAfterAttempt = nowMs() - startedAt;
-            const remainingMs = resolvedWaitPolicy.timeoutMs - elapsedAfterAttempt;
+            const remainingMs = watcherDeadlineAtEpochMs - nowMs();
             if (remainingMs <= 0) {
               finalStatus = "blocked_runtime";
               finalOutcome = "timed_out";
@@ -351,7 +408,7 @@ export async function executeWatchers(args: {
                 watcherRows,
                 watcherEvidence,
                 phaseStatus: "in_progress",
-                continuation: buildContinuation(watcherIndex, phaseStartedAt),
+                continuation: buildContinuation(watcherIndex, phaseStartedAt, { watcherName: watcher.id, dependencyStepOrder: watcher.dependency.stepOrder, providerType: watcher.provider.type, deadlineAtEpochMs: watcherDeadlineAtEpochMs, ...(typeof resolvedWaitPolicy.timeoutMs === "number" ? { timeoutMs: resolvedWaitPolicy.timeoutMs } : {}), pollIntervalMs, ...(typeof resolvedWaitPolicy.retryMax === "number" ? { retryMax: resolvedWaitPolicy.retryMax } : {}), attempts, ...(finalObservation ? { lastObservation: finalObservation } : {}), ...(finalAssertions ? { lastAssertion: finalAssertions } : {}) }),
               };
             }
             await sleepMs(
@@ -380,8 +437,7 @@ export async function executeWatchers(args: {
       finalReasonCode = "watcher_expectation_failed";
 
       if (attempt < resolvedWaitPolicy.retryMax) {
-        const elapsedAfterAttempt = nowMs() - startedAt;
-        const remainingMs = resolvedWaitPolicy.timeoutMs - elapsedAfterAttempt;
+        const remainingMs = watcherDeadlineAtEpochMs - nowMs();
         if (remainingMs <= 0) {
           finalStatus = "blocked_runtime";
           finalOutcome = "timed_out";
@@ -402,7 +458,7 @@ export async function executeWatchers(args: {
             watcherRows,
             watcherEvidence,
             phaseStatus: "in_progress",
-            continuation: buildContinuation(watcherIndex, phaseStartedAt),
+            continuation: buildContinuation(watcherIndex, phaseStartedAt, { watcherName: watcher.id, dependencyStepOrder: watcher.dependency.stepOrder, providerType: watcher.provider.type, deadlineAtEpochMs: watcherDeadlineAtEpochMs, ...(typeof resolvedWaitPolicy.timeoutMs === "number" ? { timeoutMs: resolvedWaitPolicy.timeoutMs } : {}), pollIntervalMs, ...(typeof resolvedWaitPolicy.retryMax === "number" ? { retryMax: resolvedWaitPolicy.retryMax } : {}), attempts, ...(finalObservation ? { lastObservation: finalObservation } : {}), ...(finalAssertions ? { lastAssertion: finalAssertions } : {}) }),
           };
         }
         await sleepMs(
@@ -413,6 +469,8 @@ export async function executeWatchers(args: {
 
     persistWatcher({
       id: watcher.id,
+      startedAtEpochMs: startedAt,
+      deadlineAtEpochMs: watcherDeadlineAtEpochMs,
       dependencyStepOrder: watcher.dependency.stepOrder,
       providerType: watcher.provider.type,
       status: finalStatus,

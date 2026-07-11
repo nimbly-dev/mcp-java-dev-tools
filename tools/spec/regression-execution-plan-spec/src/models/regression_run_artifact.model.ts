@@ -18,6 +18,18 @@ export type RegressionExecutionContinuation =
       phase: "watchers";
       watcherIndex: number;
       phaseStartedAt: string;
+      watcherName?: string;
+      dependencyStepOrder?: number;
+      providerType?: string;
+      deadlineAtEpochMs?: number;
+      timeoutMs?: number;
+      pollIntervalMs?: number;
+      retryMax?: number;
+      attemptCount?: number;
+      nextAttemptAt?: string;
+      lastObservation?: Record<string, unknown>;
+      lastAssertion?: Record<string, unknown>;
+      attempts?: RegressionRunWatcherAttempt[];
     }
   | {
       phase: "external_verification";
@@ -147,6 +159,8 @@ export type RegressionRunWatcherResult = Record<string, unknown> & {
   attemptCount: number;
   durationMs: number;
   waitPolicy: RegressionRunWatcherWaitSummary;
+  startedAtEpochMs?: number;
+  deadlineAtEpochMs?: number;
   reasonCode?: RegressionWatcherReasonCode;
   lastObservation?: Record<string, unknown>;
   assertions?: RegressionRunAssertionResult[];

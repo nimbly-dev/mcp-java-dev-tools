@@ -1,0 +1,226 @@
+export type RunStateDatabase = {
+  exec(sql: string): void;
+  prepare(sql: string): {
+    get(...parameters: unknown[]): Record<string, unknown> | undefined;
+    all(...parameters: unknown[]): Array<Record<string, unknown>>;
+    run(...parameters: unknown[]): void;
+  };
+  close(): void;
+};
+
+export type RunStateStoreFailureCode =
+  | "state_store_open_failed"
+  | "state_store_locked"
+  | "state_store_corrupt"
+  | "state_store_schema_unsupported"
+  | "state_store_migration_failed"
+  | "state_store_project_mismatch"
+  | "state_store_path_invalid";
+export type RunStateStoreFailure = {
+  ok: false;
+  reasonCode: RunStateStoreFailureCode;
+  reason: string;
+  nextAction: "rebuild_state_store" | "retry_state_store" | "correct_state_store_input";
+  reasonMeta?: Record<string, unknown>;
+};
+export type OpenRunStateStore = {
+  ok: true;
+  projectName: string;
+  databasePathAbs: string;
+  schemaVersion: number;
+  database: RunStateDatabase;
+  close(): void;
+};
+export type RunStateStoreOpenResult = OpenRunStateStore | RunStateStoreFailure;
+export type RunStateArtifactLink = {
+  artifactKind:
+    | "context_resolved"
+    | "execution_result"
+    | "evidence"
+    | "correlation"
+    | "execution_orchestration";
+  pathRel: string;
+  createdAtEpochMs: number;
+  planName?: string;
+  runId?: string;
+  suiteRunId?: string;
+  checksum?: string;
+};
+export type RegressionSuiteCheckpoint = {
+  suiteRunId: string;
+  executionProfile: string;
+  status: "pass" | "fail" | "blocked" | "partial_fail" | "in_progress";
+  startedAtEpochMs: number;
+  updatedAtEpochMs: number;
+  nextPlanOrder?: number;
+  activePlanName?: string;
+  activePlanOrder?: number;
+  activeRunId?: string;
+  activePhase?: "trigger" | "watchers" | "external_verification";
+  continuation?: Record<string, unknown>;
+  completedAtEpochMs?: number;
+  reasonCode?: string;
+  expectedRevision?: number;
+  ownerId?: string;
+  leaseExpiresAtEpochMs?: number;
+};
+export type RegressionPlanRunProjection = {
+  planName: string;
+  runId: string;
+  status: "executed" | "blocked" | "skipped";
+  runDirPathRel: string;
+  planOrder?: number;
+  runStatus?: "pass" | "fail" | "blocked" | "in_progress";
+  stepCount?: number;
+  failedStepCount?: number;
+  startedAtEpochMs?: number;
+  completedAtEpochMs?: number;
+  reasonCode?: string;
+};
+export type RunStateCheckpointFailure = {
+  ok: false;
+  reasonCode:
+    | "suite_checkpoint_conflict"
+    | "suite_checkpoint_stale_revision"
+    | "suite_checkpoint_owner_active"
+    | "suite_checkpoint_lease_expired"
+    | "suite_checkpoint_invalid"
+    | "suite_state_transition_invalid"
+    | "run_state_persist_failed";
+  reason: string;
+  nextAction: "resume_same_suite" | "retry_state_store" | "correct_checkpoint_input";
+  reasonMeta?: Record<string, unknown>;
+};
+export type PersistRegressionSuiteStateResult =
+  | { ok: true; revision: number }
+  | RunStateCheckpointFailure
+  | RunStateStoreFailure;
+export type AcquireRegressionSuiteLeaseResult =
+  | { ok: true; revision: number; leaseExpiresAtEpochMs: number }
+  | RunStateCheckpointFailure;
+export type CorrelationObservation = {
+  strictLineKey: string;
+  sequenceOrder: number;
+  selectorPolicy: "exact_instance" | "any_instance" | "all_instances" | "aggregate" | "quorum";
+  operator: "exact" | "at_least" | "at_most" | "range";
+  expectedHitDelta?: number;
+  expectedMinHitDelta?: number;
+  expectedMaxHitDelta?: number;
+  probeId: string;
+  runtimeInstanceId: string;
+  baselineHitCount: number;
+  currentHitCount: number;
+  observedAtEpochMs: number;
+  expectedRevision?: number;
+};
+export type CorrelationObservationResult =
+  | {
+      ok: true;
+      revision: number;
+      observedHitDelta: number;
+      status: "collecting" | "matched" | "fail_closed";
+    }
+  | CorrelationPersistenceFailure;
+export type CorrelationPersistenceFailure = {
+  ok: false;
+  reasonCode:
+    | "correlation_identity_invalid"
+    | "correlation_revision_conflict"
+    | "correlation_runtime_instance_changed"
+    | "correlation_hit_count_non_monotonic"
+    | "correlation_expectation_exceeded"
+    | "correlation_persist_failed";
+  reason: string;
+  nextAction: "correct_correlation_input" | "resume_same_suite" | "retry_state_store";
+  reasonMeta?: Record<string, unknown>;
+};
+export type CorrelationSession = {
+  planName: string;
+  runId: string;
+  correlationSessionId: string;
+  keyType: "traceId" | "requestId" | "messageId";
+  keyValue?: string;
+  maxWindowMs: number;
+  startedAtEpochMs: number;
+  status: "collecting" | "correlated" | "fail_closed";
+  reasonCode: string;
+  correlationPathRel?: string;
+  expectations?: Array<{
+    strictLineKey: string;
+    sequenceOrder: number;
+    selectorPolicy: CorrelationObservation["selectorPolicy"];
+    operator: CorrelationObservation["operator"];
+    expectedHitDelta?: number;
+    expectedMinHitDelta?: number;
+    expectedMaxHitDelta?: number;
+    label?: string;
+  }>;
+};
+export type CorrelationSessionResult =
+  | { ok: true; revision: number }
+  | CorrelationPersistenceFailure;
+export type WatcherRunProjection = {
+  planName: string;
+  runId: string;
+  suiteRunId?: string;
+  watcherName: string;
+  dependencyStepOrder: number;
+  watcherIndex: number;
+  providerType: string;
+  status: "in_progress" | "pass" | "fail_assertion" | "blocked_dependency" | "blocked_runtime";
+  outcome: "verified" | "failed_expectation" | "timed_out" | "blocked";
+  reasonCode?: string;
+  startedAtEpochMs: number;
+  deadlineAtEpochMs: number;
+  completedAtEpochMs?: number;
+  timeoutMs: number;
+  pollIntervalMs: number;
+  retryMax: number;
+  attemptCount: number;
+  nextAttemptAtEpochMs?: number;
+  lastObservation?: Record<string, unknown>;
+  lastAssertion?: Record<string, unknown>;
+  continuation?: Record<string, unknown>;
+  revision?: number;
+  artifactPathRel?: string;
+  attempts?: Array<{
+    attemptNumber: number;
+    observedAtEpochMs: number;
+    status: string;
+    reasonCode?: string;
+    durationMs?: number;
+    observationSummary?: Record<string, unknown>;
+  }>;
+};
+export type WatcherPersistenceFailure = {
+  ok: false;
+  reasonCode:
+    | "watcher_checkpoint_conflict"
+    | "watcher_checkpoint_stale_revision"
+    | "watcher_checkpoint_invalid"
+    | "watcher_resume_identity_mismatch"
+    | "watcher_deadline_invalid"
+    | "watcher_attempt_non_monotonic"
+    | "watcher_timeout"
+    | "watcher_target_unreachable"
+    | "watcher_expectation_failed"
+    | "watcher_persist_failed";
+  reason: string;
+  nextAction: "resume_same_suite" | "retry_state_store" | "correct_watcher_input";
+  reasonMeta?: Record<string, unknown>;
+};
+export type WatcherPersistenceResult = { ok: true; revision: number } | WatcherPersistenceFailure;
+export type PersistedRegressionSuiteCheckpoint = {
+  suiteRunId: string;
+  executionProfile: string;
+  status: RegressionSuiteCheckpoint["status"];
+  revision: number;
+  startedAtEpochMs: number;
+  updatedAtEpochMs: number;
+  nextPlanOrder?: number;
+  activePlanName?: string;
+  activePlanOrder?: number;
+  activeRunId?: string;
+  activePhase?: RegressionSuiteCheckpoint["activePhase"];
+  continuation?: Record<string, unknown>;
+};
