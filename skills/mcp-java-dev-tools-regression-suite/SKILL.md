@@ -115,7 +115,7 @@ Runtime suite branch (`execution_profile`) rules:
    - continue the same run until terminal `pass`, `fail`, `blocked`, or `partial_fail`
 10. Do not restart from the beginning when resumable progress exists:
    - resume with the same `suiteRunId`
-   - trust `nextPlanOrder` from the persisted suite-status artifact
+   - record revision-safe operational progress in `.mcpjvm/<project_name>/run-state.sqlite` while retaining the canonical suite-status Artifact as execution evidence and resume input
    - fail closed rather than rerunning already completed plans
 11. When a plan is still waiting inside `watchers[]` or `externalVerification[]`, resumed orchestration must continue that same in-progress plan:
    - use persisted `progressSummary.activePlan`
@@ -207,6 +207,7 @@ Use these references/templates:
    - `nextPlanOrder`
    - `progressSummary.activePlan`
    - completed `planRuns[]`
+15. SQLite operational state is never a replacement for canonical run Artifacts. Persist canonical evidence first, then persist the checkpoint; a checkpoint-persistence failure blocks safe continuation and must return deterministic recovery guidance.
 
 ## MCP-First and Wrapped Transport
 
