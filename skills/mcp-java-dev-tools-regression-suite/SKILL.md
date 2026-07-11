@@ -274,4 +274,14 @@ Use these references/templates:
 15. `external_verification_request_invalid`
 16. `external_verification_target_unreachable`
 
+## Watcher Checkpoint Persistence
+
+When a Watcher executes, canonical run Artifacts are written first and the bounded operational projection is then upserted into `.mcpjvm/<project_name>/run-state.sqlite`.
+
+- Preserve one `watcher_runs` row per Watcher execution and bounded `watcher_attempts` rows; never create one row per processed item or raw response.
+- Resume the same Watcher identity with its original absolute deadline, resolved timeout/retry policy, attempt count, continuation, and suiteRunId.
+- Treat stale revisions, changed deadlines, decreasing attempts, terminal-state changes, invalid continuation, and checkpoint persistence failures as deterministic fail-closed outcomes.
+- Do not rerun the dependent trigger when a valid Watcher continuation exists. A checkpoint failure while work is in progress blocks safe continuation.
+- Persist only bounded sanitized observation/assertion summaries; never persist credentials, authorization headers, or raw response bodies.
+
 

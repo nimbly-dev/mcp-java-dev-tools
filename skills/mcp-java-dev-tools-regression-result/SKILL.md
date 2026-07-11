@@ -42,7 +42,7 @@ Artifact semantics/reference paths:
 3. optional `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/correlation.json` for distributed correlation verdict/timeline summary
 4. optional `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/context.resolved.json` for non-secret context display
 
-`run-state.sqlite` may supply bounded operational projections, but canonical run Artifacts remain the rendering evidence. Do not merge a legacy `correlation-index.json` into a fresh result.
+`run-state.sqlite` may supply bounded operational projections, including Watcher checkpoints and attempt progress, but canonical run Artifacts remain the rendering evidence. Do not merge a legacy `correlation-index.json` into a fresh result. Preserve the distinction between trigger success, Watcher success, and checkpoint/projection failure; a terminal Watcher result is immutable through ordinary runtime writes.
 
 ## Template Routing
 

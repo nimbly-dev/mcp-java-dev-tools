@@ -461,6 +461,7 @@ export async function executeRegressionPlanWorkflow(
           priorWatcherEvidence: cloneWatcherEvidence(args.resumeState?.evidence?.watcherExecutions),
           startWatcherIndex: resumeContinuation.watcherIndex,
           currentWatcherStartedAt: resumeContinuation.phaseStartedAt,
+          continuation: resumeContinuation,
         }
       : {}),
     ...(typeof orchestrationDeadlineEpochMs === "number" ? { orchestrationDeadlineEpochMs } : {}),

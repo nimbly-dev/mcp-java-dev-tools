@@ -8,7 +8,12 @@
 import { promises as fs } from "node:fs";
 import { readdirSync, statSync, type Dirent } from "node:fs";
 import path from "node:path";
-import { openRunStateStore, persistCorrelationSession, upsertCorrelationObservation } from "@tools-feature-artifact-management";
+import {
+  openRunStateStore,
+  persistCorrelationSession,
+  upsertCorrelationObservation,
+  upsertWatcherRun,
+} from "@tools-feature-artifact-management";
 
 import type {
   CorrelationIndexRebuildResult,
@@ -99,14 +104,37 @@ function toCorrelationArtifactFromEvidence(args: {
         ...(typeof event.keyValue === "string" ? { keyValue: event.keyValue } : {}),
         ...(typeof event.lineKey === "string" ? { lineKey: event.lineKey } : {}),
         ...(typeof event.sequenceOrder === "number" ? { sequenceOrder: event.sequenceOrder } : {}),
-        ...(event.selectorPolicy === "exact_instance" || event.selectorPolicy === "any_instance" || event.selectorPolicy === "all_instances" || event.selectorPolicy === "aggregate" || event.selectorPolicy === "quorum" ? { selectorPolicy: event.selectorPolicy } : {}),
-        ...(event.operator === "exact" || event.operator === "at_least" || event.operator === "at_most" || event.operator === "range" ? { operator: event.operator } : {}),
-        ...(typeof event.expectedHitDelta === "number" ? { expectedHitDelta: event.expectedHitDelta } : {}),
-        ...(typeof event.expectedMinHitDelta === "number" ? { expectedMinHitDelta: event.expectedMinHitDelta } : {}),
-        ...(typeof event.expectedMaxHitDelta === "number" ? { expectedMaxHitDelta: event.expectedMaxHitDelta } : {}),
-        ...(typeof event.runtimeInstanceId === "string" ? { runtimeInstanceId: event.runtimeInstanceId } : {}),
-        ...(typeof event.baselineHitCount === "number" ? { baselineHitCount: event.baselineHitCount } : {}),
-        ...(typeof event.currentHitCount === "number" ? { currentHitCount: event.currentHitCount } : {}),
+        ...(event.selectorPolicy === "exact_instance" ||
+        event.selectorPolicy === "any_instance" ||
+        event.selectorPolicy === "all_instances" ||
+        event.selectorPolicy === "aggregate" ||
+        event.selectorPolicy === "quorum"
+          ? { selectorPolicy: event.selectorPolicy }
+          : {}),
+        ...(event.operator === "exact" ||
+        event.operator === "at_least" ||
+        event.operator === "at_most" ||
+        event.operator === "range"
+          ? { operator: event.operator }
+          : {}),
+        ...(typeof event.expectedHitDelta === "number"
+          ? { expectedHitDelta: event.expectedHitDelta }
+          : {}),
+        ...(typeof event.expectedMinHitDelta === "number"
+          ? { expectedMinHitDelta: event.expectedMinHitDelta }
+          : {}),
+        ...(typeof event.expectedMaxHitDelta === "number"
+          ? { expectedMaxHitDelta: event.expectedMaxHitDelta }
+          : {}),
+        ...(typeof event.runtimeInstanceId === "string"
+          ? { runtimeInstanceId: event.runtimeInstanceId }
+          : {}),
+        ...(typeof event.baselineHitCount === "number"
+          ? { baselineHitCount: event.baselineHitCount }
+          : {}),
+        ...(typeof event.currentHitCount === "number"
+          ? { currentHitCount: event.currentHitCount }
+          : {}),
       };
     })
     .filter((event) => event.eventId && event.probeId && Number.isFinite(event.timestampEpochMs));
@@ -161,7 +189,11 @@ function toCorrelationArtifactFromEvidence(args: {
     },
     ...(Array.isArray(expectedFlow) ? { expectedFlow } : {}),
     ...(Array.isArray(policyRaw.strictLineExpectations)
-      ? { strictLineExpectations: policyRaw.strictLineExpectations as unknown as NonNullable<CorrelationArtifact["strictLineExpectations"]> }
+      ? {
+          strictLineExpectations: policyRaw.strictLineExpectations as unknown as NonNullable<
+            CorrelationArtifact["strictLineExpectations"]
+          >,
+        }
       : {}),
     timeline,
     generatedAtEpochMs: args.now.getTime(),
@@ -462,8 +494,16 @@ export async function writeRegressionRunArtifacts(
     ) as Record<string, unknown>;
     await writeJsonFile(correlationPathAbs, correlationPayload);
     writtenCorrelationPathAbs = correlationPathAbs;
-    const project = await resolveProjectRootAbs({ workspaceRootAbs: args.workspaceRootAbs, ...(typeof args.projectName === "string" && args.projectName.trim() ? { projectName: args.projectName.trim() } : {}) });
-    const store = await openRunStateStore({ workspaceRootAbs: args.workspaceRootAbs, projectName: project.projectName });
+    const project = await resolveProjectRootAbs({
+      workspaceRootAbs: args.workspaceRootAbs,
+      ...(typeof args.projectName === "string" && args.projectName.trim()
+        ? { projectName: args.projectName.trim() }
+        : {}),
+    });
+    const store = await openRunStateStore({
+      workspaceRootAbs: args.workspaceRootAbs,
+      projectName: project.projectName,
+    });
     if (!store.ok) throw new Error(store.reasonCode);
     try {
       const session = persistCorrelationSession({
@@ -476,10 +516,23 @@ export async function writeRegressionRunArtifacts(
           keyType: correlation.keyType,
           ...(typeof correlation.keyValue === "string" ? { keyValue: correlation.keyValue } : {}),
           maxWindowMs: correlation.window.maxWindowMs,
-          startedAtEpochMs: correlation.window.startEpochMs ?? correlation.generatedAtEpochMs ?? now.getTime(),
-          status: correlation.status !== "ok" ? "fail_closed" : correlation.strictLineExpectations?.length ? "collecting" : "correlated",
-          reasonCode: correlation.status !== "ok" ? correlation.reasonCode : correlation.strictLineExpectations?.length ? "collecting" : "ok",
-          correlationPathRel: path.relative(args.workspaceRootAbs, correlationPathAbs).replaceAll("\\", "/"),
+          startedAtEpochMs:
+            correlation.window.startEpochMs ?? correlation.generatedAtEpochMs ?? now.getTime(),
+          status:
+            correlation.status !== "ok"
+              ? "fail_closed"
+              : correlation.strictLineExpectations?.length
+                ? "collecting"
+                : "correlated",
+          reasonCode:
+            correlation.status !== "ok"
+              ? correlation.reasonCode
+              : correlation.strictLineExpectations?.length
+                ? "collecting"
+                : "ok",
+          correlationPathRel: path
+            .relative(args.workspaceRootAbs, correlationPathAbs)
+            .replaceAll("\\", "/"),
           ...(Array.isArray(correlation.strictLineExpectations)
             ? { expectations: correlation.strictLineExpectations }
             : {}),
@@ -488,16 +541,215 @@ export async function writeRegressionRunArtifacts(
       if (!session.ok) throw new Error(session.reasonCode);
       for (const [index, event] of correlation.timeline.entries()) {
         const eventRecord = event as unknown as Record<string, unknown>;
-        const runtimeInstanceId = typeof eventRecord.runtimeInstanceId === "string" ? eventRecord.runtimeInstanceId : undefined;
-        const baselineHitCount = typeof eventRecord.baselineHitCount === "number" ? eventRecord.baselineHitCount : undefined;
-        const currentHitCount = typeof eventRecord.currentHitCount === "number" ? eventRecord.currentHitCount : undefined;
-        if (!event.lineKey || !runtimeInstanceId || baselineHitCount === undefined || currentHitCount === undefined) continue;
-        const operator = eventRecord.operator === "exact" || eventRecord.operator === "at_most" || eventRecord.operator === "range" ? eventRecord.operator : "at_least";
-        const selectorPolicy = eventRecord.selectorPolicy === "exact_instance" || eventRecord.selectorPolicy === "any_instance" || eventRecord.selectorPolicy === "all_instances" || eventRecord.selectorPolicy === "quorum" ? eventRecord.selectorPolicy : "aggregate";
-        const persisted = upsertCorrelationObservation({ store, projectName: project.projectName, planName: args.planRef.name, runId: args.runId, correlationSessionId: correlation.correlationSessionId ?? args.runId, maxWindowMs: correlation.window.maxWindowMs, observation: { strictLineKey: event.lineKey, sequenceOrder: typeof eventRecord.sequenceOrder === "number" ? eventRecord.sequenceOrder : index + 1, selectorPolicy, operator, ...(typeof eventRecord.expectedHitDelta === "number" ? { expectedHitDelta: eventRecord.expectedHitDelta } : { expectedHitDelta: 1 }), ...(typeof eventRecord.expectedMinHitDelta === "number" ? { expectedMinHitDelta: eventRecord.expectedMinHitDelta } : {}), ...(typeof eventRecord.expectedMaxHitDelta === "number" ? { expectedMaxHitDelta: eventRecord.expectedMaxHitDelta } : {}), probeId: event.probeId, runtimeInstanceId, baselineHitCount, currentHitCount, observedAtEpochMs: event.timestampEpochMs } });
+        const runtimeInstanceId =
+          typeof eventRecord.runtimeInstanceId === "string"
+            ? eventRecord.runtimeInstanceId
+            : undefined;
+        const baselineHitCount =
+          typeof eventRecord.baselineHitCount === "number"
+            ? eventRecord.baselineHitCount
+            : undefined;
+        const currentHitCount =
+          typeof eventRecord.currentHitCount === "number" ? eventRecord.currentHitCount : undefined;
+        if (
+          !event.lineKey ||
+          !runtimeInstanceId ||
+          baselineHitCount === undefined ||
+          currentHitCount === undefined
+        )
+          continue;
+        const operator =
+          eventRecord.operator === "exact" ||
+          eventRecord.operator === "at_most" ||
+          eventRecord.operator === "range"
+            ? eventRecord.operator
+            : "at_least";
+        const selectorPolicy =
+          eventRecord.selectorPolicy === "exact_instance" ||
+          eventRecord.selectorPolicy === "any_instance" ||
+          eventRecord.selectorPolicy === "all_instances" ||
+          eventRecord.selectorPolicy === "quorum"
+            ? eventRecord.selectorPolicy
+            : "aggregate";
+        const persisted = upsertCorrelationObservation({
+          store,
+          projectName: project.projectName,
+          planName: args.planRef.name,
+          runId: args.runId,
+          correlationSessionId: correlation.correlationSessionId ?? args.runId,
+          maxWindowMs: correlation.window.maxWindowMs,
+          observation: {
+            strictLineKey: event.lineKey,
+            sequenceOrder:
+              typeof eventRecord.sequenceOrder === "number" ? eventRecord.sequenceOrder : index + 1,
+            selectorPolicy,
+            operator,
+            ...(typeof eventRecord.expectedHitDelta === "number"
+              ? { expectedHitDelta: eventRecord.expectedHitDelta }
+              : { expectedHitDelta: 1 }),
+            ...(typeof eventRecord.expectedMinHitDelta === "number"
+              ? { expectedMinHitDelta: eventRecord.expectedMinHitDelta }
+              : {}),
+            ...(typeof eventRecord.expectedMaxHitDelta === "number"
+              ? { expectedMaxHitDelta: eventRecord.expectedMaxHitDelta }
+              : {}),
+            probeId: event.probeId,
+            runtimeInstanceId,
+            baselineHitCount,
+            currentHitCount,
+            observedAtEpochMs: event.timestampEpochMs,
+          },
+        });
         if (!persisted.ok) throw new Error(persisted.reasonCode);
       }
-    } finally { store.close(); }
+    } finally {
+      store.close();
+    }
+  }
+
+  const activeWatcherContinuation =
+    args.executionResult.continuation?.phase === "watchers"
+      ? args.executionResult.continuation
+      : undefined;
+  if (
+    (Array.isArray(args.executionResult.watchers) && args.executionResult.watchers.length > 0) ||
+    activeWatcherContinuation
+  ) {
+    const project = await resolveProjectRootAbs({
+      workspaceRootAbs: args.workspaceRootAbs,
+      ...(typeof args.projectName === "string" && args.projectName.trim()
+        ? { projectName: args.projectName.trim() }
+        : {}),
+    });
+    const store = await openRunStateStore({
+      workspaceRootAbs: args.workspaceRootAbs,
+      projectName: project.projectName,
+    });
+    if (!store.ok) throw new Error(store.reasonCode);
+    try {
+      const startedAtEpochMs = Date.parse(args.executionResult.startedAt ?? "") || now.getTime();
+      const artifactPathRel = path.relative(args.workspaceRootAbs, runDirAbs).replaceAll("\\", "/");
+      for (const [watcherIndex, watcher] of (args.executionResult.watchers ?? []).entries()) {
+        const timeoutMs = watcher.waitPolicy.timeoutMs;
+        const pollIntervalMs =
+          watcher.waitPolicy.pollIntervalMs ??
+          (typeof watcher.waitPolicy.timeoutMs === "number" &&
+          typeof watcher.waitPolicy.retryMax === "number"
+            ? Math.max(25, Math.floor(watcher.waitPolicy.timeoutMs / watcher.waitPolicy.retryMax))
+            : undefined);
+        const retryMax = watcher.waitPolicy.retryMax;
+        if (
+          typeof timeoutMs !== "number" ||
+          typeof pollIntervalMs !== "number" ||
+          typeof retryMax !== "number"
+        ) {
+          throw new Error("watcher_checkpoint_invalid");
+        }
+        const attempts = (watcher.attempts ?? []).map((attempt) => ({
+          attemptNumber: attempt.attempt,
+          observedAtEpochMs: Date.parse(attempt.observedAt) || startedAtEpochMs,
+          status: attempt.status,
+          ...(attempt.reasonCode ? { reasonCode: attempt.reasonCode } : {}),
+          ...(typeof attempt.durationMs === "number" ? { durationMs: attempt.durationMs } : {}),
+        }));
+        const watcherStartedAtEpochMs = watcher.startedAtEpochMs ?? startedAtEpochMs;
+        const watcherCompletedAtEpochMs = Math.max(
+          watcherStartedAtEpochMs,
+          Date.parse(args.executionResult.endedAt ?? "") || now.getTime(),
+        );
+        const persisted = upsertWatcherRun({
+          store,
+          projectName: project.projectName,
+          projection: {
+            planName: args.planRef.name,
+            runId: args.runId,
+            ...(args.suiteRunId ? { suiteRunId: args.suiteRunId } : {}),
+            watcherName: watcher.id,
+            dependencyStepOrder: watcher.dependencyStepOrder,
+            watcherIndex,
+            providerType: watcher.providerType,
+            status: watcher.status,
+            outcome: watcher.outcome,
+            ...(watcher.reasonCode ? { reasonCode: watcher.reasonCode } : {}),
+            startedAtEpochMs: watcherStartedAtEpochMs,
+            deadlineAtEpochMs: watcher.deadlineAtEpochMs ?? startedAtEpochMs + timeoutMs,
+            ...(args.executionResult.status === "in_progress"
+              ? {}
+              : {
+                  completedAtEpochMs: watcherCompletedAtEpochMs,
+                }),
+            timeoutMs,
+            pollIntervalMs,
+            retryMax,
+            attemptCount: watcher.attemptCount,
+            ...(watcher.lastObservation ? { lastObservation: watcher.lastObservation } : {}),
+            ...(watcher.assertions ? { lastAssertion: { assertions: watcher.assertions } } : {}),
+            ...(args.executionResult.continuation
+              ? { continuation: args.executionResult.continuation }
+              : {}),
+            artifactPathRel,
+            ...(attempts.length > 0 ? { attempts } : {}),
+          },
+        });
+        if (!persisted.ok) throw new Error(persisted.reasonCode);
+      }
+      if (
+        activeWatcherContinuation &&
+        typeof activeWatcherContinuation.watcherName === "string" &&
+        typeof activeWatcherContinuation.dependencyStepOrder === "number" &&
+        typeof activeWatcherContinuation.providerType === "string" &&
+        typeof activeWatcherContinuation.deadlineAtEpochMs === "number" &&
+        typeof activeWatcherContinuation.timeoutMs === "number" &&
+        typeof activeWatcherContinuation.pollIntervalMs === "number" &&
+        typeof activeWatcherContinuation.retryMax === "number"
+      ) {
+        const attempts = (activeWatcherContinuation.attempts ?? []).map((attempt) => ({
+          attemptNumber: attempt.attempt,
+          observedAtEpochMs: Date.parse(attempt.observedAt) || startedAtEpochMs,
+          status: attempt.status,
+          ...(attempt.reasonCode ? { reasonCode: attempt.reasonCode } : {}),
+          ...(typeof attempt.durationMs === "number" ? { durationMs: attempt.durationMs } : {}),
+        }));
+        const persisted = upsertWatcherRun({
+          store,
+          projectName: project.projectName,
+          projection: {
+            planName: args.planRef.name,
+            runId: args.runId,
+            ...(args.suiteRunId ? { suiteRunId: args.suiteRunId } : {}),
+            watcherName: activeWatcherContinuation.watcherName,
+            dependencyStepOrder: activeWatcherContinuation.dependencyStepOrder,
+            watcherIndex: activeWatcherContinuation.watcherIndex,
+            providerType: activeWatcherContinuation.providerType,
+            status: "in_progress",
+            outcome: "blocked",
+            startedAtEpochMs:
+              Date.parse(activeWatcherContinuation.phaseStartedAt) || startedAtEpochMs,
+            deadlineAtEpochMs: activeWatcherContinuation.deadlineAtEpochMs,
+            timeoutMs: activeWatcherContinuation.timeoutMs,
+            pollIntervalMs: activeWatcherContinuation.pollIntervalMs,
+            retryMax: activeWatcherContinuation.retryMax,
+            attemptCount: activeWatcherContinuation.attemptCount ?? attempts.length,
+            ...(activeWatcherContinuation.nextAttemptAt &&
+            Date.parse(activeWatcherContinuation.nextAttemptAt) > 0
+              ? { nextAttemptAtEpochMs: Date.parse(activeWatcherContinuation.nextAttemptAt) }
+              : {}),
+            ...(activeWatcherContinuation.lastObservation
+              ? { lastObservation: activeWatcherContinuation.lastObservation }
+              : {}),
+            ...(activeWatcherContinuation.lastAssertion
+              ? { lastAssertion: activeWatcherContinuation.lastAssertion }
+              : {}),
+            continuation: activeWatcherContinuation,
+            artifactPathRel,
+            ...(attempts.length > 0 ? { attempts } : {}),
+          },
+        });
+        if (!persisted.ok) throw new Error(persisted.reasonCode);
+      }
+    } finally {
+      store.close();
+    }
   }
 
   return {

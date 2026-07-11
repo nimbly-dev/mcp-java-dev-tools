@@ -561,6 +561,10 @@ test("writeRegressionRunArtifacts preserves legacy watcher evidence by normalizi
 
     const result = readJson(written.executionResultPathAbs);
     const evidence = readJson(written.evidencePathAbs);
+    const database = new DatabaseSync(path.join(root, ".mcpjvm", "test-project", "run-state.sqlite"));
+    assert.equal(database.prepare("SELECT count(*) AS count FROM watcher_runs").get().count, 2);
+    assert.equal(database.prepare("SELECT count(*) AS count FROM watcher_attempts").get().count, 0);
+    database.close();
     assert.equal(evidence.watcherExecutions.length, 2);
     const watcherExecutions = evidence.watcherExecutions as Array<Record<string, unknown>>;
     const byId = new Map<string, Record<string, unknown>>(
@@ -874,6 +878,53 @@ test("writeRegressionRunArtifacts fails closed for invalid external verification
       /external_verification_execution_result_invalid/,
     );
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("writeRegressionRunArtifacts persists the active Watcher continuation", async () => {
+  const root = createTestTempDir("run-artifacts-active-watcher");
+  let database: any;
+  try {
+    initProjectArtifact(root);
+    await writeRegressionRunArtifacts({
+      workspaceRootAbs: root,
+      runId: "2026-04-19T08-01-22Z_06",
+      planRef: { name: "watcher-plan" },
+      resolvedContext: {},
+      executionResult: {
+        status: "in_progress",
+        watcherStatus: "in_progress",
+        preflight: { status: "ready", reasonCode: "ok", missing: [], discoverablePending: [], prerequisiteResolution: [], requiredUserAction: [] },
+        startedAt: "2026-04-19T08:01:22.111Z",
+        endedAt: "2026-04-19T08:01:23.111Z",
+        steps: [],
+        continuation: {
+          phase: "watchers",
+          watcherIndex: 0,
+          watcherName: "indexed-ready",
+          dependencyStepOrder: 1,
+          providerType: "http",
+          phaseStartedAt: "2026-04-19T08:01:22.500Z",
+          deadlineAtEpochMs: Date.parse("2026-04-19T08:01:27.500Z"),
+          timeoutMs: 5_000,
+          pollIntervalMs: 1_250,
+          retryMax: 4,
+          attemptCount: 1,
+          attempts: [{ attempt: 1, status: "fail_http", durationMs: 10, observedAt: "2026-04-19T08:01:22.600Z" }],
+        },
+      },
+      evidence: { targetResolution: [] },
+      now: new Date("2026-04-19T08:01:23.111Z"),
+    });
+    database = new DatabaseSync(path.join(root, ".mcpjvm", "test-project", "run-state.sqlite"));
+    const watcherCheckpoint = database.prepare("SELECT status, deadline_at_epoch_ms, attempt_count FROM watcher_runs").get();
+    assert.equal(watcherCheckpoint.status, "in_progress");
+    assert.equal(watcherCheckpoint.deadline_at_epoch_ms, Date.parse("2026-04-19T08:01:27.500Z"));
+    assert.equal(watcherCheckpoint.attempt_count, 1);
+    assert.equal(database.prepare("SELECT status FROM plan_runs").get().status, "in_progress");
+  } finally {
+    if (database) database.close();
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

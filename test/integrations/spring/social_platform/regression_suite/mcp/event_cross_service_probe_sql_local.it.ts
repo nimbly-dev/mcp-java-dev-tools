@@ -27,13 +27,18 @@ async function writeJson(filePath: string, payload: Record<string, unknown>): Pr
       ? {
           ...payload,
           workspaces: payload.workspaces.map((workspace) => {
-            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) return workspace;
+            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace))
+              return workspace;
             const defaults =
-              "defaults" in workspace && workspace.defaults && typeof workspace.defaults === "object"
+              "defaults" in workspace &&
+              workspace.defaults &&
+              typeof workspace.defaults === "object"
                 ? workspace.defaults
                 : {};
             const orchestrator =
-              "orchestrator" in defaults && defaults.orchestrator && typeof defaults.orchestrator === "object"
+              "orchestrator" in defaults &&
+              defaults.orchestrator &&
+              typeof defaults.orchestrator === "object"
                 ? defaults.orchestrator
                 : {
                     resumePollMax: 30,
@@ -386,8 +391,12 @@ test("mcp IT: local cross-service regression verifies producer and consumer stri
       assert.equal(watcherRows[0]?.status, "pass");
       assert.equal(externalVerification[0]?.status, "pass");
       assert.equal(
-        ((externalVerification[0]?.sql as Record<string, unknown>)?.firstRow as Record<string, unknown>)
-          ?.status,
+        (
+          (externalVerification[0]?.sql as Record<string, unknown>)?.firstRow as Record<
+            string,
+            unknown
+          >
+        )?.status,
         "processed",
       );
     }

@@ -89,13 +89,17 @@ async function persistSQLiteSuiteCheckpoint(args: {
         status: args.suite.status,
         startedAtEpochMs: priorCheckpoint?.startedAtEpochMs ?? now,
         updatedAtEpochMs: now,
-        ...(typeof args.suite.nextPlanOrder === "number" ? { nextPlanOrder: args.suite.nextPlanOrder } : {}),
-        ...(activePlan ? {
-          activePlanName: activePlan.planName,
-          activePlanOrder: activePlan.order,
-          ...(typeof activePlan.runId === "string" ? { activeRunId: activePlan.runId } : {}),
-          activePhase: activePlan.phase,
-        } : {}),
+        ...(typeof args.suite.nextPlanOrder === "number"
+          ? { nextPlanOrder: args.suite.nextPlanOrder }
+          : {}),
+        ...(activePlan
+          ? {
+              activePlanName: activePlan.planName,
+              activePlanOrder: activePlan.order,
+              ...(typeof activePlan.runId === "string" ? { activeRunId: activePlan.runId } : {}),
+              activePhase: activePlan.phase,
+            }
+          : {}),
         ...(args.suite.status === "in_progress" ? {} : { completedAtEpochMs: now }),
         ...(typeof args.suite.reasonCode === "string" ? { reasonCode: args.suite.reasonCode } : {}),
         ...(priorCheckpoint ? { expectedRevision: priorCheckpoint.revision } : {}),
@@ -112,7 +116,9 @@ async function persistSQLiteSuiteCheckpoint(args: {
           planOrder: entry.order,
           ...(entry.runStatus ? { runStatus: entry.runStatus } : {}),
           ...(entry.runStatus !== "in_progress" ? { completedAtEpochMs: now } : {}),
-          ...(typeof entry.blockedReasonCode === "string" ? { reasonCode: entry.blockedReasonCode } : {}),
+          ...(typeof entry.blockedReasonCode === "string"
+            ? { reasonCode: entry.blockedReasonCode }
+            : {}),
         })),
     });
     if (!persisted.ok) throw new CheckpointPersistenceError(persisted.reasonCode);
@@ -147,7 +153,8 @@ export async function executeExecutionOrchestrationAction(
       : undefined;
   const checkpointOwnerId = randomUUID();
   const maxPlansPerCall =
-    typeof input.payload.maxPlansPerCall === "number" && Number.isInteger(input.payload.maxPlansPerCall)
+    typeof input.payload.maxPlansPerCall === "number" &&
+    Number.isInteger(input.payload.maxPlansPerCall)
       ? input.payload.maxPlansPerCall
       : undefined;
   if (!projectName) {
@@ -165,24 +172,27 @@ export async function executeExecutionOrchestrationAction(
     });
   }
 
-  const probeConfig = input.probeConfig ?? {
-    probeBaseUrl: "",
-    probeStatusPath: CONFIG_DEFAULTS.PROBE_STATUS_PATH,
-    probeResetPath: CONFIG_DEFAULTS.PROBE_RESET_PATH,
-    probeActuatePath: CONFIG_DEFAULTS.PROBE_ACTUATE_PATH,
-    probeCapturePath: CONFIG_DEFAULTS.PROBE_CAPTURE_PATH,
-    probeProfilerPath: CONFIG_DEFAULTS.PROBE_PROFILER_PATH,
-    probeWaitMaxRetries: CONFIG_DEFAULTS.PROBE_WAIT_MAX_RETRIES,
-    probeWaitUnreachableRetryEnabled: CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_RETRY_ENABLED,
-    probeWaitUnreachableMaxRetries: CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES,
-  } satisfies ProbeDomainConfig;
+  const probeConfig =
+    input.probeConfig ??
+    ({
+      probeBaseUrl: "",
+      probeStatusPath: CONFIG_DEFAULTS.PROBE_STATUS_PATH,
+      probeResetPath: CONFIG_DEFAULTS.PROBE_RESET_PATH,
+      probeActuatePath: CONFIG_DEFAULTS.PROBE_ACTUATE_PATH,
+      probeCapturePath: CONFIG_DEFAULTS.PROBE_CAPTURE_PATH,
+      probeProfilerPath: CONFIG_DEFAULTS.PROBE_PROFILER_PATH,
+      probeWaitMaxRetries: CONFIG_DEFAULTS.PROBE_WAIT_MAX_RETRIES,
+      probeWaitUnreachableRetryEnabled: CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_RETRY_ENABLED,
+      probeWaitUnreachableMaxRetries: CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES,
+    } satisfies ProbeDomainConfig);
   const probeDomain = createProbeDomain(probeConfig);
 
-  let priorSuite:
-    | Awaited<ReturnType<typeof readExecutionOrchestrationSuiteResult>>
-    | null = null;
+  let priorSuite: Awaited<ReturnType<typeof readExecutionOrchestrationSuiteResult>> | null = null;
   if (typeof suiteRunId === "string") {
-    const stateStore = await openRunStateStore({ workspaceRootAbs: input.workspaceRootAbs, projectName });
+    const stateStore = await openRunStateStore({
+      workspaceRootAbs: input.workspaceRootAbs,
+      projectName,
+    });
     if (!stateStore.ok) {
       return blockedResponse({
         reasonCode: stateStore.reasonCode,
@@ -207,9 +217,20 @@ export async function executeExecutionOrchestrationAction(
         reasonMeta: { projectName, executionProfile, suiteRunId },
       });
     }
-    const lease = acquireRegressionSuiteLease({ store: stateStore, suiteRunId, ownerId: checkpointOwnerId, nowEpochMs: Date.now(), leaseDurationMs: 30_000 });
+    const lease = acquireRegressionSuiteLease({
+      store: stateStore,
+      suiteRunId,
+      ownerId: checkpointOwnerId,
+      nowEpochMs: Date.now(),
+      leaseDurationMs: 30_000,
+    });
     stateStore.close();
-    if (!lease.ok) return blockedResponse({ reasonCode: lease.reasonCode, reason: lease.reasonCode, reasonMeta: { projectName, executionProfile, suiteRunId } });
+    if (!lease.ok)
+      return blockedResponse({
+        reasonCode: lease.reasonCode,
+        reason: lease.reasonCode,
+        reasonMeta: { projectName, executionProfile, suiteRunId },
+      });
     priorSuite = await readExecutionOrchestrationSuiteResult({
       workspaceRootAbs: input.workspaceRootAbs,
       projectName,
@@ -245,7 +266,9 @@ export async function executeExecutionOrchestrationAction(
           ? { completedPlanCount: priorSuite.completedPlanCount }
           : {}),
         ...(priorSuite.progressSummary ? { progressSummary: priorSuite.progressSummary } : {}),
-        ...(Array.isArray(priorSuite.correlations) ? { correlations: priorSuite.correlations } : {}),
+        ...(Array.isArray(priorSuite.correlations)
+          ? { correlations: priorSuite.correlations }
+          : {}),
       };
       return {
         content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
@@ -261,7 +284,12 @@ export async function executeExecutionOrchestrationAction(
     }
   }
 
-  const projectsFileAbs = path.join(input.workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
+  const projectsFileAbs = path.join(
+    input.workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "projects.json",
+  );
   const projectArtifact = await readProjectArtifact(projectsFileAbs).catch(() => ({
     ok: false as const,
     reasonCode: "project_artifact_missing" as const,
@@ -278,7 +306,9 @@ export async function executeExecutionOrchestrationAction(
       },
     });
   }
-  const workspace = projectArtifact.artifact.workspaces.find((entry) => entry.projectRoot === input.workspaceRootAbs);
+  const workspace = projectArtifact.artifact.workspaces.find(
+    (entry) => entry.projectRoot === input.workspaceRootAbs,
+  );
   if (!workspace) {
     return blockedResponse({
       reasonCode: "runtime_suite_missing",
@@ -290,7 +320,9 @@ export async function executeExecutionOrchestrationAction(
       },
     });
   }
-  const profile = (workspace.executionProfiles ?? []).find((entry) => entry.executionProfile === executionProfile);
+  const profile = (workspace.executionProfiles ?? []).find(
+    (entry) => entry.executionProfile === executionProfile,
+  );
   if (!profile) {
     return blockedResponse({
       reasonCode: "runtime_suite_missing",
@@ -315,9 +347,18 @@ export async function executeExecutionOrchestrationAction(
     });
   }
 
-  const invokeSuiteTool = async ({ toolName, input: toolInput }: { toolName: string; input: Record<string, unknown> }) => {
+  const invokeSuiteTool = async ({
+    toolName,
+    input: toolInput,
+  }: {
+    toolName: string;
+    input: Record<string, unknown>;
+  }) => {
     if (toolName === "transport_execute") {
-      if (toolInput.wrappedOnly !== false && (probeConfig.getProbeRegistry?.()?.allowNonWrappedExecutable ?? false)) {
+      if (
+        toolInput.wrappedOnly !== false &&
+        (probeConfig.getProbeRegistry?.()?.allowNonWrappedExecutable ?? false)
+      ) {
         return {
           structuredContent: {
             status: "blocked_invalid",
@@ -338,19 +379,27 @@ export async function executeExecutionOrchestrationAction(
     if (toolName === "probe") {
       const action = toolInput.action;
       const probeInput =
-        typeof toolInput.input === "object" && toolInput.input !== null && !Array.isArray(toolInput.input)
+        typeof toolInput.input === "object" &&
+        toolInput.input !== null &&
+        !Array.isArray(toolInput.input)
           ? (toolInput.input as Record<string, unknown>)
           : undefined;
       if (action === "reset" && probeInput) {
-        const result = await probeDomain.reset(probeInput as Parameters<typeof probeDomain.reset>[0]);
+        const result = await probeDomain.reset(
+          probeInput as Parameters<typeof probeDomain.reset>[0],
+        );
         return { structuredContent: result.structuredContent as Record<string, unknown> };
       }
       if (action === "wait_for_hit" && probeInput) {
-        const result = await probeDomain.waitForHit(probeInput as Parameters<typeof probeDomain.waitForHit>[0]);
+        const result = await probeDomain.waitForHit(
+          probeInput as Parameters<typeof probeDomain.waitForHit>[0],
+        );
         return { structuredContent: result.structuredContent as Record<string, unknown> };
       }
       if (action === "profiler" && probeInput) {
-        const result = await probeDomain.profiler(probeInput as Parameters<typeof probeDomain.profiler>[0]);
+        const result = await probeDomain.profiler(
+          probeInput as Parameters<typeof probeDomain.profiler>[0],
+        );
         return { structuredContent: result.structuredContent as Record<string, unknown> };
       }
     }
@@ -365,31 +414,37 @@ export async function executeExecutionOrchestrationAction(
 
   const loopPolicy = resolveExecutionOrchestrationLoopPolicy(orchestratorDefaults);
   const enableOuterResiliencyLoop =
-    typeof maxPlansPerCall !== "number" &&
-    loopPolicy.effectiveTimeoutBudgetMs > 0;
+    typeof maxPlansPerCall !== "number" && loopPolicy.effectiveTimeoutBudgetMs > 0;
   const maxPlansPerPass = enableOuterResiliencyLoop ? 1 : maxPlansPerCall;
 
-  const executeSuitePass = async (state: {
-    suiteRunId?: string;
-    priorSuite?: NonNullable<typeof priorSuite> | null;
-  }, remainingBudgetMs: number) =>
+  const executeSuitePass = async (
+    state: {
+      suiteRunId?: string;
+      priorSuite?: NonNullable<typeof priorSuite> | null;
+    },
+    remainingBudgetMs: number,
+  ) =>
     profile.suiteType === "performance"
       ? await dispatchPerformanceSuiteAction({
           action: "execute",
           input: {
-          workspaceRootAbs: input.workspaceRootAbs,
-          projectName,
-          executionProfile,
-          ...(typeof state.suiteRunId === "string" ? { suiteRunId: state.suiteRunId } : {}),
-          ...(typeof maxPlansPerPass === "number" ? { maxPlansPerCall: maxPlansPerPass } : {}),
-          ...(state.priorSuite && Array.isArray(state.priorSuite.planRuns) ? { priorPlanRuns: state.priorSuite.planRuns } : {}),
-          ...(state.priorSuite && typeof state.priorSuite.suiteContext === "object" && state.priorSuite.suiteContext !== null
-            ? { priorSuiteContext: state.priorSuite.suiteContext }
-            : {}),
-          ...(state.priorSuite && typeof state.priorSuite.nextPlanOrder === "number"
-            ? { startPlanOrder: state.priorSuite.nextPlanOrder }
-            : {}),
-          mcpInvoke: invokeSuiteTool,
+            workspaceRootAbs: input.workspaceRootAbs,
+            projectName,
+            executionProfile,
+            ...(typeof state.suiteRunId === "string" ? { suiteRunId: state.suiteRunId } : {}),
+            ...(typeof maxPlansPerPass === "number" ? { maxPlansPerCall: maxPlansPerPass } : {}),
+            ...(state.priorSuite && Array.isArray(state.priorSuite.planRuns)
+              ? { priorPlanRuns: state.priorSuite.planRuns }
+              : {}),
+            ...(state.priorSuite &&
+            typeof state.priorSuite.suiteContext === "object" &&
+            state.priorSuite.suiteContext !== null
+              ? { priorSuiteContext: state.priorSuite.suiteContext }
+              : {}),
+            ...(state.priorSuite && typeof state.priorSuite.nextPlanOrder === "number"
+              ? { startPlanOrder: state.priorSuite.nextPlanOrder }
+              : {}),
+            mcpInvoke: invokeSuiteTool,
           },
         })
       : await dispatchRegressionSuiteAction({
@@ -400,8 +455,12 @@ export async function executeExecutionOrchestrationAction(
             executionProfile,
             ...(typeof state.suiteRunId === "string" ? { suiteRunId: state.suiteRunId } : {}),
             ...(typeof maxPlansPerPass === "number" ? { maxPlansPerCall: maxPlansPerPass } : {}),
-            ...(state.priorSuite && Array.isArray(state.priorSuite.planRuns) ? { priorPlanRuns: state.priorSuite.planRuns } : {}),
-            ...(state.priorSuite && typeof state.priorSuite.suiteContext === "object" && state.priorSuite.suiteContext !== null
+            ...(state.priorSuite && Array.isArray(state.priorSuite.planRuns)
+              ? { priorPlanRuns: state.priorSuite.planRuns }
+              : {}),
+            ...(state.priorSuite &&
+            typeof state.priorSuite.suiteContext === "object" &&
+            state.priorSuite.suiteContext !== null
               ? { priorSuiteContext: state.priorSuite.suiteContext }
               : {}),
             ...(state.priorSuite && typeof state.priorSuite.nextPlanOrder === "number"
@@ -416,38 +475,41 @@ export async function executeExecutionOrchestrationAction(
   try {
     suite = enableOuterResiliencyLoop
       ? await executeExecutionOrchestrationResiliencyLoop({
-        projectName,
-        executionProfile,
-        defaults: orchestratorDefaults,
-        ...(typeof suiteRunId === "string" ? { initialSuiteRunId: suiteRunId } : {}),
-        ...(priorSuite ? { initialPriorSuite: priorSuite } : {}),
-        executePass: executeSuitePass,
-        persistSuite: async (nextSuite) => {
-          await writeExecutionOrchestrationSuiteResult({
-            workspaceRootAbs: input.workspaceRootAbs,
-            projectName,
-            suite: nextSuite,
-          });
-          if (profile.suiteType === "regression") {
-            await persistSQLiteSuiteCheckpoint({
+          projectName,
+          executionProfile,
+          defaults: orchestratorDefaults,
+          ...(typeof suiteRunId === "string" ? { initialSuiteRunId: suiteRunId } : {}),
+          ...(priorSuite ? { initialPriorSuite: priorSuite } : {}),
+          executePass: executeSuitePass,
+          persistSuite: async (nextSuite) => {
+            await writeExecutionOrchestrationSuiteResult({
               workspaceRootAbs: input.workspaceRootAbs,
               projectName,
               suite: nextSuite,
-              ownerId: checkpointOwnerId,
             });
-          }
-        },
-        readPersistedSuite: async (nextSuiteRunId) =>
-          await readExecutionOrchestrationSuiteResult({
-            workspaceRootAbs: input.workspaceRootAbs,
-            projectName,
-            suiteRunId: nextSuiteRunId,
-          }),
+            if (profile.suiteType === "regression") {
+              await persistSQLiteSuiteCheckpoint({
+                workspaceRootAbs: input.workspaceRootAbs,
+                projectName,
+                suite: nextSuite,
+                ownerId: checkpointOwnerId,
+              });
+            }
+          },
+          readPersistedSuite: async (nextSuiteRunId) =>
+            await readExecutionOrchestrationSuiteResult({
+              workspaceRootAbs: input.workspaceRootAbs,
+              projectName,
+              suiteRunId: nextSuiteRunId,
+            }),
         })
-      : await executeSuitePass({
-        ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
-        ...(priorSuite ? { priorSuite } : {}),
-        }, loopPolicy.effectiveTimeoutBudgetMs);
+      : await executeSuitePass(
+          {
+            ...(typeof suiteRunId === "string" ? { suiteRunId } : {}),
+            ...(priorSuite ? { priorSuite } : {}),
+          },
+          loopPolicy.effectiveTimeoutBudgetMs,
+        );
   } catch (error) {
     if (error instanceof CheckpointPersistenceError) {
       return blockedResponse({
@@ -499,10 +561,21 @@ export async function executeExecutionOrchestrationAction(
   }
 
   if (profile.suiteType === "regression" && typeof suite.suiteRunId === "string") {
-    const store = await openRunStateStore({ workspaceRootAbs: input.workspaceRootAbs, projectName });
+    const store = await openRunStateStore({
+      workspaceRootAbs: input.workspaceRootAbs,
+      projectName,
+    });
     if (store.ok) {
-      try { releaseRegressionSuiteLease({ store, suiteRunId: suite.suiteRunId, ownerId: checkpointOwnerId, nowEpochMs: Date.now() }); }
-      finally { store.close(); }
+      try {
+        releaseRegressionSuiteLease({
+          store,
+          suiteRunId: suite.suiteRunId,
+          ownerId: checkpointOwnerId,
+          nowEpochMs: Date.now(),
+        });
+      } finally {
+        store.close();
+      }
     }
   }
 
@@ -520,7 +593,9 @@ export async function executeExecutionOrchestrationAction(
     }),
     planRuns: suite.planRuns,
     ...(typeof suite.nextPlanOrder === "number" ? { nextPlanOrder: suite.nextPlanOrder } : {}),
-    ...(typeof suite.completedPlanCount === "number" ? { completedPlanCount: suite.completedPlanCount } : {}),
+    ...(typeof suite.completedPlanCount === "number"
+      ? { completedPlanCount: suite.completedPlanCount }
+      : {}),
     ...(typeof suite.reasonCode === "string" ? { reasonCode: suite.reasonCode } : {}),
     ...(suite.reasonMeta ? { reasonMeta: suite.reasonMeta } : {}),
     ...(suite.progressSummary ? { progressSummary: suite.progressSummary } : {}),
