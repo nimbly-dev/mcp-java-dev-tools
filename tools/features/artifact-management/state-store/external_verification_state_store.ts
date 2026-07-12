@@ -4,7 +4,7 @@ import type {
   ExternalVerificationPersistenceResult,
   ExternalVerificationProjection,
   OpenRunStateStore,
-} from "./run_state_store.model";
+} from "./model/run_state_store.model";
 
 const MAX_SUMMARY_BYTES = 8_192;
 

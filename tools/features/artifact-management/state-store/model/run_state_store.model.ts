@@ -16,6 +16,41 @@ export type RunStateStoreFailureCode =
   | "state_store_migration_failed"
   | "state_store_project_mismatch"
   | "state_store_path_invalid";
+export type RunStateRebuildFailureCode =
+  | "state_store_rebuild_active_runs"
+  | "state_store_rebuild_source_invalid"
+  | "state_store_rebuild_conflict"
+  | "state_store_rebuild_integrity_failed"
+  | "state_store_rebuild_replace_failed"
+  | "state_store_rebuild_non_reconstructible"
+  | "state_store_rebuild_failed";
+export type RunStateRebuildFailure = {
+  ok: false;
+  reasonCode: RunStateRebuildFailureCode;
+  reason: string;
+  nextAction: "retry_state_store" | "correct_state_store_input" | "rebuild_state_store";
+  reasonMeta?: Record<string, unknown>;
+};
+export type RunStateRebuildSummary = {
+  scannedRuns: number;
+  rebuiltRuns: number;
+  skippedRuns: number;
+  invalidRuns: number;
+  conflictingRuns: number;
+  rebuiltCorrelations: number;
+  rebuiltWatchers: number;
+  rebuiltExternalVerifications: number;
+  nonReconstructibleActiveStates: number;
+  reasons?: Array<Record<string, unknown>>;
+};
+export type RunStateRebuildResult =
+  | {
+      ok: true;
+      summary: RunStateRebuildSummary;
+      databasePathAbs: string;
+      quarantinePathAbs?: string;
+    }
+  | RunStateRebuildFailure;
 export type RunStateStoreFailure = {
   ok: false;
   reasonCode: RunStateStoreFailureCode;

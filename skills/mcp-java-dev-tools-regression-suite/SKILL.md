@@ -176,7 +176,7 @@ Use these references/templates:
 11. `artifact_management` MCP Tool (operational source) for artifact lifecycle reads/validations:
    - `artifactType=project_context` (`read|validate|list`)
    - `artifactType=regression_plan` (`read|validate|list`)
-   - `artifactType=run_result` (`list|read`)
+   - `artifactType=run_result` (`list|read|rebuild`)
 12. For orchestrated runtime-suite execution, `artifact_management` is the maintained read path for execution profile lookup and regression plan loading.
 
 ## Required Artifacts and Correlation
@@ -209,6 +209,7 @@ Use these references/templates:
    - `progressSummary.activePlan`
    - completed `planRuns[]`
 15. SQLite operational state is never a replacement for canonical run Artifacts. Persist canonical evidence first, then persist the checkpoint; a checkpoint-persistence failure blocks safe continuation and must return deterministic recovery guidance.
+16. SQLite recovery is a maintenance workflow, not normal suite execution. Rebuild only from canonical run Artifacts through `artifact_management` with `artifactType=run_result` and `action=rebuild`; do not use legacy `correlation-index.json` or invent active checkpoint state.
 16. Correlation projection must preserve the same `runId` and `correlationSessionId`; a fresh suite run must not reuse a terminal Correlation result from an older run merely because its key matches.
 17. Treat persisted Probe scope state as historical observation only. Live Sidecar Probe state and runtime-instance identity remain authoritative.
 

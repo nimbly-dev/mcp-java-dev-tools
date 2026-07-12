@@ -7,7 +7,7 @@ import type {
   RunStateCheckpointFailure,
   PersistedRegressionSuiteCheckpoint,
   AcquireRegressionSuiteLeaseResult,
-} from "./run_state_store.model";
+} from "./model/run_state_store.model";
 
 function checkpointFailure(
   reasonCode: RunStateCheckpointFailure["reasonCode"],

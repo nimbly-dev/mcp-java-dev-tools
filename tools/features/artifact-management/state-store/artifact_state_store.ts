@@ -4,7 +4,7 @@ import type {
   RunStateArtifactLink,
   RunStateStoreFailure,
   RunStateStoreFailureCode,
-} from "./run_state_store.model";
+} from "./model/run_state_store.model";
 
 function failure(
   reasonCode: RunStateStoreFailureCode,

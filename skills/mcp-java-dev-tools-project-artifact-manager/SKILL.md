@@ -38,6 +38,8 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 17. Keep watcher wait-policy defaults distinct from `defaults.orchestrator`; watcher polling and outer orchestration polling are separate concerns.
 18. `sessionExport` uses flat defaults for `includeRuntimeStartup` and `includeHealthcheckGate`.
 19. `sessionExport.includeResolvedSecrets` must not auto-enable secret export; resolved secrets require explicit request opt-in at export time.
+20. SQLite state-store rebuild is an explicit maintenance operation through `artifact_management` with `artifactType=run_result` and `action=rebuild`; it is never a normal read or write shortcut.
+21. Rebuild must scan canonical run Artifacts, validate a temporary database, and atomically replace the live store only after validation succeeds.
 
 ## Required Artifact Path
 
@@ -163,6 +165,8 @@ Regression operational state uses a separate local SQLite store at `.mcpjvm/<pro
 5. Call `artifact_management` with `artifactType=project_context` and `action=validate` before persistence, passing explicit `projectName` and optional `projectRootAbs` only when a scope cross-check is required.
 6. Call `artifact_management` with `artifactType=project_context` and `action=upsert` to persist.
 7. Validate end-to-end and return deterministic summary.
+8. For state-store recovery, call `artifact_management` with `artifactType=run_result`, `action=rebuild`, and explicit `projectName`; use `strict=true` when every discovered run must be reconstructible.
+9. Report bounded rebuild counts and reason rows. Never delete or clear the live SQLite store in place.
 
 ## Misaligned Field Fix Rules
 

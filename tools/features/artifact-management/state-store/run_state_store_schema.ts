@@ -5,7 +5,7 @@ import type {
   RunStateDatabase,
   RunStateStoreFailure,
   RunStateStoreFailureCode,
-} from "./run_state_store.model";
+} from "./model/run_state_store.model";
 
 export const CURRENT_SCHEMA_VERSION = 5;
 const BUSY_TIMEOUT_MS = 5_000;
