@@ -47,6 +47,7 @@ export type RunStateRebuildSummary = {
   rebuiltWatchers: number;
   rebuiltExternalVerifications: number;
   nonReconstructibleActiveStates: number;
+  reasonsTruncated?: boolean;
   reasons?: Array<Record<string, unknown>>;
 };
 export type RunStateRebuildResult =

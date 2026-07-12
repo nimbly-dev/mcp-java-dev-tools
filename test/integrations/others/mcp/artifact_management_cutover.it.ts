@@ -5,6 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import test from "node:test";
 
+import { writeRegressionRunArtifacts } from "@tools-feature-regression-suite";
 import { startMcpClient } from "@test/integrations/support/spring/social_platform/shared.fixture";
 
 test("mcp IT: artifact_management run_result cutover is idempotent", async () => {
@@ -229,6 +230,97 @@ test("mcp IT: artifact_management exposes active watcher_state progress", async 
       (query.structuredContent?.items as Array<Record<string, unknown>>)?.[0]?.active,
       true,
     );
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("mcp IT: artifact_management rebuild returns bounded recovery metadata", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-rebuild-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "rebuild-project";
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    await fs.mkdir(path.join(workspaceRootAbs, ".mcpjvm", projectName), { recursive: true });
+    await fs.writeFile(
+      path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"),
+      JSON.stringify({ workspaces: [{ projectRoot: workspaceRootAbs }] }),
+      "utf8",
+    );
+    await writeRegressionRunArtifacts({
+      workspaceRootAbs,
+      projectName,
+      runId: "2026-04-19T08-01-22Z_01",
+      planRef: { name: "rebuild-plan" },
+      resolvedContext: {},
+      executionResult: {
+        status: "pass",
+        preflight: {
+          status: "ready",
+          reasonCode: "ok",
+          missing: [],
+          discoverablePending: [],
+          prerequisiteResolution: [],
+          requiredUserAction: [],
+        },
+        startedAt: "2026-04-19T08:01:22.000Z",
+        endedAt: "2026-04-19T08:01:23.000Z",
+        steps: [{ order: 1, id: "trigger", status: "pass" }],
+      },
+      evidence: { targetResolution: [] },
+      now: new Date("2026-04-19T08:01:24.000Z"),
+    });
+    mcp = await startMcpClient({ workspaceRootAbs, probeBaseUrl: "http://127.0.0.1:9200" });
+    const rebuilt = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "rebuild",
+        input: {
+          projectName,
+          strict: false,
+          scope: { stateSurfaces: ["run_state", "watcher_state"] },
+        },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(rebuilt.structuredContent?.status, "ok");
+    assert.deepEqual(rebuilt.structuredContent?.scope, {
+      stateSurfaces: ["run_state", "watcher_state"],
+    });
+    assert.equal(rebuilt.structuredContent?.strict, false);
+    assert.equal(
+      (rebuilt.structuredContent?.summary as Record<string, unknown>)?.recoveryStatus,
+      "complete",
+    );
+    assert.equal(
+      rebuilt.structuredContent?.databasePathRel,
+      `.mcpjvm/${projectName}/run-state.sqlite`,
+    );
+    assert.equal("databasePathAbs" in (rebuilt.structuredContent ?? {}), false);
+    assert.equal("quarantinePathAbs" in (rebuilt.structuredContent ?? {}), false);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("mcp IT: artifact_management rebuild fails closed without canonical sources", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-rebuild-empty-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({ workspaceRootAbs, probeBaseUrl: "http://127.0.0.1:9201" });
+    const rebuilt = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "rebuild",
+        input: { projectName: "empty-rebuild-project" },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(rebuilt.structuredContent?.status, "state_store_rebuild_source_invalid");
+    assert.equal(rebuilt.structuredContent?.reasonCode, "state_store_rebuild_source_invalid");
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });

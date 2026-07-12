@@ -33,6 +33,7 @@ export async function scanRunStateSources(args: {
   projectName: string;
   summary: RunStateRebuildSummary;
   reasons: Array<Record<string, unknown>>;
+  reasonCount: { value: number };
 }): Promise<RunStateRebuildSource[]> {
   const root = path.join(args.workspaceRootAbs, ".mcpjvm", args.projectName, "plans", "regression");
   const plans = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
@@ -54,6 +55,7 @@ export async function scanRunStateSources(args: {
       const evidence = await readJsonRecord(evidencePathAbs);
       if (!execution) {
         args.summary.invalidRuns += 1;
+        args.reasonCount.value += 1;
         if (args.reasons.length < MAX_REASONS)
           args.reasons.push({
             planName: plan.name,
@@ -63,8 +65,15 @@ export async function scanRunStateSources(args: {
         continue;
       }
       const evidencePresent = Boolean(evidence);
-      if (!evidencePresent && args.reasons.length < MAX_REASONS)
-        args.reasons.push({ planName: plan.name, runId: run.name, reasonCode: "evidence_missing" });
+      if (!evidencePresent) {
+        args.reasonCount.value += 1;
+        if (args.reasons.length < MAX_REASONS)
+          args.reasons.push({
+            planName: plan.name,
+            runId: run.name,
+            reasonCode: "evidence_missing",
+          });
+      }
       const files: RunStateRebuildSource["files"] = [
         { kind: "execution_result", pathAbs: executionPathAbs },
       ];
