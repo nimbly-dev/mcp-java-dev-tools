@@ -6,6 +6,7 @@ const test = require("node:test");
 const {
   cutoverRunStateStore,
   openRunStateStore,
+  queryRunState,
   persistCorrelationSession,
   persistRegressionSuiteState,
   upsertCorrelationObservation,
@@ -67,6 +68,92 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
     const second = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
     assert.equal(second.ok, true);
     if (second.ok) second.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("run-state query returns bounded suite and plan projections with deterministic cursor pagination", async () => {
+  const root = createTestTempDir("run-state-query");
+  try {
+    const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(cutover.ok, true);
+    const db = new (require("node:sqlite").DatabaseSync)(
+      path.join(root, ".mcpjvm", "alpha", "run-state.sqlite"),
+    );
+    db.prepare(
+      `INSERT INTO suite_runs (project_name, suite_run_id, execution_profile, status, active_plan_name, active_plan_order, active_phase, next_plan_order, revision, started_at_epoch_ms, updated_at_epoch_ms)
+       VALUES ('alpha', 'suite-1', 'regression', 'in_progress', 'p1', 1, 'watchers', 2, 3, 100, 300)`,
+    ).run();
+    const suitePk = db
+      .prepare("SELECT suite_run_pk FROM suite_runs WHERE suite_run_id = 'suite-1'")
+      .get().suite_run_pk;
+    db.prepare(
+      `INSERT INTO plan_runs (suite_run_pk, project_name, plan_name, run_id, status, run_dir_path_rel, started_at_epoch_ms, completed_at_epoch_ms, revision, reason_code)
+       VALUES (?, 'alpha', 'p1', 'run-1', 'executed', '.mcpjvm/alpha/plans/regression/p1/runs/run-1', 100, 200, 1, NULL)`,
+    ).run(suitePk);
+    db.prepare(
+      `INSERT INTO artifacts (project_name, plan_name, run_id, artifact_kind, path_rel, checksum, created_at_epoch_ms)
+       VALUES ('alpha', 'p1', 'run-1', 'execution_result', '.mcpjvm/alpha/plans/regression/p1/runs/run-1/execution.result.json', 'abc', 200)`,
+    ).run();
+    db.close();
+
+    const first = await queryRunState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha", pageSize: 1 },
+    });
+    assert.equal(first.ok, true);
+    if (!first.ok) return;
+    assert.equal(first.items.length, 1);
+    assert.equal(first.items[0].stateKind, "suite");
+    assert.equal(first.items[0].activePhase, "watchers");
+    assert.match(String(first.nextCursor), /^[A-Za-z0-9_-]+$/);
+
+    const second = await queryRunState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha", pageSize: 1, cursor: first.nextCursor },
+    });
+    assert.equal(second.ok, true);
+    if (!second.ok) return;
+    assert.equal(second.items[0].stateKind, "plan");
+    assert.deepEqual(second.items[0].artifactReferences, [
+      {
+        artifactKind: "execution_result",
+        pathRel: ".mcpjvm/alpha/plans/regression/p1/runs/run-1/execution.result.json",
+        checksum: "abc",
+      },
+    ]);
+
+    const planFiltered = await queryRunState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha", planName: "p1" },
+    });
+    assert.equal(planFiltered.ok, true);
+    if (!planFiltered.ok) return;
+    assert.deepEqual(
+      planFiltered.items.map((item: Record<string, unknown>) => item.stateKind),
+      ["plan"],
+    );
+
+    const mismatchedCursor = await queryRunState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha", planName: "p1", cursor: first.nextCursor },
+    });
+    assert.equal(mismatchedCursor.ok, false);
+    if (!mismatchedCursor.ok)
+      assert.equal(mismatchedCursor.reasonCode, "run_state_cursor_query_mismatch");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("run-state query fails closed before cutover and does not bootstrap a missing store", async () => {
+  const root = createTestTempDir("run-state-query-not-ready");
+  try {
+    const result = await queryRunState({ workspaceRootAbs: root, input: { projectName: "alpha" } });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reasonCode, "run_state_store_not_ready");
+    assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite")), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }

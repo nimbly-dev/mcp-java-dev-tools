@@ -9,6 +9,7 @@ import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import { readJsonFile } from "../shared/json_io";
 import { resolveProjectName } from "../shared/project_resolution";
+import { queryRunState } from "../state-store/run_state_query";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -84,7 +85,82 @@ export async function handleRunResultArtifact(
   ctx: ArtifactActionContext,
   request: ArtifactActionRequest<"run_result">,
 ): Promise<ArtifactActionResult> {
+  if (
+    request.action === "query" &&
+    (!request.input.projectName || request.input.projectName.trim().length === 0)
+  ) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: "run_state_query_invalid",
+      reason: "projectName is required for run_state queries",
+      reasonMeta: { artifactType: request.artifactType, action: request.action },
+    });
+  }
   const projectName = await resolveProjectName(ctx.workspaceRootAbs, request.input.projectName);
+
+  if (request.action === "query") {
+    if (request.input.stateSurface !== "run_state") {
+      return buildFailClosedArtifactResponse({
+        reasonCode: "run_state_query_invalid",
+        reason: "stateSurface must be 'run_state' for run_result query",
+        reasonMeta: { artifactType: request.artifactType, action: request.action },
+      });
+    }
+    const queried = await queryRunState({
+      workspaceRootAbs: ctx.workspaceRootAbs,
+      input: {
+        projectName,
+        ...(request.input.query?.planName ? { planName: request.input.query.planName } : {}),
+        ...(request.input.query?.runId ? { runId: request.input.query.runId } : {}),
+        ...(request.input.query?.suiteRunId ? { suiteRunId: request.input.query.suiteRunId } : {}),
+        ...(request.input.query?.executionProfile
+          ? { executionProfile: request.input.query.executionProfile }
+          : {}),
+        ...(request.input.query?.status ? { status: request.input.query.status } : {}),
+        ...(request.input.query?.activePhase
+          ? { activePhase: request.input.query.activePhase }
+          : {}),
+        ...(request.input.query?.startedFromEpochMs !== undefined
+          ? { startedFromEpochMs: request.input.query.startedFromEpochMs }
+          : {}),
+        ...(request.input.query?.startedToEpochMs !== undefined
+          ? { startedToEpochMs: request.input.query.startedToEpochMs }
+          : {}),
+        ...(request.input.query?.completedFromEpochMs !== undefined
+          ? { completedFromEpochMs: request.input.query.completedFromEpochMs }
+          : {}),
+        ...(request.input.query?.completedToEpochMs !== undefined
+          ? { completedToEpochMs: request.input.query.completedToEpochMs }
+          : {}),
+        ...(request.input.query?.sortDirection
+          ? { sortDirection: request.input.query.sortDirection }
+          : {}),
+        ...(request.input.query?.pageSize !== undefined
+          ? { pageSize: request.input.query.pageSize }
+          : {}),
+        ...(request.input.query?.cursor ? { cursor: request.input.query.cursor } : {}),
+      },
+    });
+    if (!queried.ok) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: queried.reasonCode,
+        reason: queried.reason,
+        ...(queried.reasonMeta ? { reasonMeta: queried.reasonMeta } : {}),
+      });
+    }
+    return okArtifactResponse({
+      resultType: "artifact",
+      status: "ok",
+      artifactType: request.artifactType,
+      action: request.action,
+      stateSurface: queried.stateSurface,
+      projectName: queried.projectName,
+      projectionVersion: queried.projectionVersion,
+      pageSize: queried.pageSize,
+      sort: queried.sort,
+      items: queried.items,
+      ...(queried.nextCursor ? { nextCursor: queried.nextCursor } : {}),
+    });
+  }
 
   if (request.action === "backfill") {
     const backfill = await backfillLegacyCorrelationIndex({
