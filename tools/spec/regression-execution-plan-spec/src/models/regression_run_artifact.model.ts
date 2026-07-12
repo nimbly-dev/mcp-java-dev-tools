@@ -283,8 +283,10 @@ export type RegressionRunArtifactsWriteResult = {
 };
 
 export type CorrelationIndexRebuildResult = {
-  indexPathAbs: string;
-  entriesCount: number;
+  ok: false;
+  reasonCode: "legacy_write_disabled";
+  reason: string;
+  nextAction: "use_sqlite_state_store";
 };
 
 export type CorrelationReasonCode =

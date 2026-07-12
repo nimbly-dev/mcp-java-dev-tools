@@ -3,9 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const {
-  rebuildCorrelationIndex,
-} = require("@tools-feature-regression-suite");
+const { rebuildCorrelationIndex } = require("@tools-feature-regression-suite");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
@@ -18,7 +16,7 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
-test("rebuildCorrelationIndex canonicalizes minimal correlation payloads with numeric run ids", async () => {
+test("rebuildCorrelationIndex fails closed without writing the legacy index", async () => {
   const root = createTestTempDir("corr-index-minimal-it");
   try {
     const projectName = "test-project";
@@ -49,16 +47,12 @@ test("rebuildCorrelationIndex canonicalizes minimal correlation payloads with nu
       workspaceRootAbs: root,
       now: new Date("2026-05-02T12:00:00.000Z"),
     });
-    const index = JSON.parse(fs.readFileSync(out.indexPathAbs, "utf8"));
-
-    assert.equal(out.entriesCount, 1);
-    assert.equal(index.version, 1);
-    assert.equal(index.entries.length, 1);
-    assert.equal(index.entries[0].planName, plan);
-    assert.equal(index.entries[0].runId, runId);
-    assert.equal(index.entries[0].status, "ok");
-    assert.equal(index.entries[0].reasonCode, "correlation_event_found");
-    assert.equal(index.entries[0].runPath, `.mcpjvm/test-project/plans/regression/${plan}/runs/${runId}`);
+    assert.equal(out.ok, false);
+    assert.equal(out.reasonCode, "legacy_write_disabled");
+    assert.equal(
+      fs.existsSync(path.join(root, ".mcpjvm", projectName, "correlation-index.json")),
+      false,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

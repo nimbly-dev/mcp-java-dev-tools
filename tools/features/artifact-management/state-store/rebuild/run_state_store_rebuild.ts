@@ -128,6 +128,27 @@ async function rebuildRunStateStore(args: any): Promise<any> {
       );
     }
     candidate = openCandidate(tempPathAbs, projectName);
+    const cutoverMarkerAbs = node_path_1.default.join(projectDirAbs, "state-store.cutover.json");
+    const wasCutover = await node_fs_1.promises
+      .stat(cutoverMarkerAbs)
+      .then(() => true)
+      .catch(() => false);
+    if (wasCutover) {
+      candidate.database
+        .prepare(
+          `
+          INSERT INTO state_store_cutover (
+            project_name, status, transition_revision, updated_at_epoch_ms, completed_at_epoch_ms
+          ) VALUES (?, 'cutover_complete', 1, ?, ?)
+          ON CONFLICT(project_name) DO UPDATE SET
+            status = 'cutover_complete',
+            transition_revision = MAX(state_store_cutover.transition_revision, excluded.transition_revision),
+            updated_at_epoch_ms = excluded.updated_at_epoch_ms,
+            completed_at_epoch_ms = COALESCE(state_store_cutover.completed_at_epoch_ms, excluded.completed_at_epoch_ms)
+        `,
+        )
+        .run(projectName, Date.now(), Date.now());
+    }
     const sourcesByIdentity = new Map(
       sources.map((source: any) => [`${source.planName}\u0000${source.runId}`, source]),
     );

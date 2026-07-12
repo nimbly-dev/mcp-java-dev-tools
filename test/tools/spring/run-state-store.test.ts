@@ -4,6 +4,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  cutoverRunStateStore,
   openRunStateStore,
   persistCorrelationSession,
   persistRegressionSuiteState,
@@ -29,7 +30,7 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
       first.databasePathAbs.replaceAll("\\", "/"),
       /\.mcpjvm\/alpha\/run-state\.sqlite$/,
     );
-    assert.equal(first.schemaVersion, 6);
+    assert.equal(first.schemaVersion, 7);
     assert.deepEqual(
       upsertRunStateArtifact(first, {
         artifactKind: "execution_result",
@@ -44,7 +45,7 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
     assert.equal(
       first.database.prepare("SELECT count(*) AS count FROM schema_migration_resources").get()
         ?.count,
-      6,
+      7,
     );
     assert.match(
       String(
@@ -66,6 +67,42 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
     const second = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
     assert.equal(second.ok, true);
     if (second.ok) second.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("run-state cutover is persisted, idempotent, and fails closed when SQLite is missing", async () => {
+  const root = createTestTempDir("run-state-cutover");
+  try {
+    const first = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(first.ok, true);
+    if (!first.ok) return;
+    assert.equal(first.cutover.status, "cutover_complete");
+    assert.equal(first.idempotent, undefined);
+
+    fs.rmSync(path.join(root, ".mcpjvm", "alpha", "state-store.cutover.json"));
+    const repaired = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(repaired.ok, true);
+    assert.equal(
+      fs.existsSync(path.join(root, ".mcpjvm", "alpha", "state-store.cutover.json")),
+      true,
+    );
+
+    const second = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(second.ok, true);
+    if (!second.ok) return;
+    assert.equal(second.idempotent, true);
+
+    fs.rmSync(path.join(root, ".mcpjvm", "alpha", "state-store.cutover.json"));
+    fs.rmSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite"));
+    assert.equal(
+      fs.existsSync(path.join(root, ".mcpjvm", "state-store-cutovers", "alpha.json")),
+      true,
+    );
+    const reopened = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(reopened.ok, false);
+    if (!reopened.ok) assert.equal(reopened.reasonCode, "state_store_required_after_cutover");
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }

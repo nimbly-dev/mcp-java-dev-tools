@@ -41,6 +41,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 20. SQLite state-store rebuild is an explicit maintenance operation through `artifact_management` with `artifactType=run_result` and `action=rebuild`; it is never a normal read or write shortcut.
 21. Rebuild must scan canonical run Artifacts, validate a temporary database, and atomically replace the live store only after validation succeeds.
 22. Legacy correlation-index backfill is a separate pre-cutover maintenance operation through `artifact_management` with `artifactType=run_result` and `action=backfill`; it must not use or restore source-file checksums.
+23. SQLite cutover is explicit and idempotent through `artifact_management` with `artifactType=run_result` and `action=cutover`; after completion, missing or corrupt SQLite must fail closed and legacy JSON must never be recreated.
 
 ## Required Artifact Path
 
@@ -169,6 +170,7 @@ Regression operational state uses a separate local SQLite store at `.mcpjvm/<pro
 8. For state-store recovery, call `artifact_management` with `artifactType=run_result`, `action=rebuild`, and explicit `projectName`; use `strict=true` when every discovered run must be reconstructible.
 9. Report bounded rebuild counts and reason rows. Never delete or clear the live SQLite store in place.
 10. For pre-cutover compatibility, call `artifact_management` with `artifactType=run_result`, `action=backfill`, and explicit `projectName`; treat the result as migration provenance, not as a normal query source.
+11. After backfill or canonical rebuild readiness is established, call `artifact_management` with `artifactType=run_result`, `action=cutover`, and explicit `projectName`.
 
 ## Misaligned Field Fix Rules
 

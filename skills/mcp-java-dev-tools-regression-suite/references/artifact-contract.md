@@ -8,7 +8,7 @@ Persist per run under:
 2. `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/execution.result.json`
 3. `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/evidence.json`
 4. `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/correlation.json` (required when correlation evidence exists)
-5. `.mcpjvm/correlation-index.json` (required when correlation artifact is produced)
+5. `.mcpjvm/<project_name>/correlation-index.json` is legacy migration input only and MUST NOT be written by runtime or rebuild flows.
 
 Runtime suite manifest path:
 
@@ -59,3 +59,4 @@ Runtime suite summary SHOULD include:
 2. Legacy-only correlation fields are unsupported.
 3. Do not author `correlation.json` directly.
 4. Persist only through canonical artifact writer flow.
+5. SQLite is the only operational/query state store after explicit cutover.

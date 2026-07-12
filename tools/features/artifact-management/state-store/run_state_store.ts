@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { applyRunStateStoreMigrations } from "./run_state_store_schema";
+import { cutoverMarkerPath, cutoverSentinelPath } from "./state_store_cutover_marker";
 import type {
   RunStateDatabase,
   RunStateStoreFailure,
@@ -87,6 +88,27 @@ export async function openRunStateStore(args: {
     );
   }
   const databasePathAbs = path.join(projectDirAbs, "run-state.sqlite");
+  const cutoverMarkerAbs = cutoverMarkerPath(databasePathAbs);
+  const cutoverSentinelAbs = cutoverSentinelPath(args.workspaceRootAbs, projectName);
+  const cutoverMarkerExists = await fs
+    .stat(cutoverMarkerAbs)
+    .then(() => true)
+    .catch(() => false);
+  const cutoverSentinelExists = await fs
+    .stat(cutoverSentinelAbs)
+    .then(() => true)
+    .catch(() => false);
+  const databaseExists = await fs
+    .stat(databasePathAbs)
+    .then(() => true)
+    .catch(() => false);
+  if ((cutoverMarkerExists || cutoverSentinelExists) && !databaseExists)
+    return failure(
+      "state_store_required_after_cutover",
+      "the SQLite state store is required after cutover and cannot be recreated implicitly",
+      "repair_state_store",
+      { databasePathAbs, cutoverMarkerAbs, cutoverSentinelAbs },
+    );
   let database: RunStateDatabase;
   try {
     database = new DatabaseSync(databasePathAbs);
@@ -97,6 +119,20 @@ export async function openRunStateStore(args: {
   if (!migration.ok) {
     database.close();
     return migration;
+  }
+  if (cutoverMarkerExists || cutoverSentinelExists) {
+    const cutover = database
+      .prepare("SELECT status FROM state_store_cutover WHERE project_name = ?")
+      .get(projectName);
+    if (cutover?.status !== "cutover_complete") {
+      database.close();
+      return failure(
+        "state_store_cutover_failed",
+        "the SQLite state store does not contain the completed cutover state",
+        "repair_state_store",
+        { databasePathAbs, status: cutover?.status },
+      );
+    }
   }
   return {
     ok: true,

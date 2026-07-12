@@ -15,7 +15,13 @@ export type RunStateStoreFailureCode =
   | "state_store_schema_unsupported"
   | "state_store_migration_failed"
   | "state_store_project_mismatch"
-  | "state_store_path_invalid";
+  | "state_store_path_invalid"
+  | "state_store_cutover_not_ready"
+  | "state_store_cutover_conflict"
+  | "state_store_cutover_failed"
+  | "legacy_backfill_required"
+  | "legacy_write_disabled"
+  | "state_store_required_after_cutover";
 export type RunStateRebuildFailureCode =
   | "state_store_rebuild_active_runs"
   | "state_store_rebuild_source_invalid"
@@ -72,9 +78,14 @@ export type LegacyBackfillFailure = {
     | "legacy_backfill_schema_unsupported"
     | "legacy_backfill_target_not_empty"
     | "legacy_backfill_conflict"
-    | "legacy_backfill_failed";
+    | "legacy_backfill_failed"
+    | "legacy_write_disabled";
   reason: string;
-  nextAction: "correct_legacy_source" | "run_state_store_rebuild" | "retry_state_store";
+  nextAction:
+    | "correct_legacy_source"
+    | "run_state_store_rebuild"
+    | "retry_state_store"
+    | "use_sqlite_state_store";
   reasonMeta?: Record<string, unknown>;
 };
 export type LegacyBackfillResult =
@@ -120,7 +131,13 @@ export type RunStateStoreFailure = {
   ok: false;
   reasonCode: RunStateStoreFailureCode;
   reason: string;
-  nextAction: "rebuild_state_store" | "retry_state_store" | "correct_state_store_input";
+  nextAction:
+    | "rebuild_state_store"
+    | "retry_state_store"
+    | "correct_state_store_input"
+    | "retry_cutover"
+    | "run_legacy_backfill"
+    | "repair_state_store";
   reasonMeta?: Record<string, unknown>;
 };
 export type OpenRunStateStore = {
@@ -132,6 +149,18 @@ export type OpenRunStateStore = {
   close(): void;
 };
 export type RunStateStoreOpenResult = OpenRunStateStore | RunStateStoreFailure;
+export type RunStateCutoverStatus = "pre_cutover" | "cutover_in_progress" | "cutover_complete";
+export type RunStateCutover = {
+  projectName: string;
+  status: RunStateCutoverStatus;
+  transitionRevision: number;
+  updatedAtEpochMs: number;
+  completedAtEpochMs?: number;
+  reasonCode?: string;
+};
+export type RunStateCutoverResult =
+  | { ok: true; cutover: RunStateCutover; idempotent?: boolean }
+  | RunStateStoreFailure;
 export type RunStateArtifactLink = {
   artifactKind:
     | "context_resolved"

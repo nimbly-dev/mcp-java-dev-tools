@@ -422,7 +422,7 @@ test("writeRegressionRunArtifacts does not generate correlation artifact without
   }
 });
 
-test("rebuildCorrelationIndex regenerates canonical index from existing correlation artifacts", async () => {
+test("rebuildCorrelationIndex fails closed without writing the legacy index", async () => {
   const root = createTestTempDir("rebuild-correlation-index");
   try {
     initProjectArtifact(root);
@@ -478,12 +478,9 @@ test("rebuildCorrelationIndex regenerates canonical index from existing correlat
       workspaceRootAbs: root,
       now: new Date("2026-04-19T08:01:27.000Z"),
     });
-    assert.equal(rebuilt.entriesCount, 1);
-    const rebuiltIndex = readJson(rebuilt.indexPathAbs);
-    assert.equal(rebuiltIndex.version, 1);
-    assert.equal(rebuiltIndex.entries.length, 1);
-    assert.equal(rebuiltIndex.entries[0].planName, "probe-registry-course-service-smoke");
-    assert.equal(rebuiltIndex.entries[0].runId, runId);
+    assert.equal(rebuilt.ok, false);
+    assert.equal(rebuilt.reasonCode, "legacy_write_disabled");
+    assert.equal(fs.readFileSync(indexPath, "utf8").includes('"entries": []'), true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
