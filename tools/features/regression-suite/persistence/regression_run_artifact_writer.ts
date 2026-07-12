@@ -22,7 +22,6 @@ import type {
   RegressionRunArtifactsWriteResult,
   WriteRegressionRunArtifactsInput,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
-import type { RegressionCorrelationIndexEntry } from "../models/regression_suite.model";
 import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import { correlateEvents } from "../shared/regression_correlation";
 import {
@@ -209,125 +208,17 @@ function asCorrelationReasonCode(value: unknown): string {
   return typeof value === "string" && value.trim().length > 0 ? value : "insufficient_evidence";
 }
 
-function correlationFileToIndexEntry(args: {
-  workspaceRootAbs: string;
-  runDirAbs: string;
-  correlation: Record<string, unknown>;
-  now: Date;
-}): RegressionCorrelationIndexEntry | null {
-  const relativeRun = path.relative(args.workspaceRootAbs, args.runDirAbs).replaceAll("\\", "/");
-  const match = relativeRun.match(/^\.mcpjvm\/[^/]+\/plans\/regression\/([^/]+)\/runs\/([^/]+)$/);
-  if (!match) return null;
-  const planName = match[1];
-  const runId = match[2];
-  if (!planName || !runId) return null;
-  return {
-    runId,
-    planName,
-    runPath: relativeRun,
-    generatedAtEpochMs:
-      typeof args.correlation.generatedAtEpochMs === "number"
-        ? args.correlation.generatedAtEpochMs
-        : args.now.getTime(),
-    status: asCorrelationVerdict(args.correlation.status),
-    reasonCode: asCorrelationReasonCode(args.correlation.reasonCode),
-    keyType: asCorrelationKeyType(args.correlation.keyType),
-    ...(typeof args.correlation.keyValue === "string"
-      ? { keyValue: args.correlation.keyValue }
-      : {}),
-    ...(typeof args.correlation.correlationSessionId === "string"
-      ? { correlationSessionId: args.correlation.correlationSessionId }
-      : {}),
-    window: isRecord(args.correlation.window)
-      ? normalizeWindowRecord(args.correlation.window)
-      : { maxWindowMs: 0 },
-    probeIds: Array.isArray(args.correlation.timeline)
-      ? Array.from(
-          new Set(
-            args.correlation.timeline
-              .filter((event) => isRecord(event) && typeof event.probeId === "string")
-              .map((event) => String((event as Record<string, unknown>).probeId)),
-          ),
-        ).sort()
-      : [],
-  };
-}
-
-function normalizeWindowRecord(input: Record<string, unknown>): {
-  startEpochMs?: number;
-  endEpochMs?: number;
-  maxWindowMs: number;
-} {
-  return {
-    ...(typeof input.startEpochMs === "number" ? { startEpochMs: input.startEpochMs } : {}),
-    ...(typeof input.endEpochMs === "number" ? { endEpochMs: input.endEpochMs } : {}),
-    maxWindowMs: Number(input.maxWindowMs ?? 0),
-  };
-}
-
 export async function rebuildCorrelationIndex(args: {
   workspaceRootAbs: string;
   projectName?: string;
   now?: Date;
 }): Promise<CorrelationIndexRebuildResult> {
-  const now = args.now ?? new Date();
-  const root = await resolveRegressionPlansRootAbs(args.workspaceRootAbs, args.projectName);
-  const entries: RegressionCorrelationIndexEntry[] = [];
-  try {
-    const plans = await fs.readdir(root, { withFileTypes: true });
-    for (const planDir of plans) {
-      if (!planDir.isDirectory()) continue;
-      const runsRoot = path.join(root, planDir.name, "runs");
-      let runDirs: Dirent[] = [];
-      try {
-        runDirs = await fs.readdir(runsRoot, { withFileTypes: true });
-      } catch {
-        continue;
-      }
-      for (const runDir of runDirs) {
-        if (!runDir.isDirectory()) continue;
-        const runAbs = path.join(runsRoot, runDir.name);
-        const corrPath = path.join(runAbs, "correlation", "correlation.json");
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(await fs.readFile(corrPath, "utf8"));
-        } catch {
-          continue;
-        }
-        if (!isRecord(parsed)) continue;
-        const entry = correlationFileToIndexEntry({
-          workspaceRootAbs: args.workspaceRootAbs,
-          runDirAbs: runAbs,
-          correlation: parsed,
-          now,
-        });
-        if (entry) entries.push(entry);
-      }
-    }
-  } catch {
-    // no regression folder yet
-  }
-
-  entries.sort((a, b) => {
-    if (a.generatedAtEpochMs !== b.generatedAtEpochMs)
-      return a.generatedAtEpochMs - b.generatedAtEpochMs;
-    return `${a.planName}:${a.runId}`.localeCompare(`${b.planName}:${b.runId}`);
-  });
-
-  const { projectRootAbs } = await resolveProjectRootAbs({
-    workspaceRootAbs: args.workspaceRootAbs,
-    ...(typeof args.projectName === "string" && args.projectName.trim().length > 0
-      ? { projectName: args.projectName.trim() }
-      : {}),
-  });
-  const indexPathAbs = path.join(projectRootAbs, "correlation-index.json");
-  await fs.mkdir(path.dirname(indexPathAbs), { recursive: true });
-  await writeJsonFile(indexPathAbs, {
-    version: 1,
-    generatedAt: now.toISOString(),
-    entries,
-  });
-  return { indexPathAbs, entriesCount: entries.length };
+  return {
+    ok: false,
+    reasonCode: "legacy_write_disabled",
+    reason: "correlation-index.json is read-only legacy input after SQLite cutover",
+    nextAction: "use_sqlite_state_store",
+  };
 }
 
 async function writeJsonFile(filePathAbs: string, payload: Record<string, unknown>): Promise<void> {

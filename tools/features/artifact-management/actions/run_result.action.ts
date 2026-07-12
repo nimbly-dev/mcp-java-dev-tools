@@ -3,6 +3,7 @@ import path from "node:path";
 import { resolveRegressionRunDirAbs } from "@tools-feature-regression-suite";
 import { rebuildRunStateStore } from "../state-store/rebuild/run_state_store_rebuild";
 import { backfillLegacyCorrelationIndex } from "../state-store/legacy_backfill_state_store";
+import { cutoverRunStateStore } from "../state-store/state_store_cutover";
 import type { RunStateRebuildResult } from "../state-store/model/run_state_store.model";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "./types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
@@ -104,6 +105,29 @@ export async function handleRunResultArtifact(
       action: request.action,
       projectName,
       summary: backfill.summary,
+    });
+  }
+
+  if (request.action === "cutover") {
+    const cutover = await cutoverRunStateStore({
+      workspaceRootAbs: ctx.workspaceRootAbs,
+      projectName,
+    });
+    if (!cutover.ok) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: cutover.reasonCode,
+        reason: cutover.reason,
+        ...(cutover.reasonMeta ? { reasonMeta: cutover.reasonMeta } : {}),
+      });
+    }
+    return okArtifactResponse({
+      resultType: "artifact",
+      status: "ok",
+      artifactType: request.artifactType,
+      action: request.action,
+      projectName,
+      summary: cutover.cutover,
+      ...(cutover.idempotent ? { idempotent: true } : {}),
     });
   }
 

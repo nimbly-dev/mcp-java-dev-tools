@@ -228,6 +228,7 @@ Use these references/templates:
 15. SQLite operational state is never a replacement for canonical run Artifacts. Persist canonical evidence first, then persist the checkpoint; a checkpoint-persistence failure blocks safe continuation and must return deterministic recovery guidance.
 16. SQLite recovery is a maintenance workflow, not normal suite execution. Rebuild only from canonical run Artifacts through `artifact_management` with `artifactType=run_result` and `action=rebuild`; do not use legacy `correlation-index.json` or invent active checkpoint state.
 17. Never invoke legacy JSON backfill during normal suite execution or as a post-cutover fallback; it is an explicit pre-cutover maintenance action only.
+18. Cutover is an explicit maintenance action; once complete, SQLite is required and no legacy correlation-index writer or query fallback is permitted.
 18. Correlation projection must preserve the same `runId` and `correlationSessionId`; a fresh suite run must not reuse a terminal Correlation result from an older run merely because its key matches.
 19. Treat persisted Probe scope state as historical observation only. Live Sidecar Probe state and runtime-instance identity remain authoritative.
 

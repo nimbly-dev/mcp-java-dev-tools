@@ -174,6 +174,16 @@ export async function backfillLegacyCorrelationIndex(
   summary.scannedEntries = parsed.entries.length;
   const reasons: Array<Record<string, unknown>> = [];
   try {
+    const cutover = store.database
+      .prepare("SELECT status FROM state_store_cutover WHERE project_name = ?")
+      .get(projectName);
+    if (cutover?.status === "cutover_complete")
+      return failure(
+        "legacy_write_disabled",
+        "legacy correlation-index backfill is disabled after SQLite cutover",
+        "use_sqlite_state_store",
+        { sourcePathRel },
+      );
     const prior = store.database
       .prepare(
         `

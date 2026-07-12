@@ -33,7 +33,7 @@ If user request conflicts with these rules, fail closed and return deterministic
 Operational source for artifact reads:
 
 1. `artifact_management` MCP Tool:
-   - `artifactType=run_result`, `action=read|list|rebuild|backfill`
+   - `artifactType=run_result`, `action=read|list|rebuild|backfill|cutover`
 
 Artifact semantics/reference paths:
 
@@ -47,6 +47,8 @@ Artifact semantics/reference paths:
 For state-store recovery, render the rebuild response from its bounded summary and reason rows. Do not dump rebuilt SQLite rows or canonical Artifact payloads into MCP output.
 
 For legacy backfill, render only its bounded import summary, provenance path, and non-reconstructible classifications. Do not render or treat the legacy JSON as a query fallback.
+
+For cutover, render the persisted transition state and deterministic readiness/conflict failure without exposing raw SQLite rows.
 
 ## Template Routing
 

@@ -3,7 +3,10 @@ const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { DatabaseSync } = require("node:sqlite");
-const { backfillLegacyCorrelationIndex } = require("@tools-feature-artifact-management");
+const {
+  backfillLegacyCorrelationIndex,
+  cutoverRunStateStore,
+} = require("@tools-feature-artifact-management");
 
 function tempRoot(prefix: string): string {
   const root = path.join(process.cwd(), "test", ".tmp");
@@ -55,6 +58,14 @@ test("legacy correlation backfill imports supported fields without source checks
     assert.equal(second.ok, true);
     if (!second.ok) return;
     assert.equal(second.summary.backfillStatus, "noop");
+    const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(cutover.ok, true);
+    const afterCutover = await backfillLegacyCorrelationIndex({
+      workspaceRootAbs: root,
+      projectName: "alpha",
+    });
+    assert.equal(afterCutover.ok, false);
+    if (!afterCutover.ok) assert.equal(afterCutover.reasonCode, "legacy_write_disabled");
     const db = new DatabaseSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite"));
     try {
       assert.equal(db.prepare("SELECT count(*) AS count FROM correlation_runs").get().count, 1);
