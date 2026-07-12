@@ -83,6 +83,13 @@ function toWindowedSection<T>(
   };
 }
 
+function workspaceRelativePath(workspaceRootAbs: string, pathAbs: string): string | undefined {
+  const root = path.resolve(workspaceRootAbs);
+  const resolved = path.resolve(pathAbs);
+  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return undefined;
+  return path.relative(root, resolved).replaceAll("\\", "/");
+}
+
 export async function handleRunResultArtifact(
   ctx: ArtifactActionContext,
   request: ArtifactActionRequest<"run_result">,
@@ -94,6 +101,16 @@ export async function handleRunResultArtifact(
     return buildFailClosedArtifactResponse({
       reasonCode: "run_state_query_invalid",
       reason: "projectName is required for run_state queries",
+      reasonMeta: { artifactType: request.artifactType, action: request.action },
+    });
+  }
+  if (
+    request.action === "rebuild" &&
+    (!request.input.projectName || request.input.projectName.trim().length === 0)
+  ) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: "state_store_rebuild_source_invalid",
+      reason: "projectName is required for state-store rebuild",
       reasonMeta: { artifactType: request.artifactType, action: request.action },
     });
   }
@@ -274,27 +291,55 @@ export async function handleRunResultArtifact(
   }
 
   if (request.action === "rebuild") {
+    const strict = request.input.strict === true;
     const rebuilt = (await rebuildRunStateStore({
       workspaceRootAbs: ctx.workspaceRootAbs,
       projectName,
-      ...(typeof request.input.strict === "boolean" ? { strict: request.input.strict } : {}),
+      strict,
     })) as RunStateRebuildResult;
     if (!rebuilt.ok) {
       return buildFailClosedArtifactResponse({
         reasonCode: rebuilt.reasonCode,
         reason: rebuilt.reason,
-        ...(rebuilt.reasonMeta ? { reasonMeta: rebuilt.reasonMeta } : {}),
       });
     }
+    const databasePathRel = workspaceRelativePath(ctx.workspaceRootAbs, rebuilt.databasePathAbs);
+    const quarantinePathRel = rebuilt.quarantinePathAbs
+      ? workspaceRelativePath(ctx.workspaceRootAbs, rebuilt.quarantinePathAbs)
+      : undefined;
+    if (!databasePathRel || (rebuilt.quarantinePathAbs && !quarantinePathRel)) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: "state_store_rebuild_replace_failed",
+        reason: "rebuild result path is outside the workspace",
+        reasonMeta: { projectName },
+      });
+    }
+    const summary = rebuilt.summary;
+    const partial =
+      summary.invalidRuns > 0 ||
+      summary.skippedRuns > 0 ||
+      summary.conflictingRuns > 0 ||
+      summary.nonReconstructibleActiveStates > 0;
     return okArtifactResponse({
       resultType: "artifact",
-      status: "ok",
+      status: partial ? "degraded" : "ok",
       artifactType: request.artifactType,
       action: request.action,
       projectName,
-      databasePathAbs: rebuilt.databasePathAbs,
-      ...(rebuilt.quarantinePathAbs ? { quarantinePathAbs: rebuilt.quarantinePathAbs } : {}),
-      summary: rebuilt.summary,
+      scope: {
+        stateSurfaces: request.input.scope?.stateSurfaces ?? [
+          "run_state",
+          "correlation_state",
+          "watcher_state",
+        ],
+      },
+      strict,
+      databasePathRel,
+      ...(quarantinePathRel ? { quarantinePathRel } : {}),
+      summary: {
+        ...summary,
+        recoveryStatus: partial ? "partial" : "complete",
+      },
     });
   }
 

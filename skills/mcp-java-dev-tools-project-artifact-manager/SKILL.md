@@ -169,8 +169,8 @@ Regression operational state uses a separate local SQLite store at `.mcpjvm/<pro
 5. Call `artifact_management` with `artifactType=project_context` and `action=validate` before persistence, passing explicit `projectName` and optional `projectRootAbs` only when a scope cross-check is required.
 6. Call `artifact_management` with `artifactType=project_context` and `action=upsert` to persist.
 7. Validate end-to-end and return deterministic summary.
-8. For state-store recovery, call `artifact_management` with `artifactType=run_result`, `action=rebuild`, and explicit `projectName`; use `strict=true` when every discovered run must be reconstructible.
-9. Report bounded rebuild counts and reason rows. Never delete or clear the live SQLite store in place.
+8. For state-store recovery, call `artifact_management` with `artifactType=run_result`, `action=rebuild`, and explicit `projectName`; `strict` defaults to false, and optional `scope.stateSurfaces` selects reporting surfaces only.
+9. Every rebuild constructs one complete temporary SQLite candidate and atomically replaces the live store only after validation; report bounded counts, `recoveryStatus`, reason rows, and workspace-relative `databasePathRel`/`quarantinePathRel` values. Never delete or clear the live SQLite store in place.
 10. For pre-cutover compatibility, call `artifact_management` with `artifactType=run_result`, `action=backfill`, and explicit `projectName`; treat the result as migration provenance, not as a normal query source.
 11. After backfill or canonical rebuild readiness is established, call `artifact_management` with `artifactType=run_result`, `action=cutover`, and explicit `projectName`.
 

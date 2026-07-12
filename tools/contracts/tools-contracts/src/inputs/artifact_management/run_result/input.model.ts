@@ -151,6 +151,18 @@ export const RunResultInputSchema = ProjectScopedInputSchema.extend({
   runId: z.string().optional(),
   executionProfile: z.string().optional(),
   strict: z.boolean().optional(),
+  scope: z
+    .object({
+      stateSurfaces: z
+        .array(z.enum(["run_state", "correlation_state", "watcher_state"]))
+        .min(1)
+        .max(3)
+        .refine(
+          (surfaces) => new Set(surfaces).size === surfaces.length,
+          "stateSurfaces must be unique",
+        ),
+    })
+    .optional(),
   query: RunResultQuerySchema.optional(),
   stateSurface: z.enum(["run_state", "correlation_state", "watcher_state"]).optional(),
 });

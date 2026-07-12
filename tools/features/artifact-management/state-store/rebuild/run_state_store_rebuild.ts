@@ -99,6 +99,8 @@ async function rebuildRunStateStore(args: any): Promise<any> {
     nonReconstructibleActiveStates: 0,
   };
   const reasons: any[] = [];
+  const reasonCount = { value: 0 };
+  let rebuiltSourceCount = 0;
   let lockHandle;
   let candidate;
   try {
@@ -110,7 +112,7 @@ async function rebuildRunStateStore(args: any): Promise<any> {
         "state_store_rebuild_conflict",
         "another state-store rebuild is active",
         "retry_state_store",
-        { lockPathAbs },
+        { projectName },
       );
     }
     const sources = await run_state_store_rebuild_scan_1.scanRunStateSources({
@@ -118,6 +120,7 @@ async function rebuildRunStateStore(args: any): Promise<any> {
       projectName,
       summary,
       reasons,
+      reasonCount,
     });
     if (sources.some((source: any) => source.execution.status === "in_progress")) {
       summary.nonReconstructibleActiveStates += 1;
@@ -183,8 +186,10 @@ async function rebuildRunStateStore(args: any): Promise<any> {
             suite,
             sourcesByIdentity,
           });
+          rebuiltSourceCount += 1;
         } catch (error) {
           summary.invalidRuns += 1;
+          reasonCount.value += 1;
           if (reasons.length < MAX_REASONS)
             reasons.push({
               suiteRunId: entry.name,
@@ -208,9 +213,11 @@ async function rebuildRunStateStore(args: any): Promise<any> {
           source,
           summary,
         });
+        rebuiltSourceCount += 1;
       } catch (error) {
         summary.invalidRuns += 1;
         summary.skippedRuns += 1;
+        reasonCount.value += 1;
         if (reasons.length < MAX_REASONS)
           reasons.push({
             planName: source.planName,
@@ -226,6 +233,26 @@ async function rebuildRunStateStore(args: any): Promise<any> {
           );
       }
     }
+    if (rebuiltSourceCount === 0)
+      return failure(
+        "state_store_rebuild_source_invalid",
+        "no usable canonical Artifact source was found for rebuild",
+        "correct_state_store_input",
+        { projectName },
+      );
+    if (
+      args.strict &&
+      (summary.invalidRuns > 0 ||
+        summary.skippedRuns > 0 ||
+        summary.conflictingRuns > 0 ||
+        summary.nonReconstructibleActiveStates > 0)
+    )
+      return failure(
+        "state_store_rebuild_source_invalid",
+        "strict rebuild rejected incomplete or conflicting canonical Artifact sources",
+        "correct_state_store_input",
+        { projectName, summary },
+      );
     const integrity = candidate.database.prepare("PRAGMA integrity_check").get();
     if (integrity?.integrity_check !== "ok")
       return failure(
@@ -284,7 +311,11 @@ async function rebuildRunStateStore(args: any): Promise<any> {
     }
     return {
       ok: true,
-      summary: reasons.length > 0 ? { ...summary, reasons } : { ...summary },
+      summary: {
+        ...summary,
+        ...(reasons.length > 0 ? { reasons } : {}),
+        ...(reasonCount.value > reasons.length ? { reasonsTruncated: true } : {}),
+      },
       databasePathAbs,
       ...(quarantinedComponents.length > 0 ? { quarantinePathAbs } : {}),
     };
