@@ -131,3 +131,20 @@ Always align with:
 6. `performance_load_model_unsupported`
 7. `performance_threshold_invalid`
 8. `toolchain_unavailable`
+
+## SQLite Retention Maintenance
+
+After performance runs are no longer needed for operational queries, use the `artifact_management` MCP Tool for explicit `run_result` SQLite retention maintenance. This is separate from runtime process shutdown:
+
+```json
+{
+  "artifactType": "run_result",
+  "action": "cleanup",
+  "input": {
+    "projectName": "<project_name>",
+    "retention": { "dryRun": true }
+  }
+}
+```
+
+Use a dry run before applying deletion. The cleanup action retains runs using the conjunctive age/count policy, skips active or leased state and unsafe canonical Artifact links, writes bounded audit provenance, and never deletes canonical Artifact files. A project-scoped cleanup lease rejects concurrent invocations with `state_store_retention_conflict`; a `batch_limited` result must be retried through the same action.

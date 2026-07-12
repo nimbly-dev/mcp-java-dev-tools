@@ -41,6 +41,13 @@ const NEXT_ACTION_CODE_BY_REASON: Record<string, string> = {
   runtime_mappings_invalid_payload: "verify_runtime_mappings_payload",
   runtime_mapping_not_found: "refine_runtime_mapping_hints",
   runtime_mapping_ambiguous: "disambiguate_runtime_mapping",
+  state_store_retention_invalid: "correct_retention_input",
+  state_store_retention_not_ready: "run_state_store_cutover",
+  state_store_retention_conflict: "retry_retention_cleanup",
+  state_store_retention_active_state: "wait_for_active_runs",
+  state_store_retention_artifact_link_missing: "repair_canonical_artifact",
+  state_store_retention_artifact_link_stale: "repair_canonical_artifact",
+  state_store_retention_failed: "retry_retention_cleanup",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -48,7 +55,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function sanitizeActionCode(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 export function deriveNextActionCode(reasonCode?: string): string | undefined {
@@ -69,4 +80,3 @@ export function normalizeReasonMeta(
   if (filtered.length === 0) return undefined;
   return Object.fromEntries(filtered);
 }
-
