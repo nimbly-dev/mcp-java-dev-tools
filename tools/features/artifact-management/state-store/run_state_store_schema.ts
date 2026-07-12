@@ -7,7 +7,7 @@ import type {
   RunStateStoreFailureCode,
 } from "./model/run_state_store.model";
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 const BUSY_TIMEOUT_MS = 5_000;
 
 type Migration = {
@@ -51,6 +51,11 @@ const MIGRATIONS: readonly Migration[] = [
     version: 7,
     name: "state_store_cutover",
     resourceFile: "007_state_store_cutover.sql",
+  },
+  {
+    version: 8,
+    name: "legacy_backfill_source_checksum",
+    resourceFile: "008_legacy_backfill_source_checksum.sql",
   },
 ];
 

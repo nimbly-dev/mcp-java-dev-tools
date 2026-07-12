@@ -114,6 +114,16 @@ export async function handleRunResultArtifact(
       reasonMeta: { artifactType: request.artifactType, action: request.action },
     });
   }
+  if (
+    request.action === "backfill" &&
+    (!request.input.projectName || request.input.projectName.trim().length === 0)
+  ) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: "legacy_backfill_source_invalid",
+      reason: "projectName is required for legacy correlation backfill",
+      reasonMeta: { artifactType: request.artifactType, action: request.action },
+    });
+  }
   const projectName = await resolveProjectName(ctx.workspaceRootAbs, request.input.projectName);
 
   if (request.action === "query") {
@@ -246,6 +256,13 @@ export async function handleRunResultArtifact(
   }
 
   if (request.action === "backfill") {
+    if (request.input.stateSurface !== "correlation_state") {
+      return buildFailClosedArtifactResponse({
+        reasonCode: "legacy_backfill_source_invalid",
+        reason: "stateSurface must be 'correlation_state' for run_result backfill",
+        reasonMeta: { artifactType: request.artifactType, action: request.action },
+      });
+    }
     const backfill = await backfillLegacyCorrelationIndex({
       workspaceRootAbs: ctx.workspaceRootAbs,
       projectName,
@@ -263,6 +280,11 @@ export async function handleRunResultArtifact(
       artifactType: request.artifactType,
       action: request.action,
       projectName,
+      transitional: {
+        kind: "legacy_correlation_index_backfill",
+        preCutoverOnly: true,
+        sourcePathRel: backfill.summary.sourcePathRel,
+      },
       summary: backfill.summary,
     });
   }

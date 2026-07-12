@@ -13,7 +13,7 @@ import type {
 
 const MAX_ENTRIES = 10_000;
 const MAX_REASONS = 100;
-const IMPORTER_VERSION = "mcpjvm-367-v1";
+const IMPORTER_VERSION = "mcpjvm-372-v1";
 
 function failure(
   reasonCode: LegacyBackfillFailure["reasonCode"],
@@ -81,7 +81,11 @@ function asEntry(value: unknown, expectedRunPathPrefix: string): LegacyBackfillE
   };
 }
 
-function emptySummary(sourcePathRel: string, version: number): LegacyBackfillSummary {
+function emptySummary(
+  sourcePathRel: string,
+  sourceChecksum: string,
+  version: number,
+): LegacyBackfillSummary {
   return {
     scannedEntries: 0,
     insertedEntries: 0,
@@ -90,26 +94,22 @@ function emptySummary(sourcePathRel: string, version: number): LegacyBackfillSum
     invalidEntries: 0,
     nonReconstructibleEntries: 0,
     sourcePathRel,
+    sourceChecksum,
     detectedLegacySchemaVersion: version,
     backfillStatus: "completed",
     nextAction: "none",
   };
 }
 
-function targetRowCount(store: OpenRunStateStore): number {
+function correlationTargetRowCount(store: OpenRunStateStore): number {
   const row = store.database
     .prepare(
       `
     SELECT
-      (SELECT count(*) FROM artifacts) +
-      (SELECT count(*) FROM suite_runs) +
-      (SELECT count(*) FROM plan_runs) +
       (SELECT count(*) FROM correlation_runs) +
       (SELECT count(*) FROM correlation_keys) +
       (SELECT count(*) FROM correlation_line_expectations) +
-      (SELECT count(*) FROM correlation_probe_observations) +
-      (SELECT count(*) FROM watcher_runs) +
-      (SELECT count(*) FROM external_verifications) AS total
+      (SELECT count(*) FROM correlation_probe_observations) AS total
   `,
     )
     .get();
@@ -129,13 +129,25 @@ export async function backfillLegacyCorrelationIndex(
       "correct_legacy_source",
     );
   const sourcePathAbs = path.join(path.resolve(args.workspaceRootAbs), sourcePathRel);
-  let parsed: unknown;
+  let sourceBytes: Buffer;
   try {
-    parsed = JSON.parse(await fs.readFile(sourcePathAbs, "utf8"));
+    sourceBytes = await fs.readFile(sourcePathAbs);
   } catch {
     return failure(
       "legacy_backfill_source_missing",
       "legacy correlation index was not found",
+      "correct_legacy_source",
+      { sourcePathRel },
+    );
+  }
+  const sourceChecksum = createHash("sha256").update(sourceBytes).digest("hex");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(sourceBytes.toString("utf8"));
+  } catch {
+    return failure(
+      "legacy_backfill_source_invalid",
+      "legacy correlation index is not valid JSON",
       "correct_legacy_source",
       { sourcePathRel },
     );
@@ -170,9 +182,10 @@ export async function backfillLegacyCorrelationIndex(
   const store = await openRunStateStore({ workspaceRootAbs: args.workspaceRootAbs, projectName });
   if (!store.ok)
     return failure("legacy_backfill_failed", store.reason, "retry_state_store", store.reasonMeta);
-  const summary = emptySummary(sourcePathRel, 1);
+  const summary = emptySummary(sourcePathRel, sourceChecksum, 1);
   summary.scannedEntries = parsed.entries.length;
   const reasons: Array<Record<string, unknown>> = [];
+  const reasonCount = { value: 0 };
   try {
     const cutover = store.database
       .prepare("SELECT status FROM state_store_cutover WHERE project_name = ?")
@@ -188,13 +201,20 @@ export async function backfillLegacyCorrelationIndex(
       .prepare(
         `
       SELECT status, inserted_count, skipped_count, conflicting_count, invalid_count,
-             non_reconstructible_count
+             non_reconstructible_count, source_checksum
       FROM legacy_backfill_imports
       WHERE project_name = ? AND source_path_rel = ?
     `,
       )
       .get(projectName, sourcePathRel);
     if (prior?.status === "completed") {
+      if (prior.source_checksum !== sourceChecksum)
+        return failure(
+          "legacy_backfill_checksum_changed",
+          "legacy correlation index changed after the completed backfill",
+          "correct_legacy_source",
+          { sourcePathRel },
+        );
       return {
         ok: true,
         summary: {
@@ -204,17 +224,43 @@ export async function backfillLegacyCorrelationIndex(
           conflictingEntries: Number(prior.conflicting_count ?? 0),
           invalidEntries: Number(prior.invalid_count ?? 0),
           nonReconstructibleEntries: Number(prior.non_reconstructible_count ?? 0),
+          sourceChecksum,
           backfillStatus: "noop",
         },
       };
     }
-    if (targetRowCount(store) > 0)
+    if (correlationTargetRowCount(store) > 0)
       return failure(
         "legacy_backfill_target_not_empty",
         "legacy backfill requires an empty SQLite projection",
         "run_state_store_rebuild",
         { sourcePathRel },
       );
+    const sourceIdentities = new Set<string>();
+    for (const entry of normalizedEntries) {
+      const identity = `${entry.planName}\u0000${entry.runId}`;
+      if (sourceIdentities.has(identity))
+        return failure(
+          "legacy_backfill_conflict",
+          "legacy backfill contains duplicate plan run identities",
+          "correct_legacy_source",
+          { planName: entry.planName, runId: entry.runId },
+        );
+      sourceIdentities.add(identity);
+      const existingPlanRun = store.database
+        .prepare(
+          `SELECT plan_run_pk FROM plan_runs
+           WHERE project_name = ? AND plan_name = ? AND run_id = ?`,
+        )
+        .get(projectName, entry.planName, entry.runId);
+      if (existingPlanRun)
+        return failure(
+          "legacy_backfill_conflict",
+          "legacy backfill conflicts with an existing plan run identity",
+          "run_state_store_rebuild",
+          { planName: entry.planName, runId: entry.runId },
+        );
+    }
     store.database.exec("BEGIN IMMEDIATE;");
     try {
       store.database
@@ -222,19 +268,21 @@ export async function backfillLegacyCorrelationIndex(
           `
         INSERT INTO legacy_backfill_imports (
           project_name, source_path_rel, detected_legacy_schema_version,
-          importer_version, import_started_at_epoch_ms, status
-        ) VALUES (?, ?, 1, ?, ?, 'in_progress')
+          importer_version, import_started_at_epoch_ms, source_checksum, status
+        ) VALUES (?, ?, 1, ?, ?, ?, 'in_progress')
       `,
         )
-        .run(projectName, sourcePathRel, IMPORTER_VERSION, Date.now());
+        .run(projectName, sourcePathRel, IMPORTER_VERSION, Date.now(), sourceChecksum);
       for (const entry of normalizedEntries) {
         if (!entry) {
           summary.invalidEntries += 1;
+          reasonCount.value += 1;
           if (reasons.length < MAX_REASONS) reasons.push({ reasonCode: "legacy_entry_invalid" });
           continue;
         }
         if (!entry.correlationSessionId.trim()) {
           summary.nonReconstructibleEntries += 1;
+          reasonCount.value += 1;
           if (reasons.length < MAX_REASONS)
             reasons.push({ runId: entry.runId, reasonCode: "correlation_session_missing" });
           continue;
@@ -308,7 +356,15 @@ export async function backfillLegacyCorrelationIndex(
               createHash("sha256").update(entry.keyValue).digest("hex"),
             );
         summary.insertedEntries += 1;
-        summary.nonReconstructibleEntries += entry.probeIds.length > 0 ? 1 : 0;
+        if (entry.probeIds.length > 0) {
+          summary.nonReconstructibleEntries += 1;
+          reasonCount.value += 1;
+          if (reasons.length < MAX_REASONS)
+            reasons.push({
+              runId: entry.runId,
+              reasonCode: "probe_observations_not_reconstructed",
+            });
+        }
       }
       store.database
         .prepare(
@@ -316,7 +372,7 @@ export async function backfillLegacyCorrelationIndex(
         UPDATE legacy_backfill_imports SET
           import_completed_at_epoch_ms = ?, inserted_count = ?, skipped_count = ?,
           conflicting_count = ?, invalid_count = ?, non_reconstructible_count = ?,
-          status = 'completed', reason_code = ?
+          source_checksum = ?, status = 'completed', reason_code = ?
         WHERE project_name = ? AND source_path_rel = ?
       `,
         )
@@ -327,12 +383,20 @@ export async function backfillLegacyCorrelationIndex(
           summary.conflictingEntries,
           summary.invalidEntries,
           summary.nonReconstructibleEntries,
+          sourceChecksum,
           reasons.length ? "legacy_entries_partial" : null,
           projectName,
           sourcePathRel,
         );
       store.database.exec("COMMIT;");
-      return { ok: true, summary: reasons.length ? { ...summary, reasons } : summary };
+      return {
+        ok: true,
+        summary: {
+          ...summary,
+          ...(reasons.length ? { reasons } : {}),
+          ...(reasonCount.value > reasons.length ? { reasonsTruncated: true } : {}),
+        },
+      };
     } catch (error) {
       try {
         store.database.exec("ROLLBACK;");

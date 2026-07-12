@@ -38,7 +38,7 @@ const entry = {
   probeIds: ["probe-a"],
 };
 
-test("legacy correlation backfill imports supported fields without source checksums", async () => {
+test("legacy correlation backfill imports supported fields with checksum provenance", async () => {
   const root = tempRoot("legacy-backfill");
   try {
     writeLegacyIndex(root, "alpha", [entry]);
@@ -50,7 +50,7 @@ test("legacy correlation backfill imports supported fields without source checks
     if (!first.ok) return;
     assert.equal(first.summary.insertedEntries, 1);
     assert.equal(first.summary.nonReconstructibleEntries, 1);
-    assert.equal(Object.hasOwn(first.summary, "sourceChecksum"), false);
+    assert.match(first.summary.sourceChecksum, /^[a-f0-9]{64}$/);
     const second = await backfillLegacyCorrelationIndex({
       workspaceRootAbs: root,
       projectName: "alpha",
@@ -76,11 +76,47 @@ test("legacy correlation backfill imports supported fields without source checks
       const columns = db.prepare("PRAGMA table_info(legacy_backfill_imports)").all();
       assert.equal(
         columns.some((column: Record<string, unknown>) => column.name === "source_checksum"),
-        false,
+        true,
       );
     } finally {
       db.close();
     }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("legacy correlation backfill rejects a changed source after completion", async () => {
+  const root = tempRoot("legacy-backfill-checksum");
+  try {
+    writeLegacyIndex(root, "alpha", [entry]);
+    const first = await backfillLegacyCorrelationIndex({
+      workspaceRootAbs: root,
+      projectName: "alpha",
+    });
+    assert.equal(first.ok, true);
+    fs.appendFileSync(path.join(root, ".mcpjvm", "alpha", "correlation-index.json"), "\n", "utf8");
+    const changed = await backfillLegacyCorrelationIndex({
+      workspaceRootAbs: root,
+      projectName: "alpha",
+    });
+    assert.equal(changed.ok, false);
+    if (!changed.ok) assert.equal(changed.reasonCode, "legacy_backfill_checksum_changed");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("legacy correlation backfill rejects duplicate natural identities", async () => {
+  const root = tempRoot("legacy-backfill-conflict");
+  try {
+    writeLegacyIndex(root, "alpha", [entry, entry]);
+    const result = await backfillLegacyCorrelationIndex({
+      workspaceRootAbs: root,
+      projectName: "alpha",
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reasonCode, "legacy_backfill_conflict");
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
