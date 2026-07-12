@@ -28,6 +28,13 @@ const RunStateStatusSchema = z.enum([
   "skipped",
 ]);
 
+export const RunResultRetentionSchema = z.object({
+  terminalOlderThanDays: z.number().int().min(1).max(3650).default(90),
+  keepMostRecentTerminalRuns: z.number().int().min(0).max(100000).default(1000),
+  dryRun: z.boolean().default(true),
+  maxDeleteBatch: z.number().int().min(1).max(500).default(500),
+});
+
 const CorrelationDetailWindowSchema = z.object({
   offset: z.number().int(),
   limit: z.number().int(),
@@ -165,6 +172,7 @@ export const RunResultInputSchema = ProjectScopedInputSchema.extend({
     .optional(),
   query: RunResultQuerySchema.optional(),
   stateSurface: z.enum(["run_state", "correlation_state", "watcher_state"]).optional(),
+  retention: RunResultRetentionSchema.optional(),
 });
 
 export type RunResultInput = z.infer<typeof RunResultInputSchema>;

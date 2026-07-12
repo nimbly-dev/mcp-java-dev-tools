@@ -12,6 +12,7 @@ import { resolveProjectName } from "../shared/project_resolution";
 import { queryRunState } from "../state-store/run_state_query";
 import { queryCorrelationState } from "../state-store/correlation_state_query";
 import { queryWatcherState } from "../state-store/watcher_state_query";
+import { cleanupRunStateRetention } from "../state-store/run_state_retention_cleanup";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -124,7 +125,40 @@ export async function handleRunResultArtifact(
       reasonMeta: { artifactType: request.artifactType, action: request.action },
     });
   }
+  if (
+    request.action === "cleanup" &&
+    (!request.input.projectName || request.input.projectName.trim().length === 0)
+  ) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: "state_store_retention_invalid",
+      reason: "projectName is required for retention cleanup",
+      reasonMeta: { artifactType: request.artifactType, action: request.action },
+    });
+  }
   const projectName = await resolveProjectName(ctx.workspaceRootAbs, request.input.projectName);
+
+  if (request.action === "cleanup") {
+    const cleanup = await cleanupRunStateRetention({
+      workspaceRootAbs: ctx.workspaceRootAbs,
+      projectName,
+      ...(request.input.retention ? { retention: request.input.retention } : {}),
+    });
+    if (!cleanup.ok)
+      return buildFailClosedArtifactResponse({
+        reasonCode: cleanup.reasonCode,
+        reason: cleanup.reason,
+        ...(cleanup.reasonMeta ? { reasonMeta: cleanup.reasonMeta } : {}),
+      });
+    return okArtifactResponse({
+      resultType: "artifact",
+      status: "ok",
+      artifactType: request.artifactType,
+      action: request.action,
+      projectName: cleanup.projectName,
+      cleanupId: cleanup.cleanupId,
+      summary: cleanup.summary,
+    });
+  }
 
   if (request.action === "query") {
     if (request.input.stateSurface === "watcher_state") {

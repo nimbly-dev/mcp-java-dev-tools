@@ -189,8 +189,31 @@ Use these references/templates:
 - `artifactType=project_context` (`read|validate|list`)
 - `artifactType=regression_plan` (`read|validate|list`)
 - `artifactType=run_result` (`list|read|rebuild`)
+- `artifactType=run_result`, `action=cleanup` for bounded SQLite retention maintenance. Use explicit `input.projectName` and the optional `input.retention` policy; `dryRun` defaults to `true`.
 
 12. For orchestrated runtime-suite execution, `artifact_management` is the maintained read path for execution profile lookup and regression plan loading.
+
+## SQLite Retention Maintenance
+
+Retention cleanup is an explicit maintenance operation, separate from runtime shutdown cleanup:
+
+```json
+{
+  "artifactType": "run_result",
+  "action": "cleanup",
+  "input": {
+    "projectName": "<project_name>",
+    "retention": {
+      "terminalOlderThanDays": 90,
+      "keepMostRecentTerminalRuns": 1000,
+      "dryRun": true,
+      "maxDeleteBatch": 500
+    }
+  }
+}
+```
+
+Run a dry run first. Age and count retention apply together; cleanup excludes active suites, active Watchers, unexpired leases, resumable state, and unsafe or missing canonical Artifact links. A project-scoped cleanup lease rejects concurrent invocations with `state_store_retention_conflict`. An applied cleanup removes only SQLite projections and linkage rows, never canonical Artifact files. When `summary.batchLimited=true`, repeat the same cleanup action until `remainingEligibleRuns` reaches zero. Fail closed on retention readiness, conflict, or Artifact-link safety reasons and follow `nextActionCode`.
 
 ## Required Artifacts and Correlation
 

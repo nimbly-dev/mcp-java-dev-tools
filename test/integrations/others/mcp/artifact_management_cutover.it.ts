@@ -48,6 +48,45 @@ test("mcp IT: artifact_management run_result cutover is idempotent", async () =>
   }
 });
 
+test("mcp IT: artifact_management run_result cleanup invokes SQLite retention", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-retention-cleanup-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "retention-cleanup-project";
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({ workspaceRootAbs, probeBaseUrl: "http://127.0.0.1:9206" });
+    const cutover = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: { artifactType: "run_result", action: "cutover", input: { projectName } },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(cutover.structuredContent?.status, "ok");
+
+    const cleanup = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "cleanup",
+        input: {
+          projectName,
+          retention: {
+            terminalOlderThanDays: 90,
+            keepMostRecentTerminalRuns: 1000,
+            dryRun: true,
+            maxDeleteBatch: 500,
+          },
+        },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(cleanup.structuredContent?.status, "ok");
+    assert.equal(cleanup.structuredContent?.action, "cleanup");
+    assert.equal((cleanup.structuredContent?.summary as Record<string, unknown>)?.scannedRuns, 0);
+    assert.equal(typeof cleanup.structuredContent?.cleanupId, "string");
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
+
 test("mcp IT: artifact_management exposes bounded read-only run_state queries", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-run-state-query-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
