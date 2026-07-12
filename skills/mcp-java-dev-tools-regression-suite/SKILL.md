@@ -114,28 +114,39 @@ Runtime suite branch (`execution_profile`) rules:
    - if the tool returns `status="in_progress"`, re-call `execution_orchestration` with the returned `suiteRunId`
    - continue the same run until terminal `pass`, `fail`, `blocked`, or `partial_fail`
 10. Do not restart from the beginning when resumable progress exists:
-   - resume with the same `suiteRunId`
-   - record revision-safe operational progress in `.mcpjvm/<project_name>/run-state.sqlite` while retaining the canonical suite-status Artifact as execution evidence and resume input
-   - fail closed rather than rerunning already completed plans
+
+- resume with the same `suiteRunId`
+- record revision-safe operational progress in `.mcpjvm/<project_name>/run-state.sqlite` while retaining the canonical suite-status Artifact as execution evidence and resume input
+- fail closed rather than rerunning already completed plans
+
 11. When a plan is still waiting inside `watchers[]` or `externalVerification[]`, resumed orchestration must continue that same in-progress plan:
-   - use persisted `progressSummary.activePlan`
-   - continue the current phase (`watchers` or `external_verification`)
-   - do not reinterpret the wait as a fresh suite start
+
+- use persisted `progressSummary.activePlan`
+- continue the current phase (`watchers` or `external_verification`)
+- do not reinterpret the wait as a fresh suite start
+
 12. Use project-owned resiliency defaults from `.mcpjvm/<project_name>/projects.json`:
-   - require `workspaces[].defaults.orchestrator.resumePollMax`
-   - require `workspaces[].defaults.orchestrator.resumePollIntervalMs`
-   - require `workspaces[].defaults.orchestrator.resumePollTimeoutMs`
-   - fail closed rather than inventing plan-level or prompt-level resume policy
+
+- require `workspaces[].defaults.orchestrator.resumePollMax`
+- require `workspaces[].defaults.orchestrator.resumePollIntervalMs`
+- require `workspaces[].defaults.orchestrator.resumePollTimeoutMs`
+- fail closed rather than inventing plan-level or prompt-level resume policy
+
 13. Do not summarize a runtime-suite `execution_profile` run as completed until the terminal orchestration status is returned.
 14. Do not treat a caller/tool-boundary timeout as the primary execution result when resumable progress is available:
-   - resume the same `suiteRunId`
-   - report the final terminal suite status instead of timeout-first narration
+
+- resume the same `suiteRunId`
+- report the final terminal suite status instead of timeout-first narration
+
 15. Do not reuse a stale suite artifact as the result of a fresh execution request:
-   - the maintained workflow must correlate the final summary to the suite run started/resumed in the current request chain
-   - fail closed rather than attaching an older suite summary to a new prompt
+
+- the maintained workflow must correlate the final summary to the suite run started/resumed in the current request chain
+- fail closed rather than attaching an older suite summary to a new prompt
+
 16. Long-running example patterns:
-   - watcher-heavy async workflow: trigger producer step, persist `status="in_progress"` with `progressSummary.activePlan.phase="watchers"`, resume the same `suiteRunId` until watcher convergence or bounded outer stop
-   - external-verification-heavy workflow: trigger step plus watcher pass, persist `status="in_progress"` with `progressSummary.activePlan.phase="external_verification"`, resume the same `suiteRunId` until external verification reaches terminal status
+
+- watcher-heavy async workflow: trigger producer step, persist `status="in_progress"` with `progressSummary.activePlan.phase="watchers"`, resume the same `suiteRunId` until watcher convergence or bounded outer stop
+- external-verification-heavy workflow: trigger step plus watcher pass, persist `status="in_progress"` with `progressSummary.activePlan.phase="external_verification"`, resume the same `suiteRunId` until external verification reaches terminal status
 
 ## Context and Read Budget
 
@@ -174,9 +185,11 @@ Use these references/templates:
 9. `templates/needs-user-input.result.json`
 10. `templates/run-summary.result.json`
 11. `artifact_management` MCP Tool (operational source) for artifact lifecycle reads/validations:
-   - `artifactType=project_context` (`read|validate|list`)
-   - `artifactType=regression_plan` (`read|validate|list`)
-   - `artifactType=run_result` (`list|read|rebuild`)
+
+- `artifactType=project_context` (`read|validate|list`)
+- `artifactType=regression_plan` (`read|validate|list`)
+- `artifactType=run_result` (`list|read|rebuild`)
+
 12. For orchestrated runtime-suite execution, `artifact_management` is the maintained read path for execution profile lookup and regression plan loading.
 
 ## Required Artifacts and Correlation
@@ -200,18 +213,23 @@ Use these references/templates:
 9. Never invent ad-hoc run IDs (for example `20260509T134827387Z-customers`).
 10. If run_id is non-canonical, fail closed before artifact write.
 11. Runtime suite branch additionally references runtime manifest semantics at:
-   - `.mcpjvm/<project_name>/projects.json` with matching workspace `executionProfiles[]`
+
+- `.mcpjvm/<project_name>/projects.json` with matching workspace `executionProfiles[]`
+
 12. In multi-project workspaces (multiple `.mcpjvm/*/projects.json`), always pass explicit `projectName` in artifact reads to avoid ambiguity.
 13. Persisted artifact access in this workflow should route through `artifact_management` wherever MCP path is available.
 14. Treat persisted suite status as the canonical resumable state for long-running workflows:
-   - `suiteRunId`
-   - `nextPlanOrder`
-   - `progressSummary.activePlan`
-   - completed `planRuns[]`
+
+- `suiteRunId`
+- `nextPlanOrder`
+- `progressSummary.activePlan`
+- completed `planRuns[]`
+
 15. SQLite operational state is never a replacement for canonical run Artifacts. Persist canonical evidence first, then persist the checkpoint; a checkpoint-persistence failure blocks safe continuation and must return deterministic recovery guidance.
 16. SQLite recovery is a maintenance workflow, not normal suite execution. Rebuild only from canonical run Artifacts through `artifact_management` with `artifactType=run_result` and `action=rebuild`; do not use legacy `correlation-index.json` or invent active checkpoint state.
-16. Correlation projection must preserve the same `runId` and `correlationSessionId`; a fresh suite run must not reuse a terminal Correlation result from an older run merely because its key matches.
-17. Treat persisted Probe scope state as historical observation only. Live Sidecar Probe state and runtime-instance identity remain authoritative.
+17. Never invoke legacy JSON backfill during normal suite execution or as a post-cutover fallback; it is an explicit pre-cutover maintenance action only.
+18. Correlation projection must preserve the same `runId` and `correlationSessionId`; a fresh suite run must not reuse a terminal Correlation result from an older run merely because its key matches.
+19. Treat persisted Probe scope state as historical observation only. Live Sidecar Probe state and runtime-instance identity remain authoritative.
 
 ## MCP-First and Wrapped Transport
 
@@ -284,5 +302,3 @@ When a Watcher executes, canonical run Artifacts are written first and the bound
 - Treat stale revisions, changed deadlines, decreasing attempts, terminal-state changes, invalid continuation, and checkpoint persistence failures as deterministic fail-closed outcomes.
 - Do not rerun the dependent trigger when a valid Watcher continuation exists. A checkpoint failure while work is in progress blocks safe continuation.
 - Persist only bounded sanitized observation/assertion summaries; never persist credentials, authorization headers, or raw response bodies.
-
-

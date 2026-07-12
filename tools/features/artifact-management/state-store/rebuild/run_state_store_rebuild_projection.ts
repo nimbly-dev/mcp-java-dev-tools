@@ -1,4 +1,3 @@
-// @ts-nocheck
 const node_crypto_1 = require("node:crypto");
 const node_fs_1 = require("node:fs");
 const node_path_1 = { default: require("node:path") };
@@ -7,19 +6,19 @@ const correlation_state_store_1 = require("../correlation_state_store");
 const external_verification_state_store_1 = require("../external_verification_state_store");
 const artifact_state_store_1 = require("../artifact_state_store");
 const watcher_state_store_1 = require("../watcher_state_store");
-function isRecord(value) {
+function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function asRecord(value) {
+function asRecord(value: unknown): any {
   return isRecord(value) ? value : undefined;
 }
-function asRecordArray(value) {
+function asRecordArray(value: unknown): any[] {
   return Array.isArray(value) ? value.filter(isRecord) : [];
 }
-function asString(value) {
+function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
-function asEpoch(value) {
+function asEpoch(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isInteger(value)) return value;
   if (typeof value === "string") {
     const parsed = Date.parse(value);
@@ -27,20 +26,20 @@ function asEpoch(value) {
   }
   return undefined;
 }
-async function checksum(filePathAbs) {
+async function checksum(filePathAbs: string): Promise<string | undefined> {
   return (0, node_crypto_1.createHash)("sha256")
     .update(await node_fs_1.promises.readFile(filePathAbs))
     .digest("hex");
 }
-function relativeToWorkspace(workspaceRootAbs, filePathAbs) {
+function relativeToWorkspace(workspaceRootAbs: string, filePathAbs: string): string {
   return node_path_1.default.relative(workspaceRootAbs, filePathAbs).replaceAll("\\", "/");
 }
-function workspaceRootFromDatabase(databasePathAbs) {
+function workspaceRootFromDatabase(databasePathAbs: string): string {
   return node_path_1.default.dirname(
     node_path_1.default.dirname(node_path_1.default.dirname(databasePathAbs)),
   );
 }
-function failedStepCount(execution) {
+function failedStepCount(execution: any): number {
   return asRecordArray(execution.steps).filter((step) => {
     const status = asString(step.status);
     return (
@@ -48,7 +47,7 @@ function failedStepCount(execution) {
     );
   }).length;
 }
-function buildPlanRun(source) {
+function buildPlanRun(source: any): any {
   const status = asString(source.execution.status);
   const runStatus =
     status === "pass" || status === "fail" || status === "blocked" || status === "in_progress"
@@ -58,7 +57,7 @@ function buildPlanRun(source) {
   const startedAtEpochMs = asEpoch(source.execution.startedAt);
   const completedAtEpochMs =
     runStatus === "in_progress" ? undefined : asEpoch(source.execution.endedAt);
-  const projection = {
+  const projection: any = {
     planName: source.planName,
     runId: source.runId,
     status: "executed",
@@ -74,7 +73,7 @@ function buildPlanRun(source) {
   return projection;
 }
 
-async function readJsonRecord(filePathAbs) {
+async function readJsonRecord(filePathAbs: string): Promise<any> {
   try {
     const parsed = JSON.parse(await node_fs_1.promises.readFile(filePathAbs, "utf8"));
     return asRecord(parsed);
@@ -82,7 +81,7 @@ async function readJsonRecord(filePathAbs) {
     return undefined;
   }
 }
-function insertPlanRun(store, planRun) {
+function insertPlanRun(store: any, planRun: any): any {
   store.database
     .prepare(
       `
@@ -116,7 +115,7 @@ function insertPlanRun(store, planRun) {
       planRun.runDirPathRel,
     );
 }
-function mapWatcher(source, watcher, watcherIndex) {
+function mapWatcher(source: any, watcher: any, watcherIndex: number): any {
   const id = asString(watcher.id);
   const providerType = asString(watcher.providerType);
   const waitPolicy = asRecord(watcher.waitPolicy);
@@ -152,7 +151,7 @@ function mapWatcher(source, watcher, watcherIndex) {
   for (const attempt of asRecordArray(watcher.attempts)) {
     const attemptNumber = typeof attempt.attempt === "number" ? attempt.attempt : 0;
     if (attemptNumber <= 0) continue;
-    const normalizedAttempt = {
+    const normalizedAttempt: any = {
       attemptNumber,
       observedAtEpochMs: asEpoch(attempt.observedAt) ?? startedAtEpochMs,
       status: asString(attempt.status) ?? "blocked",
@@ -162,7 +161,7 @@ function mapWatcher(source, watcher, watcherIndex) {
     if (typeof attempt.durationMs === "number") normalizedAttempt.durationMs = attempt.durationMs;
     attempts.push(normalizedAttempt);
   }
-  const projection = {
+  const projection: any = {
     planName: source.planName,
     runId: source.runId,
     watcherName: id,
@@ -195,7 +194,7 @@ function mapWatcher(source, watcher, watcherIndex) {
   if (reasonCode) projection.reasonCode = reasonCode;
   return projection;
 }
-function rebuildCorrelation(args) {
+function rebuildCorrelation(args: any): any {
   const correlation = asRecord(args.source.correlation);
   if (!correlation) return;
   const window = asRecord(correlation.window);
@@ -219,7 +218,7 @@ function rebuildCorrelation(args) {
       ? { expectedMaxHitDelta: entry.expectedMaxHitDelta }
       : {}),
   }));
-  const session = {
+  const session: any = {
     planName: args.source.planName,
     runId: args.source.runId,
     correlationSessionId: sessionId,
@@ -278,7 +277,7 @@ function rebuildCorrelation(args) {
       args.summary.rebuiltCorrelations += 1;
   }
 }
-async function rebuildSource(args) {
+async function rebuildSource(args: any): Promise<any> {
   const planRun = buildPlanRun(args.source);
   insertPlanRun(args.store, planRun);
   for (const file of args.source.files) {
@@ -316,7 +315,7 @@ async function rebuildSource(args) {
       !["pass", "fail_assertion", "blocked_runtime"].includes(String(status))
     )
       continue;
-    const projection = {
+    const projection: any = {
       planName: args.source.planName,
       runId: args.source.runId,
       verificationName: asString(result.id) ?? `verification-${verificationOrder}`,
@@ -332,7 +331,7 @@ async function rebuildSource(args) {
           : {}),
       ...(Array.isArray(result.assertions)
         ? {
-            assertions: result.assertions.filter(isRecord).map((assertion) => ({
+            assertions: result.assertions.filter(isRecord).map((assertion: any) => ({
               id: asString(assertion.id) ?? "unknown",
               actualPath: asString(assertion.actualPath) ?? "unknown",
               operator: asString(assertion.operator) ?? "unknown",
@@ -364,7 +363,7 @@ async function rebuildSource(args) {
     if (!persisted.ok) throw new Error(persisted.reasonCode);
     args.summary.rebuiltExternalVerifications += 1;
   }
-  const correlationPath = args.source.files.find((file) => file.kind === "correlation");
+  const correlationPath = args.source.files.find((file: any) => file.kind === "correlation");
   if (correlationPath) {
     const correlation = await readJsonRecord(correlationPath.pathAbs);
     if (correlation)
@@ -376,7 +375,7 @@ async function rebuildSource(args) {
   }
   args.summary.rebuiltRuns += 1;
 }
-async function rebuildSuiteArtifact(args) {
+async function rebuildSuiteArtifact(args: any): Promise<any> {
   const executionProfile = asString(args.suite.executionProfile);
   const status = args.suite.status;
   const executionPolicy = args.suite.executionPolicy;
@@ -400,7 +399,7 @@ async function rebuildSuiteArtifact(args) {
   }
   const firstStartedAt =
     planRuns.find((entry) => entry.startedAtEpochMs !== undefined)?.startedAtEpochMs ?? Date.now();
-  const checkpoint = {
+  const checkpoint: any = {
     suiteRunId: args.suiteRunId,
     executionProfile,
     status: status,
@@ -436,7 +435,7 @@ async function rebuildSuiteArtifact(args) {
   if (!linked.ok) throw new Error(linked.reasonCode);
 }
 
-async function rebuildCanonicalState(args) {
+async function rebuildCanonicalState(args: any): Promise<any> {
   if (args.kind === "run") return rebuildSource(args);
   return rebuildSuiteArtifact(args);
 }

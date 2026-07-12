@@ -1,32 +1,21 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { RunStateRebuildSummary } from "../model/run_state_store.model";
-
-export type JsonRecord = Record<string, unknown>;
-export type RunSource = {
-  planName: string;
-  runId: string;
-  runDirAbs: string;
-  runDirPathRel: string;
-  execution: JsonRecord;
-  evidence: JsonRecord;
-  evidencePresent: boolean;
-  files: Array<{
-    kind: "context_resolved" | "execution_result" | "evidence" | "correlation";
-    pathAbs: string;
-  }>;
-};
+import type {
+  RunStateRebuildSource,
+  RunStateRebuildSummary,
+  StateStoreJsonRecord,
+} from "../model/run_state_store.model";
 
 const MAX_RUNS = 10_000;
 const MAX_REASONS = 100;
 
-function asRecord(value: unknown): JsonRecord | undefined {
+function asRecord(value: unknown): StateStoreJsonRecord | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as JsonRecord)
+    ? (value as StateStoreJsonRecord)
     : undefined;
 }
 
-async function readJsonRecord(filePathAbs: string): Promise<JsonRecord | undefined> {
+async function readJsonRecord(filePathAbs: string): Promise<StateStoreJsonRecord | undefined> {
   try {
     return asRecord(JSON.parse(await fs.readFile(filePathAbs, "utf8")));
   } catch {
@@ -44,10 +33,10 @@ export async function scanRunStateSources(args: {
   projectName: string;
   summary: RunStateRebuildSummary;
   reasons: Array<Record<string, unknown>>;
-}): Promise<RunSource[]> {
+}): Promise<RunStateRebuildSource[]> {
   const root = path.join(args.workspaceRootAbs, ".mcpjvm", args.projectName, "plans", "regression");
   const plans = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
-  const sources: RunSource[] = [];
+  const sources: RunStateRebuildSource[] = [];
   for (const plan of plans
     .filter((entry) => entry.isDirectory())
     .sort((a, b) => a.name.localeCompare(b.name))) {
@@ -76,7 +65,9 @@ export async function scanRunStateSources(args: {
       const evidencePresent = Boolean(evidence);
       if (!evidencePresent && args.reasons.length < MAX_REASONS)
         args.reasons.push({ planName: plan.name, runId: run.name, reasonCode: "evidence_missing" });
-      const files: RunSource["files"] = [{ kind: "execution_result", pathAbs: executionPathAbs }];
+      const files: RunStateRebuildSource["files"] = [
+        { kind: "execution_result", pathAbs: executionPathAbs },
+      ];
       for (const [kind, name] of [
         ["context_resolved", "context.resolved.json"],
         ["evidence", "evidence.json"],

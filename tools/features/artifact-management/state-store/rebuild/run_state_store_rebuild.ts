@@ -1,4 +1,3 @@
-// @ts-nocheck
 const node_fs_1 = require("node:fs");
 const node_path_1 = { default: require("node:path") };
 const run_state_store_schema_1 = require("../run_state_store_schema");
@@ -11,19 +10,19 @@ const run_state_store_rebuild_scan_1 = require("./run_state_store_rebuild_scan")
 const run_state_store_rebuild_projection_1 = require("./run_state_store_rebuild_projection");
 const { DatabaseSync } = require("node:sqlite");
 const MAX_REASONS = 100;
-function isRecord(value) {
+function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function asRecord(value) {
+function asRecord(value: unknown): any {
   return isRecord(value) ? value : undefined;
 }
-function asRecordArray(value) {
+function asRecordArray(value: unknown): any[] {
   return Array.isArray(value) ? value.filter(isRecord) : [];
 }
-function asString(value) {
+function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
-function asEpoch(value) {
+function asEpoch(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isInteger(value)) return value;
   if (typeof value === "string") {
     const parsed = Date.parse(value);
@@ -31,7 +30,7 @@ function asEpoch(value) {
   }
   return undefined;
 }
-function safeRelativePath(pathRel) {
+function safeRelativePath(pathRel: string): boolean {
   return (
     pathRel.length > 0 &&
     !node_path_1.default.isAbsolute(pathRel) &&
@@ -39,10 +38,10 @@ function safeRelativePath(pathRel) {
     !pathRel.split(/[\\/]/).includes("..")
   );
 }
-function failure(reasonCode, reason, nextAction, reasonMeta) {
+function failure(reasonCode: any, reason: string, nextAction: any, reasonMeta?: any): any {
   return { ok: false, reasonCode, reason, nextAction, ...(reasonMeta ? { reasonMeta } : {}) };
 }
-async function readJsonRecord(filePathAbs) {
+async function readJsonRecord(filePathAbs: string): Promise<any> {
   try {
     const parsed = JSON.parse(await node_fs_1.promises.readFile(filePathAbs, "utf8"));
     return asRecord(parsed);
@@ -50,7 +49,7 @@ async function readJsonRecord(filePathAbs) {
     return undefined;
   }
 }
-function openCandidate(databasePathAbs, projectName) {
+function openCandidate(databasePathAbs: string, projectName: string): any {
   const database = new DatabaseSync(databasePathAbs);
   const migration = (0, run_state_store_schema_1.applyRunStateStoreMigrations)(
     database,
@@ -70,7 +69,7 @@ function openCandidate(databasePathAbs, projectName) {
     close: () => database.close(),
   };
 }
-async function rebuildRunStateStore(args) {
+async function rebuildRunStateStore(args: any): Promise<any> {
   const projectName = args.projectName.trim();
   if (!projectName || projectName === "." || projectName === ".." || /[\\/]/.test(projectName))
     return failure(
@@ -99,7 +98,7 @@ async function rebuildRunStateStore(args) {
     rebuiltExternalVerifications: 0,
     nonReconstructibleActiveStates: 0,
   };
-  const reasons = [];
+  const reasons: any[] = [];
   let lockHandle;
   let candidate;
   try {
@@ -120,7 +119,7 @@ async function rebuildRunStateStore(args) {
       summary,
       reasons,
     });
-    if (sources.some((source) => source.execution.status === "in_progress")) {
+    if (sources.some((source: any) => source.execution.status === "in_progress")) {
       summary.nonReconstructibleActiveStates += 1;
       return failure(
         "state_store_rebuild_active_runs",
@@ -130,13 +129,13 @@ async function rebuildRunStateStore(args) {
     }
     candidate = openCandidate(tempPathAbs, projectName);
     const sourcesByIdentity = new Map(
-      sources.map((source) => [`${source.planName}\u0000${source.runId}`, source]),
+      sources.map((source: any) => [`${source.planName}\u0000${source.runId}`, source]),
     );
     const suiteRoot = node_path_1.default.join(projectDirAbs, "suite-runs");
     const suiteEntries = await node_fs_1.promises
       .readdir(suiteRoot, { withFileTypes: true })
       .catch(() => []);
-    for (const entry of suiteEntries.filter((item) => item.isDirectory())) {
+    for (const entry of suiteEntries.filter((item: any) => item.isDirectory())) {
       const suitePathAbs = node_path_1.default.join(
         suiteRoot,
         entry.name,
@@ -180,7 +179,7 @@ async function rebuildRunStateStore(args) {
         }
       }
     }
-    for (const source of sources) {
+    for (const source of sources as any[]) {
       try {
         await run_state_store_rebuild_projection_1.rebuildCanonicalState({
           kind: "run",

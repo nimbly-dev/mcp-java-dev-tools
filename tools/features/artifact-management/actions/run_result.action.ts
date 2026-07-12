@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveRegressionRunDirAbs } from "@tools-feature-regression-suite";
 import { rebuildRunStateStore } from "../state-store/rebuild/run_state_store_rebuild";
+import { backfillLegacyCorrelationIndex } from "../state-store/legacy_backfill_state_store";
 import type { RunStateRebuildResult } from "../state-store/model/run_state_store.model";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "./types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
@@ -83,6 +84,28 @@ export async function handleRunResultArtifact(
   request: ArtifactActionRequest<"run_result">,
 ): Promise<ArtifactActionResult> {
   const projectName = await resolveProjectName(ctx.workspaceRootAbs, request.input.projectName);
+
+  if (request.action === "backfill") {
+    const backfill = await backfillLegacyCorrelationIndex({
+      workspaceRootAbs: ctx.workspaceRootAbs,
+      projectName,
+    });
+    if (!backfill.ok) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: backfill.reasonCode,
+        reason: backfill.reason,
+        ...(backfill.reasonMeta ? { reasonMeta: backfill.reasonMeta } : {}),
+      });
+    }
+    return okArtifactResponse({
+      resultType: "artifact",
+      status: "ok",
+      artifactType: request.artifactType,
+      action: request.action,
+      projectName,
+      summary: backfill.summary,
+    });
+  }
 
   if (request.action === "rebuild") {
     const rebuilt = (await rebuildRunStateStore({
