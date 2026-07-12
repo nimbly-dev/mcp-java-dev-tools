@@ -7,6 +7,7 @@ const {
   cutoverRunStateStore,
   openRunStateStore,
   queryRunState,
+  queryCorrelationState,
   persistCorrelationSession,
   persistRegressionSuiteState,
   upsertCorrelationObservation,
@@ -154,6 +155,90 @@ test("run-state query fails closed before cutover and does not bootstrap a missi
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.reasonCode, "run_state_store_not_ready");
     assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("correlation_state query returns summary, exact hashed-key lookup, and bounded detail", async () => {
+  const root = createTestTempDir("correlation-state-query");
+  try {
+    const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(cutover.ok, true);
+    const db = new (require("node:sqlite").DatabaseSync)(
+      path.join(root, ".mcpjvm", "alpha", "run-state.sqlite"),
+    );
+    const hash = require("node:crypto")
+      .createHash("sha256")
+      .update(Buffer.from("event-123", "utf8"))
+      .digest("hex");
+    db.prepare(
+      `INSERT INTO correlation_runs (project_name, plan_name, run_id, suite_run_id, correlation_session_id, status, reason_code, expected_line_count, matched_line_count, window_start_epoch_ms, window_end_epoch_ms, max_window_ms, started_at_epoch_ms, correlated_at_epoch_ms, revision, correlation_path_rel)
+       VALUES ('alpha', 'p1', 'r1', 'suite-1', 'session-1', 'correlated', 'ok', 1, 1, 10, 20, 1000, 10, 20, 2, '.mcpjvm/alpha/plans/regression/p1/runs/r1/correlation/correlation.json')`,
+    ).run();
+    const correlationPk = db
+      .prepare("SELECT correlation_run_pk FROM correlation_runs WHERE run_id = 'r1'")
+      .get().correlation_run_pk;
+    db.prepare(
+      "INSERT INTO correlation_keys (correlation_run_pk, key_type, key_value_hash) VALUES (?, 'messageId', ?)",
+    ).run(correlationPk, hash);
+    db.prepare(
+      `INSERT INTO correlation_line_expectations (correlation_run_pk, sequence_order, label, strict_line_key, selector_policy, operator, expected_hit_delta, status, reason_code, first_hit_epoch_ms, last_hit_epoch_ms)
+       VALUES (?, 1, 'consumer', 'com.example.Job#run:42', 'aggregate', 'exact', 1, 'matched', 'ok', 15, 20)`,
+    ).run(correlationPk);
+    const linePk = db
+      .prepare(
+        "SELECT line_expectation_pk FROM correlation_line_expectations WHERE correlation_run_pk = ?",
+      )
+      .get(correlationPk).line_expectation_pk;
+    db.prepare(
+      `INSERT INTO correlation_probe_observations (line_expectation_pk, probe_id, logical_service_id, service_instance_id, runtime_instance_id, observed_scope_state, scope_state_observed_at_epoch_ms, scope_state_expires_at_epoch_ms, baseline_hit_count, current_hit_count, observed_hit_delta, first_observed_at_epoch_ms, last_observed_at_epoch_ms, last_hit_epoch_ms, sample_count, revision)
+       VALUES (?, 'worker', 'orders', 'orders-1', 'jvm-1', 'armed', 10, 30, 4, 5, 1, 11, 20, 20, 2, 1)`,
+    ).run(linePk);
+    db.prepare(
+      `INSERT INTO artifacts (project_name, plan_name, run_id, artifact_kind, path_rel, created_at_epoch_ms)
+       VALUES ('alpha', 'p1', 'r1', 'correlation', '.mcpjvm/alpha/plans/regression/p1/runs/r1/correlation/correlation.json', 20)`,
+    ).run();
+    db.close();
+
+    const result = await queryCorrelationState({
+      workspaceRootAbs: root,
+      input: {
+        projectName: "alpha",
+        filters: {
+          keyType: "messageId",
+          keyValueExact: "event-123",
+          strictLineKey: "com.example.Job#run:42",
+          probeId: "worker",
+        },
+        detail: {
+          select: ["keys", "lineExpectations", "probeObservations"],
+          keys: { offset: 0, limit: 25 },
+          lineExpectations: { offset: 0, limit: 25 },
+          probeObservations: { offset: 0, limit: 25 },
+        },
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.items[0].correlationStatus, "correlated");
+    assert.equal(result.items[0].isCorrelated, true);
+    assert.deepEqual(result.items[0].correlationArtifact, {
+      status: "linked",
+      pathRel: ".mcpjvm/alpha/plans/regression/p1/runs/r1/correlation/correlation.json",
+    });
+    assert.equal(
+      (result.items[0].probeObservations as Record<string, unknown>).items instanceof Array,
+      true,
+    );
+
+    const missingWindow = await queryCorrelationState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha", detail: { select: ["keys"] } },
+    });
+    assert.equal(missingWindow.ok, false);
+    if (!missingWindow.ok)
+      assert.equal(missingWindow.reasonCode, "correlation_state_detail_window_required");
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }

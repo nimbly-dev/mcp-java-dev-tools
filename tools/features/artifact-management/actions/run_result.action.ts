@@ -10,6 +10,7 @@ import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/f
 import { readJsonFile } from "../shared/json_io";
 import { resolveProjectName } from "../shared/project_resolution";
 import { queryRunState } from "../state-store/run_state_query";
+import { queryCorrelationState } from "../state-store/correlation_state_query";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -98,6 +99,38 @@ export async function handleRunResultArtifact(
   const projectName = await resolveProjectName(ctx.workspaceRootAbs, request.input.projectName);
 
   if (request.action === "query") {
+    if (request.input.stateSurface === "correlation_state") {
+      const queried = await queryCorrelationState({
+        workspaceRootAbs: ctx.workspaceRootAbs,
+        input: {
+          projectName,
+          ...(request.input.query?.filters ? { filters: request.input.query.filters } : {}),
+          ...(request.input.query?.sort ? { sort: request.input.query.sort } : {}),
+          ...(request.input.query?.page ? { page: request.input.query.page } : {}),
+          ...(request.input.query?.detail ? { detail: request.input.query.detail } : {}),
+        },
+      });
+      if (!queried.ok) {
+        return buildFailClosedArtifactResponse({
+          reasonCode: queried.reasonCode,
+          reason: queried.reason,
+          ...(queried.reasonMeta ? { reasonMeta: queried.reasonMeta } : {}),
+        });
+      }
+      return okArtifactResponse({
+        resultType: "artifact",
+        status: "ok",
+        artifactType: request.artifactType,
+        action: request.action,
+        stateSurface: queried.stateSurface,
+        projectName: queried.projectName,
+        projectionVersion: queried.projectionVersion,
+        pageSize: queried.pageSize,
+        sort: queried.sort,
+        items: queried.items,
+        ...(queried.nextCursor ? { nextCursor: queried.nextCursor } : {}),
+      });
+    }
     if (request.input.stateSurface !== "run_state") {
       return buildFailClosedArtifactResponse({
         reasonCode: "run_state_query_invalid",

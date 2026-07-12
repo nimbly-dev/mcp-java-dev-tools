@@ -19,6 +19,7 @@ export { rebuildRunStateStore } from "./state-store/rebuild/run_state_store_rebu
 export { backfillLegacyCorrelationIndex } from "./state-store/legacy_backfill_state_store";
 export { cutoverRunStateStore } from "./state-store/state_store_cutover";
 export { queryRunState } from "./state-store/run_state_query";
+export { queryCorrelationState } from "./state-store/correlation_state_query";
 export type {
   OpenRunStateStore,
   RunStateArtifactLink,
