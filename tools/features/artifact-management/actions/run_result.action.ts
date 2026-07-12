@@ -1,6 +1,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveRegressionRunDirAbs } from "@tools-feature-regression-suite";
+import { rebuildRunStateStore } from "../state-store/rebuild/run_state_store_rebuild";
+import type { RunStateRebuildResult } from "../state-store/model/run_state_store.model";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "./types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import { readJsonFile } from "../shared/json_io";
@@ -8,7 +10,9 @@ import { resolveProjectName } from "../shared/project_resolution";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  return value.filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -19,13 +23,22 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 
 function asRecordArray(value: unknown): Record<string, unknown>[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null && !Array.isArray(entry));
+  return value.filter(
+    (entry): entry is Record<string, unknown> =>
+      typeof entry === "object" && entry !== null && !Array.isArray(entry),
+  );
 }
 
 function countFailedSteps(steps: Record<string, unknown>[]): number {
   return steps.filter((entry) => {
     const status = entry.status;
-    return typeof status === "string" && status !== "passed" && status !== "ok" && status !== "skipped_condition_false" && status !== "pass";
+    return (
+      typeof status === "string" &&
+      status !== "passed" &&
+      status !== "ok" &&
+      status !== "skipped_condition_false" &&
+      status !== "pass"
+    );
   }).length;
 }
 
@@ -47,7 +60,11 @@ function filterWatcherRows(
   });
 }
 
-function toWindowedSection<T>(items: T[], window: { offset: number; limit: number }, filter?: Record<string, unknown>) {
+function toWindowedSection<T>(
+  items: T[],
+  window: { offset: number; limit: number },
+  filter?: Record<string, unknown>,
+) {
   const start = Math.min(window.offset, items.length);
   const end = Math.min(start + window.limit, items.length);
   const page = items.slice(start, end);
@@ -67,6 +84,31 @@ export async function handleRunResultArtifact(
 ): Promise<ArtifactActionResult> {
   const projectName = await resolveProjectName(ctx.workspaceRootAbs, request.input.projectName);
 
+  if (request.action === "rebuild") {
+    const rebuilt = (await rebuildRunStateStore({
+      workspaceRootAbs: ctx.workspaceRootAbs,
+      projectName,
+      ...(typeof request.input.strict === "boolean" ? { strict: request.input.strict } : {}),
+    })) as RunStateRebuildResult;
+    if (!rebuilt.ok) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: rebuilt.reasonCode,
+        reason: rebuilt.reason,
+        ...(rebuilt.reasonMeta ? { reasonMeta: rebuilt.reasonMeta } : {}),
+      });
+    }
+    return okArtifactResponse({
+      resultType: "artifact",
+      status: "ok",
+      artifactType: request.artifactType,
+      action: request.action,
+      projectName,
+      databasePathAbs: rebuilt.databasePathAbs,
+      ...(rebuilt.quarantinePathAbs ? { quarantinePathAbs: rebuilt.quarantinePathAbs } : {}),
+      summary: rebuilt.summary,
+    });
+  }
+
   if (request.action === "list") {
     const planName = request.input.planName?.trim();
     if (!planName) {
@@ -76,7 +118,15 @@ export async function handleRunResultArtifact(
         reasonMeta: { action: request.action },
       });
     }
-    const runsRoot = path.join(ctx.workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName, "runs");
+    const runsRoot = path.join(
+      ctx.workspaceRootAbs,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "regression",
+      planName,
+      "runs",
+    );
     const runs = await fs.readdir(runsRoot, { withFileTypes: true }).catch(() => []);
     const runIds = runs
       .filter((entry) => entry.isDirectory())
@@ -93,7 +143,12 @@ export async function handleRunResultArtifact(
     });
   }
 
-  const runDirArgs: { workspaceRootAbs: string; projectName?: string; planName?: string; runId?: string } = {
+  const runDirArgs: {
+    workspaceRootAbs: string;
+    projectName?: string;
+    planName?: string;
+    runId?: string;
+  } = {
     workspaceRootAbs: ctx.workspaceRootAbs,
     projectName,
   };
@@ -125,9 +180,18 @@ export async function handleRunResultArtifact(
       action: request.action,
       runDirAbs,
       summary: {
-        runStatus: typeof executionResultRecord.status === "string" ? executionResultRecord.status : "unknown",
-        triggerStatus: typeof executionResultRecord.triggerStatus === "string" ? executionResultRecord.triggerStatus : "unknown",
-        watcherStatus: typeof executionResultRecord.watcherStatus === "string" ? executionResultRecord.watcherStatus : "not_configured",
+        runStatus:
+          typeof executionResultRecord.status === "string"
+            ? executionResultRecord.status
+            : "unknown",
+        triggerStatus:
+          typeof executionResultRecord.triggerStatus === "string"
+            ? executionResultRecord.triggerStatus
+            : "unknown",
+        watcherStatus:
+          typeof executionResultRecord.watcherStatus === "string"
+            ? executionResultRecord.watcherStatus
+            : "not_configured",
         stepCount: steps.length,
         failedStepCount: countFailedSteps(steps),
         watcherCount: watcherRows.length,
@@ -146,9 +210,16 @@ export async function handleRunResultArtifact(
 
   if (selectors.includes("summary")) {
     response.summary = {
-      runStatus: typeof executionResultRecord.status === "string" ? executionResultRecord.status : "unknown",
-      triggerStatus: typeof executionResultRecord.triggerStatus === "string" ? executionResultRecord.triggerStatus : "unknown",
-      watcherStatus: typeof executionResultRecord.watcherStatus === "string" ? executionResultRecord.watcherStatus : "not_configured",
+      runStatus:
+        typeof executionResultRecord.status === "string" ? executionResultRecord.status : "unknown",
+      triggerStatus:
+        typeof executionResultRecord.triggerStatus === "string"
+          ? executionResultRecord.triggerStatus
+          : "unknown",
+      watcherStatus:
+        typeof executionResultRecord.watcherStatus === "string"
+          ? executionResultRecord.watcherStatus
+          : "not_configured",
       stepCount: steps.length,
       failedStepCount: countFailedSteps(steps),
       watcherCount: watcherRows.length,
@@ -161,8 +232,12 @@ export async function handleRunResultArtifact(
   const watcherFilterRecord = asRecord(request.input.query?.watcherFilter);
   const watcherFilter = watcherFilterRecord
     ? {
-        ...(typeof watcherFilterRecord.watcherId === "string" ? { watcherId: watcherFilterRecord.watcherId } : {}),
-        ...(typeof watcherFilterRecord.watcherStatus === "string" ? { watcherStatus: watcherFilterRecord.watcherStatus } : {}),
+        ...(typeof watcherFilterRecord.watcherId === "string"
+          ? { watcherId: watcherFilterRecord.watcherId }
+          : {}),
+        ...(typeof watcherFilterRecord.watcherStatus === "string"
+          ? { watcherStatus: watcherFilterRecord.watcherStatus }
+          : {}),
       }
     : undefined;
 
@@ -239,7 +314,8 @@ export async function handleRunResultArtifact(
             planName: request.input.planName,
             runId: request.input.runId,
             section: "watcherEvidence",
-            watcherId: typeof missingStatusEvidence.id === "string" ? missingStatusEvidence.id : undefined,
+            watcherId:
+              typeof missingStatusEvidence.id === "string" ? missingStatusEvidence.id : undefined,
           },
         });
       }

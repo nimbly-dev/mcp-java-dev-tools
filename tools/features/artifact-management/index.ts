@@ -15,6 +15,7 @@ export {
 export { upsertExternalVerificationSummary } from "./state-store/external_verification_state_store";
 export { upsertRunStateArtifact } from "./state-store/artifact_state_store";
 export { upsertWatcherRun } from "./state-store/watcher_state_store";
+export { rebuildRunStateStore } from "./state-store/rebuild/run_state_store_rebuild";
 export type {
   OpenRunStateStore,
   RunStateArtifactLink,
@@ -40,7 +41,11 @@ export type {
   ExternalVerificationPersistenceFailure,
   ExternalVerificationPersistenceResult,
   ExternalVerificationProjection,
-} from "./state-store/run_state_store.model";
+  RunStateRebuildFailure,
+  RunStateRebuildFailureCode,
+  RunStateRebuildResult,
+  RunStateRebuildSummary,
+} from "./state-store/model/run_state_store.model";
 export type { ArtifactActionContext, ArtifactActionResult } from "./actions/types";
 export type { ArtifactActionRequest } from "./models/artifact_management.model";
 export type ArtifactManagementFeatureModule = "artifact-management";

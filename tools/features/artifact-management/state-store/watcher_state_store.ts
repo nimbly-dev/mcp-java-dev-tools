@@ -4,13 +4,13 @@ import type {
   WatcherPersistenceFailure,
   WatcherPersistenceResult,
   WatcherRunProjection,
-} from "./run_state_store.model";
+} from "./model/run_state_store.model";
 
 export type {
   WatcherRunProjection,
   WatcherPersistenceFailure,
   WatcherPersistenceResult,
-} from "./run_state_store.model";
+} from "./model/run_state_store.model";
 
 function isSafeRelativePath(pathRel: string): boolean {
   return (

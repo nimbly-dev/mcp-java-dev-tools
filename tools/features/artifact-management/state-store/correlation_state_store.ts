@@ -7,7 +7,7 @@ import type {
   CorrelationPersistenceFailure,
   CorrelationSession,
   CorrelationSessionResult,
-} from "./run_state_store.model";
+} from "./model/run_state_store.model";
 
 function isSafeRelativePath(pathRel: string): boolean {
   return (

@@ -6,7 +6,7 @@ import type {
   RunStateStoreFailure,
   RunStateStoreFailureCode,
   RunStateStoreOpenResult,
-} from "./run_state_store.model";
+} from "./model/run_state_store.model";
 
 const { DatabaseSync } = require("node:sqlite") as {
   DatabaseSync: new (location: string) => RunStateDatabase;

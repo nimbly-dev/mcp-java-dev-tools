@@ -9,6 +9,7 @@ const {
   rebuildCorrelationIndex,
   writeRegressionRunArtifacts,
 } = require("@tools-feature-regression-suite");
+const { rebuildRunStateStore } = require("@tools-feature-artifact-management");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
@@ -35,11 +36,48 @@ test("buildRunArtifactDirAbs fails closed for invalid run id", () => {
   const root = createTestTempDir("run-artifacts-invalid");
   try {
     initProjectArtifact(root);
-  assert.throws(
+    assert.throws(
       () => buildRunArtifactDirAbs(root, "post-lifecycle", "2026/04/19-01"),
-    /run_id_invalid/,
-  );
+      /run_id_invalid/,
+    );
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("rebuildRunStateStore reconstructs canonical terminal run state and replaces the live database atomically", async () => {
+  const root = createTestTempDir("rebuild-run-state");
+  let database;
+  try {
+    const projectName = initProjectArtifact(root);
+    const runId = "2026-04-19T08-01-22Z_99";
+    await writeRegressionRunArtifacts({
+      workspaceRootAbs: root,
+      projectName,
+      runId,
+      planRef: { name: "rebuild-plan" },
+      resolvedContext: { tenantId: "tenant-1" },
+      executionResult: {
+        status: "pass",
+        startedAt: "2026-04-19T08:01:22.000Z",
+        endedAt: "2026-04-19T08:01:23.000Z",
+        steps: [{ order: 1, id: "trigger", status: "pass" }],
+      },
+      evidence: { targetResolution: [] },
+      now: new Date("2026-04-19T08:01:24.000Z"),
+    });
+    const databasePath = path.join(root, ".mcpjvm", projectName, "run-state.sqlite");
+    const rebuilt = await rebuildRunStateStore({ workspaceRootAbs: root, projectName });
+    assert.equal(rebuilt.ok, true);
+    if (!rebuilt.ok) return;
+    assert.equal(rebuilt.summary.scannedRuns, 1);
+    assert.equal(rebuilt.summary.rebuiltRuns, 1);
+    database = new DatabaseSync(databasePath);
+    assert.equal(database.prepare("SELECT count(*) AS count FROM plan_runs").get().count, 1);
+    assert.equal(database.prepare("SELECT count(*) AS count FROM artifacts").get().count, 3);
+    assert.equal(database.prepare("SELECT status FROM plan_runs").get().status, "executed");
+  } finally {
+    if (database) database.close();
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -162,8 +200,14 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
     assert.ok(fs.existsSync(written.executionResultPathAbs));
     assert.ok(fs.existsSync(written.evidencePathAbs));
     assert.ok(fs.existsSync(written.correlationPathAbs));
-    assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "test-project", "correlation-index.json")), false);
-    assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "test-project", "run-state.sqlite")), true);
+    assert.equal(
+      fs.existsSync(path.join(root, ".mcpjvm", "test-project", "correlation-index.json")),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(root, ".mcpjvm", "test-project", "run-state.sqlite")),
+      true,
+    );
 
     const context = readJson(written.contextResolvedPathAbs);
     const result = readJson(written.executionResultPathAbs);
@@ -172,7 +216,16 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
 
     assert.equal(
       written.runDirAbs,
-      path.join(root, ".mcpjvm", projectName, "plans", "regression", "gateway-course-review-aggregate-smoke", "runs", runId),
+      path.join(
+        root,
+        ".mcpjvm",
+        projectName,
+        "plans",
+        "regression",
+        "gateway-course-review-aggregate-smoke",
+        "runs",
+        runId,
+      ),
     );
     assert.equal(context.resolvedAt, "2026-04-19T08:01:26.000Z");
     assert.equal(context.redaction.resolvedSecretKeyCount, 1);
@@ -195,10 +248,19 @@ test("writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm
     assert.equal(correlation.status, "ok");
     assert.equal(correlation.timeline[0].eventId, "e-1");
     assert.equal(correlation.timeline[1].eventId, "e-2");
-    assert.match(String(written.correlationPathAbs).replaceAll("\\", "/"), /\/correlation\/correlation\.json$/);
+    assert.match(
+      String(written.correlationPathAbs).replaceAll("\\", "/"),
+      /\/correlation\/correlation\.json$/,
+    );
     const database = new DatabaseSync(path.join(root, ".mcpjvm", projectName, "run-state.sqlite"));
-    assert.equal(database.prepare("SELECT count(*) AS count FROM correlation_probe_observations").get().count, 2);
-    assert.equal(database.prepare("SELECT matched_line_count AS count FROM correlation_runs").get().count, 2);
+    assert.equal(
+      database.prepare("SELECT count(*) AS count FROM correlation_probe_observations").get().count,
+      2,
+    );
+    assert.equal(
+      database.prepare("SELECT matched_line_count AS count FROM correlation_runs").get().count,
+      2,
+    );
     database.close();
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -244,9 +306,9 @@ test("buildRunArtifactDirAbs accepts epoch-like numeric run id", () => {
   const root = createTestTempDir("run-artifacts-epoch");
   try {
     initProjectArtifact(root);
-  const runId = "1777691534330";
+    const runId = "1777691534330";
     const out = buildRunArtifactDirAbs(root, "post-lifecycle", runId);
-  assert.match(out, new RegExp(`${runId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+    assert.match(out, new RegExp(`${runId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -406,7 +468,11 @@ test("rebuildCorrelationIndex regenerates canonical index from existing correlat
     assert.ok(fs.existsSync(written.correlationPathAbs));
 
     const indexPath = path.join(root, ".mcpjvm", "test-project", "correlation-index.json");
-    fs.writeFileSync(indexPath, `${JSON.stringify({ version: 1, generatedAt: "2026-04-19T08:01:27.000Z", entries: [] }, null, 2)}\n`, "utf8");
+    fs.writeFileSync(
+      indexPath,
+      `${JSON.stringify({ version: 1, generatedAt: "2026-04-19T08:01:27.000Z", entries: [] }, null, 2)}\n`,
+      "utf8",
+    );
 
     const rebuilt = await rebuildCorrelationIndex({
       workspaceRootAbs: root,
@@ -561,7 +627,9 @@ test("writeRegressionRunArtifacts preserves legacy watcher evidence by normalizi
 
     const result = readJson(written.executionResultPathAbs);
     const evidence = readJson(written.evidencePathAbs);
-    const database = new DatabaseSync(path.join(root, ".mcpjvm", "test-project", "run-state.sqlite"));
+    const database = new DatabaseSync(
+      path.join(root, ".mcpjvm", "test-project", "run-state.sqlite"),
+    );
     assert.equal(database.prepare("SELECT count(*) AS count FROM watcher_runs").get().count, 2);
     assert.equal(database.prepare("SELECT count(*) AS count FROM watcher_attempts").get().count, 0);
     database.close();
@@ -729,7 +797,7 @@ test("writeRegressionRunArtifacts persists canonical external verification resul
             status: "pass",
             response: {
               statusCode: 200,
-              body: "{\"completed\":true}",
+              body: '{"completed":true}',
               bodyJson: { completed: true },
               headers: { "content-type": "application/json" },
               durationMs: 42,
@@ -768,7 +836,7 @@ test("writeRegressionRunArtifacts persists canonical external verification resul
             status: "pass",
             response: {
               statusCode: 200,
-              body: "{\"completed\":true}",
+              body: '{"completed":true}',
               bodyJson: { completed: true },
               headers: { "content-type": "application/json" },
               durationMs: 42,
@@ -795,7 +863,9 @@ test("writeRegressionRunArtifacts persists canonical external verification resul
     assert.equal(evidence.externalVerificationExecutions.length, 1);
     assert.equal(evidence.externalVerificationExecutions[0].status, "pass");
     assert.equal(typeof evidence.externalVerificationExecutions[0].response.headers, "undefined");
-    assert.deepEqual(evidence.externalVerificationExecutions[0].response.headerNames, ["content-type"]);
+    assert.deepEqual(evidence.externalVerificationExecutions[0].response.headerNames, [
+      "content-type",
+    ]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -895,7 +965,14 @@ test("writeRegressionRunArtifacts persists the active Watcher continuation", asy
       executionResult: {
         status: "in_progress",
         watcherStatus: "in_progress",
-        preflight: { status: "ready", reasonCode: "ok", missing: [], discoverablePending: [], prerequisiteResolution: [], requiredUserAction: [] },
+        preflight: {
+          status: "ready",
+          reasonCode: "ok",
+          missing: [],
+          discoverablePending: [],
+          prerequisiteResolution: [],
+          requiredUserAction: [],
+        },
         startedAt: "2026-04-19T08:01:22.111Z",
         endedAt: "2026-04-19T08:01:23.111Z",
         steps: [],
@@ -911,14 +988,23 @@ test("writeRegressionRunArtifacts persists the active Watcher continuation", asy
           pollIntervalMs: 1_250,
           retryMax: 4,
           attemptCount: 1,
-          attempts: [{ attempt: 1, status: "fail_http", durationMs: 10, observedAt: "2026-04-19T08:01:22.600Z" }],
+          attempts: [
+            {
+              attempt: 1,
+              status: "fail_http",
+              durationMs: 10,
+              observedAt: "2026-04-19T08:01:22.600Z",
+            },
+          ],
         },
       },
       evidence: { targetResolution: [] },
       now: new Date("2026-04-19T08:01:23.111Z"),
     });
     database = new DatabaseSync(path.join(root, ".mcpjvm", "test-project", "run-state.sqlite"));
-    const watcherCheckpoint = database.prepare("SELECT status, deadline_at_epoch_ms, attempt_count FROM watcher_runs").get();
+    const watcherCheckpoint = database
+      .prepare("SELECT status, deadline_at_epoch_ms, attempt_count FROM watcher_runs")
+      .get();
     assert.equal(watcherCheckpoint.status, "in_progress");
     assert.equal(watcherCheckpoint.deadline_at_epoch_ms, Date.parse("2026-04-19T08:01:27.500Z"));
     assert.equal(watcherCheckpoint.attempt_count, 1);

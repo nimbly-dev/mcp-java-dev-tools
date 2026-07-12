@@ -33,7 +33,7 @@ If user request conflicts with these rules, fail closed and return deterministic
 Operational source for artifact reads:
 
 1. `artifact_management` MCP Tool:
-   - `artifactType=run_result`, `action=read|list`
+   - `artifactType=run_result`, `action=read|list|rebuild`
 
 Artifact semantics/reference paths:
 
@@ -43,6 +43,8 @@ Artifact semantics/reference paths:
 4. optional `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/context.resolved.json` for non-secret context display
 
 `run-state.sqlite` may supply bounded operational projections, including Watcher checkpoints and attempt progress, but canonical run Artifacts remain the rendering evidence. Do not merge a legacy `correlation-index.json` into a fresh result. Preserve the distinction between trigger success, Watcher success, and checkpoint/projection failure; a terminal Watcher result is immutable through ordinary runtime writes.
+
+For state-store recovery, render the rebuild response from its bounded summary and reason rows. Do not dump rebuilt SQLite rows or canonical Artifact payloads into MCP output.
 
 ## Template Routing
 

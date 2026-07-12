@@ -1,5 +1,8 @@
 import * as z from "zod/v4";
-import { ArtifactSelectQuerySchema, ProjectScopedInputSchema } from "@/models/inputs/artifact_management/shared/common.model";
+import {
+  ArtifactSelectQuerySchema,
+  ProjectScopedInputSchema,
+} from "@/models/inputs/artifact_management/shared/common.model";
 
 const SectionWindowSchema = z.object({
   offset: z.number().int().min(0),
@@ -9,7 +12,9 @@ const SectionWindowSchema = z.object({
 const WatcherFilterSchema = z
   .object({
     watcherId: z.string().min(1).optional(),
-    watcherStatus: z.enum(["pass", "fail_assertion", "blocked_dependency", "blocked_runtime"]).optional(),
+    watcherStatus: z
+      .enum(["pass", "fail_assertion", "blocked_dependency", "blocked_runtime"])
+      .optional(),
   })
   .optional();
 
@@ -30,7 +35,8 @@ export const RunResultQuerySchema = ArtifactSelectQuerySchema.extend({
     ctx.addIssue({
       code: "custom",
       path: ["watcherEvidence"],
-      message: "query.watcherEvidence with required offset and limit is required when selecting watcherEvidence",
+      message:
+        "query.watcherEvidence with required offset and limit is required when selecting watcherEvidence",
     });
   }
 });
@@ -39,6 +45,7 @@ export const RunResultInputSchema = ProjectScopedInputSchema.extend({
   planName: z.string().optional(),
   runId: z.string().optional(),
   executionProfile: z.string().optional(),
+  strict: z.boolean().optional(),
   query: RunResultQuerySchema.optional(),
 });
 
