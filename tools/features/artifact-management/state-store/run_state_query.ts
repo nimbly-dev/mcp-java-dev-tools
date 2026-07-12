@@ -287,6 +287,16 @@ async function openReadOnlyStore(
   }
 }
 
+export async function openReadOnlyRunStateStore(args: {
+  workspaceRootAbs: string;
+  projectName: string;
+}): Promise<
+  | { ok: true; database: RunStateDatabase; databasePathAbs: string; close: () => void }
+  | QueryFailure
+> {
+  return openReadOnlyStore(args.workspaceRootAbs, args.projectName);
+}
+
 export async function queryRunState(args: {
   workspaceRootAbs: string;
   input: QueryInput;

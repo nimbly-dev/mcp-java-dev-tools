@@ -340,7 +340,8 @@ Postman variable normalization policy:
 | `action` | Requested lifecycle action (`read`, `validate`, `upsert`, `list`, `generate`, `reload`, `rebuild`, `backfill`, `cutover`, `query`). | `artifact_management` | true | `"validate"` |
 | `input` | Typed per-artifact payload object. The top-level request is generic; artifact-specific fields are nested under `input`. | `artifact_management` | true | `{"projectName":"catalog-service","query":{"select":["summary"]}}` |
 | `input.projectName` | Canonical project Artifact identity for `project_context`, `regression_plan`, `run_result`, and `execution_export` operations. Required for orchestrator-grade calls in multi-project workspaces. | `artifact_management` | false | `"post-service"` |
-| `input.stateSurface` | For `run_result` `query`, selects the bounded operational state projection. Only `run_state` is supported. | `artifact_management` | false | `"run_state"` |
+| `input.stateSurface` | For `run_result` `query`, selects the bounded operational state projection. | `artifact_management` | false | `"run_state"` |
+| `input.stateSurface` | `run_result` query state surface; supports `run_state` and `correlation_state`. | `artifact_management` | false | `"correlation_state"` |
 | `input.projectRootAbs` | Optional deterministic project-root selector for `project_context` validation and scope cross-checking. | `artifact_management` | false | `"C:\\repo\\social-platform\\post-service\\post-app"` |
 | `input.query.select` | Optional projection selectors for structured reads to reduce payload size. Supported examples: `project_context` (`summary`, `executionProfiles`, `runtimeContexts`, `scripts`, `runPrerequisites`, `workspaces`), `regression_plan` (`summary`, `targets`, `prerequisites`, `steps`, `metadata`, `contract`, `plan`), `run_result` (`summary`, `watchers`, `watcherEvidence`, `executionResult`, `evidence`). | `artifact_management` | false | `["summary","executionProfiles"]` |
 | `input.query.prerequisites.offset` | Required zero-based window start for `regression_plan` `prerequisites` section reads when `select` includes `prerequisites`. | `artifact_management` | false | `0` |
@@ -364,6 +365,12 @@ Postman variable normalization policy:
 | `input.query.sortDirection` | Deterministic `run_state` sort direction for `updatedAtEpochMs`, followed by stable identity fields. Defaults to `desc`. | `artifact_management` | false | `"desc"` |
 | `input.query.pageSize` | `run_state` page size. Defaults to 25 and is capped at 100. | `artifact_management` | false | `25` |
 | `input.query.cursor` | Opaque versioned cursor bound to the complete normalized query and sort shape. | `artifact_management` | false | `"eyJ2ZXJzaW9uIjoxfQ"` |
+| `input.query.filters` | `correlation_state` exact filters for plan/run/session/status/reason/key/Strict Line/Probe/runtime and inclusive UTC epoch-millisecond ranges. | `artifact_management` | false | `{"correlationSessionId":"session-1"}` |
+| `input.query.filters.keyValueExact` | Exact sensitive-key lookup value; requires `keyType`, is mutually exclusive with `keyValueSha256`, and is never returned. | `artifact_management` | false | `"event-123"` |
+| `input.query.filters.keyValueSha256` | Lowercase hexadecimal SHA-256 lookup of the exact UTF-8 key bytes; requires `keyType`. | `artifact_management` | false | `"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"` |
+| `input.query.sort` | `correlation_state` root sort; version 1 supports `startedAtEpochMs` with `asc` or `desc`. | `artifact_management` | false | `{"field":"startedAtEpochMs","direction":"desc"}` |
+| `input.query.page` | `correlation_state` root cursor page; defaults to 25 and is capped at 100. | `artifact_management` | false | `{"pageSize":25,"cursor":null}` |
+| `input.query.detail` | Optional independent bounded detail sections: `keys`, `lineExpectations`, and `probeObservations`; each selected section requires its own offset/limit window capped at 50. | `artifact_management` | false | `{"select":["lineExpectations"],"lineExpectations":{"offset":0,"limit":25}}` |
 | `reasonCode` | Deterministic blocked reason code (for example `artifact_action_not_allowed`, `project_artifact_missing`). | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `nextActionCode` | Verb-style deterministic follow-up action key for blocked outputs. | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `reasonMeta` | Optional typed diagnostics including allowed action presets for the selected `artifactType`. | `artifact_management` | false | `{"allowedActions":["read","validate","upsert","reload"]}` |
@@ -419,6 +426,7 @@ Postman variable normalization policy:
 - `regression_plan`: `read`, `validate`, `upsert`, `list`
 - `run_result`: `read`, `list`
 - `run_result` also exposes the read-only `query` action with `stateSurface=run_state`; it never mutates checkpoints or acquires leases.
+- `run_result` query with `stateSurface=correlation_state` returns bounded Correlation summaries/details, preserves historical Probe scope wording, and never treats query results as fresh execution evidence.
 - `execution_export`: `read`, `list`, `generate`
 
 Typed request envelope examples:

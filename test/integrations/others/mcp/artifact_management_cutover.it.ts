@@ -115,3 +115,56 @@ test("mcp IT: artifact_management exposes bounded read-only run_state queries", 
     if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
   }
 });
+
+test("mcp IT: artifact_management exposes bounded correlation_state summaries", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-correlation-state-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "correlation-query-project";
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({ workspaceRootAbs, probeBaseUrl: "http://127.0.0.1:9198" });
+    const cutover = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: { artifactType: "run_result", action: "cutover", input: { projectName } },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(cutover.structuredContent?.status, "ok");
+    const { DatabaseSync } = require("node:sqlite") as {
+      DatabaseSync: new (location: string) => {
+        prepare(sql: string): { run(...parameters: unknown[]): void };
+        close(): void;
+      };
+    };
+    const database = new DatabaseSync(
+      path.join(workspaceRootAbs, ".mcpjvm", projectName, "run-state.sqlite"),
+    );
+    database
+      .prepare(
+        `INSERT INTO correlation_runs (project_name, plan_name, run_id, correlation_session_id, status, reason_code, expected_line_count, matched_line_count, max_window_ms, started_at_epoch_ms, revision)
+         VALUES (?, 'p1', 'r1', 'session-1', 'collecting', 'collecting', 1, 0, 60000, 10, 1)`,
+      )
+      .run(projectName);
+    database.close();
+
+    const query = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "query",
+        input: {
+          projectName,
+          stateSurface: "correlation_state",
+          query: { filters: { correlationSessionId: "session-1" } },
+        },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(query.structuredContent?.status, "ok");
+    assert.equal(query.structuredContent?.stateSurface, "correlation_state");
+    assert.equal(
+      (query.structuredContent?.items as Array<Record<string, unknown>>)?.[0]?.isCorrelated,
+      false,
+    );
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
