@@ -35,6 +35,14 @@ Operational source for artifact reads:
 1. `artifact_management` MCP Tool:
    - `artifactType=run_result`, `action=read|list|rebuild|backfill|cutover`
 
+For cross-run or active Watcher inspection, use the same MCP Tool with
+`action=query` and `stateSurface=watcher_state`. This is inspection-only
+SQLite state, not fresh execution evidence and not a resume/retry command.
+Use canonical Watcher statuses (`in_progress`, `pass`, `fail_assertion`,
+`blocked_dependency`, `blocked_runtime`) and outcomes; render `active` only
+as the derived `status === "in_progress"` value. Request continuation,
+observation, assertion, owner/lease, and bounded attempt detail explicitly.
+
 Artifact semantics/reference paths:
 
 1. `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/execution.result.json`

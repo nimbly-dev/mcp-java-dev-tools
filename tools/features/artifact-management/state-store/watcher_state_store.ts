@@ -52,6 +52,31 @@ function boundedWatcherJson(value: unknown): string | null {
   return serialized.length <= 8_192 ? serialized : JSON.stringify({ truncated: true });
 }
 
+/** Reads a persisted Watcher summary that was sanitized and size-bounded at write time. */
+export function parseBoundedWatcherJson(value: string | null | undefined): unknown {
+  if (!value || value.length > 8_192) return undefined;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Re-sanitizes a persisted Watcher summary before it crosses the MCP boundary. */
+export function sanitizePersistedWatcherJson(
+  value: string | null | undefined,
+): { ok: true; value: unknown } | { ok: false } {
+  if (!value || value.length > 8_192) return { ok: false };
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    const sanitized = boundedWatcherJson(parsed);
+    if (!sanitized) return { ok: false };
+    return { ok: true, value: JSON.parse(sanitized) as unknown };
+  } catch {
+    return { ok: false };
+  }
+}
+
 function watcherFailure(
   reasonCode: WatcherPersistenceFailure["reasonCode"],
   reason: string,

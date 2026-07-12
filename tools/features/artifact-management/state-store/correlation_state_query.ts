@@ -31,7 +31,7 @@ type CorrelationFilters = {
   correlatedToEpochMs?: number | undefined;
 };
 type CorrelationDetail = {
-  select: string[];
+  select?: string[] | undefined;
   keys?: Window | undefined;
   lineExpectations?: Window | undefined;
   probeObservations?: Window | undefined;
@@ -90,7 +90,7 @@ function canonicalQuery(input: CorrelationQueryInput): Record<string, unknown> {
     statuses = Array.isArray(filters.status) ? [...filters.status].sort() : [filters.status];
   const detail = input.detail
     ? {
-        select: [...input.detail.select].sort(),
+        select: [...(input.detail.select ?? [])].sort(),
         ...(input.detail.keys ? { keys: input.detail.keys } : {}),
         ...(input.detail.lineExpectations
           ? { lineExpectations: input.detail.lineExpectations }
@@ -170,6 +170,12 @@ function decodeCursor(
 
 function validateDetail(detail: CorrelationDetail | undefined): Failure | undefined {
   if (!detail) return undefined;
+  if (!detail.select)
+    return failure(
+      "correlation_state_query_invalid",
+      "correlation_state detail.select is required",
+      "correct_correlation_state_query",
+    );
   if (
     detail.select.length < 1 ||
     detail.select.length > 3 ||
@@ -395,7 +401,7 @@ function addDetails(
   detail: CorrelationDetail,
 ): void {
   const pk = row.correlation_run_pk;
-  const selected = new Set(detail.select);
+  const selected = new Set(detail.select ?? []);
   if (selected.has("keys")) {
     const keyPage = detailPage(
       database,

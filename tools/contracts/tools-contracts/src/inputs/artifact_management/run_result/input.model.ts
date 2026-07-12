@@ -32,6 +32,10 @@ const CorrelationDetailWindowSchema = z.object({
   offset: z.number().int(),
   limit: z.number().int(),
 });
+const WatcherAttemptWindowSchema = z.object({
+  offset: z.number().int().default(0),
+  limit: z.number().int().default(20),
+});
 const CorrelationStateFiltersSchema = z
   .object({
     planName: z.string().optional(),
@@ -51,13 +55,25 @@ const CorrelationStateFiltersSchema = z
     startedToEpochMs: z.number().int().nonnegative().optional(),
     correlatedFromEpochMs: z.number().int().nonnegative().optional(),
     correlatedToEpochMs: z.number().int().nonnegative().optional(),
+    watcherName: z.string().optional(),
+    providerType: z.string().optional(),
+    outcome: z.union([z.string(), z.array(z.string())]).optional(),
+    deadlineFromEpochMs: z.number().int().nonnegative().optional(),
+    deadlineToEpochMs: z.number().int().nonnegative().optional(),
+    completedFromEpochMs: z.number().int().nonnegative().optional(),
+    completedToEpochMs: z.number().int().nonnegative().optional(),
   })
   .passthrough();
 const CorrelationStateDetailSchema = z.object({
-  select: z.array(z.string()),
+  select: z.array(z.string()).optional(),
   keys: CorrelationDetailWindowSchema.optional(),
   lineExpectations: CorrelationDetailWindowSchema.optional(),
   probeObservations: CorrelationDetailWindowSchema.optional(),
+  continuation: z.boolean().optional(),
+  lastObservation: z.boolean().optional(),
+  lastAssertion: z.boolean().optional(),
+  ownerLease: z.boolean().optional(),
+  attempts: WatcherAttemptWindowSchema.optional(),
 });
 
 export const RunResultQuerySchema = ArtifactSelectQuerySchema.extend({
@@ -67,7 +83,7 @@ export const RunResultQuerySchema = ArtifactSelectQuerySchema.extend({
     .optional(),
   page: z
     .object({
-      pageSize: z.number().int().min(1).max(100).default(25),
+      pageSize: z.number().int(),
       cursor: z.string().min(1).nullable().optional(),
     })
     .optional(),
@@ -136,7 +152,7 @@ export const RunResultInputSchema = ProjectScopedInputSchema.extend({
   executionProfile: z.string().optional(),
   strict: z.boolean().optional(),
   query: RunResultQuerySchema.optional(),
-  stateSurface: z.enum(["run_state", "correlation_state"]).optional(),
+  stateSurface: z.enum(["run_state", "correlation_state", "watcher_state"]).optional(),
 });
 
 export type RunResultInput = z.infer<typeof RunResultInputSchema>;

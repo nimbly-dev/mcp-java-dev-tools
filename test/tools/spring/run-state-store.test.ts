@@ -8,6 +8,7 @@ const {
   openRunStateStore,
   queryRunState,
   queryCorrelationState,
+  queryWatcherState,
   persistCorrelationSession,
   persistRegressionSuiteState,
   upsertCorrelationObservation,
@@ -239,6 +240,70 @@ test("correlation_state query returns summary, exact hashed-key lookup, and boun
     assert.equal(missingWindow.ok, false);
     if (!missingWindow.ok)
       assert.equal(missingWindow.reasonCode, "correlation_state_detail_window_required");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("watcher_state query returns active progress, bounded attempts, and artifact-link status", async () => {
+  const root = createTestTempDir("watcher-state-query");
+  try {
+    const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(cutover.ok, true);
+    const db = new (require("node:sqlite").DatabaseSync)(
+      path.join(root, ".mcpjvm", "alpha", "run-state.sqlite"),
+    );
+    db.prepare(
+      `INSERT INTO plan_runs (project_name, plan_name, run_id, status, run_dir_path_rel)
+       VALUES ('alpha', 'p1', 'r1', 'executed', '.mcpjvm/alpha/plans/regression/p1/runs/r1')`,
+    ).run();
+    const planPk = db
+      .prepare("SELECT plan_run_pk FROM plan_runs WHERE plan_name = 'p1' AND run_id = 'r1'")
+      .get().plan_run_pk;
+    db.prepare(
+      `INSERT INTO watcher_runs (plan_run_pk, project_name, plan_name, run_id, suite_run_id, watcher_name, dependency_step_order, watcher_index, provider_type, status, outcome, reason_code, started_at_epoch_ms, deadline_at_epoch_ms, timeout_ms, poll_interval_ms, retry_max, attempt_count, next_attempt_at_epoch_ms, last_observation_summary_json, continuation_json, revision, artifact_path_rel)
+       VALUES (?, 'alpha', 'p1', 'r1', 'suite-1', 'job-complete', 1, 0, 'sql', 'in_progress', 'blocked', 'watcher_polling', 10, 1000, 60000, 1000, 3, 1, 20, '{"safe":true}', '{"phase":"watchers"}', 2, '.mcpjvm/alpha/plans/regression/p1/runs/r1/evidence.json')`,
+    ).run(planPk);
+    db.prepare(
+      `INSERT INTO watcher_attempts (watcher_run_pk, attempt_number, observed_at_epoch_ms, status, reason_code, duration_ms, observation_summary_json)
+       VALUES ((SELECT watcher_run_pk FROM watcher_runs WHERE watcher_name = 'job-complete'), 1, 15, 'blocked_runtime', 'target_unreachable', 5, '{"reachable":false}')`,
+    ).run();
+    db.close();
+    fs.mkdirSync(path.join(root, ".mcpjvm", "alpha", "plans", "regression", "p1", "runs", "r1"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(
+        root,
+        ".mcpjvm",
+        "alpha",
+        "plans",
+        "regression",
+        "p1",
+        "runs",
+        "r1",
+        "evidence.json",
+      ),
+      "{}",
+      "utf8",
+    );
+
+    const result = await queryWatcherState({
+      workspaceRootAbs: root,
+      input: {
+        projectName: "alpha",
+        filters: { status: "in_progress", watcherName: "job-complete" },
+        detail: { lastObservation: true, continuation: true, attempts: { offset: 0, limit: 20 } },
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.items[0].active, true);
+    assert.equal(result.items[0].artifactLinkStatus, "linked");
+    assert.deepEqual(result.items[0].lastObservation, { safe: true });
+    assert.deepEqual(result.items[0].continuation, { phase: "watchers" });
+    assert.equal((result.items[0].attempts as Record<string, unknown>).returned, 1);
+    assert.equal(result.items[0].ownerLease as unknown, undefined);
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }

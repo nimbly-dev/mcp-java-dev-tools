@@ -168,3 +168,69 @@ test("mcp IT: artifact_management exposes bounded correlation_state summaries", 
     if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
   }
 });
+
+test("mcp IT: artifact_management exposes active watcher_state progress", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-watcher-state-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "watcher-query-project";
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({ workspaceRootAbs, probeBaseUrl: "http://127.0.0.1:9199" });
+    await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: { artifactType: "run_result", action: "cutover", input: { projectName } },
+    });
+    const { DatabaseSync } = require("node:sqlite") as {
+      DatabaseSync: new (location: string) => {
+        prepare(sql: string): {
+          run(...parameters: unknown[]): void;
+          get(...parameters: unknown[]): Record<string, unknown> | undefined;
+        };
+        close(): void;
+      };
+    };
+    const database = new DatabaseSync(
+      path.join(workspaceRootAbs, ".mcpjvm", projectName, "run-state.sqlite"),
+    );
+    database
+      .prepare(
+        `INSERT INTO plan_runs (project_name, plan_name, run_id, status, run_dir_path_rel)
+       VALUES (?, 'p1', 'r1', 'executed', '.mcpjvm/${projectName}/plans/regression/p1/runs/r1')`,
+      )
+      .run(projectName);
+    const planPk = database
+      .prepare(
+        "SELECT plan_run_pk FROM plan_runs WHERE project_name = ? AND plan_name = 'p1' AND run_id = 'r1'",
+      )
+      .get(projectName)?.plan_run_pk;
+    database
+      .prepare(
+        `INSERT INTO watcher_runs (plan_run_pk, project_name, plan_name, run_id, watcher_name, dependency_step_order, watcher_index, provider_type, status, outcome, started_at_epoch_ms, deadline_at_epoch_ms, timeout_ms, poll_interval_ms, retry_max, attempt_count, revision)
+       VALUES (?, ?, 'p1', 'r1', 'health-check', 1, 0, 'http', 'in_progress', 'blocked', 10, 1000, 60000, 1000, 3, 1, 1)`,
+      )
+      .run(planPk, projectName);
+    database.close();
+
+    const query = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "query",
+        input: {
+          projectName,
+          stateSurface: "watcher_state",
+          query: { filters: { status: "in_progress" } },
+        },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(query.structuredContent?.status, "ok");
+    assert.equal(query.structuredContent?.stateSurface, "watcher_state");
+    assert.equal(
+      (query.structuredContent?.items as Array<Record<string, unknown>>)?.[0]?.active,
+      true,
+    );
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
