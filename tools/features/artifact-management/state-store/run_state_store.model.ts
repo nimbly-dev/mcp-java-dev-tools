@@ -224,3 +224,54 @@ export type PersistedRegressionSuiteCheckpoint = {
   activePhase?: RegressionSuiteCheckpoint["activePhase"];
   continuation?: Record<string, unknown>;
 };
+
+export type ExternalVerificationAssertionProjection = {
+  id: string;
+  actualPath: string;
+  operator: string;
+  status: "pass" | "fail" | "blocked";
+  expected?: unknown;
+  actual?: unknown;
+  reasonCode?: string;
+};
+
+export type ExternalVerificationProjection = {
+  planName: string;
+  runId: string;
+  suiteRunId?: string;
+  verificationName: string;
+  verificationOrder: number;
+  providerType: "http" | "sql";
+  status: "pass" | "fail_assertion" | "blocked_runtime";
+  reasonCode?: string;
+  durationMs?: number;
+  connectionRef?: string;
+  requestSummary?: unknown;
+  responseSummary?: unknown;
+  assertions?: ExternalVerificationAssertionProjection[];
+  revision?: number;
+  artifactPathRel?: string;
+  createdAtEpochMs: number;
+  updatedAtEpochMs: number;
+};
+
+export type ExternalVerificationPersistenceFailure = {
+  ok: false;
+  reasonCode:
+    | "external_verification_state_invalid"
+    | "external_verification_state_conflict"
+    | "external_verification_state_stale_revision"
+    | "external_verification_state_redaction_failed"
+    | "external_verification_state_persist_failed";
+  reason: string;
+  nextAction:
+    | "correct_external_verification_input"
+    | "resume_same_suite"
+    | "retry_state_store"
+    | "rebuild_state_store";
+  reasonMeta?: Record<string, unknown>;
+};
+
+export type ExternalVerificationPersistenceResult =
+  | { ok: true; revision: number }
+  | ExternalVerificationPersistenceFailure;

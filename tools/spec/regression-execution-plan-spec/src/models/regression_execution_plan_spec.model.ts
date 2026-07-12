@@ -309,6 +309,8 @@ export type ExternalVerificationSqlResult = {
 export type NormalizedExternalVerificationResult = {
   id: string;
   providerType: PlanExternalVerificationProviderType;
+  connectionRef?: string;
+  requestSummary?: Record<string, unknown>;
   status: "pass" | "fail_assertion" | "blocked_runtime";
   response?: ExternalVerificationHttpResponse;
   sql?: ExternalVerificationSqlResult;
@@ -354,7 +356,12 @@ export type BuildPreflightArgs = {
 
 export type CorrelationKeyType = "traceId" | "requestId" | "messageId";
 export type CorrelationSourceType = "header" | "json_path" | "capture_field";
-export type CorrelationSelectorPolicy = "exact_instance" | "any_instance" | "all_instances" | "aggregate" | "quorum";
+export type CorrelationSelectorPolicy =
+  | "exact_instance"
+  | "any_instance"
+  | "all_instances"
+  | "aggregate"
+  | "quorum";
 export type CorrelationCountOperator = "exact" | "at_least" | "at_most" | "range";
 
 export type PlanCorrelationLineExpectation = {
@@ -403,4 +410,3 @@ export type PlanCorrelationPolicy = {
     includeExecutionPath?: boolean;
   };
 };
-

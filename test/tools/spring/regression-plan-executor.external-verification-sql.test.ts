@@ -56,22 +56,51 @@ test("executeRegressionPlanWorkflow executes SQL external verification against r
           indexed_count INTEGER NOT NULL
         );
       `);
-      const insert = db.prepare("INSERT INTO reindex_status (tenant_id, indexed_count) VALUES (?, ?)");
+      const insert = db.prepare(
+        "INSERT INTO reindex_status (tenant_id, indexed_count) VALUES (?, ?)",
+      );
       insert.run("tenant-social-001", 500);
     } finally {
       db.close();
     }
 
     writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
-      workspaces: [{ projectRoot: root, runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }] }],
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+        },
+      ],
     });
     writeJson(path.join(planRoot, "metadata.json"), {
       specVersion: "1.0.0",
-      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+      execution: {
+        intent: "regression",
+        probeVerification: false,
+        pinStrictProbeKey: false,
+        discoveryPolicy: "allow_discoverable_prerequisites",
+      },
     });
     writeJson(path.join(planRoot, "contract.json"), {
-      targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
-      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      targets: [
+        {
+          type: "class_method",
+          selectors: {
+            fqcn: "org.example.EventsController",
+            method: "trigger",
+            sourceRoot: "src/main/java",
+          },
+        },
+      ],
+      prerequisites: [
+        {
+          key: "apiBaseUrl",
+          required: true,
+          secret: false,
+          provisioning: "user_input",
+          default: "http://localhost:8082",
+        },
+      ],
       steps: [
         {
           order: 1,
@@ -79,7 +108,14 @@ test("executeRegressionPlanWorkflow executes SQL external verification against r
           targetRef: 0,
           protocol: "http",
           transport: { http: { method: "POST", pathTemplate: "/events" } },
-          expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+          expect: [
+            {
+              id: "accepted",
+              actualPath: "response.statusCode",
+              operator: "field_equals",
+              expected: 202,
+            },
+          ],
         },
       ],
       externalVerification: [
@@ -94,8 +130,18 @@ test("executeRegressionPlanWorkflow executes SQL external verification against r
             },
           },
           expect: [
-            { id: "row_count_ok", actualPath: "sql.rowCount", operator: "numeric_gte", expected: 1 },
-            { id: "indexed_count_ok", actualPath: "sql.firstRow.indexed_count", operator: "numeric_gte", expected: 500 },
+            {
+              id: "row_count_ok",
+              actualPath: "sql.rowCount",
+              operator: "numeric_gte",
+              expected: 1,
+            },
+            {
+              id: "indexed_count_ok",
+              actualPath: "sql.firstRow.indexed_count",
+              operator: "numeric_gte",
+              expected: 500,
+            },
           ],
         },
       ],
@@ -117,8 +163,8 @@ test("executeRegressionPlanWorkflow executes SQL external verification against r
             status: "pass",
             statusCode: 202,
             durationMs: 8,
-            body: "{\"accepted\":true}",
-            bodyPreview: "{\"accepted\":true}",
+            body: '{"accepted":true}',
+            bodyPreview: '{"accepted":true}',
           },
         };
       },
@@ -130,8 +176,13 @@ test("executeRegressionPlanWorkflow executes SQL external verification against r
       assert.equal(out.executionResult.externalVerificationStatus, "pass");
       assert.equal(out.executionResult.externalVerification?.[0]?.status, "pass");
       assert.equal(out.executionResult.externalVerification?.[0]?.sql?.rowCount, 1);
-      assert.equal(out.executionResult.externalVerification?.[0]?.sql?.firstRow?.indexed_count, 500);
-      const contextResolved = JSON.parse(fs.readFileSync(out.artifacts.contextResolvedPathAbs, "utf8"));
+      assert.equal(
+        out.executionResult.externalVerification?.[0]?.sql?.firstRow?.indexed_count,
+        500,
+      );
+      const contextResolved = JSON.parse(
+        fs.readFileSync(out.artifacts.contextResolvedPathAbs, "utf8"),
+      );
       assert.equal(contextResolved.redaction.resolvedSecretKeyCount, 3);
       assert.deepEqual(contextResolved.redaction.resolvedSecretKeysOmitted, [
         "sql.connection.catalogDb.kind",
@@ -141,6 +192,34 @@ test("executeRegressionPlanWorkflow executes SQL external verification against r
       assert.equal(typeof contextResolved["sql.connection.catalogDb.kind"], "undefined");
       assert.equal(typeof contextResolved["sql.connection.catalogDb.password"], "undefined");
       assert.equal(typeof contextResolved["sql.connection.catalogDb.sqlite.filePath"], "undefined");
+      const stateDb = new DatabaseSync(path.join(root, ".mcpjvm", projectName, "run-state.sqlite"));
+      try {
+        const verification = stateDb
+          .prepare(
+            "SELECT provider_type, connection_ref, status, assertion_pass_count FROM external_verifications",
+          )
+          .get();
+        assert.equal(verification?.provider_type, "sql");
+        assert.equal(verification?.connection_ref, "catalogDb");
+        assert.equal(verification?.status, "pass");
+        assert.equal(verification?.assertion_pass_count, 2);
+        assert.equal(
+          stateDb.prepare("SELECT count(*) AS count FROM external_verification_assertions").get()
+            ?.count,
+          2,
+        );
+        const persistedSummary = stateDb
+          .prepare("SELECT request_summary_json, response_summary_json FROM external_verifications")
+          .get();
+        assert.match(String(persistedSummary?.request_summary_json), /catalogDb/);
+        assert.doesNotMatch(String(persistedSummary?.request_summary_json), /statement|tenantId/i);
+        assert.doesNotMatch(
+          JSON.stringify(persistedSummary),
+          /SHOULD_NOT_PERSIST|password|statement/i,
+        );
+      } finally {
+        stateDb.close();
+      }
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

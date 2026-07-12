@@ -63,7 +63,9 @@ function normalizeAssertionResults(
     actualPath: entry.actualPath,
     operator: entry.operator,
     status: (entry.status === "blocked_invalid" ? "blocked" : entry.status) as
-      "pass" | "fail" | "blocked",
+      | "pass"
+      | "fail"
+      | "blocked",
     ...(typeof entry.expected === "undefined" ? {} : { expected: entry.expected }),
     ...(typeof entry.actual === "undefined" ? {} : { actual: entry.actual }),
     ...(typeof entry.message === "undefined" ? {} : { message: entry.message }),
@@ -497,6 +499,15 @@ function buildSqlExecutionEnvelope(args: {
   const result: NormalizedExternalVerificationResult = {
     id: args.verification.id,
     providerType: "sql",
+    ...(args.verification.request.sql?.connectionRef
+      ? { connectionRef: args.verification.request.sql.connectionRef }
+      : {}),
+    requestSummary: {
+      connectionRef: args.verification.request.sql?.connectionRef,
+      ...(typeof args.verification.request.sql?.timeoutMs === "number"
+        ? { timeoutMs: args.verification.request.sql.timeoutMs }
+        : {}),
+    },
     status,
     sql: {
       rowCount: rows.length,

@@ -101,7 +101,8 @@ function normalizeHttpVerificationResult(args: {
     stepResult: envelope,
     expectations: args.verification.expect,
     transportFailure: args.transport.status === "fail_http",
-    dependencyBlocked: args.transport.status === "blocked_invalid" || args.transport.status === "blocked_runtime",
+    dependencyBlocked:
+      args.transport.status === "blocked_invalid" || args.transport.status === "blocked_runtime",
   });
   const extractOutcome = applyStepExtractWithDiagnostics(
     envelope,
@@ -149,14 +150,19 @@ function normalizeHttpVerificationResult(args: {
     reasonCode = "extract_path_missing";
     reasonMeta = {
       ...(reasonMeta ?? {}),
-      extract: extractOutcome.outcomes.filter((entry) => entry.required && entry.status === "unresolved"),
+      extract: extractOutcome.outcomes.filter(
+        (entry) => entry.required && entry.status === "unresolved",
+      ),
     };
   }
 
   let status: NormalizedExternalVerificationResult["status"] = "pass";
   if (extractOutcome.hasRequiredUnresolved) {
     status = "blocked_runtime";
-  } else if (evaluation.status === "blocked_runtime" || evaluation.status === "blocked_dependency") {
+  } else if (
+    evaluation.status === "blocked_runtime" ||
+    evaluation.status === "blocked_dependency"
+  ) {
     status = "blocked_runtime";
   } else if (evaluation.status === "fail_assertion") {
     status = "fail_assertion";
@@ -165,6 +171,9 @@ function normalizeHttpVerificationResult(args: {
   const result: NormalizedExternalVerificationResult = {
     id: args.verification.id,
     providerType: "http",
+    requestSummary: {
+      method: args.verification.request.http?.method ?? "GET",
+    },
     status,
     response: envelope.response as Record<string, unknown>,
     ...(extractResults.length > 0 ? { extractResults } : {}),
@@ -201,8 +210,12 @@ function buildUnresolvedPlaceholderResult(args: {
   error: Error;
 }): NormalizedExternalVerificationResult {
   const message = args.error.message;
-  const missingContextKey = message.startsWith("missing_context:") ? message.slice("missing_context:".length) : undefined;
-  const invalidToken = message.startsWith("invalid_placeholder:") ? message.slice("invalid_placeholder:".length) : undefined;
+  const missingContextKey = message.startsWith("missing_context:")
+    ? message.slice("missing_context:".length)
+    : undefined;
+  const invalidToken = message.startsWith("invalid_placeholder:")
+    ? message.slice("invalid_placeholder:".length)
+    : undefined;
   return {
     id: args.verification.id,
     providerType: "http",
@@ -291,7 +304,11 @@ export async function executeExternalVerifications(args: {
       ? args.startVerificationIndex
       : 0;
 
-  for (let verificationIndex = startVerificationIndex; verificationIndex < verifications.length; verificationIndex += 1) {
+  for (
+    let verificationIndex = startVerificationIndex;
+    verificationIndex < verifications.length;
+    verificationIndex += 1
+  ) {
     const verification = verifications[verificationIndex];
     if (!verification) {
       continue;
@@ -345,10 +362,12 @@ export async function executeExternalVerifications(args: {
         resolvedContext,
       ) as Record<string, unknown>;
     } catch (error) {
-      results.push(buildUnresolvedPlaceholderResult({
-        verification,
-        error: error instanceof Error ? error : new Error(String(error)),
-      }));
+      results.push(
+        buildUnresolvedPlaceholderResult({
+          verification,
+          error: error instanceof Error ? error : new Error(String(error)),
+        }),
+      );
       continue;
     }
 
@@ -375,10 +394,12 @@ export async function executeExternalVerifications(args: {
         };
       }
     } catch (error) {
-      results.push(buildRuntimeFailureResult({
-        verification,
-        error: error instanceof Error ? error : new Error(String(error)),
-      }));
+      results.push(
+        buildRuntimeFailureResult({
+          verification,
+          error: error instanceof Error ? error : new Error(String(error)),
+        }),
+      );
     }
   }
 
