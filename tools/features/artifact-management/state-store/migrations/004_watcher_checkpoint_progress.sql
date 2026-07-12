@@ -1,0 +1,41 @@
+CREATE TABLE watcher_runs (
+  watcher_run_pk INTEGER PRIMARY KEY,
+  plan_run_pk INTEGER NOT NULL REFERENCES plan_runs(plan_run_pk),
+  project_name TEXT NOT NULL,
+  plan_name TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  suite_run_id TEXT,
+  watcher_name TEXT NOT NULL,
+  dependency_step_order INTEGER NOT NULL,
+  watcher_index INTEGER NOT NULL,
+  provider_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  outcome TEXT NOT NULL,
+  reason_code TEXT,
+  started_at_epoch_ms INTEGER NOT NULL,
+  deadline_at_epoch_ms INTEGER NOT NULL,
+  completed_at_epoch_ms INTEGER,
+  timeout_ms INTEGER NOT NULL,
+  poll_interval_ms INTEGER NOT NULL,
+  retry_max INTEGER NOT NULL,
+  attempt_count INTEGER NOT NULL,
+  next_attempt_at_epoch_ms INTEGER,
+  last_observation_summary_json TEXT,
+  last_assertion_summary_json TEXT,
+  continuation_json TEXT,
+  revision INTEGER NOT NULL DEFAULT 0,
+  artifact_path_rel TEXT,
+  UNIQUE(project_name, plan_name, run_id, watcher_name)
+);
+
+CREATE TABLE watcher_attempts (
+  watcher_attempt_pk INTEGER PRIMARY KEY,
+  watcher_run_pk INTEGER NOT NULL REFERENCES watcher_runs(watcher_run_pk),
+  attempt_number INTEGER NOT NULL,
+  observed_at_epoch_ms INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  reason_code TEXT,
+  duration_ms INTEGER,
+  observation_summary_json TEXT,
+  UNIQUE(watcher_run_pk, attempt_number)
+);

@@ -4,7 +4,12 @@ import type {
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 
 export type RegressionRunStatus = "pass" | "fail" | "blocked" | "in_progress";
-export type RegressionWatcherPhaseStatus = "not_configured" | "pass" | "fail" | "blocked" | "in_progress";
+export type RegressionWatcherPhaseStatus =
+  | "not_configured"
+  | "pass"
+  | "fail"
+  | "blocked"
+  | "in_progress";
 export type RegressionExternalVerificationPhaseStatus =
   | "not_configured"
   | "pass"
@@ -270,6 +275,11 @@ export type RegressionRunArtifactsWriteResult = {
   evidencePathAbs: string;
   correlationPathAbs?: string;
   correlationIndexPathAbs?: string;
+  persistenceWarnings?: Array<{
+    reasonCode: string;
+    reason: string;
+    nextAction: string;
+  }>;
 };
 
 export type CorrelationIndexRebuildResult = {
@@ -339,4 +349,3 @@ export type CorrelationArtifact = {
   evidenceRefs?: string[];
   generatedAtEpochMs?: number;
 };
-

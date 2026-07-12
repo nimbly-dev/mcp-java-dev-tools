@@ -11,6 +11,7 @@ import path from "node:path";
 import {
   openRunStateStore,
   persistCorrelationSession,
+  upsertExternalVerificationSummary,
   upsertCorrelationObservation,
   upsertWatcherRun,
 } from "@tools-feature-artifact-management";
@@ -333,6 +334,49 @@ async function writeJsonFile(filePathAbs: string, payload: Record<string, unknow
   await fs.writeFile(filePathAbs, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+function buildExternalVerificationResponseSummary(result: {
+  response?: {
+    statusCode?: number;
+    bodyFormat?: string;
+    bodyBytes?: number;
+    hasBodyJson?: boolean;
+    headerNames?: string[];
+  };
+  sql?: {
+    rowCount: number;
+    firstRow?: Record<string, unknown>;
+    rows: Record<string, unknown>[];
+  };
+}): Record<string, unknown> | undefined {
+  if (result.response) {
+    return {
+      ...(typeof result.response.statusCode === "number"
+        ? { statusCode: result.response.statusCode }
+        : {}),
+      ...(typeof result.response.bodyFormat === "string"
+        ? { bodyFormat: result.response.bodyFormat }
+        : {}),
+      ...(typeof result.response.bodyBytes === "number"
+        ? { bodyBytes: result.response.bodyBytes }
+        : {}),
+      ...(typeof result.response.hasBodyJson === "boolean"
+        ? { hasBodyJson: result.response.hasBodyJson }
+        : {}),
+      ...(Array.isArray(result.response.headerNames)
+        ? { headerNames: result.response.headerNames.slice(0, 100) }
+        : {}),
+    };
+  }
+  if (result.sql) {
+    return {
+      rowCount: result.sql.rowCount,
+      ...(result.sql.firstRow ? { firstRow: result.sql.firstRow } : {}),
+      rows: result.sql.rows.slice(0, 25),
+    };
+  }
+  return undefined;
+}
+
 async function resolveProjectRootAbs(args: {
   workspaceRootAbs: string;
   projectName?: string;
@@ -441,6 +485,8 @@ export async function writeRegressionRunArtifacts(
   const evidencePathAbs = path.join(runDirAbs, "evidence.json");
   const correlationDirAbs = path.join(runDirAbs, "correlation");
   const correlationPathAbs = path.join(correlationDirAbs, "correlation.json");
+  const persistenceWarnings: NonNullable<RegressionRunArtifactsWriteResult["persistenceWarnings"]> =
+    [];
 
   const contextResolvedPayload = sanitizeSuitePersistedContext(
     {
@@ -477,6 +523,94 @@ export async function writeRegressionRunArtifacts(
   await writeJsonFile(contextResolvedPathAbs, contextResolvedPayload);
   await writeJsonFile(executionResultPathAbs, executionResultPayload);
   await writeJsonFile(evidencePathAbs, evidencePayload);
+
+  const externalVerificationExecutions = args.evidence.externalVerificationExecutions ?? [];
+  if (externalVerificationExecutions.length > 0) {
+    const project = await resolveProjectRootAbs({
+      workspaceRootAbs: args.workspaceRootAbs,
+      ...(typeof args.projectName === "string" && args.projectName.trim()
+        ? { projectName: args.projectName.trim() }
+        : {}),
+    });
+    const store = await openRunStateStore({
+      workspaceRootAbs: args.workspaceRootAbs,
+      projectName: project.projectName,
+    });
+    if (!store.ok) {
+      persistenceWarnings.push({
+        reasonCode: store.reasonCode,
+        reason: store.reason,
+        nextAction: store.nextAction,
+      });
+    } else {
+      try {
+        const artifactPathRel = path
+          .relative(args.workspaceRootAbs, executionResultPathAbs)
+          .replaceAll("\\", "/");
+        for (const [verificationOrder, result] of externalVerificationExecutions.entries()) {
+          const reasonMeta = result.reasonMeta;
+          const connectionRef =
+            typeof result.connectionRef === "string"
+              ? result.connectionRef
+              : typeof reasonMeta?.connectionRef === "string"
+                ? reasonMeta.connectionRef
+                : undefined;
+          const responseSummary = buildExternalVerificationResponseSummary(result);
+          const persisted = upsertExternalVerificationSummary({
+            store,
+            projectName: project.projectName,
+            projection: {
+              planName: args.planRef.name,
+              runId: args.runId,
+              ...(args.suiteRunId ? { suiteRunId: args.suiteRunId } : {}),
+              verificationName: result.id,
+              verificationOrder,
+              providerType: result.providerType,
+              status: result.status,
+              ...(result.reasonCode ? { reasonCode: result.reasonCode } : {}),
+              ...(typeof result.response?.durationMs === "number"
+                ? { durationMs: result.response.durationMs }
+                : typeof result.sql?.durationMs === "number"
+                  ? { durationMs: result.sql.durationMs }
+                  : {}),
+              ...(connectionRef ? { connectionRef } : {}),
+              ...(result.requestSummary ? { requestSummary: result.requestSummary } : {}),
+              ...(responseSummary ? { responseSummary } : {}),
+              ...(result.assertions
+                ? {
+                    assertions: result.assertions.map((assertion) => ({
+                      id: assertion.id,
+                      actualPath: assertion.actualPath,
+                      operator: assertion.operator,
+                      status: assertion.status,
+                      ...(typeof assertion.expected !== "undefined"
+                        ? { expected: assertion.expected }
+                        : {}),
+                      ...(typeof assertion.actual !== "undefined"
+                        ? { actual: assertion.actual }
+                        : {}),
+                      ...(assertion.reasonCode ? { reasonCode: assertion.reasonCode } : {}),
+                    })),
+                  }
+                : {}),
+              artifactPathRel,
+              createdAtEpochMs: now.getTime(),
+              updatedAtEpochMs: now.getTime(),
+            },
+          });
+          if (!persisted.ok) {
+            persistenceWarnings.push({
+              reasonCode: persisted.reasonCode,
+              reason: persisted.reason,
+              nextAction: persisted.nextAction,
+            });
+          }
+        }
+      } finally {
+        store.close();
+      }
+    }
+  }
 
   let writtenCorrelationPathAbs: string | undefined;
   const correlation = args.correlation
@@ -758,5 +892,6 @@ export async function writeRegressionRunArtifacts(
     executionResultPathAbs,
     evidencePathAbs,
     ...(writtenCorrelationPathAbs ? { correlationPathAbs: writtenCorrelationPathAbs } : {}),
+    ...(persistenceWarnings.length > 0 ? { persistenceWarnings } : {}),
   };
 }

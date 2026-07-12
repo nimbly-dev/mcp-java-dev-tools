@@ -8,6 +8,7 @@ const {
   persistCorrelationSession,
   persistRegressionSuiteState,
   upsertCorrelationObservation,
+  upsertExternalVerificationSummary,
   upsertRunStateArtifact,
   upsertWatcherRun,
 } = require("@tools-feature-artifact-management");
@@ -28,7 +29,7 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
       first.databasePathAbs.replaceAll("\\", "/"),
       /\.mcpjvm\/alpha\/run-state\.sqlite$/,
     );
-    assert.equal(first.schemaVersion, 4);
+    assert.equal(first.schemaVersion, 5);
     assert.deepEqual(
       upsertRunStateArtifact(first, {
         artifactKind: "execution_result",
@@ -40,6 +41,26 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
       { ok: true },
     );
     assert.equal(first.database.prepare("SELECT count(*) AS count FROM artifacts").get()?.count, 1);
+    assert.equal(
+      first.database.prepare("SELECT count(*) AS count FROM schema_migration_resources").get()
+        ?.count,
+      5,
+    );
+    assert.match(
+      String(
+        first.database
+          .prepare("SELECT resource_checksum FROM schema_migration_resources WHERE version = 5")
+          .get()?.resource_checksum,
+      ),
+      /^[a-f0-9]{64}$/,
+    );
+    assert.equal(
+      first.database.prepare("SELECT checksum FROM schema_migrations WHERE version = 5").get()
+        ?.checksum,
+      first.database
+        .prepare("SELECT resource_checksum FROM schema_migration_resources WHERE version = 5")
+        .get()?.resource_checksum,
+    );
     first.close();
 
     const second = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -499,6 +520,105 @@ test("run-state store persists bounded Watcher checkpoints and rejects unsafe re
       },
     });
     assert.deepEqual(trimmedIdentity, { ok: true, revision: 3 });
+  } finally {
+    if (openedStore?.ok) openedStore.close();
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("run-state store persists bounded external-verification summaries and assertion rows", async () => {
+  const root = createTestTempDir("external-verification-checkpoint");
+  let openedStore: any;
+  try {
+    const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    openedStore = store;
+    assert.equal(store.ok, true);
+    if (!store.ok) return;
+    const projection = {
+      planName: "p1",
+      runId: "r1",
+      suiteRunId: "suite-1",
+      verificationName: "verify-index",
+      verificationOrder: 0,
+      providerType: "sql" as const,
+      status: "pass" as const,
+      durationMs: 42,
+      connectionRef: "catalogDb",
+      responseSummary: {
+        rowCount: 1,
+        firstRow: { indexed_count: 500, password: "do-not-store" },
+        rows: [{ indexed_count: 500 }],
+        authorization: "Bearer secret",
+      },
+      assertions: [
+        {
+          id: "indexed-count",
+          actualPath: "sql.firstRow.indexed_count",
+          operator: "field_equals",
+          status: "pass" as const,
+          expected: 500,
+          actual: 500,
+        },
+        {
+          id: "failed-count",
+          actualPath: "sql.firstRow.failed_count",
+          operator: "field_equals",
+          status: "pass" as const,
+          expected: 0,
+          actual: 0,
+        },
+      ],
+      artifactPathRel: ".mcpjvm/alpha/plans/regression/p1/runs/r1/execution.result.json",
+      createdAtEpochMs: 100,
+      updatedAtEpochMs: 200,
+    };
+    assert.deepEqual(
+      upsertExternalVerificationSummary({ store, projectName: "alpha", projection }),
+      { ok: true, revision: 1 },
+    );
+    assert.deepEqual(
+      upsertExternalVerificationSummary({ store, projectName: "alpha", projection }),
+      { ok: true, revision: 1 },
+    );
+    assert.equal(
+      store.database.prepare("SELECT count(*) AS count FROM external_verifications").get()?.count,
+      1,
+    );
+    assert.equal(
+      store.database.prepare("SELECT count(*) AS count FROM external_verification_assertions").get()
+        ?.count,
+      2,
+    );
+    const summary = String(
+      store.database
+        .prepare("SELECT response_summary_json AS summary FROM external_verifications")
+        .get()?.summary,
+    );
+    assert.match(summary, /indexed_count/);
+    assert.match(summary, /REDACTED/);
+    assert.doesNotMatch(summary, /Bearer secret|do-not-store/);
+    assert.equal(
+      store.database
+        .prepare("SELECT connection_ref AS connectionRef FROM external_verifications")
+        .get()?.connectionRef,
+      "catalogDb",
+    );
+
+    const stale = upsertExternalVerificationSummary({
+      store,
+      projectName: "alpha",
+      projection: { ...projection, revision: 0 },
+    });
+    assert.equal(stale.ok, false);
+    if (!stale.ok) assert.equal(stale.reasonCode, "external_verification_state_stale_revision");
+
+    const conflict = upsertExternalVerificationSummary({
+      store,
+      projectName: "alpha",
+      projection: { ...projection, status: "fail_assertion" },
+    });
+    assert.equal(conflict.ok, false);
+    if (!conflict.ok) assert.equal(conflict.reasonCode, "external_verification_state_conflict");
   } finally {
     if (openedStore?.ok) openedStore.close();
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });

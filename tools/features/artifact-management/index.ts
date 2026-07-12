@@ -12,6 +12,7 @@ export {
   persistCorrelationSession,
   upsertCorrelationObservation,
 } from "./state-store/correlation_state_store";
+export { upsertExternalVerificationSummary } from "./state-store/external_verification_state_store";
 export { upsertRunStateArtifact } from "./state-store/artifact_state_store";
 export { upsertWatcherRun } from "./state-store/watcher_state_store";
 export type {
@@ -35,6 +36,10 @@ export type {
   WatcherRunProjection,
   WatcherPersistenceFailure,
   WatcherPersistenceResult,
+  ExternalVerificationAssertionProjection,
+  ExternalVerificationPersistenceFailure,
+  ExternalVerificationPersistenceResult,
+  ExternalVerificationProjection,
 } from "./state-store/run_state_store.model";
 export type { ArtifactActionContext, ArtifactActionResult } from "./actions/types";
 export type { ArtifactActionRequest } from "./models/artifact_management.model";
