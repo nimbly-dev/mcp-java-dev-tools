@@ -43,7 +43,7 @@ export const ArtifactManagementRequestSchema = z.discriminatedUnion("artifactTyp
   }),
   z.object({
     artifactType: z.literal("run_result"),
-    action: z.enum(["read", "list", "rebuild", "backfill", "cutover"]),
+    action: z.enum(["read", "list", "rebuild", "backfill", "cutover", "query"]),
     input: RunResultInputSchema,
   }),
   z.object({

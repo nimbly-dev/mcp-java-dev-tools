@@ -337,9 +337,10 @@ Postman variable normalization policy:
 | `resultType` | Output discriminator for unified Artifact lifecycle operations. | `artifact_management` | true | `"artifact"` |
 | `status` | Deterministic operation status (`ok`) or fail-closed reason status. | `artifact_management` | true | `"ok"` |
 | `artifactType` | Artifact class selected by caller (`probe_config`, `project_context`, `regression_plan`, `run_result`, `execution_export`). | `artifact_management` | true | `"project_context"` |
-| `action` | Requested lifecycle action (`read`, `validate`, `upsert`, `list`, `generate`, `reload`). | `artifact_management` | true | `"validate"` |
+| `action` | Requested lifecycle action (`read`, `validate`, `upsert`, `list`, `generate`, `reload`, `rebuild`, `backfill`, `cutover`, `query`). | `artifact_management` | true | `"validate"` |
 | `input` | Typed per-artifact payload object. The top-level request is generic; artifact-specific fields are nested under `input`. | `artifact_management` | true | `{"projectName":"catalog-service","query":{"select":["summary"]}}` |
 | `input.projectName` | Canonical project Artifact identity for `project_context`, `regression_plan`, `run_result`, and `execution_export` operations. Required for orchestrator-grade calls in multi-project workspaces. | `artifact_management` | false | `"post-service"` |
+| `input.stateSurface` | For `run_result` `query`, selects the bounded operational state projection. Only `run_state` is supported. | `artifact_management` | false | `"run_state"` |
 | `input.projectRootAbs` | Optional deterministic project-root selector for `project_context` validation and scope cross-checking. | `artifact_management` | false | `"C:\\repo\\social-platform\\post-service\\post-app"` |
 | `input.query.select` | Optional projection selectors for structured reads to reduce payload size. Supported examples: `project_context` (`summary`, `executionProfiles`, `runtimeContexts`, `scripts`, `runPrerequisites`, `workspaces`), `regression_plan` (`summary`, `targets`, `prerequisites`, `steps`, `metadata`, `contract`, `plan`), `run_result` (`summary`, `watchers`, `watcherEvidence`, `executionResult`, `evidence`). | `artifact_management` | false | `["summary","executionProfiles"]` |
 | `input.query.prerequisites.offset` | Required zero-based window start for `regression_plan` `prerequisites` section reads when `select` includes `prerequisites`. | `artifact_management` | false | `0` |
@@ -352,6 +353,17 @@ Postman variable normalization policy:
 | `input.query.watcherEvidence.limit` | Required window size for `run_result` watcher evidence reads when `select` includes `watcherEvidence`. | `artifact_management` | false | `25` |
 | `input.query.watcherFilter.watcherId` | Optional deterministic Watcher id filter applied to `run_result` Watcher outcome/evidence queries. | `artifact_management` | false | `"search-index"` |
 | `input.query.watcherFilter.watcherStatus` | Optional deterministic Watcher runtime-status filter applied to `run_result` Watcher outcome/evidence queries (`pass`, `fail_assertion`, `blocked_dependency`, `blocked_runtime`). | `artifact_management` | false | `"blocked_runtime"` |
+| `input.query.planName` | Optional `run_state` plan-name filter. | `artifact_management` | false | `"checkout-plan"` |
+| `input.query.runId` | Optional `run_state` plan-run identifier filter. | `artifact_management` | false | `"run-001"` |
+| `input.query.suiteRunId` | Optional `run_state` suite-orchestration identifier filter. | `artifact_management` | false | `"suite-001"` |
+| `input.query.executionProfile` | Optional `run_state` execution-profile filter. | `artifact_management` | false | `"staging"` |
+| `input.query.status` | Optional bounded status or status-set filter (`pass`, `fail`, `blocked`, `partial_fail`, `in_progress`, `executed`, `skipped`). | `artifact_management` | false | `"in_progress"` |
+| `input.query.activePhase` | Optional active suite phase filter (`trigger`, `watchers`, `external_verification`). | `artifact_management` | false | `"watchers"` |
+| `input.query.startedFromEpochMs` / `startedToEpochMs` | Optional UTC epoch-millisecond start-time range for `run_state`. | `artifact_management` | false | `1770000000000` |
+| `input.query.completedFromEpochMs` / `completedToEpochMs` | Optional UTC epoch-millisecond completion-time range for `run_state`. | `artifact_management` | false | `1770000000000` |
+| `input.query.sortDirection` | Deterministic `run_state` sort direction for `updatedAtEpochMs`, followed by stable identity fields. Defaults to `desc`. | `artifact_management` | false | `"desc"` |
+| `input.query.pageSize` | `run_state` page size. Defaults to 25 and is capped at 100. | `artifact_management` | false | `25` |
+| `input.query.cursor` | Opaque versioned cursor bound to the complete normalized query and sort shape. | `artifact_management` | false | `"eyJ2ZXJzaW9uIjoxfQ"` |
 | `reasonCode` | Deterministic blocked reason code (for example `artifact_action_not_allowed`, `project_artifact_missing`). | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `nextActionCode` | Verb-style deterministic follow-up action key for blocked outputs. | `artifact_management` | false | `"artifact_action_not_allowed"` |
 | `reasonMeta` | Optional typed diagnostics including allowed action presets for the selected `artifactType`. | `artifact_management` | false | `{"allowedActions":["read","validate","upsert","reload"]}` |
@@ -406,6 +418,7 @@ Postman variable normalization policy:
 - `project_context`: `read`, `validate`, `upsert`, `list`
 - `regression_plan`: `read`, `validate`, `upsert`, `list`
 - `run_result`: `read`, `list`
+- `run_result` also exposes the read-only `query` action with `stateSurface=run_state`; it never mutates checkpoints or acquires leases.
 - `execution_export`: `read`, `list`, `generate`
 
 Typed request envelope examples:

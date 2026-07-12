@@ -18,11 +18,54 @@ const WatcherFilterSchema = z
   })
   .optional();
 
+const RunStateStatusSchema = z.enum([
+  "pass",
+  "fail",
+  "blocked",
+  "partial_fail",
+  "in_progress",
+  "executed",
+  "skipped",
+]);
+
 export const RunResultQuerySchema = ArtifactSelectQuerySchema.extend({
+  planName: z.string().min(1).optional(),
+  runId: z.string().min(1).optional(),
+  suiteRunId: z.string().min(1).optional(),
+  executionProfile: z.string().min(1).optional(),
+  status: z.union([RunStateStatusSchema, z.array(RunStateStatusSchema).min(1).max(7)]).optional(),
+  activePhase: z.enum(["trigger", "watchers", "external_verification"]).optional(),
+  startedFromEpochMs: z.number().int().nonnegative().optional(),
+  startedToEpochMs: z.number().int().nonnegative().optional(),
+  completedFromEpochMs: z.number().int().nonnegative().optional(),
+  completedToEpochMs: z.number().int().nonnegative().optional(),
+  sortDirection: z.enum(["asc", "desc"]).default("desc"),
+  pageSize: z.number().int().min(1).max(100).default(25),
+  cursor: z.string().min(1).optional(),
   watchers: SectionWindowSchema.optional(),
   watcherEvidence: SectionWindowSchema.optional(),
   watcherFilter: WatcherFilterSchema,
 }).superRefine((query, ctx) => {
+  if (
+    query.startedFromEpochMs !== undefined &&
+    query.startedToEpochMs !== undefined &&
+    query.startedFromEpochMs > query.startedToEpochMs
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["startedFromEpochMs"],
+      message: "startedFromEpochMs cannot exceed startedToEpochMs",
+    });
+  if (
+    query.completedFromEpochMs !== undefined &&
+    query.completedToEpochMs !== undefined &&
+    query.completedFromEpochMs > query.completedToEpochMs
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["completedFromEpochMs"],
+      message: "completedFromEpochMs cannot exceed completedToEpochMs",
+    });
   const selectors = Array.isArray(query.select) ? query.select : [];
   if (selectors.includes("watchers") && !query.watchers) {
     ctx.addIssue({
@@ -47,6 +90,7 @@ export const RunResultInputSchema = ProjectScopedInputSchema.extend({
   executionProfile: z.string().optional(),
   strict: z.boolean().optional(),
   query: RunResultQuerySchema.optional(),
+  stateSurface: z.literal("run_state").optional(),
 });
 
 export type RunResultInput = z.infer<typeof RunResultInputSchema>;
