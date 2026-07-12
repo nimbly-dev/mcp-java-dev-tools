@@ -326,3 +326,64 @@ test("mcp IT: artifact_management rebuild fails closed without canonical sources
     if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
   }
 });
+
+test("mcp IT: artifact_management exposes transitional correlation backfill metadata", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-backfill-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "backfill-project";
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    const projectDir = path.join(workspaceRootAbs, ".mcpjvm", projectName);
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.writeFile(
+      path.join(projectDir, "projects.json"),
+      JSON.stringify({ workspaces: [{ projectRoot: workspaceRootAbs }] }),
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(projectDir, "correlation-index.json"),
+      JSON.stringify({
+        version: 1,
+        entries: [
+          {
+            runId: "2026-07-12T00-00-00Z_01",
+            planName: "legacy-plan",
+            runPath: `.mcpjvm/${projectName}/plans/regression/legacy-plan/runs/2026-07-12T00-00-00Z_01`,
+            generatedAtEpochMs: 1000,
+            status: "ok",
+            reasonCode: "ok",
+            keyType: "traceId",
+            keyValue: "trace-1",
+            correlationSessionId: "legacy-session-1",
+            window: { startEpochMs: 900, endEpochMs: 1100, maxWindowMs: 60000 },
+            probeIds: [],
+          },
+        ],
+      }),
+      "utf8",
+    );
+    mcp = await startMcpClient({ workspaceRootAbs, probeBaseUrl: "http://127.0.0.1:9202" });
+    const result = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "backfill",
+        input: { projectName, stateSurface: "correlation_state" },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(result.structuredContent?.status, "ok");
+    assert.deepEqual(result.structuredContent?.transitional, {
+      kind: "legacy_correlation_index_backfill",
+      preCutoverOnly: true,
+      sourcePathRel: `.mcpjvm/${projectName}/correlation-index.json`,
+    });
+    assert.match(
+      ((result.structuredContent?.summary as Record<string, unknown>)?.sourceChecksum ??
+        "") as string,
+      /^[a-f0-9]{64}$/,
+    );
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});

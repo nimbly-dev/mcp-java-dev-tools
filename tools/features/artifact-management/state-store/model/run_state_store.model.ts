@@ -66,9 +66,11 @@ export type LegacyBackfillSummary = {
   invalidEntries: number;
   nonReconstructibleEntries: number;
   sourcePathRel: string;
+  sourceChecksum: string;
   detectedLegacySchemaVersion: number;
   backfillStatus: "completed" | "noop" | "rejected" | "failed";
   nextAction: "none" | "run_state_store_rebuild" | "correct_legacy_source" | "retry_state_store";
+  reasonsTruncated?: boolean;
   reasons?: Array<Record<string, unknown>>;
 };
 export type LegacyBackfillFailure = {
@@ -79,6 +81,7 @@ export type LegacyBackfillFailure = {
     | "legacy_backfill_schema_unsupported"
     | "legacy_backfill_target_not_empty"
     | "legacy_backfill_conflict"
+    | "legacy_backfill_checksum_changed"
     | "legacy_backfill_failed"
     | "legacy_write_disabled";
   reason: string;

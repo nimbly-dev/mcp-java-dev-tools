@@ -129,3 +129,21 @@ test("artifact_management handler rejects run_result watcher query when paginati
   assert.equal(out.structuredContent.reasonCode, "artifact_request_invalid");
   assert.equal(out.structuredContent.reasonMeta.failedStep, "input_validation");
 });
+
+test("artifact_management handler requires correlation_state for run_result backfill", async () => {
+  const handler = captureRegisteredHandler((server: any) =>
+    registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
+  );
+  for (const stateSurface of [undefined, "run_state"]) {
+    const out = await handler({
+      artifactType: "run_result",
+      action: "backfill",
+      input: {
+        projectName: "test-project",
+        ...(stateSurface ? { stateSurface } : {}),
+      },
+    });
+    assert.equal(out.structuredContent.resultType, "report");
+    assert.equal(out.structuredContent.reasonCode, "artifact_request_invalid");
+  }
+});

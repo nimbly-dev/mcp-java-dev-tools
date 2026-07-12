@@ -41,11 +41,21 @@ export const ArtifactManagementRequestSchema = z.discriminatedUnion("artifactTyp
     action: z.enum(["read", "validate", "upsert", "list"]),
     input: RegressionPlanInputSchema,
   }),
-  z.object({
-    artifactType: z.literal("run_result"),
-    action: z.enum(["read", "list", "rebuild", "backfill", "cutover", "query"]),
-    input: RunResultInputSchema,
-  }),
+  z
+    .object({
+      artifactType: z.literal("run_result"),
+      action: z.enum(["read", "list", "rebuild", "backfill", "cutover", "query"]),
+      input: RunResultInputSchema,
+    })
+    .superRefine((request, ctx) => {
+      if (request.action === "backfill" && request.input.stateSurface !== "correlation_state") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["input", "stateSurface"],
+          message: "stateSurface must be 'correlation_state' for run_result backfill",
+        });
+      }
+    }),
   z.object({
     artifactType: z.literal("execution_export"),
     action: z.enum(["read", "list", "generate"]),

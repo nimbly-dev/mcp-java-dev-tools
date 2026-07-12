@@ -54,7 +54,7 @@ Artifact semantics/reference paths:
 
 For state-store recovery, render the rebuild response from its bounded summary and reason rows. Do not dump rebuilt SQLite rows or canonical Artifact payloads into MCP output.
 
-For legacy backfill, render only its bounded import summary, provenance path, and non-reconstructible classifications. Do not render or treat the legacy JSON as a query fallback.
+For legacy backfill, render only its bounded import summary, source checksum, transitional provenance marker, and non-reconstructible classifications. The request must select `stateSurface=correlation_state`; do not render or treat the legacy JSON as a query fallback.
 
 For cutover, render the persisted transition state and deterministic readiness/conflict failure without exposing raw SQLite rows.
 
