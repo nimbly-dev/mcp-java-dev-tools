@@ -16,13 +16,14 @@ export const ArtifactActionSchema = z.enum([
   "generate",
   "reload",
   "rebuild",
+  "backfill",
 ]);
 
 export const ARTIFACT_ACTION_ALLOWLIST = {
   probe_config: ["read", "validate", "upsert", "reload"],
   project_context: ["read", "validate", "upsert", "list"],
   regression_plan: ["read", "validate", "upsert", "list"],
-  run_result: ["read", "list", "rebuild"],
+  run_result: ["read", "list", "rebuild", "backfill"],
   execution_export: ["read", "list", "generate"],
 } as const;
 

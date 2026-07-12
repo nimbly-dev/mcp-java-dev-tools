@@ -51,6 +51,71 @@ export type RunStateRebuildResult =
       quarantinePathAbs?: string;
     }
   | RunStateRebuildFailure;
+export type LegacyBackfillSummary = {
+  scannedEntries: number;
+  insertedEntries: number;
+  skippedEntries: number;
+  conflictingEntries: number;
+  invalidEntries: number;
+  nonReconstructibleEntries: number;
+  sourcePathRel: string;
+  detectedLegacySchemaVersion: number;
+  backfillStatus: "completed" | "noop" | "rejected" | "failed";
+  nextAction: "none" | "run_state_store_rebuild" | "correct_legacy_source" | "retry_state_store";
+  reasons?: Array<Record<string, unknown>>;
+};
+export type LegacyBackfillFailure = {
+  ok: false;
+  reasonCode:
+    | "legacy_backfill_source_missing"
+    | "legacy_backfill_source_invalid"
+    | "legacy_backfill_schema_unsupported"
+    | "legacy_backfill_target_not_empty"
+    | "legacy_backfill_conflict"
+    | "legacy_backfill_failed";
+  reason: string;
+  nextAction: "correct_legacy_source" | "run_state_store_rebuild" | "retry_state_store";
+  reasonMeta?: Record<string, unknown>;
+};
+export type LegacyBackfillResult =
+  | { ok: true; summary: LegacyBackfillSummary }
+  | LegacyBackfillFailure;
+export type LegacyBackfillRequest = {
+  workspaceRootAbs: string;
+  projectName: string;
+};
+export type LegacyBackfillEntry = {
+  runId: string;
+  planName: string;
+  runPath: string;
+  generatedAtEpochMs: number;
+  status: "ok" | "fail_closed";
+  reasonCode: string;
+  keyType: "traceId" | "requestId" | "messageId";
+  keyValue?: string;
+  correlationSessionId: string;
+  window: { startEpochMs?: number; endEpochMs?: number; maxWindowMs: number };
+  probeIds: string[];
+};
+export type StateStoreJsonRecord = Record<string, unknown>;
+export type RunStateRebuildSource = {
+  planName: string;
+  runId: string;
+  runDirAbs: string;
+  runDirPathRel: string;
+  execution: StateStoreJsonRecord;
+  evidence: StateStoreJsonRecord;
+  evidencePresent: boolean;
+  files: Array<{
+    kind: "context_resolved" | "execution_result" | "evidence" | "correlation";
+    pathAbs: string;
+  }>;
+};
+export type RunStateRebuildRequest = {
+  workspaceRootAbs: string;
+  projectName: string;
+  strict?: boolean;
+};
 export type RunStateStoreFailure = {
   ok: false;
   reasonCode: RunStateStoreFailureCode;
