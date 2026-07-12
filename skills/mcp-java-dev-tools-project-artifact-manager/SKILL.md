@@ -42,6 +42,8 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 21. Rebuild must scan canonical run Artifacts, validate a temporary database, and atomically replace the live store only after validation succeeds.
 22. Legacy correlation-index backfill is a separate pre-cutover maintenance operation through `artifact_management` with `artifactType=run_result` and `action=backfill`; it must not use or restore source-file checksums.
 23. SQLite cutover is explicit and idempotent through `artifact_management` with `artifactType=run_result` and `action=cutover`; after completion, missing or corrupt SQLite must fail closed and legacy JSON must never be recreated.
+24. Cross-run or active Watcher inspection uses `artifact_management` with `artifactType=run_result`, `action=query`, and `stateSurface=watcher_state`; it is read-only and must not acquire leases, retry Watchers, or resume execution.
+25. Watcher query pages default to 50 and are capped at 200; attempt detail is explicit, defaults to offset 0/limit 20, and is capped at 100. Preserve `state_store_locked`, `state_store_corrupt`, and `state_store_schema_unsupported` rather than remapping them to a generic readiness reason.
 
 ## Required Artifact Path
 
