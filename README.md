@@ -72,17 +72,18 @@ Both scripts:
 - run `npm run build:compile`
 - run `mvn -f java-agent/pom.xml package`
 - sync shipped skills into the target client skill directory
-- by default prompt for a first workspace and generate MCP env config block output (Codex/Kiro specific)
+- by default prompt for a first workspace and generate MCP env config block output (client-specific)
 
-Kiro-specific behavior during install/update:
+Kiro and Claude Code behavior during install/update:
 - stale managed skills matching `mcp-java-dev-tools-*` are detected and can be deleted interactively
 - installed managed skills are validated after sync (`SKILL.md` + expected folder presence)
-- Kiro restart/reload guidance is printed so the visible tool/skill list refreshes from the synced skill directory
+- restart/reload guidance is printed so the visible tool/skill list refreshes from the synced skill directory
 
 Default MCP registry env input can be skipped:
 
 ```bash
 ./scripts/install.sh --client codex --no-configure-mcp-env
+# Or: ./scripts/install.sh --client claude --no-configure-mcp-env
 ```
 
 MCP env input captures:

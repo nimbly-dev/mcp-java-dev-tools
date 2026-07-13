@@ -14,6 +14,7 @@ CLIENT="codex"
 CLIENT_FROM_ARG=0
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 KIRO_SKILLS_DIR=""
+CLAUDE_SKILLS_DIR=""
 SKILL_NAMES=()
 SKILL_NAME_OVERRIDE=0
 RUN_BUILD_COMPILE=1
@@ -26,10 +27,11 @@ MCP_JAVA_AGENT_JAR_INPUT=""
 usage_common() {
   cat <<'EOF'
 Options:
-  --client <codex|kiro>       Target client. Default: codex
+  --client <codex|kiro|claude> Target client. Default: codex
   --skill-name <name>         Sync only selected skill(s). Repeatable.
   --codex-home <path>         Override CODEX_HOME (default: ~/.codex)
   --kiro-skills-dir <path>    Override Kiro skills directory (default: ~/.kiro/skills)
+  --claude-skills-dir <path>  Override Claude Code skills directory (default: ~/.claude/skills)
   --no-build-compile          Skip `npm run build:compile`
   --no-build-java             Skip `mvn -f java-agent/pom.xml package`
   --configure-mcp-env         Prompt/collect MCP probe-registry env values and print config block (default: enabled)
@@ -60,6 +62,10 @@ expand_home() {
 
 detect_kiro_skills_dir() {
   printf '%s\n' "$HOME/.kiro/skills"
+}
+
+detect_claude_skills_dir() {
+  printf '%s\n' "$HOME/.claude/skills"
 }
 
 dedupe_skill_names() {
@@ -97,6 +103,7 @@ parse_common_args() {
         ;;
       --codex-home) CODEX_HOME="$(expand_home "${2:-}")"; shift 2 ;;
       --kiro-skills-dir) KIRO_SKILLS_DIR="$(expand_home "${2:-}")"; shift 2 ;;
+      --claude-skills-dir) CLAUDE_SKILLS_DIR="$(expand_home "${2:-}")"; shift 2 ;;
       --no-build-compile) RUN_BUILD_COMPILE=0; shift ;;
       --no-build-java) RUN_BUILD_JAVA=0; shift ;;
       --configure-mcp-env) CONFIGURE_MCP_ENV=1; shift ;;
@@ -140,7 +147,7 @@ load_default_skills_from_repo() {
 }
 
 validate_common_config() {
-  if [[ "$CLIENT" != "codex" && "$CLIENT" != "kiro" ]]; then
+  if [[ "$CLIENT" != "codex" && "$CLIENT" != "kiro" && "$CLIENT" != "claude" ]]; then
     echo "Invalid --client: $CLIENT" >&2
     exit 1
   fi
@@ -148,6 +155,9 @@ validate_common_config() {
   CODEX_HOME="$(expand_home "$CODEX_HOME")"
   if [[ -n "$KIRO_SKILLS_DIR" ]]; then
     KIRO_SKILLS_DIR="$(expand_home "$KIRO_SKILLS_DIR")"
+  fi
+  if [[ -n "$CLAUDE_SKILLS_DIR" ]]; then
+    CLAUDE_SKILLS_DIR="$(expand_home "$CLAUDE_SKILLS_DIR")"
   fi
 
   if [[ "$SKILL_NAME_OVERRIDE" -eq 0 ]]; then
@@ -364,6 +374,13 @@ print_kiro_refresh_note() {
 EOF
 }
 
+print_claude_refresh_note() {
+  cat <<EOF
+- Claude Code refresh note:
+  Restart or reload Claude Code so its visible Skills list refreshes from $CLAUDE_SKILLS_DIR.
+EOF
+}
+
 run_skill_sync() {
   local mode_label="$1"
   validate_common_config
@@ -380,7 +397,7 @@ run_skill_sync() {
 
   if [[ "$CLIENT" == "codex" ]]; then
     sync_client_skills "$CODEX_HOME/skills" "Codex"
-  else
+  elif [[ "$CLIENT" == "kiro" ]]; then
     if [[ -z "$KIRO_SKILLS_DIR" ]]; then
       KIRO_SKILLS_DIR="$(detect_kiro_skills_dir)"
     fi
@@ -388,6 +405,14 @@ run_skill_sync() {
     sync_client_skills "$KIRO_SKILLS_DIR" "Kiro"
     validate_synced_skills "$KIRO_SKILLS_DIR" "Kiro"
     print_kiro_refresh_note
+  else
+    if [[ -z "$CLAUDE_SKILLS_DIR" ]]; then
+      CLAUDE_SKILLS_DIR="$(detect_claude_skills_dir)"
+    fi
+    prompt_delete_stale_managed_skills
+    sync_client_skills "$CLAUDE_SKILLS_DIR" "Claude Code"
+    validate_synced_skills "$CLAUDE_SKILLS_DIR" "Claude Code"
+    print_claude_refresh_note
   fi
 
   if [[ "$CONFIGURE_MCP_ENV" -eq 1 ]]; then
@@ -405,21 +430,28 @@ prompt_client_if_not_set() {
   fi
   local input=""
   while true; do
-    read -r -p "Target orchestrator client (codex|kiro) [${CLIENT}]: " input
+    read -r -p "Target orchestrator client (codex|kiro|claude) [${CLIENT}]: " input
     if [[ -z "$input" ]]; then
       break
     fi
-    if [[ "$input" == "codex" || "$input" == "kiro" ]]; then
+    if [[ "$input" == "codex" || "$input" == "kiro" || "$input" == "claude" ]]; then
       CLIENT="$input"
       break
     fi
-    echo "Invalid value. Enter codex or kiro."
+    echo "Invalid value. Enter codex, kiro, or claude."
   done
 }
 
 resolve_target_skills_root() {
   if [[ "$CLIENT" == "codex" ]]; then
     printf '%s\n' "$CODEX_HOME/skills"
+    return
+  fi
+  if [[ "$CLIENT" == "claude" ]]; then
+    if [[ -z "$CLAUDE_SKILLS_DIR" ]]; then
+      CLAUDE_SKILLS_DIR="$(detect_claude_skills_dir)"
+    fi
+    printf '%s\n' "$CLAUDE_SKILLS_DIR"
     return
   fi
   if [[ -z "$KIRO_SKILLS_DIR" ]]; then
@@ -481,7 +513,7 @@ apply_mcp_env_block_if_supported() {
     return
   fi
 
-  echo "- Auto-apply MCP env is currently supported for Codex only; printing Kiro snippet."
+  echo "- Auto-apply MCP env is currently supported for Codex only; printing a manual $CLIENT note."
 }
 
 apply_codex_mcp_env_block() {
@@ -535,6 +567,21 @@ Reference block:
 MCP_JAVA_AGENT_JAR = "${toml_agent_jar}"
 
 Then restart Codex/MCP session and run:
+1. artifact_management { "artifactType": "probe_config", "action": "reload", "input": {} }
+2. artifact_management { "artifactType": "probe_config", "action": "read", "input": {} }
+EOF
+    return
+  fi
+
+  if [[ "$CLIENT" == "claude" ]]; then
+    cat <<EOF
+
+MCP registry env input captured.
+Claude Code skill sync does not auto-edit Claude configuration. Configure the MCP server in Claude Code using:
+
+  MCP_JAVA_AGENT_JAR="$MCP_JAVA_AGENT_JAR_INPUT"
+
+Then restart Claude Code/MCP session and run:
 1. artifact_management { "artifactType": "probe_config", "action": "reload", "input": {} }
 2. artifact_management { "artifactType": "probe_config", "action": "read", "input": {} }
 EOF

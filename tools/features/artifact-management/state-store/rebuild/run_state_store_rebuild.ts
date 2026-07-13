@@ -272,7 +272,14 @@ async function rebuildRunStateStore(args: any): Promise<any> {
     candidate.database.exec("PRAGMA wal_checkpoint(TRUNCATE);");
     candidate.close();
     candidate = undefined;
-    const quarantinePathAbs = `${databasePathAbs}.previous-${Date.now()}`;
+    const quarantinePathAbs = node_path_1.default.join(
+      projectDirAbs,
+      "state-store-backups",
+      `run-state.sqlite.previous-${Date.now()}`,
+    );
+    await node_fs_1.promises.mkdir(node_path_1.default.dirname(quarantinePathAbs), {
+      recursive: true,
+    });
     const liveComponents = [databasePathAbs, `${databasePathAbs}-wal`, `${databasePathAbs}-shm`];
     const candidateComponents = [tempPathAbs, `${tempPathAbs}-wal`, `${tempPathAbs}-shm`];
     const quarantinedComponents = [];

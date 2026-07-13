@@ -9,7 +9,7 @@ const {
   rebuildCorrelationIndex,
   writeRegressionRunArtifacts,
 } = require("@tools-feature-regression-suite");
-const { rebuildRunStateStore } = require("@tools-feature-artifact-management");
+const { openRunStateStore, rebuildRunStateStore } = require("@tools-feature-artifact-management");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
@@ -67,11 +67,19 @@ test("rebuildRunStateStore reconstructs canonical terminal run state and replace
       now: new Date("2026-04-19T08:01:24.000Z"),
     });
     const databasePath = path.join(root, ".mcpjvm", projectName, "run-state.sqlite");
+    const initialStore = await openRunStateStore({ workspaceRootAbs: root, projectName });
+    assert.equal(initialStore.ok, true);
+    if (!initialStore.ok) return;
+    initialStore.close();
     const rebuilt = await rebuildRunStateStore({ workspaceRootAbs: root, projectName });
     assert.equal(rebuilt.ok, true);
     if (!rebuilt.ok) return;
     assert.equal(rebuilt.summary.scannedRuns, 1);
     assert.equal(rebuilt.summary.rebuiltRuns, 1);
+    assert.match(
+      rebuilt.quarantinePathAbs ?? "",
+      /state-store-backups[\\/]run-state\.sqlite\.previous-/,
+    );
     database = new DatabaseSync(databasePath);
     assert.equal(database.prepare("SELECT count(*) AS count FROM plan_runs").get().count, 1);
     assert.equal(database.prepare("SELECT count(*) AS count FROM artifacts").get().count, 3);

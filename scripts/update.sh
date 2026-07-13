@@ -10,11 +10,11 @@ usage() {
   cat <<'EOF'
 mcp-java-dev-tools update.sh
 
-Builds TypeScript + Java agent and updates existing skills in Codex/Kiro.
+Builds TypeScript + Java agent and updates existing skills in Codex, Kiro, or Claude Code.
 Missing shipped skills are added. Existing skill folders are replaced.
-Shipped skills include the regression and performance suite families under `skills/mcp-java-dev-tools-*`.
+Shipped skills include the regression, performance, project-artifact, and project-state migration workflows under `skills/mcp-java-dev-tools-*`.
 This script can also apply MCP env config for Codex when --configure-mcp-env is enabled.
-For Kiro only, stale installed skills matching `mcp-java-dev-tools-*` that are not present
+For Kiro and Claude Code, stale installed skills matching `mcp-java-dev-tools-*` that are not present
 in this repository's `skills/` folder are detected and deletion is confirmed interactively.
 
 Usage:
