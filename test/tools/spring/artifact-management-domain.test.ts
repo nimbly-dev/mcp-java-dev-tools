@@ -5,6 +5,7 @@ const test = require("node:test");
 
 const {
   dispatchArtifactManagementAction: artifactManagementDomain,
+  openRunStateStore,
 } = require("@tools-feature-artifact-management");
 
 function createTestTempDir(prefix: string): string {
@@ -397,6 +398,181 @@ test("artifact_management project_context rejects concurrent upsert contention",
     });
     assert.equal(out.structuredContent.status, "project_artifact_conflict");
     assert.equal(out.structuredContent.reasonCode, "project_artifact_conflict");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management project_context creation provisions an empty run-state store", async () => {
+  const root = createTestTempDir("artifact-management-project-provision");
+  try {
+    const request = {
+      artifactType: "project_context" as const,
+      action: "upsert" as const,
+      input: {
+        projectName: "alpha",
+        payload: {
+          workspaces: [
+            {
+              projectRoot: root,
+              defaults: {
+                orchestrator: {
+                  resumePollMax: 30,
+                  resumePollIntervalMs: 10000,
+                  resumePollTimeoutMs: 300000,
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+    const created = await artifactManagementDomain({ workspaceRootAbs: root, request });
+    assert.equal(created.structuredContent.status, "ok");
+    assert.deepEqual(created.structuredContent.stateStore, {
+      provisioned: true,
+      databasePathRel: ".mcpjvm/alpha/run-state.sqlite",
+      schemaVersion: 9,
+    });
+    assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "projects.json")), true);
+
+    const opened = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(opened.ok, true);
+    if (!opened.ok) return;
+    const migrations = opened.database
+      .prepare("SELECT version, checksum FROM schema_migrations ORDER BY version")
+      .all();
+    assert.equal(migrations.length, 9);
+    assert.equal(typeof migrations[0].checksum, "string");
+    opened.close();
+
+    const repeated = await artifactManagementDomain({ workspaceRootAbs: root, request });
+    assert.equal(repeated.structuredContent.status, "ok");
+    assert.equal(repeated.structuredContent.stateStore, undefined);
+    const reopened = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(reopened.ok, true);
+    if (reopened.ok) {
+      assert.equal(
+        reopened.database.prepare("SELECT COUNT(*) AS count FROM schema_migrations").get()?.count,
+        9,
+      );
+      reopened.close();
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management project_context creation fails closed when state-store provisioning fails", async () => {
+  const root = createTestTempDir("artifact-management-project-provision-failure");
+  try {
+    const databasePathAbs = path.join(root, ".mcpjvm", "alpha", "run-state.sqlite");
+    fs.mkdirSync(path.dirname(databasePathAbs), { recursive: true });
+    fs.writeFileSync(databasePathAbs, "not sqlite");
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "upsert",
+        input: {
+          projectName: "alpha",
+          payload: {
+            workspaces: [
+              {
+                projectRoot: root,
+                defaults: {
+                  orchestrator: {
+                    resumePollMax: 30,
+                    resumePollIntervalMs: 10000,
+                    resumePollTimeoutMs: 300000,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.status, "state_store_corrupt");
+    assert.equal(out.structuredContent.reasonCode, "state_store_corrupt");
+    assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "projects.json")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management project_context update does not recreate a missing existing store", async () => {
+  const root = createTestTempDir("artifact-management-existing-missing-store");
+  try {
+    const projectsFileAbs = path.join(root, ".mcpjvm", "alpha", "projects.json");
+    writeJson(projectsFileAbs, { workspaces: [{ projectRoot: root }] });
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "upsert",
+        input: {
+          projectName: "alpha",
+          payload: {
+            workspaces: [
+              {
+                projectRoot: root,
+                defaults: {
+                  orchestrator: {
+                    resumePollMax: 30,
+                    resumePollIntervalMs: 10000,
+                    resumePollTimeoutMs: 300000,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management project_context creation cleans up only its new empty store after artifact write failure", async () => {
+  const root = createTestTempDir("artifact-management-project-write-failure");
+  try {
+    const projectsFileAbs = path.join(root, ".mcpjvm", "alpha", "projects.json");
+    fs.mkdirSync(projectsFileAbs, { recursive: true });
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "upsert",
+        input: {
+          projectName: "alpha",
+          payload: {
+            workspaces: [
+              {
+                projectRoot: root,
+                defaults: {
+                  orchestrator: {
+                    resumePollMax: 30,
+                    resumePollIntervalMs: 10000,
+                    resumePollTimeoutMs: 300000,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.status, "project_artifact_write_failed");
+    assert.ok(
+      ["removed", "preserved"].includes(out.structuredContent.reasonMeta?.stateStoreCleanup),
+    );
+    if (out.structuredContent.reasonMeta?.stateStoreCleanup === "removed") {
+      assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite")), false);
+    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
