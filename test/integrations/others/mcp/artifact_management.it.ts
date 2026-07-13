@@ -120,7 +120,10 @@ test("mcp IT: artifact_management enforces typed envelope and returns project_co
     assert.equal(validRead.structuredContent?.action, "read");
     assert.equal(typeof validRead.structuredContent?.artifact, "undefined");
     assert.equal(typeof validRead.structuredContent?.summary, "object");
-    assert.equal((validRead.structuredContent?.summary as { workspaceCount?: unknown })?.workspaceCount, 1);
+    assert.equal(
+      (validRead.structuredContent?.summary as { workspaceCount?: unknown })?.workspaceCount,
+      1,
+    );
 
     const legacyFlat = await callTool(mcp, "artifact_management", {
       artifactType: "project_context",
@@ -138,8 +141,54 @@ test("mcp IT: artifact_management enforces typed envelope and returns project_co
   }
 });
 
+test("mcp IT: artifact_management project_context creation provisions the run-state store", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-provision-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({ workspaceRootAbs, probeBaseUrl: "http://127.0.0.1:9191" });
+    const out = await callTool(mcp, "artifact_management", {
+      artifactType: "project_context",
+      action: "upsert",
+      input: {
+        projectName: "new-project",
+        payload: {
+          workspaces: [withRequiredDefaults({ projectRoot: workspaceRootAbs })],
+        },
+      },
+    });
+    assert.equal(out.structuredContent?.status, "ok");
+    assert.deepEqual(out.structuredContent?.stateStore, {
+      provisioned: true,
+      databasePathRel: ".mcpjvm/new-project/run-state.sqlite",
+      schemaVersion: 9,
+    });
+    assert.equal(
+      await fs
+        .stat(path.join(workspaceRootAbs, ".mcpjvm", "new-project", "projects.json"))
+        .then(() => true)
+        .catch(() => false),
+      true,
+    );
+    assert.equal(
+      await fs
+        .stat(path.join(workspaceRootAbs, ".mcpjvm", "new-project", "run-state.sqlite"))
+        .then(() => true)
+        .catch(() => false),
+      true,
+    );
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  }
+});
+
 test("mcp IT: artifact_management project_context validate rejects missing orchestrator defaults", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-required-orchestrator-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-artifact-management-required-orchestrator-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project";
   const projectsFileAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
@@ -158,7 +207,10 @@ test("mcp IT: artifact_management project_context validate rejects missing orche
     });
     assert.equal(out.structuredContent?.status, "project_artifact_invalid");
     assert.equal(out.structuredContent?.reasonCode, "project_artifact_invalid");
-    assert.match(String(out.structuredContent?.reason ?? ""), /workspaces\[0\]\.defaults is required/i);
+    assert.match(
+      String(out.structuredContent?.reason ?? ""),
+      /workspaces\[0\]\.defaults is required/i,
+    );
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
@@ -166,7 +218,9 @@ test("mcp IT: artifact_management project_context validate rejects missing orche
 });
 
 test("mcp IT: artifact_management project_context validate fails closed on absolute envFile", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-invalid-envfile-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-artifact-management-invalid-envfile-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project";
   const projectsFileAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
@@ -196,7 +250,10 @@ test("mcp IT: artifact_management project_context validate fails closed on absol
     });
     assert.equal(out.structuredContent?.status, "project_artifact_invalid");
     assert.equal(out.structuredContent?.reasonCode, "project_artifact_invalid");
-    assert.match(String(out.structuredContent?.reason ?? ""), /envFile must be relative\/replayable/i);
+    assert.match(
+      String(out.structuredContent?.reason ?? ""),
+      /envFile must be relative\/replayable/i,
+    );
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
@@ -206,7 +263,9 @@ test("mcp IT: artifact_management project_context validate fails closed on absol
 });
 
 test("mcp IT: artifact_management project_context validate fails closed on missing execution profile plan artifact", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-missing-plan-ref-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-artifact-management-missing-plan-ref-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project";
   const projectsFileAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
@@ -242,7 +301,10 @@ test("mcp IT: artifact_management project_context validate fails closed on missi
     });
     assert.equal(out.structuredContent?.status, "project_reference_invalid");
     assert.equal(out.structuredContent?.reasonCode, "project_reference_invalid");
-    assert.match(String(out.structuredContent?.reason ?? ""), /planName must match an existing regression plan artifact/i);
+    assert.match(
+      String(out.structuredContent?.reason ?? ""),
+      /planName must match an existing regression plan artifact/i,
+    );
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
@@ -252,7 +314,9 @@ test("mcp IT: artifact_management project_context validate fails closed on missi
 });
 
 test("mcp IT: artifact_management project_context upsert fails closed on unsupported workspace variable mappings and does not persist artifact", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-unsupported-vars-upsert-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-artifact-management-unsupported-vars-upsert-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project";
   const projectsFileAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json");
@@ -285,7 +349,10 @@ test("mcp IT: artifact_management project_context upsert fails closed on unsuppo
     });
     assert.equal(out.structuredContent?.status, "project_artifact_invalid");
     assert.equal(out.structuredContent?.reasonCode, "project_artifact_invalid");
-    assert.match(String(out.structuredContent?.reason ?? ""), /variables\.tenantIdEnv is unsupported/i);
+    assert.match(
+      String(out.structuredContent?.reason ?? ""),
+      /variables\.tenantIdEnv is unsupported/i,
+    );
     assert.equal(fssync.existsSync(projectsFileAbs), false);
   } finally {
     await mcp?.close();
@@ -296,7 +363,9 @@ test("mcp IT: artifact_management project_context upsert fails closed on unsuppo
 });
 
 test("mcp IT: artifact_management project_context validate returns root inspection for canonical selector inputs", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-management-root-validate-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-artifact-management-root-validate-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "post-service";
   const projectRootAbs = path.join(workspaceRootAbs, "post-service", "post-app");

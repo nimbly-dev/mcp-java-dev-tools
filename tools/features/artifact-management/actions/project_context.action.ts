@@ -10,6 +10,8 @@ import {
   validateProjectArtifactReferenceIntegrity,
 } from "@tools-project-artifact-spec/project_artifact.util";
 import { readProjectArtifact, writeProjectArtifact } from "../support/project_artifact_io";
+import { openRunStateStore } from "../state-store/run_state_store";
+import { cutoverMarkerPath, cutoverSentinelPath } from "../state-store/state_store_cutover_marker";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "./types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import {
@@ -85,6 +87,33 @@ async function releaseProjectContextUpsertLock(lock: {
   const existing = await fs.readFile(lock.pathAbs, "utf8").catch(() => undefined);
   if (!existing?.includes(`"owner":"${lock.owner}"`)) return;
   await fs.unlink(lock.pathAbs).catch(() => undefined);
+}
+
+function isEmptyOperationalStateStore(database: {
+  prepare(sql: string): {
+    get(...parameters: unknown[]): Record<string, unknown> | undefined;
+    all(...parameters: unknown[]): Array<Record<string, unknown>>;
+  };
+}): boolean {
+  try {
+    const metadataTables = new Set([
+      "schema_migrations",
+      "schema_migration_resources",
+      "store_metadata",
+    ]);
+    const tables = database
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .all()
+      .map((row) => row.name)
+      .filter((name): name is string => typeof name === "string" && !metadataTables.has(name));
+    return tables.every((table) => {
+      const identifier = table.replaceAll('"', '""');
+      const row = database.prepare(`SELECT COUNT(*) AS count FROM "${identifier}"`).get();
+      return row?.count === 0;
+    });
+  } catch {
+    return false;
+  }
 }
 
 async function inspectProjectRoot(projectRootAbs: string): Promise<{
@@ -465,6 +494,14 @@ export async function handleProjectContextArtifact(
   }
   let artifactToWrite: ProjectArtifact = checked.artifact;
   let updateMode: "created" | "merged" | "replaced" = "created";
+  let stateStore:
+    | {
+        provisioned: true;
+        databasePathRel: string;
+        schemaVersion: number;
+        cleanupEligible: boolean;
+      }
+    | undefined;
   try {
     const existingFile = await fileExists(projectsFileAbs);
     if (existingFile) {
@@ -498,7 +535,103 @@ export async function handleProjectContextArtifact(
         reasonMeta: { errors: refsChecked.errors, projectName },
       });
     }
-    await writeProjectArtifact(projectsFileAbs, artifactToWrite);
+    if (!existingFile) {
+      const databasePathAbs = path.join(
+        ctx.workspaceRootAbs,
+        ".mcpjvm",
+        projectName,
+        "run-state.sqlite",
+      );
+      const databaseExisted = await fileExists(databasePathAbs);
+      const markerExisted =
+        (await fileExists(cutoverMarkerPath(databasePathAbs))) ||
+        (await fileExists(cutoverSentinelPath(ctx.workspaceRootAbs, projectName)));
+      const opened = await openRunStateStore({
+        workspaceRootAbs: ctx.workspaceRootAbs,
+        projectName,
+      });
+      if (!opened.ok) {
+        return buildFailClosedArtifactResponse({
+          reasonCode: opened.reasonCode,
+          reason: opened.reason,
+          reasonMeta: {
+            ...(opened.reasonMeta ?? {}),
+            projectName,
+            failedStep: "state_store_provision",
+          },
+        });
+      }
+      const cleanupEligible =
+        !databaseExisted && !markerExisted && isEmptyOperationalStateStore(opened.database);
+      opened.close();
+      stateStore = {
+        provisioned: true,
+        databasePathRel: path
+          .relative(ctx.workspaceRootAbs, opened.databasePathAbs)
+          .replaceAll("\\", "/"),
+        schemaVersion: opened.schemaVersion,
+        cleanupEligible,
+      };
+    }
+    try {
+      await writeProjectArtifact(projectsFileAbs, artifactToWrite);
+    } catch (error) {
+      let cleanup: "removed" | "preserved" = "preserved";
+      if (stateStore?.cleanupEligible) {
+        const databasePathAbs = path.resolve(ctx.workspaceRootAbs, stateStore.databasePathRel);
+        const markerPresent =
+          (await fileExists(cutoverMarkerPath(databasePathAbs))) ||
+          (await fileExists(cutoverSentinelPath(ctx.workspaceRootAbs, projectName)));
+        if (!markerPresent && (await fileExists(databasePathAbs))) {
+          const verification = await openRunStateStore({
+            workspaceRootAbs: ctx.workspaceRootAbs,
+            projectName,
+          });
+          if (verification.ok) {
+            try {
+              verification.database.exec("BEGIN EXCLUSIVE");
+              const stillEmpty = isEmptyOperationalStateStore(verification.database);
+              const markerAppeared =
+                (await fileExists(cutoverMarkerPath(databasePathAbs))) ||
+                (await fileExists(cutoverSentinelPath(ctx.workspaceRootAbs, projectName)));
+              const walPathAbs = `${databasePathAbs}-wal`;
+              const shmPathAbs = `${databasePathAbs}-shm`;
+              if (
+                stillEmpty &&
+                !markerAppeared &&
+                !(await fileExists(walPathAbs)) &&
+                !(await fileExists(shmPathAbs))
+              ) {
+                const quarantinePathAbs = `${databasePathAbs}.provision-cleanup-${process.pid}-${Date.now()}`;
+                try {
+                  await fs.rename(databasePathAbs, quarantinePathAbs);
+                  verification.close();
+                  await fs.unlink(quarantinePathAbs);
+                  cleanup = "removed";
+                } catch {
+                  await fs.unlink(quarantinePathAbs).catch(() => undefined);
+                  verification.close();
+                }
+              } else {
+                verification.close();
+              }
+            } catch {
+              verification.close();
+            }
+          }
+        }
+      }
+      return buildFailClosedArtifactResponse({
+        reasonCode: "project_artifact_write_failed",
+        reason: "project artifact could not be persisted after state-store provisioning",
+        reasonMeta: {
+          projectName,
+          failedStep: "project_artifact_write",
+          stateStoreCleanup: cleanup,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
     return okArtifactResponse({
       resultType: "artifact",
       status: "ok",
@@ -507,6 +640,15 @@ export async function handleProjectContextArtifact(
       projectName,
       path: projectsFileAbs,
       updateMode,
+      ...(stateStore
+        ? {
+            stateStore: {
+              provisioned: stateStore.provisioned,
+              databasePathRel: stateStore.databasePathRel,
+              schemaVersion: stateStore.schemaVersion,
+            },
+          }
+        : {}),
     });
   } finally {
     await releaseProjectContextUpsertLock(upsertLock);
