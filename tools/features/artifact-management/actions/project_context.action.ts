@@ -1,6 +1,10 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
-import type { ExecutionProfileEntry, ProjectArtifact } from "@tools-project-artifact-spec/models/project_artifact.model";
+import type {
+  ExecutionProfileEntry,
+  ProjectArtifact,
+} from "@tools-project-artifact-spec/models/project_artifact.model";
 import {
   validateProjectArtifact,
   validateProjectArtifactReferenceIntegrity,
@@ -33,6 +37,56 @@ async function fileExists(abs: string): Promise<boolean> {
   }
 }
 
+async function acquireProjectContextUpsertLock(
+  projectsFileAbs: string,
+): Promise<{ pathAbs: string; owner: string } | undefined> {
+  const pathAbs = `${projectsFileAbs}.upsert.lock`;
+  await fs.mkdir(path.dirname(projectsFileAbs), { recursive: true });
+  const owner = randomUUID();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const handle = await fs.open(pathAbs, "wx");
+      try {
+        await handle.writeFile(
+          JSON.stringify({ owner, expiresAtEpochMs: Date.now() + 30 * 60 * 1000 }),
+          "utf8",
+        );
+      } finally {
+        await handle.close();
+      }
+      return { pathAbs, owner };
+    } catch (error) {
+      if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") {
+        throw error;
+      }
+      const existing = await fs.readFile(pathAbs, "utf8").catch(() => undefined);
+      let expiresAtEpochMs: number | undefined;
+      try {
+        const parsed = JSON.parse(existing ?? "") as { expiresAtEpochMs?: unknown };
+        if (typeof parsed.expiresAtEpochMs === "number") {
+          expiresAtEpochMs = parsed.expiresAtEpochMs;
+        }
+      } catch {
+        return undefined;
+      }
+      if (expiresAtEpochMs === undefined || expiresAtEpochMs > Date.now()) {
+        return undefined;
+      }
+      await fs.unlink(pathAbs).catch(() => undefined);
+    }
+  }
+  return undefined;
+}
+
+async function releaseProjectContextUpsertLock(lock: {
+  pathAbs: string;
+  owner: string;
+}): Promise<void> {
+  const existing = await fs.readFile(lock.pathAbs, "utf8").catch(() => undefined);
+  if (!existing?.includes(`"owner":"${lock.owner}"`)) return;
+  await fs.unlink(lock.pathAbs).catch(() => undefined);
+}
+
 async function inspectProjectRoot(projectRootAbs: string): Promise<{
   buildMarkers: string[];
   hasBuildMarker: boolean;
@@ -41,8 +95,10 @@ async function inspectProjectRoot(projectRootAbs: string): Promise<{
 }> {
   const buildMarkers: string[] = [];
   if (await fileExists(path.join(projectRootAbs, "pom.xml"))) buildMarkers.push("pom.xml");
-  if (await fileExists(path.join(projectRootAbs, "build.gradle"))) buildMarkers.push("build.gradle");
-  if (await fileExists(path.join(projectRootAbs, "build.gradle.kts"))) buildMarkers.push("build.gradle.kts");
+  if (await fileExists(path.join(projectRootAbs, "build.gradle")))
+    buildMarkers.push("build.gradle");
+  if (await fileExists(path.join(projectRootAbs, "build.gradle.kts")))
+    buildMarkers.push("build.gradle.kts");
 
   const javaSourceRoots: string[] = [];
   const sourceRootAbs = path.join(projectRootAbs, "src", "main", "java");
@@ -133,7 +189,9 @@ async function resolveProjectContextTarget(args: {
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  return value.filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
 }
 
 function pickProjectContextQuery(args: {
@@ -144,39 +202,57 @@ function pickProjectContextQuery(args: {
   const workspace = args.artifact.workspaces[0];
   if (selectors.length === 0) {
     const profiles = Array.isArray(workspace?.executionProfiles) ? workspace.executionProfiles : [];
-    const runtimeContexts = Array.isArray(workspace?.runtimeContexts) ? workspace.runtimeContexts : [];
+    const runtimeContexts = Array.isArray(workspace?.runtimeContexts)
+      ? workspace.runtimeContexts
+      : [];
     return {
       summary: {
         workspaceCount: args.artifact.workspaces.length,
         executionProfileCount: profiles.length,
         runtimeContextCount: runtimeContexts.length,
-        executionProfileNames: profiles.map((entry) => entry.executionProfile).sort((a, b) => a.localeCompare(b)),
-        runtimeContextNames: runtimeContexts.map((entry) => entry.name).sort((a, b) => a.localeCompare(b)),
+        executionProfileNames: profiles
+          .map((entry) => entry.executionProfile)
+          .sort((a, b) => a.localeCompare(b)),
+        runtimeContextNames: runtimeContexts
+          .map((entry) => entry.name)
+          .sort((a, b) => a.localeCompare(b)),
       },
     };
   }
   const profileName = args.query?.executionProfile;
   const result: Record<string, unknown> = {};
   for (const selector of selectors) {
-    if (selector === "summary") {
+    if (selector === "artifact") {
+      result.artifact = args.artifact;
+    } else if (selector === "summary") {
       result.summary = {
         workspaceCount: args.artifact.workspaces.length,
-        executionProfileCount: Array.isArray(workspace?.executionProfiles) ? workspace.executionProfiles.length : 0,
-        runtimeContextCount: Array.isArray(workspace?.runtimeContexts) ? workspace.runtimeContexts.length : 0,
+        executionProfileCount: Array.isArray(workspace?.executionProfiles)
+          ? workspace.executionProfiles.length
+          : 0,
+        runtimeContextCount: Array.isArray(workspace?.runtimeContexts)
+          ? workspace.runtimeContexts.length
+          : 0,
       };
     } else if (selector === "workspaces") {
       result.workspaces = args.artifact.workspaces;
     } else if (selector === "executionProfiles") {
-      const profiles = Array.isArray(workspace?.executionProfiles) ? workspace.executionProfiles : [];
+      const profiles = Array.isArray(workspace?.executionProfiles)
+        ? workspace.executionProfiles
+        : [];
       result.executionProfiles = profileName
         ? profiles.filter((entry: ExecutionProfileEntry) => entry.executionProfile === profileName)
         : profiles;
     } else if (selector === "runtimeContexts") {
-      result.runtimeContexts = Array.isArray(workspace?.runtimeContexts) ? workspace.runtimeContexts : [];
+      result.runtimeContexts = Array.isArray(workspace?.runtimeContexts)
+        ? workspace.runtimeContexts
+        : [];
     } else if (selector === "scripts") {
       result.scripts = Array.isArray(workspace?.scripts) ? workspace.scripts : [];
     } else if (selector === "runPrerequisites") {
-      result.runPrerequisites = Array.isArray(workspace?.runPrerequisites) ? workspace.runPrerequisites : [];
+      result.runPrerequisites = Array.isArray(workspace?.runPrerequisites)
+        ? workspace.runPrerequisites
+        : [];
     }
   }
   if (Object.keys(result).length === 0) {
@@ -187,6 +263,66 @@ function pickProjectContextQuery(args: {
     };
   }
   return result;
+}
+
+function mergeProjectWorkspace(
+  existing: ProjectArtifact["workspaces"][number],
+  incoming: ProjectArtifact["workspaces"][number],
+): ProjectArtifact["workspaces"][number] {
+  return {
+    ...existing,
+    ...incoming,
+    ...(existing.variables || incoming.variables
+      ? {
+          variables: {
+            ...existing.variables,
+            ...incoming.variables,
+            ...(existing.variables?.contextBindings || incoming.variables?.contextBindings
+              ? {
+                  contextBindings: {
+                    ...existing.variables?.contextBindings,
+                    ...incoming.variables?.contextBindings,
+                  },
+                }
+              : {}),
+          },
+        }
+      : {}),
+    ...(existing.defaults || incoming.defaults
+      ? {
+          defaults: {
+            ...existing.defaults,
+            ...incoming.defaults,
+            orchestrator: {
+              ...existing.defaults?.orchestrator,
+              ...incoming.defaults?.orchestrator,
+            },
+          },
+        }
+      : {}),
+    ...(existing.sessionExport || incoming.sessionExport
+      ? { sessionExport: { ...existing.sessionExport, ...incoming.sessionExport } }
+      : {}),
+  };
+}
+
+function mergeProjectArtifacts(
+  existing: ProjectArtifact,
+  incoming: ProjectArtifact,
+): ProjectArtifact {
+  const merged = existing.workspaces.map((workspace) => ({ ...workspace }));
+  for (const incomingWorkspace of incoming.workspaces) {
+    const existingIndex = merged.findIndex(
+      (workspace) =>
+        path.resolve(workspace.projectRoot) === path.resolve(incomingWorkspace.projectRoot),
+    );
+    if (existingIndex < 0) {
+      merged.push(incomingWorkspace);
+    } else {
+      merged[existingIndex] = mergeProjectWorkspace(merged[existingIndex]!, incomingWorkspace);
+    }
+  }
+  return { workspaces: merged };
 }
 
 export async function handleProjectContextArtifact(
@@ -236,7 +372,9 @@ export async function handleProjectContextArtifact(
     }
     let projectRootAbs = projectTarget.projectRootAbs;
     if (!projectRootAbs) {
-      const workspaceRoots = validated.artifact.workspaces.map((entry) => path.resolve(entry.projectRoot));
+      const workspaceRoots = validated.artifact.workspaces.map((entry) =>
+        path.resolve(entry.projectRoot),
+      );
       if (workspaceRoots.length === 1) {
         projectRootAbs = workspaceRoots[0];
       }
@@ -317,24 +455,60 @@ export async function handleProjectContextArtifact(
       reasonMeta: { errors: checked.errors, projectName },
     });
   }
-  const refsChecked = await validateProjectArtifactReferenceIntegrity({
-    projectsFileAbs,
-    artifact: checked.artifact,
-  });
-  if (!refsChecked.ok) {
+  const upsertLock = await acquireProjectContextUpsertLock(projectsFileAbs);
+  if (!upsertLock) {
     return buildFailClosedArtifactResponse({
-      reasonCode: refsChecked.reasonCode,
-      reason: refsChecked.errors[0] ?? "project artifact invalid",
-      reasonMeta: { errors: refsChecked.errors, projectName },
+      reasonCode: "project_artifact_conflict",
+      reason: "another project artifact upsert is active",
+      reasonMeta: { projectName, failedStep: "project_artifact_upsert_lock" },
     });
   }
-  await writeProjectArtifact(projectsFileAbs, checked.artifact);
-  return okArtifactResponse({
-    resultType: "artifact",
-    status: "ok",
-    artifactType: request.artifactType,
-    action: request.action,
-    projectName,
-    path: projectsFileAbs,
-  });
+  let artifactToWrite: ProjectArtifact = checked.artifact;
+  let updateMode: "created" | "merged" | "replaced" = "created";
+  try {
+    const existingFile = await fileExists(projectsFileAbs);
+    if (existingFile) {
+      const existing = await readProjectArtifact(projectsFileAbs);
+      if (!existing.ok && request.input.replace !== true) {
+        return buildFailClosedArtifactResponse({
+          reasonCode: existing.reasonCode,
+          reason: existing.errors[0] ?? "existing project artifact is invalid",
+          reasonMeta: {
+            errors: existing.errors,
+            projectName,
+            failedStep: "existing_artifact_read",
+          },
+        });
+      }
+      if (request.input.replace === true) {
+        updateMode = "replaced";
+      } else if (existing.ok) {
+        artifactToWrite = mergeProjectArtifacts(existing.artifact, checked.artifact);
+        updateMode = "merged";
+      }
+    }
+    const refsChecked = await validateProjectArtifactReferenceIntegrity({
+      projectsFileAbs,
+      artifact: artifactToWrite,
+    });
+    if (!refsChecked.ok) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: refsChecked.reasonCode,
+        reason: refsChecked.errors[0] ?? "project artifact invalid",
+        reasonMeta: { errors: refsChecked.errors, projectName },
+      });
+    }
+    await writeProjectArtifact(projectsFileAbs, artifactToWrite);
+    return okArtifactResponse({
+      resultType: "artifact",
+      status: "ok",
+      artifactType: request.artifactType,
+      action: request.action,
+      projectName,
+      path: projectsFileAbs,
+      updateMode,
+    });
+  } finally {
+    await releaseProjectContextUpsertLock(upsertLock);
+  }
 }

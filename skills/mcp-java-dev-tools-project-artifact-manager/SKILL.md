@@ -38,22 +38,15 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 17. Keep watcher wait-policy defaults distinct from `defaults.orchestrator`; watcher polling and outer orchestration polling are separate concerns.
 18. `sessionExport` uses flat defaults for `includeRuntimeStartup` and `includeHealthcheckGate`.
 19. `sessionExport.includeResolvedSecrets` must not auto-enable secret export; resolved secrets require explicit request opt-in at export time.
-20. SQLite state-store rebuild is an explicit maintenance operation through `artifact_management` with `artifactType=run_result` and `action=rebuild`; it is never a normal read or write shortcut.
-21. Rebuild must scan canonical run Artifacts, validate a temporary database, and atomically replace the live store only after validation succeeds.
-22. Legacy correlation-index backfill is a separate pre-cutover maintenance operation through `artifact_management` with `artifactType=run_result`, `action=backfill`, and `stateSurface=correlation_state`; it records the source checksum for idempotency and must not become a query fallback.
-23. SQLite cutover is explicit and idempotent through `artifact_management` with `artifactType=run_result` and `action=cutover`; after completion, missing or corrupt SQLite must fail closed and legacy JSON must never be recreated.
-24. Cross-run or active Watcher inspection uses `artifact_management` with `artifactType=run_result`, `action=query`, and `stateSurface=watcher_state`; it is read-only and must not acquire leases, retry Watchers, or resume execution.
-25. Watcher query pages default to 50 and are capped at 200; attempt detail is explicit, defaults to offset 0/limit 20, and is capped at 100. Preserve `state_store_locked`, `state_store_corrupt`, and `state_store_schema_unsupported` rather than remapping them to a generic readiness reason.
+20. Before an existing project Artifact upsert, read the complete sanitized payload with `query.select=["artifact"]`, validate the proposed in-memory change, and use merge-by-default behavior.
+21. Set `replace: true` only when the operator explicitly authorizes complete replacement of the existing project Artifact.
+22. When a request concerns historical Correlation/run-state migration, SQLite rebuild/backfill, cutover, retention, or post-migration state verification, preserve and validate `projects.json` first, then hand off to `mcp-java-dev-tools-project-state-migration`.
 
 ## Required Artifact Path
 
 ```
 .mcpjvm/<project-name>/projects.json
 ```
-
-## Run-state Store Foundation
-
-Regression operational state uses a separate local SQLite store at `.mcpjvm/<project-name>/run-state.sqlite`. It is owned by the Artifact Management Feature Module, not by this Skill Workflow or by an always-on service. Keep `projectName` explicit, persist only workspace-relative Artifact paths, and fail closed on a locked, corrupt, or unsupported store. Rebuild or backfill is an explicit maintenance operation; never delete or silently recreate a failed store.
 
 ## Required Shape
 
@@ -164,15 +157,12 @@ Regression operational state uses a separate local SQLite store at `.mcpjvm/<pro
 
 1. Resolve workspace root.
 2. Ask for project name when missing.
-3. Call `artifact_management` with `artifactType=project_context` and `action=read|list` to load current state.
+3. Call `artifact_management` with `artifactType=project_context` and `action=read|list` to load current state; use `query.select=["artifact"]` before updating an existing Artifact.
 4. Normalize and prepare requested changes in-memory.
 5. Call `artifact_management` with `artifactType=project_context` and `action=validate` before persistence, passing explicit `projectName` and optional `projectRootAbs` only when a scope cross-check is required.
-6. Call `artifact_management` with `artifactType=project_context` and `action=upsert` to persist.
+6. Call `artifact_management` with `artifactType=project_context` and `action=upsert` to persist. Omitted fields are preserved by default; include `replace: true` only for an intentional complete replacement.
 7. Validate end-to-end and return deterministic summary.
-8. For state-store recovery, call `artifact_management` with `artifactType=run_result`, `action=rebuild`, and explicit `projectName`; `strict` defaults to false, and optional `scope.stateSurfaces` selects reporting surfaces only.
-9. Every rebuild constructs one complete temporary SQLite candidate and atomically replaces the live store only after validation; report bounded counts, `recoveryStatus`, reason rows, and workspace-relative `databasePathRel`/`quarantinePathRel` values. Never delete or clear the live SQLite store in place.
-10. For pre-cutover compatibility, call `artifact_management` with `artifactType=run_result`, `action=backfill`, explicit `projectName`, and `stateSurface=correlation_state`; treat the transitional marker and checksum-backed result as migration provenance, not as a normal query source.
-11. After backfill or canonical rebuild readiness is established, call `artifact_management` with `artifactType=run_result`, `action=cutover`, and explicit `projectName`.
+8. Hand off state-store migration and verification requests to `mcp-java-dev-tools-project-state-migration`; do not choose or execute `run_result` maintenance actions in this Skill Workflow.
 
 ## Misaligned Field Fix Rules
 

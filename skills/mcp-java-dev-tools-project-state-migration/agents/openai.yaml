@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project State Migration"
+  short_description: "Preserve project state during migration"
+  default_prompt: "Use $mcp-java-dev-tools-project-state-migration to preserve projects.json before state-store migration."

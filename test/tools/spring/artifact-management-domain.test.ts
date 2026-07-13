@@ -3,7 +3,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { dispatchArtifactManagementAction: artifactManagementDomain } = require("@tools-feature-artifact-management");
+const {
+  dispatchArtifactManagementAction: artifactManagementDomain,
+} = require("@tools-feature-artifact-management");
 
 function createTestTempDir(prefix: string): string {
   const base = path.join(process.cwd(), "test", ".tmp");
@@ -41,23 +43,36 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
 }
 
 function writeRegressionPlan(root: string, projectName: string, planName: string): void {
-  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "metadata.json"), {
-    execution: { intent: "regression" },
-  });
-  writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"), {
-    targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
-    prerequisites: [],
-    steps: [
-      {
-        order: 1,
-        id: "health",
-        targetRef: 0,
-        protocol: "http",
-        transport: { http: { method: "GET", url: "http://localhost/health" } },
-        expect: [{ id: "status-200", actualPath: "$.statusCode", operator: "field_equals", expected: 200 }],
-      },
-    ],
-  });
+  writeJson(
+    path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "metadata.json"),
+    {
+      execution: { intent: "regression" },
+    },
+  );
+  writeJson(
+    path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"),
+    {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [],
+      steps: [
+        {
+          order: 1,
+          id: "health",
+          targetRef: 0,
+          protocol: "http",
+          transport: { http: { method: "GET", url: "http://localhost/health" } },
+          expect: [
+            {
+              id: "status-200",
+              actualPath: "$.statusCode",
+              operator: "field_equals",
+              expected: 200,
+            },
+          ],
+        },
+      ],
+    },
+  );
 }
 
 test("artifact_management blocks disallowed action by artifactType", async () => {
@@ -128,8 +143,12 @@ test("artifact_management probe_config reload returns not_configured when artifa
 test("artifact_management project_context list returns deterministic project names", async () => {
   const root = createTestTempDir("artifact-management-list");
   try {
-    writeJson(path.join(root, ".mcpjvm", "zeta", "projects.json"), { workspaces: [{ projectRoot: root }] });
-    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), { workspaces: [{ projectRoot: root }] });
+    writeJson(path.join(root, ".mcpjvm", "zeta", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
     const out = await artifactManagementDomain({
       workspaceRootAbs: root,
       request: {
@@ -152,7 +171,13 @@ test("artifact_management project_context read supports structured query project
       workspaces: [
         {
           projectRoot: root,
-          executionProfiles: [{ executionProfile: "smoke", executionPolicy: "stop_on_fail", plans: [{ order: 1, planName: "p1" }] }],
+          executionProfiles: [
+            {
+              executionProfile: "smoke",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "p1" }],
+            },
+          ],
           scripts: [{ name: "prep", command: "node" }],
         },
       ],
@@ -186,8 +211,20 @@ test("artifact_management project_context read returns summary by default", asyn
       workspaces: [
         {
           projectRoot: root,
-          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", startups: [{ name: "app", command: "java" }] }],
-          executionProfiles: [{ executionProfile: "smoke", executionPolicy: "stop_on_fail", plans: [{ order: 1, planName: "p1" }] }],
+          runtimeContexts: [
+            {
+              name: "terminal-cli",
+              mode: "terminal",
+              startups: [{ name: "app", command: "java" }],
+            },
+          ],
+          executionProfiles: [
+            {
+              executionProfile: "smoke",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "p1" }],
+            },
+          ],
         },
       ],
     });
@@ -210,6 +247,161 @@ test("artifact_management project_context read returns summary by default", asyn
   }
 });
 
+test("artifact_management project_context read exports a complete sanitized Artifact", async () => {
+  const root = createTestTempDir("artifact-management-complete-read");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [
+            {
+              name: "terminal-cli",
+              mode: "terminal",
+              startups: [{ name: "app", command: "java" }],
+            },
+          ],
+          executionProfiles: [
+            {
+              executionProfile: "smoke",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "p1" }],
+            },
+          ],
+          scripts: [{ name: "prepare", command: "node" }],
+        },
+      ],
+    });
+    writeRegressionPlan(root, "alpha", "p1");
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "read",
+        input: { projectName: "alpha", query: { select: ["artifact"] } },
+      },
+    });
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(
+      (out.structuredContent.artifact as any).workspaces[0].executionProfiles[0].executionProfile,
+      "smoke",
+    );
+    assert.equal(
+      (out.structuredContent.artifact as any).workspaces[0].runtimeContexts[0].name,
+      "terminal-cli",
+    );
+    assert.equal((out.structuredContent.artifact as any).workspaces[0].scripts[0].name, "prepare");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management project_context upsert merges minimal payload without losing configuration", async () => {
+  const root = createTestTempDir("artifact-management-safe-upsert");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [
+            {
+              name: "terminal-cli",
+              mode: "terminal",
+              startups: [{ name: "app", command: "java" }],
+            },
+          ],
+          executionProfiles: [
+            {
+              executionProfile: "smoke",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "p1" }],
+            },
+          ],
+          scripts: [{ name: "prepare", command: "node" }],
+        },
+      ],
+    });
+    writeRegressionPlan(root, "alpha", "p1");
+    const upsert = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "upsert",
+        input: {
+          projectName: "alpha",
+          payload: {
+            workspaces: [
+              {
+                projectRoot: root,
+                defaults: {
+                  orchestrator: {
+                    resumePollMax: 30,
+                    resumePollIntervalMs: 10000,
+                    resumePollTimeoutMs: 300000,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    assert.equal(upsert.structuredContent.status, "ok");
+    assert.equal(upsert.structuredContent.updateMode, "merged");
+    const read = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "read",
+        input: { projectName: "alpha", query: { select: ["artifact"] } },
+      },
+    });
+    const artifact = read.structuredContent.artifact as any;
+    assert.equal(artifact.workspaces[0].executionProfiles[0].executionProfile, "smoke");
+    assert.equal(artifact.workspaces[0].runtimeContexts[0].name, "terminal-cli");
+    assert.equal(artifact.workspaces[0].scripts[0].name, "prepare");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("artifact_management project_context rejects concurrent upsert contention", async () => {
+  const root = createTestTempDir("artifact-management-upsert-conflict");
+  try {
+    const projectDir = path.join(root, ".mcpjvm", "alpha");
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(path.join(projectDir, "projects.json.upsert.lock"), "active\n");
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "upsert",
+        input: {
+          projectName: "alpha",
+          payload: {
+            workspaces: [
+              {
+                projectRoot: root,
+                defaults: {
+                  orchestrator: {
+                    resumePollMax: 30,
+                    resumePollIntervalMs: 10000,
+                    resumePollTimeoutMs: 300000,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.status, "project_artifact_conflict");
+    assert.equal(out.structuredContent.reasonCode, "project_artifact_conflict");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("artifact_management project_context validate fails closed when execution profile references missing plan artifact", async () => {
   const root = createTestTempDir("artifact-management-project-missing-plan");
   try {
@@ -217,7 +409,13 @@ test("artifact_management project_context validate fails closed when execution p
       workspaces: [
         {
           projectRoot: root,
-          executionProfiles: [{ executionProfile: "smoke", executionPolicy: "stop_on_fail", plans: [{ order: 1, planName: "missing-plan" }] }],
+          executionProfiles: [
+            {
+              executionProfile: "smoke",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "missing-plan" }],
+            },
+          ],
         },
       ],
     });
@@ -264,7 +462,10 @@ test("artifact_management project_context upsert fails closed on unsupported wor
     });
     assert.equal(out.structuredContent.status, "project_artifact_invalid");
     assert.equal(out.structuredContent.reasonCode, "project_artifact_invalid");
-    assert.match(String(out.structuredContent.reason ?? ""), /variables\.tenantIdEnv is unsupported/i);
+    assert.match(
+      String(out.structuredContent.reason ?? ""),
+      /variables\.tenantIdEnv is unsupported/i,
+    );
     assert.equal(fs.existsSync(projectsFileAbs), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -292,7 +493,9 @@ test("artifact_management project_context validate returns root inspection for m
     assert.equal(out.structuredContent.projectRootAbs, root);
     assert.deepEqual(out.structuredContent.buildMarkers, ["pom.xml"]);
     assert.equal(out.structuredContent.hasBuildMarker, true);
-    assert.deepEqual(out.structuredContent.javaSourceRoots, [path.join(root, "src", "main", "java")]);
+    assert.deepEqual(out.structuredContent.javaSourceRoots, [
+      path.join(root, "src", "main", "java"),
+    ]);
     assert.equal(out.structuredContent.hasJavaSourceRoot, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -476,7 +679,15 @@ test("artifact_management regression_plan validate fails closed when plan uses n
 
 test("artifact_management regression_plan upsert fails closed when payload uses non-canonical env-style keys", async () => {
   const root = createTestTempDir("artifact-management-regression-upsert-noncanonical");
-  const contractAbs = path.join(root, ".mcpjvm", "alpha", "plans", "regression", "p1", "contract.json");
+  const contractAbs = path.join(
+    root,
+    ".mcpjvm",
+    "alpha",
+    "plans",
+    "regression",
+    "p1",
+    "contract.json",
+  );
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
       workspaces: [{ projectRoot: root }],
@@ -515,7 +726,9 @@ test("artifact_management regression_plan upsert fails closed when payload uses 
                       headers: { Authorization: "Bearer {{AUTH_BEARER_TOKEN}}" },
                     },
                   },
-                  expect: [{ id: "e1", actualPath: "status", operator: "field_equals", expected: "ok" }],
+                  expect: [
+                    { id: "e1", actualPath: "status", operator: "field_equals", expected: "ok" },
+                  ],
                 },
               ],
             },
@@ -553,7 +766,14 @@ test("artifact_management regression_plan read supports windowable prerequisites
         targetRef: 0,
         protocol: "http",
         transport: { http: { method: "GET", url: `http://localhost/${index + 1}` } },
-        expect: [{ id: `e-${index + 1}`, actualPath: "$.statusCode", operator: "numeric_gte", expected: 200 }],
+        expect: [
+          {
+            id: `e-${index + 1}`,
+            actualPath: "$.statusCode",
+            operator: "numeric_gte",
+            expected: 200,
+          },
+        ],
       })),
     });
 
@@ -601,14 +821,34 @@ test("artifact_management run_result read uses explicit projectName in multi-pro
       workspaces: [{ projectRoot: root }],
     });
     writeJson(
-      path.join(root, ".mcpjvm", "beta", "plans", "regression", "misc-controllers", "runs", "06-05-2026-07-27-58AM", "execution.result.json"),
+      path.join(
+        root,
+        ".mcpjvm",
+        "beta",
+        "plans",
+        "regression",
+        "misc-controllers",
+        "runs",
+        "06-05-2026-07-27-58AM",
+        "execution.result.json",
+      ),
       {
         status: "pass",
         steps: [{ order: 1, id: "health_check", status: "pass" }],
       },
     );
     writeJson(
-      path.join(root, ".mcpjvm", "beta", "plans", "regression", "misc-controllers", "runs", "06-05-2026-07-27-58AM", "evidence.json"),
+      path.join(
+        root,
+        ".mcpjvm",
+        "beta",
+        "plans",
+        "regression",
+        "misc-controllers",
+        "runs",
+        "06-05-2026-07-27-58AM",
+        "evidence.json",
+      ),
       { targetResolution: [] },
     );
 
@@ -626,7 +866,10 @@ test("artifact_management run_result read uses explicit projectName in multi-pro
     });
 
     assert.equal(out.structuredContent.status, "ok");
-    assert.match(String(out.structuredContent.runDirAbs).replaceAll("\\", "/"), /\.mcpjvm\/beta\/plans\/regression\/misc-controllers\/runs\/06-05-2026-07-27-58AM$/);
+    assert.match(
+      String(out.structuredContent.runDirAbs).replaceAll("\\", "/"),
+      /\.mcpjvm\/beta\/plans\/regression\/misc-controllers\/runs\/06-05-2026-07-27-58AM$/,
+    );
     assert.notEqual(out.structuredContent.reasonCode, "project_artifact_ambiguous");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -639,23 +882,71 @@ test("artifact_management run_result read returns bounded watcher queries with s
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
       workspaces: [{ projectRoot: root }],
     });
-    const runRoot = path.join(root, ".mcpjvm", "alpha", "plans", "regression", "watcher-plan", "runs", "06-05-2026-07-27-58AM");
+    const runRoot = path.join(
+      root,
+      ".mcpjvm",
+      "alpha",
+      "plans",
+      "regression",
+      "watcher-plan",
+      "runs",
+      "06-05-2026-07-27-58AM",
+    );
     writeJson(path.join(runRoot, "execution.result.json"), {
       status: "fail",
       triggerStatus: "pass",
       watcherStatus: "fail",
       steps: [{ order: 1, id: "trigger", status: "pass" }],
       watchers: [
-        { id: "search-index", status: "pass", outcome: "verified", attemptCount: 2, durationMs: 200 },
-        { id: "feed-cache", status: "fail_assertion", outcome: "failed_expectation", attemptCount: 3, durationMs: 900 },
-        { id: "warehouse-sync", status: "blocked_runtime", outcome: "timed_out", attemptCount: 2, durationMs: 1200 },
+        {
+          id: "search-index",
+          status: "pass",
+          outcome: "verified",
+          attemptCount: 2,
+          durationMs: 200,
+        },
+        {
+          id: "feed-cache",
+          status: "fail_assertion",
+          outcome: "failed_expectation",
+          attemptCount: 3,
+          durationMs: 900,
+        },
+        {
+          id: "warehouse-sync",
+          status: "blocked_runtime",
+          outcome: "timed_out",
+          attemptCount: 2,
+          durationMs: 1200,
+        },
       ],
     });
     writeJson(path.join(runRoot, "evidence.json"), {
       watcherExecutions: [
-        { id: "search-index", status: "ok", outcome: "verified", attemptCount: 2, durationMs: 200, reasonCode: "watcher_verified" },
-        { id: "feed-cache", status: "fail_closed", outcome: "expectation_failed", attemptCount: 3, durationMs: 900, reasonCode: "watcher_expectation_failed" },
-        { id: "warehouse-sync", status: "timed_out", outcome: "timeout", attemptCount: 2, durationMs: 1200, reasonCode: "watcher_timeout" },
+        {
+          id: "search-index",
+          status: "ok",
+          outcome: "verified",
+          attemptCount: 2,
+          durationMs: 200,
+          reasonCode: "watcher_verified",
+        },
+        {
+          id: "feed-cache",
+          status: "fail_closed",
+          outcome: "expectation_failed",
+          attemptCount: 3,
+          durationMs: 900,
+          reasonCode: "watcher_expectation_failed",
+        },
+        {
+          id: "warehouse-sync",
+          status: "timed_out",
+          outcome: "timeout",
+          attemptCount: 2,
+          durationMs: 1200,
+          reasonCode: "watcher_timeout",
+        },
       ],
     });
 
@@ -697,7 +988,16 @@ test("artifact_management run_result read fails closed when watcher state is una
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
       workspaces: [{ projectRoot: root }],
     });
-    const runRoot = path.join(root, ".mcpjvm", "alpha", "plans", "regression", "watcher-plan", "runs", "06-05-2026-07-27-58AM");
+    const runRoot = path.join(
+      root,
+      ".mcpjvm",
+      "alpha",
+      "plans",
+      "regression",
+      "watcher-plan",
+      "runs",
+      "06-05-2026-07-27-58AM",
+    );
     writeJson(path.join(runRoot, "execution.result.json"), {
       status: "pass",
       triggerStatus: "pass",
@@ -739,18 +1039,49 @@ test("artifact_management run_result watcherEvidence filter fails closed when wa
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
       workspaces: [{ projectRoot: root }],
     });
-    const runRoot = path.join(root, ".mcpjvm", "alpha", "plans", "regression", "watcher-plan", "runs", "06-05-2026-07-27-58AM");
+    const runRoot = path.join(
+      root,
+      ".mcpjvm",
+      "alpha",
+      "plans",
+      "regression",
+      "watcher-plan",
+      "runs",
+      "06-05-2026-07-27-58AM",
+    );
     writeJson(path.join(runRoot, "execution.result.json"), {
       status: "fail",
       triggerStatus: "pass",
       watcherStatus: "fail",
       steps: [{ order: 1, id: "trigger", status: "pass" }],
-      watchers: [{ id: "search-index", status: "pass", outcome: "verified", attemptCount: 2, durationMs: 200 }],
+      watchers: [
+        {
+          id: "search-index",
+          status: "pass",
+          outcome: "verified",
+          attemptCount: 2,
+          durationMs: 200,
+        },
+      ],
     });
     writeJson(path.join(runRoot, "evidence.json"), {
       watcherExecutions: [
-        { id: "search-index", status: "ok", outcome: "verified", attemptCount: 2, durationMs: 200, reasonCode: "watcher_verified" },
-        { id: "feed-cache", status: "fail_closed", outcome: "expectation_failed", attemptCount: 3, durationMs: 900, reasonCode: "watcher_expectation_failed" },
+        {
+          id: "search-index",
+          status: "ok",
+          outcome: "verified",
+          attemptCount: 2,
+          durationMs: 200,
+          reasonCode: "watcher_verified",
+        },
+        {
+          id: "feed-cache",
+          status: "fail_closed",
+          outcome: "expectation_failed",
+          attemptCount: 3,
+          durationMs: 900,
+          reasonCode: "watcher_expectation_failed",
+        },
       ],
     });
 
