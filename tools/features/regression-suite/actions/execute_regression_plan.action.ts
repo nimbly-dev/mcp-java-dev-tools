@@ -117,7 +117,14 @@ export async function executeRegressionPlanWorkflow(
 
   const resolvedContextInitial =
     isResumedInProgress && args.resumeState
-      ? normalizeHttpContextAliases({ ...args.resumeState.resolvedContext })
+      ? normalizeHttpContextAliases({
+          ...args.resumeState.resolvedContext,
+          ...preflightWithDiscovery.resolvedContext,
+          ...resolvePrerequisiteContext(
+            contract.prerequisites,
+            preflightWithDiscovery.resolvedContext,
+          ),
+        })
       : normalizeHttpContextAliases({
           ...preflightWithDiscovery.resolvedContext,
           ...resolvePrerequisiteContext(
