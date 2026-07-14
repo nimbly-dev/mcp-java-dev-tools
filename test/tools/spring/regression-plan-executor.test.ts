@@ -1858,10 +1858,15 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
     const projectName = "petclinic-regression";
     const planName = "watcher-resume";
     const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
+    const envFile = path.join(root, ".mcpjvm", projectName, ".env");
+    fs.mkdirSync(path.dirname(envFile), { recursive: true });
+    fs.writeFileSync(envFile, "MCP_JVM_TEST_RESUME_AUTH_BEARER_TOKEN=resume-token-v1\n", "utf8");
     writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
       workspaces: [
         {
           projectRoot: root,
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: { bearerTokenEnv: "MCP_JVM_TEST_RESUME_AUTH_BEARER_TOKEN" },
           defaults: { requestTimeoutMs: 100, retryMax: 3 },
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
         },
@@ -1873,14 +1878,17 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
     });
     writeJson(path.join(planRoot, "contract.json"), {
       targets: [{ type: "class_method", selectors: { fqcn: "org.example.EventsController", method: "trigger", sourceRoot: "src/main/java" } }],
-      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      prerequisites: [
+        { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" },
+        { key: "auth.bearer", required: true, secret: true, provisioning: "user_input" },
+      ],
       steps: [
         {
           order: 1,
           id: "trigger_event",
           targetRef: 0,
           protocol: "http",
-          transport: { http: { method: "POST", pathTemplate: "/events" } },
+          transport: { http: { method: "POST", pathTemplate: "/events", headers: { Authorization: "Bearer ${auth.bearer}" } } },
           extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
           expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
         },
@@ -1895,6 +1903,7 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
               request: {
                 method: "GET",
                 url: "http://localhost:8082/index/${eventId}",
+                headers: { Authorization: "Bearer ${auth.bearer}" },
               },
             },
           },
@@ -1914,6 +1923,7 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
         assert.equal(toolName, "transport_execute");
         const request = input.request as Record<string, unknown>;
         if (String(request.method) === "POST") {
+          assert.equal((request.headers as Record<string, unknown>).Authorization, "Bearer resume-token-v1");
           stepCalls += 1;
           return { structuredContent: { status: "pass", statusCode: 202, durationMs: 1, body: "{\"eventId\":\"evt-500\"}", bodyPreview: "{\"eventId\":\"evt-500\"}" } };
         }
@@ -1938,6 +1948,24 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
       executionResult: JSON.parse(fs.readFileSync(first.artifacts.executionResultPathAbs, "utf8")),
       evidence: JSON.parse(fs.readFileSync(first.artifacts.evidencePathAbs, "utf8")),
     };
+    assert.equal(resumeState.resolvedContext["auth.bearer"], undefined);
+    fs.rmSync(envFile);
+    const failedResume = await executeRegressionPlanWorkflow({
+      workspaceRootAbs: root,
+      planName,
+      runId: first.runId,
+      orchestrationTimeoutBudgetMs: 1000,
+      resumeState,
+      mcpInvoke: async () => {
+        throw new Error("resume must fail before transport execution");
+      },
+    });
+    assert.equal(failedResume.status, "blocked");
+    if (failedResume.status === "blocked") {
+      assert.equal(failedResume.preflight.reasonCode, "env_key_missing");
+    }
+
+    fs.writeFileSync(envFile, "MCP_JVM_TEST_RESUME_AUTH_BEARER_TOKEN=resume-token-v2\n", "utf8");
     const second = await executeRegressionPlanWorkflow({
       workspaceRootAbs: root,
       planName,
@@ -1951,6 +1979,7 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
           stepCalls += 1;
           return { structuredContent: { status: "pass", statusCode: 202, durationMs: 1, body: "{\"eventId\":\"evt-500\"}", bodyPreview: "{\"eventId\":\"evt-500\"}" } };
         }
+        assert.equal((request.headers as Record<string, unknown>).Authorization, "Bearer resume-token-v2");
         watcherCalls += 1;
         return { structuredContent: { status: "pass", statusCode: 200, durationMs: 1, body: "{\"state\":\"ready\"}", bodyPreview: "{\"state\":\"ready\"}" } };
       },
