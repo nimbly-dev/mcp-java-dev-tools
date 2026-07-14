@@ -426,3 +426,50 @@ test("mcp IT: artifact_management exposes transitional correlation backfill meta
     if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
   }
 });
+
+test("mcp IT: artifact_management identifies invalid legacy backfill entries", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-backfill-invalid-it-"));
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "backfill-invalid-project";
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    const projectDir = path.join(workspaceRootAbs, ".mcpjvm", projectName);
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.writeFile(
+      path.join(projectDir, "correlation-index.json"),
+      JSON.stringify({
+        version: 1,
+        entries: [
+          {
+            runId: "07-08-2026-11-24-21AM",
+            planName: "reindex-auth-control",
+            runPath: `.mcpjvm/${projectName}/plans/regression/reindex-auth-control/runs/07-08-2026-11-24-21AM`,
+            generatedAtEpochMs: 1783481061808,
+            status: "fail_closed",
+            reasonCode: "correlation_key_extraction_failed",
+            keyType: "messageId",
+            window: { maxWindowMs: 60000 },
+            probeIds: [],
+          },
+        ],
+      }),
+      "utf8",
+    );
+    mcp = await startMcpClient({ workspaceRootAbs, probeBaseUrl: "http://127.0.0.1:9203" });
+    const result = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "backfill",
+        input: { projectName, stateSurface: "correlation_state" },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(result.structuredContent?.status, "legacy_backfill_source_invalid");
+    const reasonMeta = result.structuredContent?.reasonMeta as Record<string, unknown> | undefined;
+    assert.equal(reasonMeta?.entryIndex, 0);
+    assert.deepEqual(reasonMeta?.invalidFields, ["correlationSessionId"]);
+  } finally {
+    await mcp?.close();
+    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
