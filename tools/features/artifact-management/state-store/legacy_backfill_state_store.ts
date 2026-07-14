@@ -37,47 +37,64 @@ function safeRelativePath(value: string): boolean {
   );
 }
 
-function asEntry(value: unknown, expectedRunPathPrefix: string): LegacyBackfillEntry | undefined {
-  if (!isRecord(value)) return undefined;
+function invalidEntryFields(value: unknown, expectedRunPathPrefix: string): string[] {
+  if (!isRecord(value)) return ["entry"];
+  const invalid: string[] = [];
   const keyType = value.keyType;
   const window = value.window;
+  if (typeof value.runId !== "string") invalid.push("runId");
+  if (typeof value.planName !== "string") invalid.push("planName");
   if (
-    typeof value.runId !== "string" ||
-    typeof value.planName !== "string" ||
     typeof value.runPath !== "string" ||
     !safeRelativePath(value.runPath) ||
-    !value.runPath.replaceAll("\\", "/").startsWith(expectedRunPathPrefix) ||
-    typeof value.generatedAtEpochMs !== "number" ||
-    !Number.isInteger(value.generatedAtEpochMs) ||
-    (value.status !== "ok" && value.status !== "fail_closed") ||
-    typeof value.reasonCode !== "string" ||
-    !["traceId", "requestId", "messageId"].includes(String(keyType)) ||
-    typeof value.correlationSessionId !== "string" ||
-    !isRecord(window) ||
+    !value.runPath.replaceAll("\\", "/").startsWith(expectedRunPathPrefix)
+  )
+    invalid.push("runPath");
+  if (typeof value.generatedAtEpochMs !== "number" || !Number.isInteger(value.generatedAtEpochMs))
+    invalid.push("generatedAtEpochMs");
+  if (value.status !== "ok" && value.status !== "fail_closed") invalid.push("status");
+  if (typeof value.reasonCode !== "string") invalid.push("reasonCode");
+  if (!["traceId", "requestId", "messageId"].includes(String(keyType))) invalid.push("keyType");
+  if (typeof value.correlationSessionId !== "string") invalid.push("correlationSessionId");
+  if (!isRecord(window)) {
+    invalid.push("window");
+  } else if (
     typeof window.maxWindowMs !== "number" ||
     !Number.isInteger(window.maxWindowMs) ||
-    window.maxWindowMs <= 0 ||
-    !Array.isArray(value.probeIds) ||
-    value.probeIds.some((probeId) => typeof probeId !== "string")
-  )
-    return undefined;
-  if (typeof value.keyValue !== "undefined" && typeof value.keyValue !== "string") return undefined;
+    window.maxWindowMs <= 0
+  ) {
+    invalid.push("window.maxWindowMs");
+  }
+  if (!Array.isArray(value.probeIds)) invalid.push("probeIds");
+  else if (value.probeIds.some((probeId) => typeof probeId !== "string"))
+    invalid.push("probeIds[]");
+  if (typeof value.keyValue !== "undefined" && typeof value.keyValue !== "string")
+    invalid.push("keyValue");
+  return invalid;
+}
+
+function asEntry(value: unknown, expectedRunPathPrefix: string): LegacyBackfillEntry | undefined {
+  const invalid = invalidEntryFields(value, expectedRunPathPrefix);
+  if (invalid.length > 0 || !isRecord(value)) return undefined;
+  const record = value as Record<string, any>;
+  const keyType = record.keyType;
+  const window = record.window as Record<string, any>;
   return {
-    runId: value.runId,
-    planName: value.planName,
-    runPath: value.runPath.replaceAll("\\", "/"),
-    generatedAtEpochMs: value.generatedAtEpochMs,
-    status: value.status,
-    reasonCode: value.reasonCode,
+    runId: record.runId,
+    planName: record.planName,
+    runPath: record.runPath.replaceAll("\\", "/"),
+    generatedAtEpochMs: record.generatedAtEpochMs,
+    status: record.status,
+    reasonCode: record.reasonCode,
     keyType: keyType as LegacyBackfillEntry["keyType"],
-    ...(typeof value.keyValue === "string" ? { keyValue: value.keyValue } : {}),
-    correlationSessionId: value.correlationSessionId,
+    ...(typeof record.keyValue === "string" ? { keyValue: record.keyValue } : {}),
+    correlationSessionId: record.correlationSessionId,
     window: {
       ...(typeof window.startEpochMs === "number" ? { startEpochMs: window.startEpochMs } : {}),
       ...(typeof window.endEpochMs === "number" ? { endEpochMs: window.endEpochMs } : {}),
       maxWindowMs: window.maxWindowMs,
     },
-    probeIds: value.probeIds,
+    probeIds: record.probeIds,
   };
 }
 
@@ -168,15 +185,23 @@ export async function backfillLegacyCorrelationIndex(
     );
   const expectedRunPathPrefix = `.mcpjvm/${projectName}/plans/regression/`;
   const normalizedEntries: LegacyBackfillEntry[] = [];
-  for (const rawEntry of parsed.entries) {
+  for (const [entryIndex, rawEntry] of parsed.entries.entries()) {
     const entry = asEntry(rawEntry, expectedRunPathPrefix);
-    if (!entry)
+    if (!entry) {
+      const rawRecord = isRecord(rawEntry) ? rawEntry : undefined;
       return failure(
         "legacy_backfill_source_invalid",
-        "legacy correlation index contains an invalid entry",
+        `legacy correlation index contains an invalid entry at index ${entryIndex}`,
         "correct_legacy_source",
-        { sourcePathRel },
+        {
+          sourcePathRel,
+          entryIndex,
+          ...(typeof rawRecord?.runId === "string" ? { runId: rawRecord.runId } : {}),
+          ...(typeof rawRecord?.planName === "string" ? { planName: rawRecord.planName } : {}),
+          invalidFields: invalidEntryFields(rawEntry, expectedRunPathPrefix),
+        },
       );
+    }
     normalizedEntries.push(entry);
   }
   const store = await openRunStateStore({ workspaceRootAbs: args.workspaceRootAbs, projectName });

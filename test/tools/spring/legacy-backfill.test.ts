@@ -139,3 +139,33 @@ test("legacy correlation backfill rejects malformed input before touching SQLite
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
+
+test("legacy correlation backfill identifies the invalid entry and fields", async () => {
+  const root = tempRoot("legacy-backfill-invalid-diagnostic");
+  try {
+    writeLegacyIndex(root, "alpha", [
+      {
+        ...entry,
+        status: "fail_closed",
+        reasonCode: "correlation_key_extraction_failed",
+        keyType: "messageId",
+        keyValue: undefined,
+        correlationSessionId: undefined,
+        probeIds: [],
+      },
+    ]);
+    const result = await backfillLegacyCorrelationIndex({
+      workspaceRootAbs: root,
+      projectName: "alpha",
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.reasonCode, "legacy_backfill_source_invalid");
+    assert.equal(result.reasonMeta?.entryIndex, 0);
+    assert.equal(result.reasonMeta?.runId, entry.runId);
+    assert.equal(result.reasonMeta?.planName, entry.planName);
+    assert.deepEqual(result.reasonMeta?.invalidFields, ["correlationSessionId"]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
