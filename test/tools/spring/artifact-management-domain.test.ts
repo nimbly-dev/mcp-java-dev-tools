@@ -648,6 +648,38 @@ test("artifact_management project_context upsert fails closed on unsupported wor
   }
 });
 
+test("artifact_management project_context rejects JDBC SQL connection bindings", async () => {
+  const root = createTestTempDir("artifact-management-project-jdbc-binding");
+  try {
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "project_context",
+        action: "upsert",
+        input: {
+          projectName: "alpha",
+          payload: {
+            workspaces: [
+              {
+                projectRoot: root,
+                variables: {
+                  contextBindings: {
+                    "sql.connection.catalog.jdbc.url": "CATALOG_JDBC_URL",
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.status, "project_artifact_invalid");
+    assert.match(String(out.structuredContent.reason ?? ""), /unsupported JDBC/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("artifact_management project_context validate returns root inspection for matching projectName and projectRootAbs", async () => {
   const root = createTestTempDir("artifact-management-project-validate-root");
   try {

@@ -332,3 +332,7 @@ When a Watcher executes, canonical run Artifacts are written first and the bound
 - Treat stale revisions, changed deadlines, decreasing attempts, terminal-state changes, invalid continuation, and checkpoint persistence failures as deterministic fail-closed outcomes.
 - Do not rerun the dependent trigger when a valid Watcher continuation exists. A checkpoint failure while work is in progress blocks safe continuation.
 - Persist only bounded sanitized observation/assertion summaries; never persist credentials, authorization headers, or raw response bodies.
+
+## SQL External Verification
+
+SQL external verification supports SQLite and PostgreSQL. PostgreSQL connection context is project-owned under `sql.connection.<connectionRef>.*` (`host`, `port`, `database`, `username`, `password`, and explicit `tls.mode`). It runs through the Node `pg` provider with bound named parameters, bounded timeout/rows/response size, and secret-safe diagnostics. Do not configure JDBC URLs, drivers, classpaths, or ask callers to provide database passwords inline. For PostgreSQL MCP integration coverage, use an isolated ephemeral Docker database and report `postgresql_it_docker_unavailable` as the sole infrastructure result when Docker is unavailable.

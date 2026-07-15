@@ -36,9 +36,14 @@ A few intentional constraints that apply across all regression plans:
 - `request` must contain exactly one matching provider block (`request.http` or `request.sql`).
 - SQL verification uses `connectionRef` indirection; secret-bearing connection material stays in project/runtime-owned context, not `contract.json`.
 - Current runtime-owned SQL connection resolution uses canonical context keys shaped as `sql.connection.<connectionRef>.*`.
-- The first concrete SQL engine is `sqlite`, resolved with:
+- Supported concrete SQL engines are `sqlite` and `postgresql`. SQLite is resolved with:
   - `sql.connection.<connectionRef>.kind=sqlite`
   - `sql.connection.<connectionRef>.sqlite.filePath=<db path>`
+- PostgreSQL is resolved with:
+  - `sql.connection.<connectionRef>.kind=postgresql`
+  - `sql.connection.<connectionRef>.host`, `.port`, `.database`, `.username`, and `.password`
+  - `sql.connection.<connectionRef>.tls.mode=disable|require|verify-full`
+- PostgreSQL execution is Node-owned through `pg`; named SQL parameters are bound as positional placeholders. JDBC URLs, drivers, classpaths, and JDBC properties are unsupported and fail closed with `external_verification_connection_unsupported`.
 - These runtime keys MAY be supplied through project-owned env-backed `variables.contextBindings`, execution-profile `providedContext`, or explicit per-run context.
 - Runtime-owned `sql.connection.*` keys are treated as secret context and are redacted from persisted run Artifacts.
 - Placeholder semantics align with transport placeholders: canonical `${key}`, compatible `{{key}}`, and compatible `{{{key}}}`.

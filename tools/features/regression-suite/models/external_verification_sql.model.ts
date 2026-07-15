@@ -6,6 +6,7 @@ import type {
 export type SqlExecutionFailureCode =
   | "external_verification_connection_unresolved"
   | "external_verification_connection_invalid"
+  | "external_verification_connection_unsupported"
   | "external_verification_execution_failed"
   | "external_verification_expectation_failed"
   | "external_verification_response_invalid"
@@ -22,14 +23,14 @@ export type SqliteConnectionConfig = {
   filePath: string;
 };
 
-export type JdbcConnectionConfig = {
-  kind: "jdbc";
-  connectionKind: string;
-  jdbcUrl: string;
-  driverClass?: string;
-  classpathEntries: string[];
-  javaBin: string;
-  properties: Record<string, string>;
+export type PostgresqlConnectionConfig = {
+  kind: "postgresql";
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  tlsMode: "disable" | "require" | "verify-full";
 };
 
 export type SqlBindingValue = string | number | bigint | Uint8Array | null;
@@ -52,8 +53,8 @@ export type ExecuteSqlExternalVerificationArgs = {
   resolvedContext: Record<string, unknown>;
   workspaceRootAbs: string;
   internals?: {
-    executeJdbcQuery?: (args: {
-      connection: JdbcConnectionConfig;
+    executePostgresqlQuery?: (args: {
+      connection: PostgresqlConnectionConfig;
       statement: string;
       bindings: SqlBindings["ordered"];
       timeoutMs?: number | null;
