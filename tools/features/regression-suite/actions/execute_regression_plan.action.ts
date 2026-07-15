@@ -148,6 +148,28 @@ export async function executeRegressionPlanWorkflow(
   const stepOutputsByOrder: Record<number, Record<string, unknown>> = {};
   const stepEventTimesByOrder: Record<number, number> = {};
   const stepContextsByOrder = new Map<number, Record<string, unknown>>();
+  const suiteContext: Record<string, unknown> = {};
+  if (isResumedInProgress && resumeExecutionResult && args.resumeState) {
+    const persistedContext = args.resumeState.resolvedContext;
+    for (const step of contract.steps) {
+      const persistedStep = resumeExecutionResult.steps.find(
+        (entry) => entry.order === step.order && entry.id === step.id && entry.status === "pass",
+      );
+      if (!persistedStep || !Array.isArray(persistedStep.extract)) continue;
+      for (const extract of step.extract ?? []) {
+        if (
+          extract.scope !== "suite" ||
+          !persistedStep.extract.some(
+            (entry) => entry.as === extract.as && entry.status === "resolved",
+          ) ||
+          !Object.prototype.hasOwnProperty.call(persistedContext, extract.as)
+        ) {
+          continue;
+        }
+        suiteContext[extract.as] = persistedContext[extract.as];
+      }
+    }
+  }
   let hardRuntimeBlocker = resumeExecutionResult?.triggerStatus === "blocked";
   let eventCursorEpochMs = now.getTime();
   if (!isResumedInProgress) {
@@ -417,8 +439,16 @@ export async function executeRegressionPlanWorkflow(
               conditionEvaluation: {
                 status: true as const,
               },
-            }),
+        }),
       });
+      if (stepStatus === "pass") {
+        for (const extract of step.extract ?? []) {
+          if (extract.scope !== "suite" || !Object.prototype.hasOwnProperty.call(extractOutcome.context, extract.as)) {
+            continue;
+          }
+          suiteContext[extract.as] = extractOutcome.context[extract.as];
+        }
+      }
       stepOutputsByOrder[step.order] = stepEnvelope;
       stepEventTimesByOrder[step.order] = eventCursorEpochMs;
       eventCursorEpochMs += Math.max(1, transport.durationMs);
@@ -597,5 +627,6 @@ export async function executeRegressionPlanWorkflow(
     runStatus,
     artifacts,
     executionResult,
+    ...(Object.keys(suiteContext).length > 0 ? { suiteContext } : {}),
   };
 }

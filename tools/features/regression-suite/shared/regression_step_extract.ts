@@ -60,6 +60,24 @@ export function validateStepExtracts(steps: PlanStep[]): StepExtractValidationRe
           ],
         };
       }
+      if (typeof extract.scope !== "undefined" && extract.scope !== "plan" && extract.scope !== "suite") {
+        return {
+          ok: false,
+          reasonCode: "step_extract_invalid",
+          requiredUserAction: [
+            `Set extract[].scope to 'plan' or 'suite' for step '${step.id}' (from='${extract.from}').`,
+          ],
+        };
+      }
+      if (typeof extract.secret !== "undefined" && typeof extract.secret !== "boolean") {
+        return {
+          ok: false,
+          reasonCode: "step_extract_invalid",
+          requiredUserAction: [
+            `Set extract[].secret to true or false for step '${step.id}' (from='${extract.from}').`,
+          ],
+        };
+      }
     }
   }
 

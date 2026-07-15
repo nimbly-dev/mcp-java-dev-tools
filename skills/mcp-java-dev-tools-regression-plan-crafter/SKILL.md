@@ -52,9 +52,13 @@ If user input conflicts with these rules, fail closed and request clarification.
 8. `steps[].when.left` must reference only `context.*` or prior `step[n].*` (where `n < current step order`).
 9. `watchers[]` is optional and first-class for bounded downstream completion verification after trigger-step success.
 10. `externalVerification[]` is optional and first-class for downstream data-validity verification after trigger/watcher convergence.
-11. Execution Orchestrator resiliency is project-owned:
-   - do not add plan-level resume/poll knobs
-   - rely on `.mcpjvm/<project_name>/projects.json` `workspaces[].defaults.orchestrator.*`
+11. `steps[].extract[]` defaults to `scope="plan"`; use `scope="suite"` only for an explicitly non-secret value that later profile plans must consume, and set `secret=false` explicitly.
+12. `secret` is an explicit classification. Never infer it from an output key name, and never promote a secret extraction to suite context.
+13. Execution Orchestrator resiliency is project-owned:
+
+- do not add plan-level resume/poll knobs
+- rely on `.mcpjvm/<project_name>/projects.json` `workspaces[].defaults.orchestrator.*`
+
 12. When `correlation.enabled=true`, author `strictLineExpectations[]` for Strict Line evidence that requires persistence. Each expectation has a unique `sequenceOrder`, `strictLineKey`, `selectorPolicy=exact_instance`, count operator (`exact|at_least|at_most|range`), and bounded expected delta or range. Multi-instance selector policies remain fail-closed until frozen membership execution support is available.
 13. Use one aggregate expectation for repeated processing (for example a 500-item reindex); do not create one expectation per Line Hit. Pair non-isolated count evidence with a Watcher or external verification.
 
@@ -174,6 +178,10 @@ Rules:
 3. use canonical `${key}` placeholders for context interpolation
 4. assume external verification may be resumed from an already in-progress plan after prior trigger or watcher completion; do not model it as a separate rerun-capable plan
 
+### Context scope and suite promotion
+
+Use plan context for values consumed only by later steps, Watchers, or external verification in the same plan. Use suite context only when a later profile plan must consume the value. The producer must complete successfully before the value is promoted, and the consumer must reference a key explicitly promoted by an earlier plan. Forward references fail closed with `step_context_forward_reference` or `suite_context_forward_reference`; suite promotion of a secret fails with `suite_context_secret_forbidden`.
+
 ### 7) Generate `plan.md`
 
 Required sections:
@@ -270,6 +278,7 @@ When crafting or updating plans, output:
 1. Do not create additional MCP tools beyond the existing `artifact_management` path.
 2. Do not execute regression runs from this skill.
 3. Do not write `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>` artifacts manually.
+
 ## Watcher Persistence Contract
 
 Watcher wait policies must resolve to a bounded timeout, retry limit, and polling interval before execution. Scope each Watcher to its dependency step and stable job/scheduler identity when available so a persisted continuation can resume the same Watcher without rerunning its trigger or resetting its deadline.

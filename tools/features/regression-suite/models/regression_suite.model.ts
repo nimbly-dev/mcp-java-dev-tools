@@ -124,6 +124,7 @@ export type ExecuteRegressionPlanWorkflowResult =
       runStatus: "pass" | "fail" | "blocked" | "in_progress";
       artifacts: RegressionRunArtifactsWriteResult;
       executionResult: RegressionRunExecutionResult;
+      suiteContext?: Record<string, unknown>;
     };
 
 export type ExecuteRegressionRuntimeSuiteArgs = {

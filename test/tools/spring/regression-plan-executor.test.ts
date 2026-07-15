@@ -1693,7 +1693,7 @@ test("executeRegressionPlanWorkflow fails closed when watcher response cannot be
           targetRef: 0,
           protocol: "http",
           transport: { http: { method: "POST", pathTemplate: "/events" } },
-          extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
+          extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true, scope: "suite", secret: false }],
           expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
         },
       ],
@@ -1889,7 +1889,7 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
           targetRef: 0,
           protocol: "http",
           transport: { http: { method: "POST", pathTemplate: "/events", headers: { Authorization: "Bearer ${auth.bearer}" } } },
-          extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
+          extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true, scope: "suite", secret: false }],
           expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
         },
       ],
@@ -1991,6 +1991,7 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
       assert.equal(second.runStatus, "pass");
       assert.equal(second.executionResult.watcherStatus, "pass");
       assert.equal(second.executionResult.continuation, undefined);
+      assert.equal(second.suiteContext?.eventId, "evt-500");
     }
     assert.equal(stepCalls, 1);
     assert.equal(watcherCalls, 2);

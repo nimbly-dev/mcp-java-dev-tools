@@ -13,7 +13,9 @@ import {
   resolveBlockedPlanDetail,
   upsertPlanRun,
   isRecord,
+  readPlanContract,
 } from "../support/regression_suite_state";
+import { validateSuiteContextDependencies } from "../support/regression_plan_preflight_validation";
 import { readSuiteManifest } from "../support/load_regression_suite_manifest";
 import {
   collectSuiteCorrelationSession,
@@ -89,6 +91,44 @@ export async function executeRegressionRuntimeSuite(
       ? args.projectName.trim()
       : undefined,
   );
+  const suiteContracts = await Promise.all(
+    orderedPlans.map(async (plan) => ({
+      planName: plan.planName,
+      contract: await readPlanContract({
+        workspaceRootAbs: args.workspaceRootAbs,
+        ...(typeof args.projectName === "string" ? { projectName: args.projectName } : {}),
+        planName: plan.planName,
+      }),
+      providedContextKeys: Object.keys(plan.providedContext ?? {}),
+    })),
+  );
+  if (suiteContracts.some((entry) => !entry.contract)) {
+    return {
+      status: "blocked",
+      reasonCode: "suite_contract_missing",
+      requiredUserAction: ["Ensure every execution profile plan has a readable contract.json."],
+    };
+  }
+  const suiteContextValidation = validateSuiteContextDependencies({
+    plans: suiteContracts.flatMap((entry) =>
+      entry.contract
+        ? [
+            {
+              planName: entry.planName,
+              contract: entry.contract,
+              providedContextKeys: entry.providedContextKeys,
+            },
+          ]
+        : [],
+    ),
+  });
+  if (!suiteContextValidation.ok) {
+    return {
+      status: "blocked",
+      reasonCode: suiteContextValidation.reasonCode,
+      requiredUserAction: suiteContextValidation.requiredUserAction,
+    };
+  }
   for (const priorPlanRun of planRuns) {
     if (
       priorPlanRun.status !== "executed" ||
@@ -214,6 +254,9 @@ export async function executeRegressionRuntimeSuite(
       nextPlanOrder = plan.order;
       activeInProgressExecutionResult = run.executionResult;
       break;
+    }
+    if (run.suiteContext) {
+      Object.assign(suiteProvidedContext, run.suiteContext);
     }
     await collectSuiteCorrelationSession({
       runDirAbs: run.artifacts.runDirAbs,

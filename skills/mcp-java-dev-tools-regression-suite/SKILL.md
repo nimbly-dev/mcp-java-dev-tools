@@ -150,6 +150,12 @@ Runtime suite branch (`execution_profile`) rules:
 
 ## Context and Read Budget
 
+### Extract scope and resumable context
+
+`contract.steps[].extract[]` uses `scope="plan"` by default. Plan context is available to later steps, dependent Watchers, and external verification in that plan. A value intended for a later profile plan must use `scope="suite"` and `secret=false`; suite promotion is explicit and only occurs after the producer plan passes. Secret classification is explicit and is never inferred from output key names. A later plan that references an unpromoted suite key fails closed with `suite_context_forward_reference`, while secret suite promotion returns `suite_context_secret_forbidden`.
+
+During resume, call `execution_orchestration` with the same `suiteRunId`. Continue the persisted active phase and preserve completed-step context; do not resend completed triggers. Secret values remain redacted from Artifacts, MCP output, SQLite summaries, and logs.
+
 1. Always use bounded or windowed reads for Artifact inspection, logs, and generated scripts.
 2. Do not switch to full Artifact reads based on artifact size; this workflow should use paged/windowed inspection by default.
 3. Never dump full `contract.json`, `execution.result.json`, `evidence.json`, or export scripts into context when a bounded/windowed read can answer the question.
@@ -252,8 +258,8 @@ Run a dry run first. Age and count retention apply together; cleanup excludes ac
 16. SQLite recovery is a maintenance workflow, not normal suite execution. Rebuild only from canonical run Artifacts through `artifact_management` with `artifactType=run_result` and `action=rebuild`; do not use legacy `correlation-index.json` or invent active checkpoint state.
 17. Never invoke legacy JSON backfill during normal suite execution or as a post-cutover fallback; it is an explicit pre-cutover maintenance action only.
 18. Cutover is an explicit maintenance action; once complete, SQLite is required and no legacy correlation-index writer or query fallback is permitted.
-18. Correlation projection must preserve the same `runId` and `correlationSessionId`; a fresh suite run must not reuse a terminal Correlation result from an older run merely because its key matches.
-19. Treat persisted Probe scope state as historical observation only. Live Sidecar Probe state and runtime-instance identity remain authoritative.
+19. Correlation projection must preserve the same `runId` and `correlationSessionId`; a fresh suite run must not reuse a terminal Correlation result from an older run merely because its key matches.
+20. Treat persisted Probe scope state as historical observation only. Live Sidecar Probe state and runtime-instance identity remain authoritative.
 
 ## MCP-First and Wrapped Transport
 

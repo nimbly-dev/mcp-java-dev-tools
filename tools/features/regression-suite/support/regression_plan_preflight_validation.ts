@@ -3,12 +3,15 @@
  */
 import type {
   PlanCorrelationPolicy,
+  PlanExternalVerification,
+  PlanContract,
   PlanStepCondition,
   PlanStepConditionPredicate,
   PlanStepExpectation,
   PlanPrerequisite,
   PrerequisiteResolution,
   PlanStep,
+  PlanWatcher,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import { normalizePlaceholderSyntaxInString } from "@tools-core/placeholder_resolution";
 
@@ -419,12 +422,154 @@ export function validateTransportPlaceholderSyntax(steps: PlanStep[]):
   return { ok: true };
 }
 
+function collectPlaceholderKeys(value: unknown, keys: Set<string>): void {
+  if (typeof value === "string") {
+    const normalized = normalizePlaceholderSyntaxInString(value).normalized;
+    for (const match of normalized.matchAll(/\$\{([^}]+)\}/g)) {
+      const key = String(match[1] ?? "").trim();
+      if (key) keys.add(key);
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) collectPlaceholderKeys(entry, keys);
+    return;
+  }
+  if (isRecord(value)) {
+    for (const entry of Object.values(value)) collectPlaceholderKeys(entry, keys);
+  }
+}
+
+export function validateExtractedContextDependencies(args: {
+  steps: PlanStep[];
+  watchers?: PlanWatcher[];
+  externalVerification?: PlanExternalVerification[];
+}):
+  | { ok: true }
+  | {
+      ok: false;
+      reasonCode: "step_context_forward_reference" | "suite_context_secret_forbidden";
+      requiredUserAction: string[];
+    } {
+  const producers = new Map<string, number[]>();
+  for (const step of args.steps) {
+    for (const extract of step.extract ?? []) {
+      if (extract.scope === "suite" && extract.secret !== false) {
+        return {
+          ok: false,
+          reasonCode: "suite_context_secret_forbidden",
+          requiredUserAction: [
+            `Suite context extraction '${extract.as}' must declare secret: false.`,
+          ],
+        };
+      }
+      const existing = producers.get(extract.as) ?? [];
+      if (!existing.includes(step.order)) existing.push(step.order);
+      producers.set(extract.as, existing);
+    }
+  }
+
+  for (const step of args.steps) {
+    const referenced = new Set<string>();
+    collectPlaceholderKeys(step.transport, referenced);
+    for (const key of referenced) {
+      const producerOrders = producers.get(key) ?? [];
+      if (
+        producerOrders.some((order) => order >= step.order) &&
+        !producerOrders.some((order) => order < step.order)
+      ) {
+        return {
+          ok: false,
+          reasonCode: "step_context_forward_reference",
+          requiredUserAction: [
+            `Step '${step.id}' references extracted context '${key}' before its producing step completes.`,
+          ],
+        };
+      }
+    }
+  }
+
+  for (const watcher of args.watchers ?? []) {
+    const referenced = new Set<string>();
+    collectPlaceholderKeys(watcher.provider.transport, referenced);
+    for (const key of referenced) {
+      const producerOrders = producers.get(key) ?? [];
+      if (
+        producerOrders.some((order) => order > watcher.dependency.stepOrder) &&
+        !producerOrders.some((order) => order <= watcher.dependency.stepOrder)
+      ) {
+        return {
+          ok: false,
+          reasonCode: "step_context_forward_reference",
+          requiredUserAction: [
+            `Watcher '${watcher.id}' references extracted context '${key}' produced after dependency step ${watcher.dependency.stepOrder}.`,
+          ],
+        };
+      }
+    }
+  }
+
+  return { ok: true };
+}
+
+export function validateSuiteContextDependencies(args: {
+  plans: Array<{
+    planName: string;
+    contract: PlanContract;
+    providedContextKeys?: string[];
+  }>;
+}):
+  | { ok: true }
+  | {
+      ok: false;
+      reasonCode: "suite_context_forward_reference";
+      requiredUserAction: string[];
+    } {
+  const promoted = new Set<string>();
+  for (const plan of args.plans) {
+    const initial = new Set([
+      ...plan.contract.prerequisites.map((entry) => entry.key),
+      ...(plan.providedContextKeys ?? []),
+    ]);
+    const currentPlan = new Set(
+      plan.contract.steps.flatMap((step) => (step.extract ?? []).map((extract) => extract.as)),
+    );
+    const referenced = new Set<string>();
+    for (const step of plan.contract.steps) collectPlaceholderKeys(step.transport, referenced);
+    for (const watcher of plan.contract.watchers ?? []) {
+      collectPlaceholderKeys(watcher.provider.transport, referenced);
+    }
+    for (const verification of plan.contract.externalVerification ?? []) {
+      collectPlaceholderKeys(verification.request, referenced);
+    }
+    for (const key of referenced) {
+      if (initial.has(key) || currentPlan.has(key) || promoted.has(key)) continue;
+      return {
+        ok: false,
+        reasonCode: "suite_context_forward_reference",
+        requiredUserAction: [
+          `Plan '${plan.planName}' references suite context '${key}' without an explicit promotion from an earlier plan.`,
+        ],
+      };
+    }
+    for (const step of plan.contract.steps) {
+      for (const extract of step.extract ?? []) {
+        if (extract.scope === "suite" && extract.secret === false) promoted.add(extract.as);
+      }
+    }
+  }
+  return { ok: true };
+}
+
 export function validateCorrelationPolicy(correlation: PlanCorrelationPolicy | undefined):
   | { ok: true }
   | {
       ok: false;
       reasonCode:
-        "correlation_session_missing" | "correlation_window_invalid" | "correlation_key_invalid" | "correlation_expectation_invalid";
+        | "correlation_session_missing"
+        | "correlation_window_invalid"
+        | "correlation_key_invalid"
+        | "correlation_expectation_invalid";
       requiredUserAction: string[];
     } {
   if (!correlation || correlation.enabled !== true) return { ok: true };
@@ -453,32 +598,63 @@ export function validateCorrelationPolicy(correlation: PlanCorrelationPolicy | u
     for (const expectation of expectations) {
       const key = `${expectation.sequenceOrder}:${expectation.strictLineKey}`;
       const strictLineKeyValid = /^[\w.$]+#[\w$<>]+:\d+$/.test(expectation.strictLineKey);
-      const selectorValid = ["exact_instance", "any_instance", "all_instances", "aggregate", "quorum"].includes(expectation.selectorPolicy);
-      const operatorValid = ["exact", "at_least", "at_most", "range"].includes(expectation.operator);
-      const exactCountValid = expectation.operator === "range"
-        ? Number.isInteger(expectation.expectedMinHitDelta) && Number.isInteger(expectation.expectedMaxHitDelta)
-          && expectation.expectedMinHitDelta !== undefined && expectation.expectedMaxHitDelta !== undefined
-          && expectation.expectedMinHitDelta >= 0 && expectation.expectedMaxHitDelta >= expectation.expectedMinHitDelta
-        : Number.isInteger(expectation.expectedHitDelta) && expectation.expectedHitDelta !== undefined && expectation.expectedHitDelta >= 0;
-      if (!strictLineKeyValid || !Number.isInteger(expectation.sequenceOrder) || expectation.sequenceOrder < 1 || !selectorValid || !operatorValid || !exactCountValid || seen.has(key)) {
+      const selectorValid = [
+        "exact_instance",
+        "any_instance",
+        "all_instances",
+        "aggregate",
+        "quorum",
+      ].includes(expectation.selectorPolicy);
+      const operatorValid = ["exact", "at_least", "at_most", "range"].includes(
+        expectation.operator,
+      );
+      const exactCountValid =
+        expectation.operator === "range"
+          ? Number.isInteger(expectation.expectedMinHitDelta) &&
+            Number.isInteger(expectation.expectedMaxHitDelta) &&
+            expectation.expectedMinHitDelta !== undefined &&
+            expectation.expectedMaxHitDelta !== undefined &&
+            expectation.expectedMinHitDelta >= 0 &&
+            expectation.expectedMaxHitDelta >= expectation.expectedMinHitDelta
+          : Number.isInteger(expectation.expectedHitDelta) &&
+            expectation.expectedHitDelta !== undefined &&
+            expectation.expectedHitDelta >= 0;
+      if (
+        !strictLineKeyValid ||
+        !Number.isInteger(expectation.sequenceOrder) ||
+        expectation.sequenceOrder < 1 ||
+        !selectorValid ||
+        !operatorValid ||
+        !exactCountValid ||
+        seen.has(key)
+      ) {
         return {
           ok: false,
           reasonCode: "correlation_expectation_invalid",
-          requiredUserAction: ["Set unique ordered Strict Line expectations with valid selector policy and bounded count operator."],
+          requiredUserAction: [
+            "Set unique ordered Strict Line expectations with valid selector policy and bounded count operator.",
+          ],
         };
       }
       if (expectation.selectorPolicy !== "exact_instance") {
         return {
           ok: false,
           reasonCode: "correlation_expectation_invalid",
-          requiredUserAction: ["Use selectorPolicy=exact_instance until frozen multi-instance Probe membership is available."],
+          requiredUserAction: [
+            "Use selectorPolicy=exact_instance until frozen multi-instance Probe membership is available.",
+          ],
         };
       }
-      if (lineKeyCounts.get(expectation.strictLineKey)! > 1 && (!Number.isInteger(expectation.stepOrder) || expectation.stepOrder! < 1)) {
+      if (
+        lineKeyCounts.get(expectation.strictLineKey)! > 1 &&
+        (!Number.isInteger(expectation.stepOrder) || expectation.stepOrder! < 1)
+      ) {
         return {
           ok: false,
           reasonCode: "correlation_expectation_invalid",
-          requiredUserAction: ["Set stepOrder on every repeated Strict Line expectation to map it to one deterministic plan step."],
+          requiredUserAction: [
+            "Set stepOrder on every repeated Strict Line expectation to map it to one deterministic plan step.",
+          ],
         };
       }
       seen.add(key);

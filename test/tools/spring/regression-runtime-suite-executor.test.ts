@@ -17,6 +17,93 @@ const {
   writeSadPathPlan,
 } = require("./regression-runtime-suite-executor.fixture");
 
+test("executeRegressionRuntimeSuite promotes only explicit non-secret suite extracts", async () => {
+  const root = createTestTempDir("runtime-suite-context-promotion");
+  try {
+    const projectName = "petclinic-regression";
+    const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression");
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
+          executionProfiles: [{
+            executionProfile: "suite-context-promotion",
+            executionPolicy: "stop_on_fail",
+            plans: [
+              { order: 1, planName: "produce-context" },
+              { order: 2, planName: "consume-context" },
+            ],
+          }],
+        },
+      ],
+    });
+    writeJson(path.join(planRoot, "produce-context", "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "produce-context", "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "produce", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [{
+        order: 1,
+        id: "produce",
+        targetRef: 0,
+        protocol: "http",
+        transport: { http: { method: "POST", pathTemplate: "/produce" } },
+        extract: [{ from: "response.bodyJson.id", as: "output.importJobId", required: true, scope: "suite", secret: false }],
+        expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+      }],
+    });
+    writeJson(path.join(planRoot, "consume-context", "metadata.json"), {
+      specVersion: "1.0.0",
+      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    });
+    writeJson(path.join(planRoot, "consume-context", "contract.json"), {
+      targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "consume", sourceRoot: "src/main/java" } }],
+      prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+      steps: [{
+        order: 1,
+        id: "consume",
+        targetRef: 0,
+        protocol: "http",
+        transport: { http: { method: "GET", pathTemplate: "/consume/${output.importJobId}" } },
+        expect: [{ id: "readable", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+      }],
+    });
+
+    const first = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "suite-context-promotion",
+      maxPlansPerCall: 1,
+      mcpInvoke: async ({ input }: { toolName: string; input: Record<string, unknown> }) => {
+        const request = input.request as Record<string, unknown>;
+        assert.equal(request.url, "http://localhost:8082/produce");
+        return { structuredContent: { status: "pass", statusCode: 202, durationMs: 1, body: "{\"id\":\"job-42\"}", bodyPreview: "{\"id\":\"job-42\"}" } };
+      },
+    });
+    assert.equal(first.status, "in_progress");
+    assert.equal(first.suiteContext?.["output.importJobId"], "job-42");
+
+    const second = await executeRegressionRuntimeSuite({
+      workspaceRootAbs: root,
+      executionProfile: "suite-context-promotion",
+      suiteRunId: first.suiteRunId,
+      startPlanOrder: first.nextPlanOrder,
+      priorPlanRuns: first.planRuns,
+      priorSuiteContext: first.suiteContext,
+      mcpInvoke: async ({ input }: { toolName: string; input: Record<string, unknown> }) => {
+        const request = input.request as Record<string, unknown>;
+        assert.equal(request.url, "http://localhost:8082/consume/job-42");
+        return { structuredContent: { status: "pass", statusCode: 200, durationMs: 1, bodyPreview: "{}" } };
+      },
+    });
+    assert.equal(second.status, "pass");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeRegressionRuntimeSuite enforces stop_on_fail and skips remaining plans", async () => {
   const root = createTestTempDir("runtime-suite-stop");
   try {
