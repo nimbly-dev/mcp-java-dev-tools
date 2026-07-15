@@ -29,6 +29,7 @@ Use this Skill Workflow to coordinate project configuration preservation and loc
    - explicit SQLite transition: `artifactType=run_result`, `action=cutover`;
    - bounded retention maintenance: `artifactType=run_result`, `action=cleanup`;
    - post-migration verification: `artifactType=run_result`, `action=query` with the appropriate state surface.
+   - Backfill is correlation-only reconciliation: the supported sequence for existing projects is `rebuild -> backfill -> cutover`. It reuses canonical `plan_runs`, inserts only missing correlation projections, skips equivalent rows idempotently, and preserves canonical state on divergence.
 7. Require explicit operator direction before `cutover` or applied retention cleanup. Use dry-run retention first.
 8. Report bounded deterministic outputs and preserve the returned reason codes and `nextActionCode`.
 
@@ -38,6 +39,8 @@ Use this Skill Workflow to coordinate project configuration preservation and loc
 - Never delete, relocate, recreate, or rewrite canonical run Artifacts or legacy source JSON during migration.
 - Do not treat legacy JSON as a post-cutover query fallback.
 - Fail closed on missing, invalid, locked, corrupt, or unsupported project/state evidence.
+- Classify terminal `fail_closed` entries with `reasonCode=correlation_key_extraction_failed` and absent session/key facts as `terminal_correlation_not_reconstructible`; skip them without manufacturing runtime truth and preserve bounded persisted audit provenance.
+- Return bounded record locators (`entryIndex`, `planName`, `runId`) and `violatedFields` or `conflictingFields` for malformed or divergent entries.
 - Preserve `state_store_locked`, `state_store_corrupt`, and `state_store_schema_unsupported`.
 - A cleanup result with `batchLimited=true` must be retried through the same action; a concurrent cleanup returns `state_store_retention_conflict`.
 

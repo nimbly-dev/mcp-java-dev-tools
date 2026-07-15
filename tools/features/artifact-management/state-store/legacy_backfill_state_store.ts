@@ -55,7 +55,13 @@ function invalidEntryFields(value: unknown, expectedRunPathPrefix: string): stri
   if (value.status !== "ok" && value.status !== "fail_closed") invalid.push("status");
   if (typeof value.reasonCode !== "string") invalid.push("reasonCode");
   if (!["traceId", "requestId", "messageId"].includes(String(keyType))) invalid.push("keyType");
-  if (typeof value.correlationSessionId !== "string") invalid.push("correlationSessionId");
+  const recognizedNonReconstructible =
+    value.status === "fail_closed" &&
+    value.reasonCode === "correlation_key_extraction_failed" &&
+    typeof value.correlationSessionId === "undefined" &&
+    typeof value.keyValue === "undefined";
+  if (typeof value.correlationSessionId !== "string" && !recognizedNonReconstructible)
+    invalid.push("correlationSessionId");
   if (!isRecord(window)) {
     invalid.push("window");
   } else if (
@@ -77,6 +83,11 @@ function asEntry(value: unknown, expectedRunPathPrefix: string): LegacyBackfillE
   const invalid = invalidEntryFields(value, expectedRunPathPrefix);
   if (invalid.length > 0 || !isRecord(value)) return undefined;
   const record = value as Record<string, any>;
+  const nonReconstructible =
+    record.status === "fail_closed" &&
+    record.reasonCode === "correlation_key_extraction_failed" &&
+    typeof record.correlationSessionId === "undefined" &&
+    typeof record.keyValue === "undefined";
   const keyType = record.keyType;
   const window = record.window as Record<string, any>;
   return {
@@ -88,13 +99,18 @@ function asEntry(value: unknown, expectedRunPathPrefix: string): LegacyBackfillE
     reasonCode: record.reasonCode,
     keyType: keyType as LegacyBackfillEntry["keyType"],
     ...(typeof record.keyValue === "string" ? { keyValue: record.keyValue } : {}),
-    correlationSessionId: record.correlationSessionId,
+    ...(typeof record.correlationSessionId === "string"
+      ? { correlationSessionId: record.correlationSessionId }
+      : {}),
     window: {
       ...(typeof window.startEpochMs === "number" ? { startEpochMs: window.startEpochMs } : {}),
       ...(typeof window.endEpochMs === "number" ? { endEpochMs: window.endEpochMs } : {}),
       maxWindowMs: window.maxWindowMs,
     },
     probeIds: record.probeIds,
+    ...(nonReconstructible
+      ? { nonReconstructible: true, missingFields: ["correlationSessionId", "keyValue"] }
+      : {}),
   };
 }
 
@@ -118,19 +134,66 @@ function emptySummary(
   };
 }
 
-function correlationTargetRowCount(store: OpenRunStateStore): number {
-  const row = store.database
+function readPersistedBackfillReasons(
+  store: OpenRunStateStore,
+  importPk: number | undefined,
+): Array<Record<string, unknown>> {
+  if (typeof importPk !== "number") return [];
+  return store.database
     .prepare(
-      `
-    SELECT
-      (SELECT count(*) FROM correlation_runs) +
-      (SELECT count(*) FROM correlation_keys) +
-      (SELECT count(*) FROM correlation_line_expectations) +
-      (SELECT count(*) FROM correlation_probe_observations) AS total
-  `,
+      `SELECT entry_index, plan_name, run_id, reason_code,
+              missing_fields_json, violated_fields_json, conflicting_fields_json
+         FROM legacy_backfill_audits
+        WHERE legacy_backfill_import_pk = ?
+        ORDER BY entry_index ASC
+        LIMIT ${MAX_REASONS}`,
     )
-    .get();
-  return typeof row?.total === "number" ? row.total : 0;
+    .all(importPk)
+    .map((row) => ({
+      entryIndex: Number(row.entry_index),
+      ...(typeof row.plan_name === "string" ? { planName: row.plan_name } : {}),
+      ...(typeof row.run_id === "string" ? { runId: row.run_id } : {}),
+      reasonCode: row.reason_code,
+      ...(typeof row.missing_fields_json === "string"
+        ? { missingFields: JSON.parse(row.missing_fields_json) }
+        : {}),
+      ...(typeof row.violated_fields_json === "string"
+        ? { violatedFields: JSON.parse(row.violated_fields_json) }
+        : {}),
+      ...(typeof row.conflicting_fields_json === "string"
+        ? { conflictingFields: JSON.parse(row.conflicting_fields_json) }
+        : {}),
+    }));
+}
+
+function auditBackfillReason(args: {
+  store: OpenRunStateStore;
+  importPk: number;
+  entryIndex: number;
+  entry: LegacyBackfillEntry;
+  reasonCode: string;
+  missingFields?: string[];
+  violatedFields?: string[];
+  conflictingFields?: string[];
+}): void {
+  args.store.database
+    .prepare(
+      `INSERT INTO legacy_backfill_audits (
+         legacy_backfill_import_pk, entry_index, plan_name, run_id, reason_code,
+         missing_fields_json, violated_fields_json, conflicting_fields_json, created_at_epoch_ms
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      args.importPk,
+      args.entryIndex,
+      args.entry.planName,
+      args.entry.runId,
+      args.reasonCode,
+      args.missingFields ? JSON.stringify(args.missingFields) : null,
+      args.violatedFields ? JSON.stringify(args.violatedFields) : null,
+      args.conflictingFields ? JSON.stringify(args.conflictingFields) : null,
+      Date.now(),
+    );
 }
 
 /** Imports only the supported v1 correlation index; legacy files remain untouched. */
@@ -198,6 +261,9 @@ export async function backfillLegacyCorrelationIndex(
           entryIndex,
           ...(typeof rawRecord?.runId === "string" ? { runId: rawRecord.runId } : {}),
           ...(typeof rawRecord?.planName === "string" ? { planName: rawRecord.planName } : {}),
+          violatedFields: invalidEntryFields(rawEntry, expectedRunPathPrefix),
+          // Preserve the pre-#441 field for existing callers while exposing the
+          // reconciliation contract's canonical diagnostic name.
           invalidFields: invalidEntryFields(rawEntry, expectedRunPathPrefix),
         },
       );
@@ -225,7 +291,7 @@ export async function backfillLegacyCorrelationIndex(
     const prior = store.database
       .prepare(
         `
-      SELECT status, inserted_count, skipped_count, conflicting_count, invalid_count,
+      SELECT legacy_backfill_import_pk, status, inserted_count, skipped_count, conflicting_count, invalid_count,
              non_reconstructible_count, source_checksum
       FROM legacy_backfill_imports
       WHERE project_name = ? AND source_path_rel = ?
@@ -251,16 +317,18 @@ export async function backfillLegacyCorrelationIndex(
           nonReconstructibleEntries: Number(prior.non_reconstructible_count ?? 0),
           sourceChecksum,
           backfillStatus: "noop",
+          ...(readPersistedBackfillReasons(store, Number(prior.legacy_backfill_import_pk)).length >
+          0
+            ? {
+                reasons: readPersistedBackfillReasons(
+                  store,
+                  Number(prior.legacy_backfill_import_pk),
+                ),
+              }
+            : {}),
         },
       };
     }
-    if (correlationTargetRowCount(store) > 0)
-      return failure(
-        "legacy_backfill_target_not_empty",
-        "legacy backfill requires an empty SQLite projection",
-        "run_state_store_rebuild",
-        { sourcePathRel },
-      );
     const sourceIdentities = new Set<string>();
     for (const entry of normalizedEntries) {
       const identity = `${entry.planName}\u0000${entry.runId}`;
@@ -272,67 +340,224 @@ export async function backfillLegacyCorrelationIndex(
           { planName: entry.planName, runId: entry.runId },
         );
       sourceIdentities.add(identity);
-      const existingPlanRun = store.database
-        .prepare(
-          `SELECT plan_run_pk FROM plan_runs
-           WHERE project_name = ? AND plan_name = ? AND run_id = ?`,
-        )
-        .get(projectName, entry.planName, entry.runId);
-      if (existingPlanRun)
-        return failure(
-          "legacy_backfill_conflict",
-          "legacy backfill conflicts with an existing plan run identity",
-          "run_state_store_rebuild",
-          { planName: entry.planName, runId: entry.runId },
-        );
     }
     store.database.exec("BEGIN IMMEDIATE;");
     try {
-      store.database
-        .prepare(
-          `
-        INSERT INTO legacy_backfill_imports (
-          project_name, source_path_rel, detected_legacy_schema_version,
-          importer_version, import_started_at_epoch_ms, source_checksum, status
-        ) VALUES (?, ?, 1, ?, ?, ?, 'in_progress')
-      `,
-        )
-        .run(projectName, sourcePathRel, IMPORTER_VERSION, Date.now(), sourceChecksum);
-      for (const entry of normalizedEntries) {
+      let importPk: number;
+      if (prior?.status === "rejected") {
+        importPk = Number(prior.legacy_backfill_import_pk);
+        store.database
+          .prepare(`DELETE FROM legacy_backfill_audits WHERE legacy_backfill_import_pk = ?`)
+          .run(importPk);
+        store.database
+          .prepare(
+            `UPDATE legacy_backfill_imports
+                SET detected_legacy_schema_version = 1,
+                    importer_version = ?, import_started_at_epoch_ms = ?,
+                    import_completed_at_epoch_ms = NULL, inserted_count = 0,
+                    skipped_count = 0, conflicting_count = 0, invalid_count = 0,
+                    non_reconstructible_count = 0, source_checksum = ?,
+                    status = 'in_progress', reason_code = NULL
+              WHERE legacy_backfill_import_pk = ?`,
+          )
+          .run(IMPORTER_VERSION, Date.now(), sourceChecksum, importPk);
+      } else {
+        store.database
+          .prepare(
+            `
+          INSERT INTO legacy_backfill_imports (
+            project_name, source_path_rel, detected_legacy_schema_version,
+            importer_version, import_started_at_epoch_ms, source_checksum, status
+          ) VALUES (?, ?, 1, ?, ?, ?, 'in_progress')
+        `,
+          )
+          .run(projectName, sourcePathRel, IMPORTER_VERSION, Date.now(), sourceChecksum);
+        importPk = Number(
+          store.database.prepare("SELECT last_insert_rowid() AS import_pk").get()?.import_pk,
+        );
+      }
+      if (!Number.isInteger(importPk) || importPk <= 0)
+        throw new Error("legacy_backfill_import_missing");
+      for (const [entryIndex, entry] of normalizedEntries.entries()) {
         if (!entry) {
           summary.invalidEntries += 1;
           reasonCount.value += 1;
-          if (reasons.length < MAX_REASONS) reasons.push({ reasonCode: "legacy_entry_invalid" });
+          if (reasons.length < MAX_REASONS)
+            reasons.push({ entryIndex, reasonCode: "legacy_entry_invalid" });
           continue;
         }
-        if (!entry.correlationSessionId.trim()) {
+        if (entry.nonReconstructible) {
+          summary.skippedEntries += 1;
           summary.nonReconstructibleEntries += 1;
           reasonCount.value += 1;
+          auditBackfillReason({
+            store,
+            importPk,
+            entryIndex,
+            entry,
+            reasonCode: "terminal_correlation_not_reconstructible",
+            ...(entry.missingFields ? { missingFields: entry.missingFields } : {}),
+          });
           if (reasons.length < MAX_REASONS)
-            reasons.push({ runId: entry.runId, reasonCode: "correlation_session_missing" });
+            reasons.push({
+              entryIndex,
+              planName: entry.planName,
+              runId: entry.runId,
+              reasonCode: "terminal_correlation_not_reconstructible",
+              missingFields: entry.missingFields,
+            });
+          continue;
+        }
+        if (!entry.correlationSessionId) {
+          summary.invalidEntries += 1;
+          reasonCount.value += 1;
+          auditBackfillReason({
+            store,
+            importPk,
+            entryIndex,
+            entry,
+            reasonCode: "legacy_entry_invalid",
+            violatedFields: ["correlationSessionId"],
+          });
+          if (reasons.length < MAX_REASONS)
+            reasons.push({
+              entryIndex,
+              planName: entry.planName,
+              runId: entry.runId,
+              reasonCode: "legacy_entry_invalid",
+              violatedFields: ["correlationSessionId"],
+            });
           continue;
         }
         const correlationPathRel = safeRelativePath(`${entry.runPath}/correlation/correlation.json`)
           ? `${entry.runPath}/correlation/correlation.json`
           : null;
-        store.database
-          .prepare(
-            `
-          INSERT INTO plan_runs (project_name, plan_name, run_id, status, run_dir_path_rel)
-          VALUES (?, ?, ?, 'executed', ?)
-        `,
-          )
-          .run(projectName, entry.planName, entry.runId, entry.runPath);
         const plan = store.database
           .prepare(
-            `
-          SELECT plan_run_pk FROM plan_runs
-          WHERE project_name = ? AND plan_name = ? AND run_id = ?
-        `,
+            `SELECT plan_run_pk, status, run_dir_path_rel FROM plan_runs
+             WHERE project_name = ? AND plan_name = ? AND run_id = ?`,
           )
           .get(projectName, entry.planName, entry.runId);
-        if (typeof plan?.plan_run_pk !== "number")
+        if (!plan) {
+          store.database
+            .prepare(
+              `INSERT INTO plan_runs (project_name, plan_name, run_id, status, run_dir_path_rel)
+               VALUES (?, ?, ?, 'executed', ?)`,
+            )
+            .run(projectName, entry.planName, entry.runId, entry.runPath);
+        } else if (plan.run_dir_path_rel !== entry.runPath) {
+          summary.conflictingEntries += 1;
+          reasonCount.value += 1;
+          const conflictingFields = ["runPath"];
+          auditBackfillReason({
+            store,
+            importPk,
+            entryIndex,
+            entry,
+            reasonCode: "legacy_canonical_divergence",
+            conflictingFields,
+          });
+          if (reasons.length < MAX_REASONS)
+            reasons.push({
+              entryIndex,
+              planName: entry.planName,
+              runId: entry.runId,
+              reasonCode: "legacy_canonical_divergence",
+              conflictingFields,
+            });
+          continue;
+        }
+        const resolvedPlan = store.database
+          .prepare(
+            `SELECT plan_run_pk FROM plan_runs
+             WHERE project_name = ? AND plan_name = ? AND run_id = ?`,
+          )
+          .get(projectName, entry.planName, entry.runId);
+        if (typeof resolvedPlan?.plan_run_pk !== "number")
           throw new Error("legacy_backfill_plan_run_missing");
+        const existingCorrelation = store.database
+          .prepare(
+            `SELECT correlation_run_pk, status, reason_code, window_start_epoch_ms,
+                    window_end_epoch_ms, max_window_ms, correlation_path_rel
+               FROM correlation_runs
+              WHERE project_name = ? AND run_id = ? AND correlation_session_id = ?`,
+          )
+          .get(projectName, entry.runId, entry.correlationSessionId);
+        const expectedCorrelationStatus = entry.status === "ok" ? "correlated" : "fail_closed";
+        if (existingCorrelation) {
+          const conflictingFields: string[] = [];
+          if (existingCorrelation.status !== expectedCorrelationStatus)
+            conflictingFields.push("status");
+          if (existingCorrelation.reason_code !== entry.reasonCode)
+            conflictingFields.push("reasonCode");
+          if (Number(existingCorrelation.max_window_ms) !== entry.window.maxWindowMs)
+            conflictingFields.push("window.maxWindowMs");
+          if (
+            (existingCorrelation.window_start_epoch_ms ?? null) !==
+            (entry.window.startEpochMs ?? null)
+          )
+            conflictingFields.push("window.startEpochMs");
+          if (
+            (existingCorrelation.window_end_epoch_ms ?? null) !== (entry.window.endEpochMs ?? null)
+          )
+            conflictingFields.push("window.endEpochMs");
+          const existingKey = store.database
+            .prepare(
+              `SELECT key_type, key_value_hash
+                 FROM correlation_keys
+                WHERE correlation_run_pk = ?`,
+            )
+            .get(existingCorrelation.correlation_run_pk);
+          const expectedKeyHash = entry.keyValue
+            ? createHash("sha256").update(entry.keyValue).digest("hex")
+            : undefined;
+          if (expectedKeyHash && !existingKey) {
+            conflictingFields.push("keyValue");
+          } else if (!expectedKeyHash && existingKey) {
+            conflictingFields.push("keyValue");
+          } else if (expectedKeyHash && existingKey) {
+            if (existingKey.key_type !== entry.keyType) conflictingFields.push("keyType");
+            if (existingKey.key_value_hash !== expectedKeyHash) conflictingFields.push("keyValue");
+          }
+          if (conflictingFields.length > 0) {
+            summary.conflictingEntries += 1;
+            reasonCount.value += 1;
+            auditBackfillReason({
+              store,
+              importPk,
+              entryIndex,
+              entry,
+              reasonCode: "legacy_canonical_divergence",
+              conflictingFields,
+            });
+            if (reasons.length < MAX_REASONS)
+              reasons.push({
+                entryIndex,
+                planName: entry.planName,
+                runId: entry.runId,
+                reasonCode: "legacy_canonical_divergence",
+                conflictingFields,
+              });
+            continue;
+          }
+          summary.skippedEntries += 1;
+          auditBackfillReason({
+            store,
+            importPk,
+            entryIndex,
+            entry,
+            reasonCode: "legacy_correlation_idempotent_skip",
+          });
+          reasonCount.value += 1;
+          if (reasons.length < MAX_REASONS)
+            reasons.push({
+              entryIndex,
+              planName: entry.planName,
+              runId: entry.runId,
+              reasonCode: "legacy_correlation_idempotent_skip",
+            });
+          continue;
+        }
         store.database
           .prepare(
             `
@@ -349,7 +574,7 @@ export async function backfillLegacyCorrelationIndex(
             projectName,
             entry.runId,
             entry.correlationSessionId,
-            entry.status === "ok" ? "correlated" : "fail_closed",
+            expectedCorrelationStatus,
             entry.reasonCode,
             entry.window.startEpochMs ?? null,
             entry.window.endEpochMs ?? null,
@@ -384,6 +609,13 @@ export async function backfillLegacyCorrelationIndex(
         if (entry.probeIds.length > 0) {
           summary.nonReconstructibleEntries += 1;
           reasonCount.value += 1;
+          auditBackfillReason({
+            store,
+            importPk,
+            entryIndex,
+            entry,
+            reasonCode: "probe_observations_not_reconstructed",
+          });
           if (reasons.length < MAX_REASONS)
             reasons.push({
               runId: entry.runId,
@@ -397,7 +629,7 @@ export async function backfillLegacyCorrelationIndex(
         UPDATE legacy_backfill_imports SET
           import_completed_at_epoch_ms = ?, inserted_count = ?, skipped_count = ?,
           conflicting_count = ?, invalid_count = ?, non_reconstructible_count = ?,
-          source_checksum = ?, status = 'completed', reason_code = ?
+          source_checksum = ?, status = ?, reason_code = ?
         WHERE project_name = ? AND source_path_rel = ?
       `,
         )
@@ -409,11 +641,27 @@ export async function backfillLegacyCorrelationIndex(
           summary.invalidEntries,
           summary.nonReconstructibleEntries,
           sourceChecksum,
-          reasons.length ? "legacy_entries_partial" : null,
+          summary.conflictingEntries > 0 ? "rejected" : "completed",
+          summary.conflictingEntries > 0
+            ? "legacy_canonical_divergence"
+            : reasons.length
+              ? "legacy_entries_partial"
+              : null,
           projectName,
           sourcePathRel,
         );
       store.database.exec("COMMIT;");
+      if (summary.conflictingEntries > 0) {
+        const divergence = reasons.find(
+          (reason) => reason.reasonCode === "legacy_canonical_divergence",
+        );
+        return failure(
+          "legacy_backfill_conflict",
+          "legacy correlation data diverges from canonical SQLite state",
+          "correct_legacy_source",
+          divergence,
+        );
+      }
       return {
         ok: true,
         summary: {

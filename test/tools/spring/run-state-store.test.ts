@@ -33,7 +33,7 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
       first.databasePathAbs.replaceAll("\\", "/"),
       /\.mcpjvm\/alpha\/run-state\.sqlite$/,
     );
-    assert.equal(first.schemaVersion, 9);
+    assert.equal(first.schemaVersion, 10);
     assert.deepEqual(
       upsertRunStateArtifact(first, {
         artifactKind: "execution_result",
@@ -48,7 +48,7 @@ test("run-state store bootstraps idempotently with portable Artifact linkage", a
     assert.equal(
       first.database.prepare("SELECT count(*) AS count FROM schema_migration_resources").get()
         ?.count,
-      9,
+      10,
     );
     assert.match(
       String(
