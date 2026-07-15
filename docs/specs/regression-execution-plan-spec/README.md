@@ -10,13 +10,13 @@ Each regression plan lives under:
 .mcpjvm/regression/<regression_name>/
 ```
 
-| File / Folder | Purpose |
-|---|---|
-| `metadata.json` | Plan-level execution settings |
-| `contract.json` | Authoritative machine contract for targets, prerequisites, steps, optional watchers, optional `externalVerification`, and optional correlation policy |
-| `plan.md` | Human-readable execution plan |
-| `runs/<run_id>/...` | Immutable outputs for each run (plan-local run history) |
-| `artifact-schema.md` | Normative run artifact contract (`MUST/SHOULD/MAY`) |
+| File / Folder        | Purpose                                                                                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `metadata.json`      | Plan-level execution settings                                                                                                                         |
+| `contract.json`      | Authoritative machine contract for targets, prerequisites, steps, optional watchers, optional `externalVerification`, and optional correlation policy |
+| `plan.md`            | Human-readable execution plan                                                                                                                         |
+| `runs/<run_id>/...`  | Immutable outputs for each run (plan-local run history)                                                                                               |
+| `artifact-schema.md` | Normative run artifact contract (`MUST/SHOULD/MAY`)                                                                                                   |
 
 ## Design Principles
 
@@ -53,30 +53,39 @@ A few intentional constraints that apply across all regression plans:
 - When `transport.http.url` is absent, runtime URL synthesis is fail-closed: execution composes `apiBaseUrl + pathTemplate/path` only when canonical base-URL context is available.
 - Absolute values placed in `transport.http.pathTemplate` or `transport.http.path` are not silently promoted to `url`.
 
+## Extract and Context Scope
+
+- `steps[].extract[]` accepts `scope: "plan" | "suite"`; omission means `"plan"`.
+- Plan-scoped values are available to later steps in the same plan, including dependent Watchers and `externalVerification[]`, but are not promoted to later profile plans.
+- A suite-scoped extraction MUST declare `secret: false`. Secret values cannot be promoted into suite context. The `secret` flag is an explicit classification; runtimes MUST NOT infer secrecy from the extraction key name.
+- A suite-scoped value is available only to later profile plans after the producing plan completes successfully and is explicitly promoted. A consumer plan may not reference a suite key without that earlier promotion; execution fails closed with `suite_context_forward_reference`.
+- Resumed orchestration reuses the persisted sanitized context and continues the active plan phase without rerunning completed trigger steps. Secret values are resolved from their project-owned source when required and are never persisted or emitted.
+- Deterministic extraction/context validation reason codes include `step_extract_invalid`, `step_context_forward_reference`, `suite_context_secret_forbidden`, and `suite_context_forward_reference`.
+
 ## Writing `plan.md`
 
 Plans use a fixed vocabulary to keep steps unambiguous and machine-parseable.
 
 **Step verbs:**
 
-| Verb | Use for |
-|---|---|
-| `Executes` | Triggering an action |
-| `Captures` | Recording output |
-| `Uses` | Referencing an input or dependency |
-| `Sets` | Assigning a value |
-| `WaitsFor` | Blocking until a condition is met |
-| `Verifies` | Asserting an expected state |
+| Verb       | Use for                            |
+| ---------- | ---------------------------------- |
+| `Executes` | Triggering an action               |
+| `Captures` | Recording output                   |
+| `Uses`     | Referencing an input or dependency |
+| `Sets`     | Assigning a value                  |
+| `WaitsFor` | Blocking until a condition is met  |
+| `Verifies` | Asserting an expected state        |
 
 **Outcome verbs:**
 
-| Verb | Use for |
-|---|---|
-| `Returns` | Expected response |
-| `Emits` | Expected event or signal |
-| `Produces` | Expected artifact or output |
-| `Matches` | Comparison against a reference |
-| `Passes` | Assertion success |
+| Verb       | Use for                        |
+| ---------- | ------------------------------ |
+| `Returns`  | Expected response              |
+| `Emits`    | Expected event or signal       |
+| `Produces` | Expected artifact or output    |
+| `Matches`  | Comparison against a reference |
+| `Passes`   | Assertion success              |
 
 ## Execution Order
 

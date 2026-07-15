@@ -9,6 +9,7 @@ const {
   resolveWatcherWaitPolicy,
   resolvePrerequisiteContext,
   resolveStepTransport,
+  validateSuiteContextDependencies,
 } = require("@tools-feature-regression-suite");
 const {
   validateNormalizedExternalVerificationResultShape,
@@ -1225,6 +1226,73 @@ test("preflight blocks when extract entry is malformed", () => {
   });
   assert.equal(result.status, "blocked_invalid");
   assert.equal(result.reasonCode, "step_extract_invalid");
+});
+
+test("preflight defers response-derived context and rejects forward references", () => {
+  const contract = baseContract({
+    steps: [{
+      order: 1,
+      id: "submit",
+      targetRef: 0,
+      protocol: "http",
+      transport: { http: { method: "POST", pathTemplate: "/imports/${output.jobId}" } },
+      extract: [{ from: "response.bodyJson.id", as: "output.jobId", required: true }],
+      expect: [{ id: "accepted", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+    }],
+  });
+  const result = buildReplayPreflight({ metadata: baseMetadata(), contract, providedContext: {}, targetCandidateCount: 1 });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "step_context_forward_reference");
+});
+
+test("preflight rejects secret suite-context promotion", () => {
+  const contract = baseContract({
+    prerequisites: [{ key: "auth.bearer", required: true, secret: true, provisioning: "user_input" }],
+    steps: [{
+      order: 1,
+      id: "produce-token",
+      targetRef: 0,
+      protocol: "http",
+      transport: { http: { method: "POST", pathTemplate: "/token" } },
+      extract: [{ from: "response.bodyJson.token", as: "auth.bearer", required: true, scope: "suite", secret: true }],
+      expect: [{ id: "accepted", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+    }],
+  });
+  const result = buildReplayPreflight({ metadata: baseMetadata(), contract, providedContext: { "auth.bearer": "runtime-token" }, targetCandidateCount: 1 });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "suite_context_secret_forbidden");
+});
+
+test("suite context validation requires an earlier explicit promotion", () => {
+  const producer = baseContract({
+    steps: [{
+      order: 1,
+      id: "produce",
+      targetRef: 0,
+      protocol: "http",
+      transport: { http: { method: "POST", pathTemplate: "/produce" } },
+      extract: [{ from: "response.bodyJson.id", as: "output.jobId", required: true }],
+      expect: [{ id: "ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+    }],
+  });
+  const consumer = baseContract({
+    steps: [{
+      order: 1,
+      id: "consume",
+      targetRef: 0,
+      protocol: "http",
+      transport: { http: { method: "GET", pathTemplate: "/consume/${output.jobId}" } },
+      expect: [{ id: "ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+    }],
+  });
+  const result = validateSuiteContextDependencies({
+    plans: [
+      { planName: "producer", contract: producer },
+      { planName: "consumer", contract: consumer },
+    ],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reasonCode, "suite_context_forward_reference");
 });
 
 test("buildTimestampRunId produces sortable timestamp-based run id", () => {

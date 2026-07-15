@@ -29,13 +29,18 @@ async function writeJson(filePath: string, payload: Record<string, unknown>): Pr
       ? {
           ...payload,
           workspaces: payload.workspaces.map((workspace) => {
-            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) return workspace;
+            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace))
+              return workspace;
             const defaults =
-              "defaults" in workspace && workspace.defaults && typeof workspace.defaults === "object"
+              "defaults" in workspace &&
+              workspace.defaults &&
+              typeof workspace.defaults === "object"
                 ? workspace.defaults
                 : {};
             const orchestrator =
-              "orchestrator" in defaults && defaults.orchestrator && typeof defaults.orchestrator === "object"
+              "orchestrator" in defaults &&
+              defaults.orchestrator &&
+              typeof defaults.orchestrator === "object"
                 ? defaults.orchestrator
                 : {
                     resumePollMax: 30,
@@ -77,7 +82,13 @@ test("mcp IT: execution_orchestration execute uses runtime suite path and does n
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -160,7 +171,9 @@ test("mcp IT: execution_orchestration execute uses runtime suite path and does n
 });
 
 test("mcp IT: execution_orchestration execute does not fail with project_artifact_ambiguous when projectName is explicit in multi-project workspace", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-multi-project-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-multi-project-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const targetProjectName = "test-project-performance";
   const otherProjectName = "test-project";
@@ -171,7 +184,13 @@ test("mcp IT: execution_orchestration execute does not fail with project_artifac
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -263,7 +282,9 @@ test("mcp IT: execution_orchestration execute does not fail with project_artifac
 });
 
 test("mcp IT: execution_orchestration accepts compatible {{key}} transport placeholder syntax and reaches plan execution", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-placeholder-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-placeholder-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-performance";
   const projectRootAbs = workspaceRootAbs;
@@ -289,7 +310,13 @@ test("mcp IT: execution_orchestration accepts compatible {{key}} transport place
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -348,7 +375,14 @@ test("mcp IT: execution_orchestration accepts compatible {{key}} transport place
             },
           },
         },
-        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
+        expect: [
+          {
+            id: "http_ok",
+            actualPath: "response.statusCode",
+            operator: "numeric_gte",
+            expected: 200,
+          },
+        ],
       },
     ],
   });
@@ -388,7 +422,9 @@ test("mcp IT: execution_orchestration accepts compatible {{key}} transport place
 });
 
 test("mcp IT: execution_orchestration resolves project contextBindings from env-backed workspace mappings", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-context-bindings-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-context-bindings-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-context-bindings";
   const projectRootAbs = workspaceRootAbs;
@@ -420,7 +456,13 @@ test("mcp IT: execution_orchestration resolves project contextBindings from env-
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -468,7 +510,14 @@ test("mcp IT: execution_orchestration resolves project contextBindings from env-
             pathTemplate: "/api/v2/tenant/${tenantId}/tags",
           },
         },
-        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
+        expect: [
+          {
+            id: "http_ok",
+            actualPath: "response.statusCode",
+            operator: "numeric_gte",
+            expected: 200,
+          },
+        ],
       },
     ],
   });
@@ -518,7 +567,9 @@ test("mcp IT: execution_orchestration resolves project contextBindings from env-
 });
 
 test("mcp IT: execution_orchestration passes transport-failure contract-matched assertions and persists clean step artifacts", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-sad-path-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-sad-path-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "petclinic-regression";
   const projectRootAbs = workspaceRootAbs;
@@ -550,7 +601,13 @@ test("mcp IT: execution_orchestration passes transport-failure contract-matched 
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -597,8 +654,18 @@ test("mcp IT: execution_orchestration passes transport-failure contract-matched 
           },
         },
         expect: [
-          { id: "status_not_found", actualPath: "response.statusCode", operator: "field_equals", expected: 404 },
-          { id: "body_reason_missing", actualPath: "response.body", operator: "contains", expected: "missing" },
+          {
+            id: "status_not_found",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 404,
+          },
+          {
+            id: "body_reason_missing",
+            actualPath: "response.body",
+            operator: "contains",
+            expected: "missing",
+          },
         ],
       },
     ],
@@ -651,7 +718,9 @@ test("mcp IT: execution_orchestration passes transport-failure contract-matched 
 });
 
 test("mcp IT: execution_orchestration keeps optional-only transport-failure step failures out of overall run status", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-sad-path-optional-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-sad-path-optional-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "petclinic-regression";
   const projectRootAbs = workspaceRootAbs;
@@ -683,7 +752,13 @@ test("mcp IT: execution_orchestration keeps optional-only transport-failure step
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -794,7 +869,9 @@ test("mcp IT: execution_orchestration keeps optional-only transport-failure step
 });
 
 test("mcp IT: execution_orchestration supports array index notation in response body assertions", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-array-path-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-array-path-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-array-path";
   const projectRootAbs = workspaceRootAbs;
@@ -826,7 +903,13 @@ test("mcp IT: execution_orchestration supports array index notation in response 
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -873,7 +956,12 @@ test("mcp IT: execution_orchestration supports array index notation in response 
           },
         },
         expect: [
-          { id: "first-name-value", actualPath: "response.bodyJson.names[0].value", operator: "field_equals", expected: "Test" },
+          {
+            id: "first-name-value",
+            actualPath: "response.bodyJson.names[0].value",
+            operator: "field_equals",
+            expected: "Test",
+          },
         ],
       },
     ],
@@ -927,7 +1015,9 @@ test("mcp IT: execution_orchestration supports array index notation in response 
 });
 
 test("mcp IT: execution_orchestration surfaces blockedReasonMeta for http_payload_invalid when apiBaseUrl is missing for pathTemplate synthesis", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-http-payload-meta-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-http-payload-meta-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-http-payload-meta";
   const projectRootAbs = workspaceRootAbs;
@@ -938,7 +1028,13 @@ test("mcp IT: execution_orchestration surfaces blockedReasonMeta for http_payloa
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -985,7 +1081,14 @@ test("mcp IT: execution_orchestration surfaces blockedReasonMeta for http_payloa
             pathTemplate: "/api/v2/tenant/tags",
           },
         },
-        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
+        expect: [
+          {
+            id: "http_ok",
+            actualPath: "response.statusCode",
+            operator: "numeric_gte",
+            expected: 200,
+          },
+        ],
       },
     ],
   });
@@ -1015,8 +1118,14 @@ test("mcp IT: execution_orchestration surfaces blockedReasonMeta for http_payloa
     assert.equal(planRuns[0]?.status, "executed");
     assert.equal(planRuns[0]?.runStatus, "blocked");
     assert.equal(planRuns[0]?.blockedReasonCode, "http_payload_invalid");
-    assert.equal((planRuns[0]?.blockedReasonMeta as Record<string, unknown> | undefined)?.cause, "api_base_url_missing_for_path_template");
-    assert.deepEqual((planRuns[0]?.blockedReasonMeta as Record<string, unknown> | undefined)?.missingFields, ["url"]);
+    assert.equal(
+      (planRuns[0]?.blockedReasonMeta as Record<string, unknown> | undefined)?.cause,
+      "api_base_url_missing_for_path_template",
+    );
+    assert.deepEqual(
+      (planRuns[0]?.blockedReasonMeta as Record<string, unknown> | undefined)?.missingFields,
+      ["url"],
+    );
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
@@ -1026,7 +1135,9 @@ test("mcp IT: execution_orchestration surfaces blockedReasonMeta for http_payloa
 });
 
 test("mcp IT: execution_orchestration composes baseUrl prerequisite with transport path when url is absent", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-base-url-path-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-base-url-path-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "petclinic-regression";
   const projectRootAbs = workspaceRootAbs;
@@ -1052,7 +1163,13 @@ test("mcp IT: execution_orchestration composes baseUrl prerequisite with transpo
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -1105,7 +1222,14 @@ test("mcp IT: execution_orchestration composes baseUrl prerequisite with transpo
             path: "/resource/${id}",
           },
         },
-        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        expect: [
+          {
+            id: "http_ok",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 200,
+          },
+        ],
       },
     ],
   });
@@ -1145,13 +1269,22 @@ test("mcp IT: execution_orchestration composes baseUrl prerequisite with transpo
 });
 
 test("mcp IT: execution_orchestration resolves correlation when json_path source uses response.body.id", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-correlation-json-path-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-correlation-json-path-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-correlation";
   const projectRootAbs = workspaceRootAbs;
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
   const planName = "correlation-json-path";
-  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
   const runRootAbs = path.join(planRootAbs, "runs");
   const appServer = http.createServer((_req, res) => {
     res.statusCode = 200;
@@ -1164,7 +1297,13 @@ test("mcp IT: execution_orchestration resolves correlation when json_path source
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "event-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "event-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -1217,7 +1356,14 @@ test("mcp IT: execution_orchestration resolves correlation when json_path source
             body: { kind: "created" },
           },
         },
-        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        expect: [
+          {
+            id: "http_ok",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 200,
+          },
+        ],
       },
     ],
     correlation: {
@@ -1263,16 +1409,27 @@ test("mcp IT: execution_orchestration resolves correlation when json_path source
     const runDir = runDirs[0];
     if (!runDir) throw new Error("expected one run directory");
 
-    const evidence = JSON.parse(await fs.readFile(path.join(runRootAbs, runDir, "evidence.json"), "utf8")) as Record<string, unknown>;
+    const evidence = JSON.parse(
+      await fs.readFile(path.join(runRootAbs, runDir, "evidence.json"), "utf8"),
+    ) as Record<string, unknown>;
     const correlation = JSON.parse(
       await fs.readFile(path.join(runRootAbs, runDir, "correlation", "correlation.json"), "utf8"),
     ) as Record<string, unknown>;
 
     assert.equal(Array.isArray(evidence.correlationEvents), true);
-    assert.equal((evidence.correlationPolicy as Record<string, unknown>).keySourceType, "json_path");
-    assert.equal((evidence.correlationPolicy as Record<string, unknown>).keySourcePath, "response.body.id");
+    assert.equal(
+      (evidence.correlationPolicy as Record<string, unknown>).keySourceType,
+      "json_path",
+    );
+    assert.equal(
+      (evidence.correlationPolicy as Record<string, unknown>).keySourcePath,
+      "response.body.id",
+    );
     assert.equal((evidence.correlationPolicy as Record<string, unknown>).keyValue, "evt-123");
-    assert.equal(typeof (evidence.correlationPolicy as Record<string, unknown>).keyExtractionReasonCode, "undefined");
+    assert.equal(
+      typeof (evidence.correlationPolicy as Record<string, unknown>).keyExtractionReasonCode,
+      "undefined",
+    );
     const correlationEvents = evidence.correlationEvents as Array<Record<string, unknown>>;
     assert.equal(correlationEvents.length, 1);
     assert.equal(correlationEvents[0]?.probeId, "event-service");
@@ -1290,13 +1447,22 @@ test("mcp IT: execution_orchestration resolves correlation when json_path source
 });
 
 test("mcp IT: execution_orchestration records unresolved optional extract without blocking the run", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-extract-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-extract-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-extract";
   const projectRootAbs = workspaceRootAbs;
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
   const planName = "extract-optional-miss";
-  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
   const runRootAbs = path.join(planRootAbs, "runs");
   const appServer = http.createServer((_req, res) => {
     res.statusCode = 200;
@@ -1309,7 +1475,13 @@ test("mcp IT: execution_orchestration records unresolved optional extract withou
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "event-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "event-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -1362,7 +1534,14 @@ test("mcp IT: execution_orchestration records unresolved optional extract withou
           },
         },
         extract: [{ from: "response.body.id", as: "triggeredEventId" }],
-        expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 }],
+        expect: [
+          {
+            id: "http_ok",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 200,
+          },
+        ],
       },
     ],
   });
@@ -1391,7 +1570,9 @@ test("mcp IT: execution_orchestration records unresolved optional extract withou
     const runDir = runDirs[0];
     if (!runDir) throw new Error("expected one run directory");
 
-    const context = JSON.parse(await fs.readFile(path.join(runRootAbs, runDir, "context.resolved.json"), "utf8")) as Record<string, unknown>;
+    const context = JSON.parse(
+      await fs.readFile(path.join(runRootAbs, runDir, "context.resolved.json"), "utf8"),
+    ) as Record<string, unknown>;
     const executionResult = JSON.parse(
       await fs.readFile(path.join(runRootAbs, runDir, "execution.result.json"), "utf8"),
     ) as Record<string, unknown>;
@@ -1419,7 +1600,9 @@ test("mcp IT: execution_orchestration records unresolved optional extract withou
 });
 
 test("mcp IT: execution_orchestration continue_on_fail stops after suite-level env blocker and creates no runs", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-suite-block-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-suite-block-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-performance";
   const projectRootAbs = workspaceRootAbs;
@@ -1449,7 +1632,13 @@ test("mcp IT: execution_orchestration continue_on_fail stops after suite-level e
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -1511,7 +1700,14 @@ test("mcp IT: execution_orchestration continue_on_fail stops after suite-level e
               headers: { Authorization: "Bearer ${auth.bearer}" },
             },
           },
-          expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+          expect: [
+            {
+              id: "outcome_ok",
+              actualPath: "status",
+              operator: "outcome_status",
+              expected: "pass",
+            },
+          ],
         },
       ],
     });
@@ -1553,7 +1749,9 @@ test("mcp IT: execution_orchestration continue_on_fail stops after suite-level e
 });
 
 test("mcp IT: execution_orchestration blocks non-canonical env-style prerequisite keys and placeholders", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-env-prereq-alias-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-env-prereq-alias-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-env-prereq-alias";
   const projectRootAbs = workspaceRootAbs;
@@ -1572,7 +1770,13 @@ test("mcp IT: execution_orchestration blocks non-canonical env-style prerequisit
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -1620,7 +1824,9 @@ test("mcp IT: execution_orchestration blocks non-canonical env-style prerequisit
             headers: { Authorization: "Bearer {{AUTH_BEARER_TOKEN}}" },
           },
         },
-        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        expect: [
+          { id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" },
+        ],
       },
     ],
   });
@@ -1661,7 +1867,9 @@ test("mcp IT: execution_orchestration blocks non-canonical env-style prerequisit
 });
 
 test("mcp IT: execution_orchestration supports resumable in_progress slicing by suiteRunId", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-resume-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-resume-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-performance";
   const projectRootAbs = workspaceRootAbs;
@@ -1671,7 +1879,13 @@ test("mcp IT: execution_orchestration supports resumable in_progress slicing by 
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -1697,11 +1911,27 @@ test("mcp IT: execution_orchestration supports resumable in_progress slicing by 
 
   for (const planName of ["plan-a", "plan-b"]) {
     await writeJson(
-      path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName, "metadata.json"),
+      path.join(
+        workspaceRootAbs,
+        ".mcpjvm",
+        projectName,
+        "plans",
+        "regression",
+        planName,
+        "metadata.json",
+      ),
       { execution: { intent: "regression" } },
     );
     await writeJson(
-      path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"),
+      path.join(
+        workspaceRootAbs,
+        ".mcpjvm",
+        projectName,
+        "plans",
+        "regression",
+        planName,
+        "contract.json",
+      ),
       {
         targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
         prerequisites: [],
@@ -1758,14 +1988,246 @@ test("mcp IT: execution_orchestration supports resumable in_progress slicing by 
   }
 });
 
+test("mcp IT: execution_orchestration resumes a suite Watcher with the prior extracted value", async () => {
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-resumed-watcher-it-"),
+  );
+  const workspaceRootAbs = path.join(tmpRoot, "workspace");
+  const projectName = "test-project-resumed-watcher";
+  const projectRootAbs = workspaceRootAbs;
+  const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
+  const eventId = "evt-resumed-123";
+  let postCount = 0;
+  const requests: string[] = [];
+  let appServer: http.Server | undefined;
+  try {
+    appServer = http.createServer((req, res) => {
+      requests.push(`${req.method} ${req.url}`);
+      if (req.method === "POST" && req.url === "/events") {
+        postCount += 1;
+        res.statusCode = 202;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ id: eventId }));
+        return;
+      }
+      if (req.method === "GET" && req.url === `/imports/${eventId}`) {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ id: eventId, status: "accepted" }));
+        return;
+      }
+      if (req.method === "GET" && req.url === `/index/${eventId}`) {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ state: "ready" }));
+        return;
+      }
+      res.statusCode = 404;
+      res.end(JSON.stringify({ reason: "missing" }));
+    });
+    const appPort = await listen(appServer);
+    const actualBaseUrl = `http://127.0.0.1:${appPort}`;
+    await writeJson(probeConfigAbs, {
+      defaultProfile: "dev",
+      profiles: {
+        dev: {
+          probes: {
+            gateway: { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] },
+          },
+        },
+      },
+      workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
+    });
+    await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [
+        {
+          projectRoot: projectRootAbs,
+          executionProfiles: [
+            {
+              executionProfile: "resumed-watcher-run",
+              executionPolicy: "stop_on_fail",
+              plans: [
+                { order: 1, planName: "producer", providedContext: { apiBaseUrl: actualBaseUrl } },
+                { order: 2, planName: "consumer", providedContext: { apiBaseUrl: actualBaseUrl } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const baseContract = {
+      targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
+      prerequisites: [
+        {
+          key: "apiBaseUrl",
+          required: true,
+          secret: false,
+          provisioning: "user_input",
+          default: actualBaseUrl,
+        },
+      ],
+    };
+    await writeJson(
+      path.join(
+        workspaceRootAbs,
+        ".mcpjvm",
+        projectName,
+        "plans",
+        "regression",
+        "producer",
+        "metadata.json",
+      ),
+      { execution: { intent: "regression" } },
+    );
+    await writeJson(
+      path.join(
+        workspaceRootAbs,
+        ".mcpjvm",
+        projectName,
+        "plans",
+        "regression",
+        "producer",
+        "contract.json",
+      ),
+      {
+        ...baseContract,
+        steps: [
+          {
+            order: 1,
+            id: "post_event",
+            targetRef: 0,
+            protocol: "http",
+            transport: { http: { method: "POST", pathTemplate: "/events" } },
+            extract: [
+              {
+                from: "response.bodyJson.id",
+                as: "eventId",
+                scope: "suite",
+                secret: false,
+                required: true,
+              },
+            ],
+            expect: [
+              {
+                id: "accepted",
+                actualPath: "response.statusCode",
+                operator: "field_equals",
+                expected: 202,
+              },
+            ],
+          },
+        ],
+      },
+    );
+    await writeJson(
+      path.join(
+        workspaceRootAbs,
+        ".mcpjvm",
+        projectName,
+        "plans",
+        "regression",
+        "consumer",
+        "metadata.json",
+      ),
+      { execution: { intent: "regression" } },
+    );
+    await writeJson(
+      path.join(
+        workspaceRootAbs,
+        ".mcpjvm",
+        projectName,
+        "plans",
+        "regression",
+        "consumer",
+        "contract.json",
+      ),
+      {
+        ...baseContract,
+        steps: [
+          {
+            order: 1,
+            id: "get_import",
+            targetRef: 0,
+            protocol: "http",
+            transport: { http: { method: "GET", pathTemplate: "/imports/${eventId}" } },
+            expect: [
+              {
+                id: "accepted",
+                actualPath: "response.statusCode",
+                operator: "field_equals",
+                expected: 200,
+              },
+            ],
+          },
+        ],
+        watchers: [
+          {
+            id: "indexed",
+            dependency: { stepOrder: 1 },
+            provider: {
+              type: "http",
+              transport: { request: { method: "GET", url: `${actualBaseUrl}/index/\${eventId}` } },
+            },
+            expect: [
+              {
+                id: "ready",
+                actualPath: "response.bodyJson.state",
+                operator: "field_equals",
+                expected: "ready",
+              },
+            ],
+          },
+        ],
+      },
+    );
+    const mcp = await startMcpClient({
+      workspaceRootAbs,
+      probeBaseUrl: "http://127.0.0.1:9196",
+      extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
+    });
+    try {
+      const first = await callTool(mcp, "execution_orchestration", {
+        action: "execute",
+        input: { projectName, executionProfile: "resumed-watcher-run", maxPlansPerCall: 1 },
+      });
+      assert.equal(first.structuredContent?.status, "in_progress");
+      const suiteRunId = String(first.structuredContent?.suiteRunId ?? "");
+      assert.ok(suiteRunId);
+      const second = await callTool(mcp, "execution_orchestration", {
+        action: "execute",
+        input: { projectName, executionProfile: "resumed-watcher-run", suiteRunId },
+      });
+      assert.equal(second.structuredContent?.status, "pass");
+      assert.equal(second.structuredContent?.suiteRunId, suiteRunId);
+      assert.equal(postCount, 1);
+      assert.ok(requests.includes(`GET /imports/${eventId}`));
+      assert.ok(requests.includes(`GET /index/${eventId}`));
+    } finally {
+      await mcp.close();
+    }
+  } finally {
+    appServer?.close();
+    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
+
 test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion deterministically", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-progress-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-progress-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-watchers";
   const projectRootAbs = workspaceRootAbs;
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
   const planName = "watcher-progress";
-  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
   let watcherChecks = 0;
 
   const appServer = http.createServer(async (req, res) => {
@@ -1798,7 +2260,13 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -1829,7 +2297,12 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
   });
   await writeJson(path.join(planRootAbs, "metadata.json"), {
     specVersion: "1.0.0",
-    execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    execution: {
+      intent: "regression",
+      probeVerification: false,
+      pinStrictProbeKey: false,
+      discoveryPolicy: "allow_discoverable_prerequisites",
+    },
   });
   await writeJson(path.join(planRootAbs, "contract.json"), {
     targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
@@ -1850,7 +2323,14 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
         protocol: "http",
         transport: { http: { method: "POST", pathTemplate: "/events" } },
         extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
-        expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        expect: [
+          {
+            id: "accepted",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 202,
+          },
+        ],
       },
     ],
     watchers: [
@@ -1867,7 +2347,14 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
           },
         },
         waitPolicy: { timeoutMs: 1_000, retryMax: 3 },
-        expect: [{ id: "ready", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        expect: [
+          {
+            id: "ready",
+            actualPath: "response.bodyJson.state",
+            operator: "field_equals",
+            expected: "ready",
+          },
+        ],
       },
     ],
   });
@@ -1890,22 +2377,56 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
 
     assert.equal(first.structuredContent?.status, "blocked");
     assert.equal(first.structuredContent?.reasonCode, "orchestrator_poll_limit_exhausted");
-    assert.equal((first.structuredContent?.progressSummary as Record<string, unknown>)?.progressState, "terminal");
-    assert.equal(((first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<string, unknown>)?.phase, "watchers");
-    assert.equal(((((first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<string, unknown>)?.waitingOn as Record<string, unknown>)?.targetId), "indexed_ready");
+    assert.equal(
+      (first.structuredContent?.progressSummary as Record<string, unknown>)?.progressState,
+      "terminal",
+    );
+    assert.equal(
+      (
+        (first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<
+          string,
+          unknown
+        >
+      )?.phase,
+      "watchers",
+    );
+    assert.equal(
+      (
+        (
+          (first.structuredContent?.progressSummary as Record<string, unknown>)
+            ?.activePlan as Record<string, unknown>
+        )?.waitingOn as Record<string, unknown>
+      )?.targetId,
+      "indexed_ready",
+    );
 
     const suiteRunId = String(first.structuredContent?.suiteRunId ?? "");
     const persisted = JSON.parse(
       await fs.readFile(
-        path.join(workspaceRootAbs, ".mcpjvm", projectName, "suite-runs", suiteRunId, "execution_orchestration.result.json"),
+        path.join(
+          workspaceRootAbs,
+          ".mcpjvm",
+          projectName,
+          "suite-runs",
+          suiteRunId,
+          "execution_orchestration.result.json",
+        ),
         "utf8",
       ),
     ) as Record<string, unknown>;
     assert.equal(persisted.reasonCode, "orchestrator_poll_limit_exhausted");
     const persistedSummary = persisted.progressSummary as Record<string, unknown>;
     assert.equal(persistedSummary.progressState, "terminal");
-    assert.equal(((persistedSummary.activePlan as Record<string, unknown>)?.phase), "watchers");
-    assert.equal(((((persistedSummary.activePlan as Record<string, unknown>)?.waitingOn as Record<string, unknown>)?.targetId)), "indexed_ready");
+    assert.equal((persistedSummary.activePlan as Record<string, unknown>)?.phase, "watchers");
+    assert.equal(
+      (
+        (persistedSummary.activePlan as Record<string, unknown>)?.waitingOn as Record<
+          string,
+          unknown
+        >
+      )?.targetId,
+      "indexed_ready",
+    );
 
     const watcherChecksBeforeTerminalResume = watcherChecks;
     await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
@@ -1954,13 +2475,22 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
 });
 
 test("mcp IT: execution_orchestration classifies outer progress stall deterministically for external verification waits", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-external-progress-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-external-progress-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-external";
   const projectRootAbs = workspaceRootAbs;
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
   const planName = "external-progress";
-  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
   let triggerCalls = 0;
   let verificationCalls = 0;
 
@@ -1989,7 +2519,13 @@ test("mcp IT: execution_orchestration classifies outer progress stall determinis
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -2020,7 +2556,12 @@ test("mcp IT: execution_orchestration classifies outer progress stall determinis
   });
   await writeJson(path.join(planRootAbs, "metadata.json"), {
     specVersion: "1.0.0",
-    execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+    execution: {
+      intent: "regression",
+      probeVerification: false,
+      pinStrictProbeKey: false,
+      discoveryPolicy: "allow_discoverable_prerequisites",
+    },
   });
   await writeJson(path.join(planRootAbs, "contract.json"), {
     targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
@@ -2041,7 +2582,14 @@ test("mcp IT: execution_orchestration classifies outer progress stall determinis
         protocol: "http",
         transport: { http: { method: "POST", pathTemplate: "/tasks" } },
         extract: [{ from: "response.bodyJson.taskId", as: "taskId", required: true }],
-        expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        expect: [
+          {
+            id: "accepted",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 202,
+          },
+        ],
       },
     ],
     externalVerification: [
@@ -2049,7 +2597,14 @@ test("mcp IT: execution_orchestration classifies outer progress stall determinis
         id: "verify_task_completed",
         provider: { type: "http" },
         request: { http: { method: "GET", url: `http://127.0.0.1:${appPort}/tasks/\${taskId}` } },
-        expect: [{ id: "completed", actualPath: "response.bodyJson.completed", operator: "field_equals", expected: true }],
+        expect: [
+          {
+            id: "completed",
+            actualPath: "response.bodyJson.completed",
+            operator: "field_equals",
+            expected: true,
+          },
+        ],
       },
     ],
   });
@@ -2072,22 +2627,59 @@ test("mcp IT: execution_orchestration classifies outer progress stall determinis
 
     assert.equal(first.structuredContent?.status, "blocked");
     assert.equal(first.structuredContent?.reasonCode, "orchestrator_progress_stalled");
-    assert.equal((first.structuredContent?.progressSummary as Record<string, unknown>)?.progressState, "terminal");
-    assert.equal(((first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<string, unknown>)?.phase, "external_verification");
-    assert.equal(((((first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<string, unknown>)?.waitingOn as Record<string, unknown>)?.targetId), "verify_task_completed");
+    assert.equal(
+      (first.structuredContent?.progressSummary as Record<string, unknown>)?.progressState,
+      "terminal",
+    );
+    assert.equal(
+      (
+        (first.structuredContent?.progressSummary as Record<string, unknown>)?.activePlan as Record<
+          string,
+          unknown
+        >
+      )?.phase,
+      "external_verification",
+    );
+    assert.equal(
+      (
+        (
+          (first.structuredContent?.progressSummary as Record<string, unknown>)
+            ?.activePlan as Record<string, unknown>
+        )?.waitingOn as Record<string, unknown>
+      )?.targetId,
+      "verify_task_completed",
+    );
 
     const suiteRunId = String(first.structuredContent?.suiteRunId ?? "");
     const persisted = JSON.parse(
       await fs.readFile(
-        path.join(workspaceRootAbs, ".mcpjvm", projectName, "suite-runs", suiteRunId, "execution_orchestration.result.json"),
+        path.join(
+          workspaceRootAbs,
+          ".mcpjvm",
+          projectName,
+          "suite-runs",
+          suiteRunId,
+          "execution_orchestration.result.json",
+        ),
         "utf8",
       ),
     ) as Record<string, unknown>;
     assert.equal(persisted.reasonCode, "orchestrator_progress_stalled");
     const persistedSummary = persisted.progressSummary as Record<string, unknown>;
     assert.equal(persistedSummary.progressState, "terminal");
-    assert.equal(((persistedSummary.activePlan as Record<string, unknown>)?.phase), "external_verification");
-    assert.equal(((((persistedSummary.activePlan as Record<string, unknown>)?.waitingOn as Record<string, unknown>)?.targetId)), "verify_task_completed");
+    assert.equal(
+      (persistedSummary.activePlan as Record<string, unknown>)?.phase,
+      "external_verification",
+    );
+    assert.equal(
+      (
+        (persistedSummary.activePlan as Record<string, unknown>)?.waitingOn as Record<
+          string,
+          unknown
+        >
+      )?.targetId,
+      "verify_task_completed",
+    );
     assert.equal(triggerCalls, 1);
     assert.equal(verificationCalls, 0);
   } finally {
@@ -2100,7 +2692,9 @@ test("mcp IT: execution_orchestration classifies outer progress stall determinis
 });
 
 test("mcp IT: execution_orchestration classifies outer timeout exhaustion deterministically after resumed plan progress", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-timeout-budget-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-timeout-budget-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-timeout";
   const projectRootAbs = workspaceRootAbs;
@@ -2125,7 +2719,13 @@ test("mcp IT: execution_orchestration classifies outer timeout exhaustion determ
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -2158,11 +2758,26 @@ test("mcp IT: execution_orchestration classifies outer timeout exhaustion determ
     ],
   });
 
-  for (const [planName, routePath] of [["plan-a", "/a"], ["plan-b", "/b"]] as const) {
-    const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  for (const [planName, routePath] of [
+    ["plan-a", "/a"],
+    ["plan-b", "/b"],
+  ] as const) {
+    const planRootAbs = path.join(
+      workspaceRootAbs,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "regression",
+      planName,
+    );
     await writeJson(path.join(planRootAbs, "metadata.json"), {
       specVersion: "1.0.0",
-      execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+      execution: {
+        intent: "regression",
+        probeVerification: false,
+        pinStrictProbeKey: false,
+        discoveryPolicy: "allow_discoverable_prerequisites",
+      },
     });
     await writeJson(path.join(planRootAbs, "contract.json"), {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
@@ -2182,7 +2797,14 @@ test("mcp IT: execution_orchestration classifies outer timeout exhaustion determ
           targetRef: 0,
           protocol: "http",
           transport: { http: { method: "GET", pathTemplate: routePath } },
-          expect: [{ id: "http_ok", actualPath: "response.statusCode", operator: "numeric_gte", expected: 200 }],
+          expect: [
+            {
+              id: "http_ok",
+              actualPath: "response.statusCode",
+              operator: "numeric_gte",
+              expected: 200,
+            },
+          ],
         },
       ],
     });
@@ -2207,7 +2829,10 @@ test("mcp IT: execution_orchestration classifies outer timeout exhaustion determ
     assert.equal(out.structuredContent?.status, "blocked");
     assert.equal(out.structuredContent?.reasonCode, "orchestrator_timeout_budget_exhausted");
     assert.equal(out.structuredContent?.completedPlanCount, 1);
-    assert.equal((out.structuredContent?.progressSummary as Record<string, unknown>)?.progressState, "terminal");
+    assert.equal(
+      (out.structuredContent?.progressSummary as Record<string, unknown>)?.progressState,
+      "terminal",
+    );
     assert.equal(requestCount, 1);
   } finally {
     appServer.close();
@@ -2219,7 +2844,9 @@ test("mcp IT: execution_orchestration classifies outer timeout exhaustion determ
 });
 
 test("mcp IT: execution_orchestration executes performance suite profiles through the same MCP Tool", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-performance-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-performance-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-performance";
   const projectRootAbs = workspaceRootAbs;
@@ -2230,7 +2857,7 @@ test("mcp IT: execution_orchestration executes performance suite profiles throug
     lineHitCount += 1;
     res.statusCode = 200;
     res.setHeader("content-type", "application/json");
-    res.end("{\"ok\":true}");
+    res.end('{"ok":true}');
   });
   const probeServer = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -2238,7 +2865,14 @@ test("mcp IT: execution_orchestration executes performance suite profiles throug
       lineHitCount = 0;
       res.statusCode = 200;
       res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ ok: true, key: lineKey, lineResolvable: true, lineValidation: "resolvable" }));
+      res.end(
+        JSON.stringify({
+          ok: true,
+          key: lineKey,
+          lineResolvable: true,
+          lineValidation: "resolvable",
+        }),
+      );
       return;
     }
     if (req.method === "GET" && url.pathname === "/__probe/status") {
@@ -2270,7 +2904,9 @@ test("mcp IT: execution_orchestration executes performance suite profiles throug
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "catalog-service": { baseUrl: probeBaseUrl, include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "catalog-service": { baseUrl: probeBaseUrl, include: ["com.example.**"], exclude: [] },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -2387,14 +3023,23 @@ test("mcp IT: execution_orchestration executes performance suite profiles throug
   }
 });
 
-test("mcp IT: execution_orchestration executes watcher polling after trigger success and persists watcher Artifact state", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-success-it-"));
+test("mcp IT: execution_orchestration resolves extracted context through later step, Watcher, and external verification", async () => {
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-success-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-watchers";
   const projectRootAbs = workspaceRootAbs;
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
   const planName = "watcher-success";
-  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
   const runRootAbs = path.join(planRootAbs, "runs");
   let stateChecks = 0;
 
@@ -2412,6 +3057,18 @@ test("mcp IT: execution_orchestration executes watcher polling after trigger suc
       res.end(JSON.stringify({ state: stateChecks >= 3 ? "ready" : "pending" }));
       return;
     }
+    if (req.method === "GET" && req.url === "/imports/evt-123") {
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ status: "accepted", id: "evt-123" }));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/objects/evt-123") {
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ importJobId: "evt-123" }));
+      return;
+    }
     res.statusCode = 404;
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ reason: "missing" }));
@@ -2422,7 +3079,13 @@ test("mcp IT: execution_orchestration executes watcher polling after trigger suc
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -2432,7 +3095,10 @@ test("mcp IT: execution_orchestration executes watcher polling after trigger suc
     workspaces: [
       {
         projectRoot: projectRootAbs,
-        defaults: { requestTimeoutMs: 120, retryMax: 3 },
+        defaults: {
+          requestTimeoutMs: 120,
+          retryMax: 3,
+        },
         executionProfiles: [
           {
             executionProfile: "watcher-success-run",
@@ -2470,7 +3136,29 @@ test("mcp IT: execution_orchestration executes watcher polling after trigger suc
           },
         },
         extract: [{ from: "response.bodyJson.id", as: "eventId", required: true }],
-        expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        expect: [
+          {
+            id: "accepted",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 202,
+          },
+        ],
+      },
+      {
+        order: 2,
+        id: "read_import_status",
+        targetRef: 0,
+        protocol: "http",
+        transport: { http: { method: "GET", pathTemplate: "/imports/${eventId}" } },
+        expect: [
+          {
+            id: "readable",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 200,
+          },
+        ],
       },
     ],
     watchers: [
@@ -2486,7 +3174,31 @@ test("mcp IT: execution_orchestration executes watcher polling after trigger suc
             },
           },
         },
-        expect: [{ id: "ready", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        expect: [
+          {
+            id: "ready",
+            actualPath: "response.bodyJson.state",
+            operator: "field_equals",
+            expected: "ready",
+          },
+        ],
+      },
+    ],
+    externalVerification: [
+      {
+        id: "verify_object_imported",
+        provider: { type: "http" },
+        request: {
+          http: { method: "GET", url: `http://127.0.0.1:${appPort}/objects/\${eventId}` },
+        },
+        expect: [
+          {
+            id: "object_available",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 200,
+          },
+        ],
       },
     ],
   });
@@ -2544,13 +3256,22 @@ test("mcp IT: execution_orchestration executes watcher polling after trigger suc
 });
 
 test("mcp IT: execution_orchestration fails closed when watcher response normalization fails", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-normalization-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-normalization-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-watchers";
   const projectRootAbs = workspaceRootAbs;
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
   const planName = "watcher-normalization-failure";
-  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
   const runRootAbs = path.join(planRootAbs, "runs");
 
   let watcherCalls = 0;
@@ -2581,7 +3302,11 @@ test("mcp IT: execution_orchestration fails closed when watcher response normali
       profiles: {
         dev: {
           probes: {
-            "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] },
+            "gateway-service": {
+              baseUrl: "http://127.0.0.1:9196",
+              include: ["com.example.**"],
+              exclude: [],
+            },
           },
         },
       },
@@ -2609,7 +3334,13 @@ test("mcp IT: execution_orchestration fails closed when watcher response normali
     await writeJson(path.join(planRootAbs, "contract.json"), {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [
-        { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: `http://127.0.0.1:${appPort}` },
+        {
+          key: "apiBaseUrl",
+          required: true,
+          secret: false,
+          provisioning: "user_input",
+          default: `http://127.0.0.1:${appPort}`,
+        },
       ],
       steps: [
         {
@@ -2619,7 +3350,14 @@ test("mcp IT: execution_orchestration fails closed when watcher response normali
           protocol: "http",
           transport: { http: { method: "POST", pathTemplate: "/events" } },
           extract: [{ from: "response.bodyJson.eventId", as: "eventId", required: true }],
-          expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+          expect: [
+            {
+              id: "accepted",
+              actualPath: "response.statusCode",
+              operator: "field_equals",
+              expected: 202,
+            },
+          ],
         },
       ],
       watchers: [
@@ -2635,7 +3373,14 @@ test("mcp IT: execution_orchestration fails closed when watcher response normali
               },
             },
           },
-          expect: [{ id: "ready", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+          expect: [
+            {
+              id: "ready",
+              actualPath: "response.bodyJson.state",
+              operator: "field_equals",
+              expected: "ready",
+            },
+          ],
         },
       ],
     });
@@ -2672,13 +3417,22 @@ test("mcp IT: execution_orchestration fails closed when watcher response normali
 });
 
 test("mcp IT: execution_orchestration fails closed when watcher target stays unreachable", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-unreachable-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-execution-orchestration-watcher-unreachable-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "test-project-watchers";
   const projectRootAbs = workspaceRootAbs;
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
   const planName = "watcher-unreachable";
-  const planRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName, "plans", "regression", planName);
+  const planRootAbs = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "plans",
+    "regression",
+    planName,
+  );
   const runRootAbs = path.join(planRootAbs, "runs");
   const appServer = http.createServer((req, res) => {
     if (req.method === "POST" && req.url === "/events") {
@@ -2697,13 +3451,21 @@ test("mcp IT: execution_orchestration fails closed when watcher target stays unr
     res.end("unused");
   });
   const unreachablePort = await listen(unreachableServer);
-  await new Promise<void>((resolve, reject) => unreachableServer.close((error) => error ? reject(error) : resolve()));
+  await new Promise<void>((resolve, reject) =>
+    unreachableServer.close((error) => (error ? reject(error) : resolve())),
+  );
 
   await writeJson(probeConfigAbs, {
     defaultProfile: "dev",
     profiles: {
       dev: {
-        probes: { "gateway-service": { baseUrl: "http://127.0.0.1:9196", include: ["com.example.**"], exclude: [] } },
+        probes: {
+          "gateway-service": {
+            baseUrl: "http://127.0.0.1:9196",
+            include: ["com.example.**"],
+            exclude: [],
+          },
+        },
       },
     },
     workspaces: [{ root: workspaceRootAbs, profile: "dev" }],
@@ -2750,7 +3512,14 @@ test("mcp IT: execution_orchestration fails closed when watcher target stays unr
             pathTemplate: "/events",
           },
         },
-        expect: [{ id: "accepted", actualPath: "response.statusCode", operator: "field_equals", expected: 202 }],
+        expect: [
+          {
+            id: "accepted",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 202,
+          },
+        ],
       },
     ],
     watchers: [
@@ -2767,7 +3536,14 @@ test("mcp IT: execution_orchestration fails closed when watcher target stays unr
           },
         },
         waitPolicy: { timeoutMs: 80, retryMax: 2 },
-        expect: [{ id: "ready", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
+        expect: [
+          {
+            id: "ready",
+            actualPath: "response.bodyJson.state",
+            operator: "field_equals",
+            expected: "ready",
+          },
+        ],
       },
     ],
   });

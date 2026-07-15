@@ -35,6 +35,9 @@ export type PreflightReasonCode =
   | "step_expectations_missing"
   | "step_expectation_invalid"
   | "step_extract_invalid"
+  | "step_context_forward_reference"
+  | "suite_context_forward_reference"
+  | "suite_context_secret_forbidden"
   | "top_level_expectations_unsupported"
   | "correlation_session_missing"
   | "correlation_window_invalid"
@@ -152,6 +155,8 @@ export type PlanStepExtract = {
   from: string;
   as: string;
   required?: boolean;
+  scope?: "plan" | "suite";
+  secret?: boolean;
 };
 
 export type StepExtractValidationResult =

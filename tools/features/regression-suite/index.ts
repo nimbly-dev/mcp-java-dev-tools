@@ -36,6 +36,7 @@ export {
   validateStepExtracts,
 } from "./shared/regression_step_extract";
 export { resolveWatcherWaitPolicy, validateWatchers } from "./shared/regression_watcher_policy";
+export { validateSuiteContextDependencies } from "./support/regression_plan_preflight_validation";
 export { executeTransportWithRegistry } from "./shared/regression_transport_executor";
 export {
   createMcpWrappedTransportAdapter,

@@ -239,7 +239,7 @@ function readContinuationTargetSummary(args: {
   };
 }
 
-async function readPlanContract(args: {
+export async function readPlanContract(args: {
   workspaceRootAbs: string;
   projectName?: string;
   planName: string;

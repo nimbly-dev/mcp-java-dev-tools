@@ -23,6 +23,7 @@ import {
   validateStepExpectations,
   validateStepConditions,
   validateTransportPlaceholderSyntax,
+  validateExtractedContextDependencies,
   validateCorrelationPolicy,
   classifyPrerequisites,
 } from "./regression_plan_preflight_validation";
@@ -139,6 +140,19 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
       reasonCode: stepExtractValidation.reasonCode,
       ...emptyPreflightDetails(),
       requiredUserAction: stepExtractValidation.requiredUserAction,
+    };
+  }
+  const extractedContextValidation = validateExtractedContextDependencies({
+    steps: contract.steps,
+    ...(contract.watchers ? { watchers: contract.watchers } : {}),
+    ...(contract.externalVerification ? { externalVerification: contract.externalVerification } : {}),
+  });
+  if (!extractedContextValidation.ok) {
+    return {
+      status: "blocked_invalid",
+      reasonCode: extractedContextValidation.reasonCode,
+      ...emptyPreflightDetails(),
+      requiredUserAction: extractedContextValidation.requiredUserAction,
     };
   }
   const stepConditionValidation = validateStepConditions(contract.steps);
