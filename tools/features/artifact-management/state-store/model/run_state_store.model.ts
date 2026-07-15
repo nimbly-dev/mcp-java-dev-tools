@@ -108,9 +108,11 @@ export type LegacyBackfillEntry = {
   reasonCode: string;
   keyType: "traceId" | "requestId" | "messageId";
   keyValue?: string;
-  correlationSessionId: string;
+  correlationSessionId?: string;
   window: { startEpochMs?: number; endEpochMs?: number; maxWindowMs: number };
   probeIds: string[];
+  nonReconstructible?: boolean;
+  missingFields?: string[];
 };
 export type StateStoreJsonRecord = Record<string, unknown>;
 export type RunStateRebuildSource = {

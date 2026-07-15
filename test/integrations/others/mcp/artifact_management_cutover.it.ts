@@ -427,7 +427,7 @@ test("mcp IT: artifact_management exposes transitional correlation backfill meta
   }
 });
 
-test("mcp IT: artifact_management identifies invalid legacy backfill entries", async () => {
+test("mcp IT: artifact_management audits non-reconstructible legacy backfill entries", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-backfill-invalid-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "backfill-invalid-project";
@@ -451,6 +451,19 @@ test("mcp IT: artifact_management identifies invalid legacy backfill entries", a
             window: { maxWindowMs: 60000 },
             probeIds: [],
           },
+          {
+            runId: "07-08-2026-11-24-22AM",
+            planName: "reindex-auth-control",
+            runPath: `.mcpjvm/${projectName}/plans/regression/reindex-auth-control/runs/07-08-2026-11-24-22AM`,
+            generatedAtEpochMs: 1783481062808,
+            status: "ok",
+            reasonCode: "ok",
+            keyType: "messageId",
+            keyValue: "message-22",
+            correlationSessionId: "session-22",
+            window: { maxWindowMs: 60000 },
+            probeIds: [],
+          },
         ],
       }),
       "utf8",
@@ -464,10 +477,18 @@ test("mcp IT: artifact_management identifies invalid legacy backfill entries", a
         input: { projectName, stateSurface: "correlation_state" },
       },
     })) as { structuredContent?: Record<string, unknown> };
-    assert.equal(result.structuredContent?.status, "legacy_backfill_source_invalid");
-    const reasonMeta = result.structuredContent?.reasonMeta as Record<string, unknown> | undefined;
-    assert.equal(reasonMeta?.entryIndex, 0);
-    assert.deepEqual(reasonMeta?.invalidFields, ["correlationSessionId"]);
+    assert.equal(result.structuredContent?.status, "ok");
+    const summary = result.structuredContent?.summary as Record<string, unknown>;
+    assert.equal(summary?.skippedEntries, 1);
+    assert.equal(summary?.insertedEntries, 1);
+    assert.equal(summary?.nonReconstructibleEntries, 1);
+    assert.deepEqual((summary?.reasons as Array<Record<string, unknown>>)?.[0], {
+      entryIndex: 0,
+      planName: "reindex-auth-control",
+      runId: "07-08-2026-11-24-21AM",
+      reasonCode: "terminal_correlation_not_reconstructible",
+      missingFields: ["correlationSessionId", "keyValue"],
+    });
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
