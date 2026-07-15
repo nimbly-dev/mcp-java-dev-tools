@@ -603,6 +603,12 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
             errors.push(`workspaces[${index}].variables.contextBindings.${contextKey} is reserved`);
             continue;
           }
+          if (contextKey.startsWith("sql.connection.") && contextKey.includes(".jdbc.")) {
+            errors.push(
+              `workspaces[${index}].variables.contextBindings.${contextKey} uses unsupported JDBC configuration; use native PostgreSQL connection fields`,
+            );
+            continue;
+          }
           const envKey = asTrimmedString(input.variables.contextBindings[rawKey]) ?? undefined;
           if (!envKey || !/^[A-Z_][A-Z0-9_]*$/.test(envKey)) {
             errors.push(`workspaces[${index}].variables.contextBindings.${contextKey} must be ENV_KEY format`);

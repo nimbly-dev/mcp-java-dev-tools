@@ -308,9 +308,14 @@ SQL contract boundary rules:
 - `connectionRef` is required; concrete vendor/driver connection attributes live in runtime/project-owned configuration, not `contract.json`
 - vendor-specific fields such as host, database, schema, catalog, instance, service name, DSN, or JDBC URL remain behind the resolved runtime/project connection config
 - current runtime-owned connection resolution uses canonical context keys shaped as `sql.connection.<connectionRef>.*`
-- current first concrete engine resolution is:
+- supported concrete engine resolutions are:
   - `sql.connection.<connectionRef>.kind=sqlite`
   - `sql.connection.<connectionRef>.sqlite.filePath=<db path>`
+  - `sql.connection.<connectionRef>.kind=postgresql`
+  - `sql.connection.<connectionRef>.host`, `.port`, `.database`, `.username`, `.password`
+  - `sql.connection.<connectionRef>.tls.mode=disable|require|verify-full`
+- PostgreSQL is executed by the Node-owned `pg` provider. `.jdbc.url`, `.jdbc.driverClass`, `.jdbc.classpath`, and JDBC properties are not accepted or required.
+- PostgreSQL named parameters are compiled to positional placeholders (`$1`, `$2`, ...) and values are bound separately; SQL value interpolation is forbidden.
 - these keys MAY be projected from project-owned env-backed `variables.contextBindings`, execution-profile `providedContext`, or explicit per-run context
 - resolved `sql.connection.*` runtime keys are treated as secret context and are redacted from persisted run Artifacts
 
@@ -503,6 +508,7 @@ SQL runtime canonical reason codes:
 
 - `external_verification_connection_unresolved`
 - `external_verification_connection_invalid`
+- `external_verification_connection_unsupported`
 - `external_verification_request_unresolved`
 - `external_verification_execution_failed`
 - `external_verification_response_invalid`
@@ -650,4 +656,3 @@ Notes:
 - `execution-timing.msta.json` remains optional and is reserved for materialized timing-analysis output or fail-closed timing-analysis results.
 
 See `performance-msta-evidence-model.md` for the normative MSTA evidence contract and fail-closed statuses.
-

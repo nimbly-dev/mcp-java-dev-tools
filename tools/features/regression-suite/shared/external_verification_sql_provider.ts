@@ -7,7 +7,7 @@ import { evaluateStepExpectations } from "../shared/regression_expectation_evalu
 import { applyStepExtractWithDiagnostics } from "./regression_step_extract";
 import type {
   ExecuteSqlExternalVerificationArgs,
-  JdbcConnectionConfig,
+  PostgresqlConnectionConfig,
   SqlBindingValue,
   SqlBindings,
   SqlExecutionFailureCode,
@@ -19,6 +19,8 @@ import type {
 } from "../models/external_verification_sql.model";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
+import { Client } from "pg";
+import QueryStream from "pg-query-stream";
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -125,50 +127,12 @@ function normalizeSqlRows(rows: unknown[]): Record<string, unknown>[] {
     );
 }
 
-function collectStringEntriesByPrefix(args: {
-  prefix: string;
-  resolvedContext: Record<string, unknown>;
-}): Record<string, string> {
-  const entries: Record<string, string> = {};
-  for (const [key, value] of Object.entries(args.resolvedContext)) {
-    if (!key.startsWith(args.prefix)) {
-      continue;
-    }
-    const suffix = key.slice(args.prefix.length);
-    if (suffix.length === 0 || typeof value !== "string") {
-      continue;
-    }
-    entries[suffix] = value;
-  }
-  return entries;
-}
-
-function resolveJdbcClasspathEntries(args: {
-  connectionRef: string;
-  resolvedContext: Record<string, unknown>;
-  prefix: string;
-}): string[] {
-  const rawClasspath = args.resolvedContext[`${args.prefix}.jdbc.classpath`];
-  if (Array.isArray(rawClasspath)) {
-    return rawClasspath
-      .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
-      .map((entry) => entry.trim());
-  }
-  if (typeof rawClasspath === "string" && rawClasspath.trim().length > 0) {
-    return rawClasspath
-      .split(path.delimiter)
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
-  }
-  return [];
-}
-
 function resolveSqlConnectionConfig(args: {
   workspaceRootAbs: string;
   resolvedContext: Record<string, unknown>;
   connectionRef: string;
 }):
-  | { ok: true; config: SqliteConnectionConfig | JdbcConnectionConfig }
+  | { ok: true; config: SqliteConnectionConfig | PostgresqlConnectionConfig }
   | { ok: false; reasonCode: SqlExecutionFailureCode; reasonMeta: Record<string, unknown> } {
   const prefix = `sql.connection.${args.connectionRef}`;
   const kind = args.resolvedContext[`${prefix}.kind`];
@@ -180,6 +144,14 @@ function resolveSqlConnectionConfig(args: {
         connectionRef: args.connectionRef,
         missingContextKey: `${prefix}.kind`,
       },
+    };
+  }
+
+  if (Object.keys(args.resolvedContext).some((key) => key.startsWith(`${prefix}.jdbc.`))) {
+    return {
+      ok: false,
+      reasonCode: "external_verification_connection_unsupported",
+      reasonMeta: { connectionRef: args.connectionRef, connectionKind: String(kind) },
     };
   }
 
@@ -210,15 +182,58 @@ function resolveSqlConnectionConfig(args: {
     };
   }
 
-  const jdbcUrl = args.resolvedContext[`${prefix}.jdbc.url`];
-  if (typeof jdbcUrl !== "string" || jdbcUrl.trim().length === 0) {
+  if (kind !== "postgresql") {
     return {
       ok: false,
-      reasonCode: "external_verification_connection_unresolved",
+      reasonCode: "external_verification_connection_unsupported",
       reasonMeta: {
         connectionRef: args.connectionRef,
         connectionKind: kind,
-        missingContextKey: `${prefix}.jdbc.url`,
+      },
+    };
+  }
+
+  const requiredStrings = [
+    ["host", `${prefix}.host`],
+    ["database", `${prefix}.database`],
+    ["username", `${prefix}.username`],
+    ["password", `${prefix}.password`],
+  ] as const;
+  const values: Record<string, string> = {};
+  for (const [name, key] of requiredStrings) {
+    const value = args.resolvedContext[key];
+    if (typeof value !== "string" || value.trim().length === 0) {
+      return {
+        ok: false,
+        reasonCode: "external_verification_connection_unresolved",
+        reasonMeta: { connectionRef: args.connectionRef, missingContextKey: key },
+      };
+    }
+    values[name] = name === "password" ? value : value.trim();
+  }
+  const rawPort = args.resolvedContext[`${prefix}.port`];
+  const port =
+    typeof rawPort === "number" ? rawPort : typeof rawPort === "string" ? Number(rawPort) : NaN;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return {
+      ok: false,
+      reasonCode: "external_verification_connection_invalid",
+      reasonMeta: { connectionRef: args.connectionRef, invalidContextKey: `${prefix}.port` },
+    };
+  }
+  const tlsMode = args.resolvedContext[`${prefix}.tls.mode`];
+  if (tlsMode !== "disable" && tlsMode !== "require" && tlsMode !== "verify-full") {
+    return {
+      ok: false,
+      reasonCode:
+        typeof tlsMode === "undefined"
+          ? "external_verification_connection_unresolved"
+          : "external_verification_connection_invalid",
+      reasonMeta: {
+        connectionRef: args.connectionRef,
+        ...(typeof tlsMode === "undefined"
+          ? { missingContextKey: `${prefix}.tls.mode` }
+          : { invalidContextKey: `${prefix}.tls.mode` }),
       },
     };
   }
@@ -226,29 +241,13 @@ function resolveSqlConnectionConfig(args: {
   return {
     ok: true,
     config: {
-      kind: "jdbc",
-      connectionKind: kind,
-      jdbcUrl: jdbcUrl.trim(),
-      ...(typeof args.resolvedContext[`${prefix}.jdbc.driverClass`] === "string" &&
-      String(args.resolvedContext[`${prefix}.jdbc.driverClass`]).trim().length > 0
-        ? { driverClass: String(args.resolvedContext[`${prefix}.jdbc.driverClass`]).trim() }
-        : {}),
-      classpathEntries: resolveJdbcClasspathEntries({
-        connectionRef: args.connectionRef,
-        resolvedContext: args.resolvedContext,
-        prefix,
-      }).map((entry) =>
-        path.isAbsolute(entry) ? entry : path.resolve(args.workspaceRootAbs, entry),
-      ),
-      properties: collectStringEntriesByPrefix({
-        prefix: `${prefix}.jdbc.properties.`,
-        resolvedContext: args.resolvedContext,
-      }),
-      javaBin:
-        typeof args.resolvedContext[`${prefix}.javaBin`] === "string" &&
-        String(args.resolvedContext[`${prefix}.javaBin`]).trim().length > 0
-          ? String(args.resolvedContext[`${prefix}.javaBin`]).trim()
-          : "java",
+      kind: "postgresql",
+      host: values.host!,
+      port,
+      database: values.database!,
+      username: values.username!,
+      password: values.password!,
+      tlsMode,
     },
   };
 }
@@ -425,7 +424,164 @@ function executeSqliteQueryWithTimeout(args: {
   });
 }
 
-import { executeJdbcQuery } from "./external_verification_jdbc_runner";
+const MAX_POSTGRES_ROWS = 1_000;
+const MAX_POSTGRES_RESPONSE_BYTES = 256_000;
+
+function compilePostgresqlStatement(
+  statement: string,
+  bindings: SqlBindings["ordered"],
+):
+  | {
+      ok: true;
+      text: string;
+      values: SqlBindingValue[];
+    }
+  | { ok: false; missingParameter: string } {
+  const values: SqlBindingValue[] = [];
+  const indexes = new Map<string, number>();
+  const indexFor = (name: string): number => {
+    const existing = indexes.get(name);
+    if (existing) return existing;
+    const index = values.length + 1;
+    indexes.set(name, index);
+    const binding = bindings.find((entry) => entry.name === name);
+    if (!binding) return 0;
+    values.push(binding.value);
+    return index;
+  };
+  let text = "";
+  let quote: "'" | '"' | null = null;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < statement.length; i += 1) {
+    const current = statement[i];
+    const next = statement[i + 1];
+    if (lineComment) {
+      text += current;
+      if (current === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      text += current;
+      if (current === "*" && next === "/") {
+        text += next;
+        i += 1;
+        blockComment = false;
+      }
+      continue;
+    }
+    if (quote) {
+      text += current;
+      if (current === quote && statement[i - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (current === "-" && next === "-") {
+      text += current + next;
+      i += 1;
+      lineComment = true;
+      continue;
+    }
+    if (current === "/" && next === "*") {
+      text += current + next;
+      i += 1;
+      blockComment = true;
+      continue;
+    }
+    if (current === "'" || current === '"') {
+      quote = current;
+      text += current;
+      continue;
+    }
+    if (current === ":" && next !== ":") {
+      const match = statement.slice(i + 1).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+      if (match) {
+        const index = indexFor(match[0]);
+        if (index === 0) return { ok: false, missingParameter: match[0] };
+        text += `$${index}`;
+        i += match[0].length;
+        continue;
+      }
+    }
+    text += current;
+  }
+  return { ok: true, text, values };
+}
+
+async function executePostgresqlQueryWithTimeout(args: {
+  connection: PostgresqlConnectionConfig;
+  statement: string;
+  bindings: SqlBindings["ordered"];
+  timeoutMs?: number | null;
+}): Promise<SqlExecutionResult> {
+  const startedAt = Date.now();
+  const timeoutMs = args.timeoutMs ?? 30_000;
+  const client = new Client({
+    host: args.connection.host,
+    port: args.connection.port,
+    database: args.connection.database,
+    user: args.connection.username,
+    password: args.connection.password,
+    connectionTimeoutMillis: timeoutMs,
+    query_timeout: timeoutMs,
+    statement_timeout: timeoutMs,
+    ssl:
+      args.connection.tlsMode === "disable"
+        ? false
+        : { rejectUnauthorized: args.connection.tlsMode === "verify-full" },
+  });
+  try {
+    await client.connect();
+    const compiled = compilePostgresqlStatement(args.statement, args.bindings);
+    if (!compiled.ok) {
+      return {
+        ok: false,
+        errorMessage: `missing_parameter:${compiled.missingParameter}`,
+        durationMs: Date.now() - startedAt,
+      };
+    }
+    const stream = client.query(
+      new QueryStream(compiled.text, compiled.values, { batchSize: 100, highWaterMark: 100 }),
+    ) as unknown as AsyncIterable<unknown> & { destroy: () => void };
+    const rows: unknown[] = [];
+    let responseBytes = 2;
+    for await (const row of stream) {
+      if (rows.length >= MAX_POSTGRES_ROWS) {
+        stream.destroy();
+        return {
+          ok: false,
+          errorMessage: "result_limit_exceeded",
+          durationMs: Date.now() - startedAt,
+        };
+      }
+      const rowBytes = Buffer.byteLength(JSON.stringify(row));
+      if (responseBytes + rowBytes + (rows.length > 0 ? 1 : 0) > MAX_POSTGRES_RESPONSE_BYTES) {
+        stream.destroy();
+        return {
+          ok: false,
+          errorMessage: "result_size_limit_exceeded",
+          durationMs: Date.now() - startedAt,
+        };
+      }
+      rows.push(row);
+      responseBytes += rowBytes + (rows.length > 1 ? 1 : 0);
+    }
+    return { ok: true, rows, durationMs: Date.now() - startedAt };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown";
+    const code =
+      typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+    return {
+      ok: false,
+      errorMessage:
+        code === "57014" || /timeout/i.test(message)
+          ? "sql_execution_timeout"
+          : "postgres_query_failed",
+      durationMs: Date.now() - startedAt,
+    };
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+}
 
 function buildSqlExecutionEnvelope(args: {
   verification: PlanExternalVerification;
@@ -586,7 +742,7 @@ export async function executeSqlExternalVerification(
           bindings: parameters.bindings.byName,
           ...(typeof request.timeoutMs === "undefined" ? {} : { timeoutMs: request.timeoutMs }),
         })
-      : await (args.internals?.executeJdbcQuery ?? executeJdbcQuery)({
+      : await (args.internals?.executePostgresqlQuery ?? executePostgresqlQueryWithTimeout)({
           connection: connection.config,
           statement: request.statement,
           bindings: parameters.bindings.ordered,
@@ -599,12 +755,11 @@ export async function executeSqlExternalVerification(
       reasonCode: "external_verification_execution_failed",
       reasonMeta: {
         connectionRef: request.connectionRef,
-        ...(connection.config.kind === "jdbc"
-          ? { connectionKind: connection.config.connectionKind }
-          : {}),
-        errorMessage: execution.errorMessage,
+        ...(connection.config.kind === "postgresql" ? { connectionKind: "postgresql" } : {}),
+        cause: execution.errorMessage,
         ...(typeof request.timeoutMs === "number" &&
-        execution.errorMessage.startsWith("sql_execution_timeout_")
+        (execution.errorMessage === "sql_execution_timeout" ||
+          execution.errorMessage.startsWith("sql_execution_timeout_"))
           ? { timeoutMs: request.timeoutMs }
           : {}),
       },
