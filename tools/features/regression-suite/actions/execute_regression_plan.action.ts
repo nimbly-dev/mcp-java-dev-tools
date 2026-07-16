@@ -502,6 +502,7 @@ export async function executeRegressionPlanWorkflow(
         }
       : {}),
     ...(typeof orchestrationDeadlineEpochMs === "number" ? { orchestrationDeadlineEpochMs } : {}),
+    ...(args.renewSuiteLease ? { renewSuiteLease: args.renewSuiteLease } : {}),
   });
   const watcherRows = watcherExecution.watcherRows;
   const watcherEvidence = watcherExecution.watcherEvidence;

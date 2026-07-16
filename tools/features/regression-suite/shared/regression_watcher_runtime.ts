@@ -97,6 +97,7 @@ export async function executeWatchers(args: {
   orchestrationDeadlineEpochMs?: number;
   nowMs?: () => number;
   sleepMs?: (ms: number) => Promise<void>;
+  renewSuiteLease?: () => Promise<void>;
 }): Promise<{
   watcherRows: RegressionRunWatcherResult[];
   watcherEvidence: WatcherExecutionEvidence[];
@@ -123,6 +124,16 @@ export async function executeWatchers(args: {
 
   const shouldYield = (): boolean =>
     typeof args.orchestrationDeadlineEpochMs === "number" && nowMs() >= args.orchestrationDeadlineEpochMs;
+
+  const sleepWithLeaseRenewal = async (durationMs: number): Promise<void> => {
+    let remainingMs = Math.max(0, durationMs);
+    while (remainingMs > 0) {
+      const sliceMs = Math.min(remainingMs, 10_000);
+      await sleepMs(sliceMs);
+      remainingMs -= sliceMs;
+      if (remainingMs > 0 && args.renewSuiteLease) await args.renewSuiteLease();
+    }
+  };
 
   const buildContinuation = (watcherIndex: number, phaseStartedAt: string, state?: {
     watcherName?: string;
@@ -322,6 +333,7 @@ export async function executeWatchers(args: {
         };
         break;
       }
+      if (args.renewSuiteLease) await args.renewSuiteLease();
 
       const transport = await executeTransportWithRegistry({
         protocol: providerExecution.execution.protocol,
@@ -407,7 +419,7 @@ export async function executeWatchers(args: {
                 continuation: buildContinuation(watcherIndex, phaseStartedAt, { watcherName: watcher.id, dependencyStepOrder: watcher.dependency.stepOrder, providerType: watcher.provider.type, deadlineAtEpochMs: watcherDeadlineAtEpochMs, ...(typeof resolvedWaitPolicy.timeoutMs === "number" ? { timeoutMs: resolvedWaitPolicy.timeoutMs } : {}), pollIntervalMs, ...(typeof resolvedWaitPolicy.retryMax === "number" ? { retryMax: resolvedWaitPolicy.retryMax } : {}), attempts, ...(finalObservation ? { lastObservation: finalObservation } : {}), ...(finalAssertions ? { lastAssertion: finalAssertions } : {}) }),
               };
             }
-            await sleepMs(
+            await sleepWithLeaseRenewal(
               typeof deadlineSleepMs === "number" ? Math.min(sleepDurationMs, deadlineSleepMs) : sleepDurationMs,
             );
             continue;
@@ -456,7 +468,7 @@ export async function executeWatchers(args: {
             continuation: buildContinuation(watcherIndex, phaseStartedAt, { watcherName: watcher.id, dependencyStepOrder: watcher.dependency.stepOrder, providerType: watcher.provider.type, deadlineAtEpochMs: watcherDeadlineAtEpochMs, ...(typeof resolvedWaitPolicy.timeoutMs === "number" ? { timeoutMs: resolvedWaitPolicy.timeoutMs } : {}), pollIntervalMs, ...(typeof resolvedWaitPolicy.retryMax === "number" ? { retryMax: resolvedWaitPolicy.retryMax } : {}), attempts, ...(finalObservation ? { lastObservation: finalObservation } : {}), ...(finalAssertions ? { lastAssertion: finalAssertions } : {}) }),
           };
         }
-        await sleepMs(
+        await sleepWithLeaseRenewal(
           typeof deadlineSleepMs === "number" ? Math.min(sleepDurationMs, deadlineSleepMs) : sleepDurationMs,
         );
       }

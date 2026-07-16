@@ -122,6 +122,8 @@ Runtime suite branch (`execution_profile`) rules:
 - resume with the same `suiteRunId`
 - record revision-safe operational progress in `.mcpjvm/<project_name>/run-state.sqlite` while retaining the canonical suite-status Artifact as execution evidence and resume input
 - fail closed rather than rerunning already completed plans
+- serialize overlapping resumes with the suite checkpoint lease; if another caller owns it, return `status="in_progress"`, `reasonCode="suite_checkpoint_owner_active"`, and `nextActionCode="resume_same_suite"`, then retry the same `suiteRunId` after the active owner advances the checkpoint
+- renew the owning lease while an active Watcher polls; stale suite revisions or non-monotonic Watcher persistence must reload the SQLite checkpoint and return the same non-terminal resume conflict shape
 
 11. When a plan is still waiting inside `watchers[]` or `externalVerification[]`, resumed orchestration must continue that same in-progress plan:
 
