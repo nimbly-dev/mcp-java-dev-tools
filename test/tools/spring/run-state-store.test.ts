@@ -345,6 +345,37 @@ test("run-state cutover is persisted, idempotent, and fails closed when SQLite i
   }
 });
 
+test("run-state cutover rejects an active suite deterministically", async () => {
+  const root = createTestTempDir("run-state-cutover-active-suite");
+  try {
+    const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(store.ok, true);
+    if (!store.ok) return;
+    store.database
+      .prepare(
+        `INSERT INTO suite_runs (
+          project_name, suite_run_id, execution_profile, status,
+          started_at_epoch_ms, updated_at_epoch_ms
+        ) VALUES (?, ?, ?, 'in_progress', ?, ?)`,
+      )
+      .run("alpha", "suite-active", "profile", 1, 1);
+    store.close();
+
+    const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(cutover.ok, false);
+    if (!cutover.ok) assert.equal(cutover.reasonCode, "cutover_active_suite");
+    assert.equal(
+      fs.existsSync(path.join(root, ".mcpjvm", "state-store-cutovers", "alpha.json")),
+      false,
+    );
+    const reopened = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(reopened.ok, true);
+    if (reopened.ok) reopened.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
 test("run-state store fails closed for invalid project and Artifact paths", async () => {
   const root = createTestTempDir("run-state-store-invalid");
   try {

@@ -7,6 +7,7 @@ import type {
   RunStateStoreFailure,
   RunStateStoreFailureCode,
   RunStateStoreOpenResult,
+  RunStateCutoverStatus,
 } from "./model/run_state_store.model";
 
 const { DatabaseSync } = require("node:sqlite") as {
@@ -142,4 +143,41 @@ export async function openRunStateStore(args: {
     database,
     close: () => database.close(),
   };
+}
+
+/** Inspects cutover state without creating or migrating a missing store. */
+export async function inspectRunStateCutoverStatus(args: {
+  workspaceRootAbs: string;
+  projectName: string;
+}): Promise<RunStateCutoverStatus | "unavailable" | undefined> {
+  const projectName = normalizeProjectName(args.projectName);
+  if (typeof projectName !== "string") return "unavailable";
+  const databasePathAbs = path.resolve(
+    args.workspaceRootAbs,
+    ".mcpjvm",
+    projectName,
+    "run-state.sqlite",
+  );
+  const exists = await fs.stat(databasePathAbs).then(() => true).catch(() => false);
+  if (!exists) return undefined;
+  let database: RunStateDatabase | undefined;
+  try {
+    database = new DatabaseSync(databasePathAbs);
+    const row = database
+      .prepare("SELECT status FROM state_store_cutover WHERE project_name = ?")
+      .get(projectName);
+    database.close();
+    return row?.status === "pre_cutover" ||
+      row?.status === "cutover_in_progress" ||
+      row?.status === "cutover_complete"
+      ? row.status
+      : "unavailable";
+  } catch {
+    try {
+      database?.close();
+    } catch {
+      // Preserve the deterministic unavailable result.
+    }
+    return "unavailable";
+  }
 }

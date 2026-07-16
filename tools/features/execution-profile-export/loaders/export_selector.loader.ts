@@ -1,7 +1,10 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
-import { readProjectArtifact } from "@tools-feature-artifact-management";
+import {
+  inspectRunStateCutoverStatus,
+  readProjectArtifact,
+} from "@tools-feature-artifact-management";
 import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import { readExecutionOrchestrationSuiteResult } from "@tools-feature-regression-suite";
 
@@ -39,6 +42,15 @@ function formatExportId(epochMs: number, profile: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function isPostCutoverUnavailable(args: {
+  workspaceRootAbs: string;
+  projectRootAbs: string;
+  projectName: string;
+}): Promise<boolean> {
+  const status = await inspectRunStateCutoverStatus(args);
+  return status === "cutover_complete" || status === "unavailable";
 }
 
 async function collectPersistedExportCandidates(args: {
@@ -89,6 +101,7 @@ async function collectSuiteCandidates(args: {
   executionProfileFilter?: string;
   planNameFilter?: string;
 }): Promise<Array<{ exportId: string; score: number; executionProfile: string }>> {
+  if (await isPostCutoverUnavailable(args)) return [];
   const suiteRunsRootAbs = path.join(args.projectRootAbs, "suite-runs");
   const entries = await fs.readdir(suiteRunsRootAbs, { withFileTypes: true }).catch(() => []);
   const candidates: Array<{ exportId: string; score: number; executionProfile: string }> = [];

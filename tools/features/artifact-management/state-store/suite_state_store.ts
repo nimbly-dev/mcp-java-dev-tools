@@ -6,6 +6,7 @@ import type {
   RegressionSuiteCheckpoint,
   RunStateCheckpointFailure,
   PersistedRegressionSuiteCheckpoint,
+  PersistedRegressionSuiteState,
   AcquireRegressionSuiteLeaseResult,
 } from "./model/run_state_store.model";
 
@@ -219,6 +220,47 @@ export function readRegressionSuiteCheckpoint(args: {
       : {}),
     ...(continuation ? { continuation } : {}),
   };
+}
+
+export function readRegressionSuiteState(args: {
+  store: OpenRunStateStore;
+  suiteRunId: string;
+}): PersistedRegressionSuiteState | null {
+  const checkpoint = readRegressionSuiteCheckpoint(args);
+  if (!checkpoint) return null;
+  const suiteRow = args.store.database
+    .prepare("SELECT suite_run_pk FROM suite_runs WHERE project_name = ? AND suite_run_id = ?")
+    .get(args.store.projectName, args.suiteRunId);
+  if (typeof suiteRow?.suite_run_pk !== "number") return null;
+  const rows = args.store.database
+    .prepare(
+      "SELECT plan_name, run_id, plan_order, status, completed_at_epoch_ms, reason_code, run_dir_path_rel FROM plan_runs WHERE suite_run_pk = ? AND project_name = ? ORDER BY plan_order, plan_name, run_id",
+    )
+    .all(suiteRow.suite_run_pk, args.store.projectName);
+  const planRuns: RegressionPlanRunProjection[] = [];
+  for (const row of rows) {
+    if (
+      typeof row.plan_name !== "string" ||
+      typeof row.run_id !== "string" ||
+      (row.status !== "executed" && row.status !== "blocked" && row.status !== "skipped") ||
+      typeof row.run_dir_path_rel !== "string"
+    )
+      return null;
+    planRuns.push({
+      planName: row.plan_name,
+      runId: row.run_id,
+      status: row.status,
+      runDirPathRel: row.run_dir_path_rel,
+      ...(typeof row.plan_order === "number" ? { planOrder: row.plan_order } : {}),
+      ...(row.status === "executed" && typeof row.completed_at_epoch_ms !== "number"
+        ? { runStatus: "in_progress" }
+        : {}),
+      ...(row.status !== "executed" && typeof row.reason_code === "string"
+        ? { reasonCode: row.reason_code }
+        : {}),
+    });
+  }
+  return { checkpoint, planRuns };
 }
 
 export function acquireRegressionSuiteLease(args: {
