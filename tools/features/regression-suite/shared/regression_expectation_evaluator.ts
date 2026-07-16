@@ -245,8 +245,8 @@ export function evaluateStepExpectations(args: {
             operator: expectation.operator,
             actualPath: expectation.actualPath,
             required,
-            status: "blocked_invalid",
-            reasonCode: "actual_path_missing",
+            status: required ? "blocked_invalid" : "skipped_optional",
+            reasonCode: required ? "actual_path_missing" : "optional_actual_path_missing",
             expected: expectation.expected,
           },
           expectation.message,
@@ -302,11 +302,11 @@ export function evaluateStepExpectations(args: {
   if (args.dependencyBlocked) {
     return { assertions, status: "blocked_dependency" };
   }
-  if (assertions.some((entry) => entry.status === "blocked_invalid")) {
-    return { assertions, status: "blocked_runtime" };
-  }
   if (assertions.some((entry) => entry.status === "fail")) {
     return { assertions, status: "fail_assertion" };
+  }
+  if (assertions.some((entry) => entry.status === "blocked_invalid")) {
+    return { assertions, status: "blocked_runtime" };
   }
   if (args.transportFailure) {
     // Step status follows the authored expectations. The required flag is

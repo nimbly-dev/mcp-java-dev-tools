@@ -97,7 +97,7 @@ export type RegressionRunStepExtractApplyResult = {
   hasRequiredUnresolved: boolean;
 };
 
-export type RegressionRunAssertionStatus = "pass" | "fail" | "blocked_invalid";
+export type RegressionRunAssertionStatus = "pass" | "fail" | "blocked_invalid" | "skipped_optional";
 
 export type RegressionRunAssertionResult = {
   id: string;
@@ -128,6 +128,8 @@ export type RegressionWatcherReasonCode =
   | "watcher_timeout"
   | "watcher_target_unreachable"
   | "watcher_expectation_failed"
+  | "watcher_actual_path_missing_retry_exhausted"
+  | "optional_actual_path_missing"
   | "watcher_configuration_invalid"
   | "watcher_dependency_invalid";
 

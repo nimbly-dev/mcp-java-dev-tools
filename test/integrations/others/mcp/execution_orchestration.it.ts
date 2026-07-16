@@ -1998,6 +1998,7 @@ test("mcp IT: execution_orchestration resumes a suite Watcher with the prior ext
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
   const eventId = "evt-resumed-123";
   let postCount = 0;
+  let indexChecks = 0;
   const requests: string[] = [];
   let appServer: http.Server | undefined;
   try {
@@ -2017,9 +2018,10 @@ test("mcp IT: execution_orchestration resumes a suite Watcher with the prior ext
         return;
       }
       if (req.method === "GET" && req.url === `/index/${eventId}`) {
+        indexChecks += 1;
         res.statusCode = 200;
         res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify({ state: "ready" }));
+        res.end(JSON.stringify(indexChecks >= 4 ? { state: "ready" } : { phase: "pending" }));
         return;
       }
       res.statusCode = 404;
@@ -2042,6 +2044,7 @@ test("mcp IT: execution_orchestration resumes a suite Watcher with the prior ext
       workspaces: [
         {
           projectRoot: projectRootAbs,
+          defaults: { requestTimeoutMs: 4000, retryMax: 4 },
           executionProfiles: [
             {
               executionProfile: "resumed-watcher-run",
@@ -2200,6 +2203,7 @@ test("mcp IT: execution_orchestration resumes a suite Watcher with the prior ext
       assert.equal(second.structuredContent?.status, "pass");
       assert.equal(second.structuredContent?.suiteRunId, suiteRunId);
       assert.equal(postCount, 1);
+      assert.equal(indexChecks, 4);
       assert.ok(requests.includes(`GET /imports/${eventId}`));
       assert.ok(requests.includes(`GET /index/${eventId}`));
     } finally {

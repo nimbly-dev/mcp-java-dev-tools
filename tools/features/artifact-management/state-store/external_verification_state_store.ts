@@ -63,7 +63,7 @@ function assertionRows(projection: ExternalVerificationProjection): Array<{
   id: string;
   actualPath: string;
   operator: string;
-  status: "pass" | "fail" | "blocked";
+  status: "pass" | "fail" | "blocked" | "skipped_optional";
   expectedSummaryText: string | null;
   actualSummaryText: string | null;
   reasonCode: string | null;

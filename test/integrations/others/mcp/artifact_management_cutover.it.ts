@@ -8,6 +8,21 @@ import test from "node:test";
 import { writeRegressionRunArtifacts } from "@tools-feature-regression-suite";
 import { startMcpClient } from "@test/integrations/support/spring/social_platform/shared.fixture";
 
+async function removeTempRoot(root: string): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (!fssync.existsSync(root)) return;
+    try {
+      await fs.rm(root, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM") throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+    }
+  }
+  await fs.rm(root, { recursive: true, force: true });
+}
+
 test("mcp IT: artifact_management run_result cutover is idempotent", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-artifact-cutover-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
@@ -44,7 +59,7 @@ test("mcp IT: artifact_management run_result cutover is idempotent", async () =>
     assert.equal(second.structuredContent?.idempotent, true);
   } finally {
     await mcp?.close();
-    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+    await removeTempRoot(tmpRoot);
   }
 });
 
@@ -83,7 +98,7 @@ test("mcp IT: artifact_management run_result cleanup invokes SQLite retention", 
     assert.equal(typeof cleanup.structuredContent?.cleanupId, "string");
   } finally {
     await mcp?.close();
-    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+    await removeTempRoot(tmpRoot);
   }
 });
 
@@ -152,7 +167,7 @@ test("mcp IT: artifact_management exposes bounded read-only run_state queries", 
     });
   } finally {
     await mcp?.close();
-    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+    await removeTempRoot(tmpRoot);
   }
 });
 
@@ -205,7 +220,7 @@ test("mcp IT: artifact_management exposes bounded correlation_state summaries", 
     );
   } finally {
     await mcp?.close();
-    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+    await removeTempRoot(tmpRoot);
   }
 });
 
@@ -271,7 +286,7 @@ test("mcp IT: artifact_management exposes active watcher_state progress", async 
     );
   } finally {
     await mcp?.close();
-    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+    await removeTempRoot(tmpRoot);
   }
 });
 
@@ -340,7 +355,7 @@ test("mcp IT: artifact_management rebuild returns bounded recovery metadata", as
     assert.equal("quarantinePathAbs" in (rebuilt.structuredContent ?? {}), false);
   } finally {
     await mcp?.close();
-    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+    await removeTempRoot(tmpRoot);
   }
 });
 
@@ -362,7 +377,7 @@ test("mcp IT: artifact_management rebuild fails closed without canonical sources
     assert.equal(rebuilt.structuredContent?.reasonCode, "state_store_rebuild_source_invalid");
   } finally {
     await mcp?.close();
-    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+    await removeTempRoot(tmpRoot);
   }
 });
 
@@ -423,7 +438,7 @@ test("mcp IT: artifact_management exposes transitional correlation backfill meta
     );
   } finally {
     await mcp?.close();
-    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+    await removeTempRoot(tmpRoot);
   }
 });
 
@@ -491,6 +506,6 @@ test("mcp IT: artifact_management audits non-reconstructible legacy backfill ent
     });
   } finally {
     await mcp?.close();
-    if (fssync.existsSync(tmpRoot)) await fs.rm(tmpRoot, { recursive: true, force: true });
+    await removeTempRoot(tmpRoot);
   }
 });

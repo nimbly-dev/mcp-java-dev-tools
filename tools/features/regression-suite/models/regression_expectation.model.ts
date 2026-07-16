@@ -7,10 +7,11 @@ export type StepExecutionOutcomeStatus =
   | "blocked_dependency"
   | "blocked_runtime"
   | "skipped_condition_false";
-export type AssertionEvaluationStatus = "pass" | "fail" | "blocked_invalid";
+export type AssertionEvaluationStatus = "pass" | "fail" | "blocked_invalid" | "skipped_optional";
 export type AssertionEvaluationReasonCode =
   | "ok"
   | "actual_path_missing"
+  | "optional_actual_path_missing"
   | "operator_unknown"
   | "operator_expected_missing"
   | "type_mismatch"

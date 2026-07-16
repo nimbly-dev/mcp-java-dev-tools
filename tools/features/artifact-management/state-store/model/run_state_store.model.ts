@@ -369,7 +369,7 @@ export type ExternalVerificationAssertionProjection = {
   id: string;
   actualPath: string;
   operator: string;
-  status: "pass" | "fail" | "blocked";
+  status: "pass" | "fail" | "blocked" | "skipped_optional";
   expected?: unknown;
   actual?: unknown;
   reasonCode?: string;

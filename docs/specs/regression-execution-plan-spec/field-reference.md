@@ -463,12 +463,16 @@ Watcher runtime canonical reason codes:
 - `watcher_timeout`
 - `watcher_target_unreachable`
 - `watcher_expectation_failed`
+- `watcher_actual_path_missing_retry_exhausted`
+- `optional_actual_path_missing` (assertion-level non-terminal absence)
 - `watcher_configuration_invalid`
 - `watcher_dependency_invalid`
 
-Implementation-specific failure causes such as unresolved wait policy, unsupported provider, response normalization failure,
-or persistent missing assertion path should be carried in `reasonMeta.cause` rather than introducing additional top-level
-watcher reason codes.
+Missing required `actualPath` observations are retryable runtime observations. They use the resolved inclusive `retryMax`
+and the persisted absolute deadline; after the final permitted attempt the watcher returns
+`watcher_actual_path_missing_retry_exhausted`. If the deadline is reached first, it returns `watcher_timeout`.
+Optional missing paths are recorded as assertion status `skipped_optional` with reason `optional_actual_path_missing` and
+do not retry or fail the watcher. These runtime outcomes are not configuration errors.
 
 ### `execution.result.json.externalVerification[]` (optional)
 

@@ -285,7 +285,7 @@ export type ExternalVerificationAssertionResult = {
   id: string;
   actualPath: string;
   operator: PlanStepExpectationOperator;
-  status: "pass" | "fail" | "blocked";
+  status: "pass" | "fail" | "blocked" | "skipped_optional";
   expected?: unknown;
   actual?: unknown;
   message?: string;
