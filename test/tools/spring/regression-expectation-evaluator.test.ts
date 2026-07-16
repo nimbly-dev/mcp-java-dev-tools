@@ -121,6 +121,53 @@ test("evaluateStepExpectations returns blocked_runtime on invalid expectation ma
   assert.equal(evaluated.assertions[0].reasonCode, "actual_path_missing");
 });
 
+test("evaluateStepExpectations marks an optional missing path as skipped without blocking", () => {
+  const evaluated = evaluateStepExpectations({
+    stepResult: { status: "pass" },
+    transportFailure: false,
+    dependencyBlocked: false,
+    expectations: [
+      {
+        id: "optional-field",
+        actualPath: "response.bodyJson.state",
+        operator: "field_equals",
+        expected: "ready",
+        required: false,
+      },
+    ],
+  });
+
+  assert.equal(evaluated.status, "pass");
+  assert.equal(evaluated.assertions[0]?.status, "skipped_optional");
+  assert.equal(evaluated.assertions[0]?.reasonCode, "optional_actual_path_missing");
+});
+
+test("evaluateStepExpectations preserves a predicate failure when another required path is missing", () => {
+  const evaluated = evaluateStepExpectations({
+    stepResult: { response: { statusCode: 500 } },
+    transportFailure: false,
+    dependencyBlocked: false,
+    expectations: [
+      {
+        id: "missing-required-field",
+        actualPath: "response.bodyJson.state",
+        operator: "field_equals",
+        expected: "ready",
+      },
+      {
+        id: "wrong-status",
+        actualPath: "response.statusCode",
+        operator: "field_equals",
+        expected: 200,
+      },
+    ],
+  });
+
+  assert.equal(evaluated.status, "fail_assertion");
+  assert.equal(evaluated.assertions[0]?.reasonCode, "actual_path_missing");
+  assert.equal(evaluated.assertions[1]?.reasonCode, "predicate_false");
+});
+
 test("evaluateStepExpectations prefers dependency or transport failures over assertion pass", () => {
   const dependencyBlocked = evaluateStepExpectations({
     stepResult: { status: "pass" },

@@ -227,6 +227,48 @@ test("executeSqlExternalVerification fails closed when sql.firstRow.* is asserte
   }
 });
 
+test("executeSqlExternalVerification records an optional missing path without blocking", async () => {
+  const root = createTestTempDir("external-verification-sql-optional-missing");
+  const dbPath = path.join(root, "catalog.sqlite");
+  try {
+    seedCatalogDb(dbPath);
+    const out = await executeSqlExternalVerification({
+      workspaceRootAbs: root,
+      resolvedContext: {
+        tenantId: "tenant-missing",
+        "sql.connection.catalogDb.kind": "sqlite",
+        "sql.connection.catalogDb.sqlite.filePath": dbPath,
+      },
+      verification: {
+        id: "verify_optional_first_row",
+        provider: { type: "sql" },
+        request: {
+          sql: {
+            connectionRef: "catalogDb",
+            statement: "SELECT indexed_count FROM reindex_status WHERE tenant_id = :tenantId",
+            parameters: [{ name: "tenantId", valueFromContext: "tenantId" }],
+          },
+        },
+        expect: [
+          {
+            id: "optional_first_row",
+            actualPath: "sql.firstRow.indexed_count",
+            operator: "numeric_gte",
+            expected: 1,
+            required: false,
+          },
+        ],
+      },
+    });
+
+    assert.equal(out.result.status, "pass");
+    assert.equal(out.result.assertions[0].status, "skipped_optional");
+    assert.equal(out.result.assertions[0].reasonCode, "optional_actual_path_missing");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("executeSqlExternalVerification fails closed when SQL execution throws", async () => {
   const root = createTestTempDir("external-verification-sql-execution-failure");
   const dbPath = path.join(root, "catalog.sqlite");

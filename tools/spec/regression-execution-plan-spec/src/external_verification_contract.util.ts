@@ -557,7 +557,7 @@ function isAssertionResult(value: unknown): value is ExternalVerificationAsserti
     hasNonBlank(value.actualPath) &&
     hasNonBlank(value.operator) &&
     isExpectationOperator(String(value.operator)) &&
-    (value.status === "pass" || value.status === "fail" || value.status === "blocked")
+    (value.status === "pass" || value.status === "fail" || value.status === "blocked" || value.status === "skipped_optional")
   );
 }
 

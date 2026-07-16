@@ -2265,7 +2265,7 @@ test("executeRegressionPlanWorkflow retries watcher polls when the expected fiel
       workspaces: [
         {
           projectRoot: root,
-          defaults: { requestTimeoutMs: 120, retryMax: 3 },
+          defaults: { requestTimeoutMs: 240, retryMax: 4 },
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
         },
       ],
@@ -2300,7 +2300,7 @@ test("executeRegressionPlanWorkflow retries watcher polls when the expected fiel
               },
             },
           },
-          waitPolicy: { timeoutMs: 200, retryMax: 3 },
+          waitPolicy: { timeoutMs: 240, retryMax: 4 },
           expect: [{ id: "indexed", actualPath: "response.bodyJson.state", operator: "field_equals", expected: "ready" }],
         },
       ],
@@ -2326,7 +2326,7 @@ test("executeRegressionPlanWorkflow retries watcher polls when the expected fiel
         }
         watcherCalls += 1;
         return {
-          structuredContent: watcherCalls < 2
+          structuredContent: watcherCalls < 4
             ? {
                 status: "pass",
                 statusCode: 200,
@@ -2348,9 +2348,9 @@ test("executeRegressionPlanWorkflow retries watcher polls when the expected fiel
     assert.equal(out.status, "executed");
     if (out.status === "executed") {
       assert.equal(out.runStatus, "pass");
-      assert.equal(watcherCalls, 2);
+      assert.equal(watcherCalls, 4);
       assert.equal(out.executionResult.watchers?.[0]?.status, "pass");
-      assert.equal(out.executionResult.watchers?.[0]?.attemptCount, 2);
+      assert.equal(out.executionResult.watchers?.[0]?.attemptCount, 4);
       assert.equal(out.executionResult.watchers?.[0]?.assertions[0]?.status, "pass");
     }
   } finally {

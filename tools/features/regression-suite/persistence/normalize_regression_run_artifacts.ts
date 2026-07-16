@@ -415,6 +415,8 @@ function normalizeWatcherReasonCode(value: unknown): RegressionWatcherReasonCode
   if (value === "watcher_timeout") return "watcher_timeout";
   if (value === "watcher_target_unreachable") return "watcher_target_unreachable";
   if (value === "watcher_expectation_failed") return "watcher_expectation_failed";
+  if (value === "watcher_actual_path_missing_retry_exhausted") return "watcher_actual_path_missing_retry_exhausted";
+  if (value === "optional_actual_path_missing") return "optional_actual_path_missing";
   if (value === "watcher_configuration_invalid") return "watcher_configuration_invalid";
   if (value === "watcher_dependency_invalid") return "watcher_dependency_invalid";
   if (value === "ok") return "watcher_verified";
@@ -502,6 +504,7 @@ function normalizeExecutionWatcherOutcome(args: {
   }
   if (args.reasonCode === "watcher_verified") return "verified";
   if (args.reasonCode === "watcher_expectation_failed") return "failed_expectation";
+  if (args.reasonCode === "watcher_actual_path_missing_retry_exhausted") return "blocked";
   if (args.reasonCode === "watcher_timeout") return "timed_out";
   if (
     args.reasonCode === "watcher_target_unreachable" ||
@@ -565,12 +568,14 @@ function normalizeWatcherExecutionEvidenceOutcome(args: {
   if (args.outcome === "blocked") {
     if (args.reasonCode === "watcher_target_unreachable") return "target_unreachable";
     if (args.reasonCode === "watcher_dependency_invalid") return "dependency_invalid";
+    if (args.reasonCode === "watcher_actual_path_missing_retry_exhausted") return "expectation_failed";
     return "configuration_invalid";
   }
   if (args.reasonCode === "watcher_verified") return "verified";
   if (args.reasonCode === "watcher_timeout") return "timeout";
   if (args.reasonCode === "watcher_target_unreachable") return "target_unreachable";
   if (args.reasonCode === "watcher_expectation_failed") return "expectation_failed";
+  if (args.reasonCode === "watcher_actual_path_missing_retry_exhausted") return "expectation_failed";
   if (args.reasonCode === "watcher_configuration_invalid") return "configuration_invalid";
   if (args.reasonCode === "watcher_dependency_invalid") return "dependency_invalid";
   return undefined;

@@ -40,6 +40,10 @@ Single-call execution skill for regression plans.
    - execute only after trigger-step completion
    - verify bounded downstream completion/readiness
    - fail closed on timeout, invalid dependency, invalid provider, or unreachable target
+   - inherit `workspaces[].defaults.requestTimeoutMs` and `retryMax` unless the Watcher overrides them independently
+   - treat `retryMax` as inclusive attempts; a required missing `actualPath` is retryable until that bound or the absolute deadline
+   - return `watcher_actual_path_missing_retry_exhausted` for retry exhaustion and `watcher_timeout` when the deadline wins
+   - record an optional missing `actualPath` as `skipped_optional` / `optional_actual_path_missing` without retry or failure
 7. `phase_6_external_verification` is mandatory when `contract.externalVerification[]` is present:
    - execute only after trigger-step and watcher convergence
    - verify downstream data validity against external HTTP or SQL targets

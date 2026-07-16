@@ -58,10 +58,6 @@ function watcherAssertionsAreRetryableMissingPath(assertions: Array<Record<strin
   return blockedAssertions.every((entry) => entry.reasonCode === "actual_path_missing");
 }
 
-function watcherMissingPathRetryCap(retryMax: number): number {
-  return Math.min(retryMax, 2);
-}
-
 export function deriveWatcherPhaseStatus(watchers: RegressionRunWatcherResult[] | undefined): RegressionWatcherPhaseStatus {
   if (!Array.isArray(watchers) || watchers.length === 0) {
     return "not_configured";
@@ -386,18 +382,18 @@ export async function executeWatchers(args: {
 
       if (evaluated.status === "blocked_runtime") {
         if (watcherAssertionsAreRetryableMissingPath(evaluated.assertions as Array<Record<string, unknown>>)) {
-          if (attempt < watcherMissingPathRetryCap(resolvedWaitPolicy.retryMax)) {
-            const remainingMs = watcherDeadlineAtEpochMs - nowMs();
-            if (remainingMs <= 0) {
-              finalStatus = "blocked_runtime";
-              finalOutcome = "timed_out";
-              finalReasonCode = "watcher_timeout";
-              finalReasonMeta = {
-                timeoutMs: resolvedWaitPolicy.timeoutMs,
-                retryMax: resolvedWaitPolicy.retryMax,
-              };
-              break;
-            }
+          const remainingMs = watcherDeadlineAtEpochMs - nowMs();
+          if (remainingMs <= 0) {
+            finalStatus = "blocked_runtime";
+            finalOutcome = "timed_out";
+            finalReasonCode = "watcher_timeout";
+            finalReasonMeta = {
+              timeoutMs: resolvedWaitPolicy.timeoutMs,
+              retryMax: resolvedWaitPolicy.retryMax,
+            };
+            break;
+          }
+          if (attempt < resolvedWaitPolicy.retryMax) {
             const sleepDurationMs = Math.min(pollIntervalMs, remainingMs);
             const deadlineSleepMs =
               typeof args.orchestrationDeadlineEpochMs === "number"
@@ -418,10 +414,9 @@ export async function executeWatchers(args: {
           }
           finalStatus = "blocked_runtime";
           finalOutcome = "blocked";
-          finalReasonCode = "watcher_configuration_invalid";
+          finalReasonCode = "watcher_actual_path_missing_retry_exhausted";
           finalReasonMeta = {
-            cause: "actual_path_missing_persistent",
-            retryCap: watcherMissingPathRetryCap(resolvedWaitPolicy.retryMax),
+            retryMax: resolvedWaitPolicy.retryMax,
           };
           break;
         }
@@ -537,6 +532,8 @@ function toWatcherExecutionEvidence(watcherRow: RegressionRunWatcherResult): Wat
             ? "target_unreachable"
             : watcherRow.reasonCode === "watcher_expectation_failed"
               ? "expectation_failed"
+              : watcherRow.reasonCode === "watcher_actual_path_missing_retry_exhausted"
+                ? "expectation_failed"
               : watcherRow.reasonCode === "watcher_dependency_invalid"
                 ? "dependency_invalid"
                 : "configuration_invalid",

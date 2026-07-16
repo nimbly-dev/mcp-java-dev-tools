@@ -67,7 +67,8 @@ function normalizeAssertionResults(
     status: (entry.status === "blocked_invalid" ? "blocked" : entry.status) as
       | "pass"
       | "fail"
-      | "blocked",
+      | "blocked"
+      | "skipped_optional",
     ...(typeof entry.expected === "undefined" ? {} : { expected: entry.expected }),
     ...(typeof entry.actual === "undefined" ? {} : { actual: entry.actual }),
     ...(typeof entry.message === "undefined" ? {} : { message: entry.message }),
