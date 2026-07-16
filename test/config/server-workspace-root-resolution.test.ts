@@ -49,7 +49,7 @@ test("workspace root resolution prefers --workspace-root over session/cwd", () =
       },
       () => {
         const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", argRoot]);
-        assert.equal(cfg.workspaceRootSource, "arg");
+        assert.equal(cfg.workspaceRootSource, "probe-config");
         assert.equal(cfg.workspaceRootAbs, path.resolve(argRoot));
       },
     );
@@ -70,7 +70,7 @@ test("workspace root resolution uses INIT_CWD then PWD when CLI arg is absent", 
       },
       () => {
         const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-        assert.equal(cfg.workspaceRootSource, "session");
+        assert.equal(cfg.workspaceRootSource, "probe-config");
         assert.equal(cfg.workspaceRootAbs, path.resolve(sessionRoot));
       },
     );
@@ -94,7 +94,7 @@ test("workspace root resolution prefers MCP_WORKSPACE_ROOT over session vars", (
       },
       () => {
         const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-        assert.equal(cfg.workspaceRootSource, "env");
+        assert.equal(cfg.workspaceRootSource, "probe-config");
         assert.equal(cfg.workspaceRootAbs, path.resolve(envRoot));
       },
     );
@@ -118,7 +118,7 @@ test("workspace root resolution falls back to cwd when session vars are absent",
       },
       () => {
         const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-        assert.equal(cfg.workspaceRootSource, "cwd");
+        assert.equal(cfg.workspaceRootSource, "probe-config");
         assert.equal(cfg.workspaceRootAbs, path.resolve(tempRoot));
       },
     );
@@ -128,3 +128,34 @@ test("workspace root resolution falls back to cwd when session vars are absent",
   }
 });
 
+test("workspace root resolution derives from an absolute canonical probe-config path", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-probe-config-"));
+  const originalCwd = process.cwd();
+  try {
+    const workspaceRoot = path.join(tmp, "target-workspace");
+    const unrelatedRoot = path.join(tmp, "unrelated");
+    writeProbeConfig(workspaceRoot);
+    fs.mkdirSync(unrelatedRoot, { recursive: true });
+    process.chdir(unrelatedRoot);
+    withEnv(
+      {
+        [MCP_ENV.PROBE_CONFIG_FILE]: path.join(workspaceRoot, ".mcpjvm", "probe-config.json"),
+        [MCP_ENV.WORKSPACE_ROOT]: undefined,
+        INIT_CWD: undefined,
+        PWD: undefined,
+      },
+      () => {
+        const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
+        assert.equal(cfg.workspaceRootSource, "probe-config");
+        assert.equal(cfg.workspaceRootAbs, path.resolve(workspaceRoot));
+        assert.equal(
+          cfg.probeRegistry?.configFileAbs,
+          path.join(workspaceRoot, ".mcpjvm", "probe-config.json"),
+        );
+      },
+    );
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

@@ -21,28 +21,31 @@ export class ServerConfigLoader {
     const sessionWorkspaceRoot = this.detectSessionWorkspaceRoot();
     const cwdWorkspaceRoot = process.cwd();
 
-    const workspaceRoot =
+    const initialWorkspaceRoot =
       argWorkspaceRoot ?? envWorkspaceRoot ?? sessionWorkspaceRoot ?? cwdWorkspaceRoot;
-    const workspaceRootSource: ServerConfig["workspaceRootSource"] = argWorkspaceRoot
-      ? "arg"
-      : envWorkspaceRoot
-        ? "env"
-      : sessionWorkspaceRoot
-        ? "session"
-        : "cwd";
+    const initialWorkspaceRootSource: Exclude<ServerConfig["workspaceRootSource"], "probe-config"> =
+      argWorkspaceRoot
+        ? "arg"
+        : envWorkspaceRoot
+          ? "env"
+          : sessionWorkspaceRoot
+            ? "session"
+            : "cwd";
 
-    const workspaceRootAbs = path.resolve(workspaceRoot);
-    const detectedProbeConfigFile = this.detectWorkspaceProbeConfigFile(workspaceRootAbs);
+    const initialWorkspaceRootAbs = path.resolve(initialWorkspaceRoot);
     const envProbeConfigFile = this.env(MCP_ENV.PROBE_CONFIG_FILE);
     const explicitEnvProbeConfigFile = this.resolveExplicitProbeConfigFile({
       rawValue: envProbeConfigFile,
-      workspaceRootAbs,
+      workspaceRootAbs: initialWorkspaceRootAbs,
     });
-    const probeConfigFile = this.selectProbeConfigFile({
-      workspaceRootAbs,
-      ...(detectedProbeConfigFile ? { detectedProbeConfigFile } : {}),
-      ...(explicitEnvProbeConfigFile ? { explicitEnvProbeConfigFile } : {}),
-    });
+    const detectedProbeConfigFile = this.detectWorkspaceProbeConfigFile(initialWorkspaceRootAbs);
+    const probeConfigFile = explicitEnvProbeConfigFile ?? detectedProbeConfigFile;
+    const workspaceRootAbs = probeConfigFile
+      ? this.deriveWorkspaceRootFromProbeConfig(probeConfigFile)
+      : initialWorkspaceRootAbs;
+    const workspaceRootSource: ServerConfig["workspaceRootSource"] = probeConfigFile
+      ? "probe-config"
+      : initialWorkspaceRootSource;
     const probeRegistry =
       typeof probeConfigFile === "string" && probeConfigFile.trim().length > 0
         ? loadProbeRegistry({
@@ -174,26 +177,18 @@ export class ServerConfigLoader {
     return path.resolve(trimmed);
   }
 
-  private selectProbeConfigFile(args: {
-    workspaceRootAbs: string;
-    detectedProbeConfigFile?: string;
-    explicitEnvProbeConfigFile?: string;
-  }): string | undefined {
-    if (args.detectedProbeConfigFile) {
-      if (
-        args.explicitEnvProbeConfigFile &&
-        this.isPathWithinWorkspace(args.explicitEnvProbeConfigFile, args.workspaceRootAbs)
-      ) {
-        return args.explicitEnvProbeConfigFile;
-      }
-      return args.detectedProbeConfigFile;
+  private deriveWorkspaceRootFromProbeConfig(configFileAbs: string): string {
+    const normalizedConfigFileAbs = path.resolve(configFileAbs);
+    const configDirectory = path.dirname(normalizedConfigFileAbs);
+    if (
+      path.basename(normalizedConfigFileAbs).toLowerCase() !== "probe-config.json" ||
+      path.basename(configDirectory).toLowerCase() !== ".mcpjvm"
+    ) {
+      throw new Error(
+        `probe_config_location_invalid: probe-config.json must be located at <workspaceRoot>/.mcpjvm/probe-config.json (received ${normalizedConfigFileAbs}).`,
+      );
     }
-    return args.explicitEnvProbeConfigFile;
-  }
-
-  private isPathWithinWorkspace(candidateAbs: string, workspaceRootAbs: string): boolean {
-    const relative = path.relative(workspaceRootAbs, candidateAbs);
-    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+    return path.dirname(configDirectory);
   }
 
   private registryImplicitBaseUrl(registry?: ProbeRegistry): string | undefined {
