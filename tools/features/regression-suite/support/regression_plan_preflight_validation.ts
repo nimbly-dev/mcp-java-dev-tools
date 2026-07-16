@@ -561,7 +561,10 @@ export function validateSuiteContextDependencies(args: {
   return { ok: true };
 }
 
-export function validateCorrelationPolicy(correlation: PlanCorrelationPolicy | undefined):
+export function validateCorrelationPolicy(
+  correlation: PlanCorrelationPolicy | undefined,
+  stepOrders?: number[],
+):
   | { ok: true }
   | {
       ok: false;
@@ -583,6 +586,34 @@ export function validateCorrelationPolicy(correlation: PlanCorrelationPolicy | u
       ok: false,
       reasonCode: "correlation_key_invalid",
       requiredUserAction: ["Set correlation.key.type to traceId|requestId|messageId."],
+    };
+  }
+  const source = correlation.key.source;
+  if (
+    source &&
+    typeof source.stepOrder !== "undefined" &&
+    (!Number.isInteger(source.stepOrder) || source.stepOrder < 1)
+  ) {
+    return {
+      ok: false,
+      reasonCode: "correlation_key_invalid",
+      requiredUserAction: [
+        "Set correlation.key.source.stepOrder to a positive integer when selecting a producer step.",
+      ],
+    };
+  }
+  if (
+    source &&
+    typeof source.stepOrder === "number" &&
+    Array.isArray(stepOrders) &&
+    !stepOrders.includes(source.stepOrder)
+  ) {
+    return {
+      ok: false,
+      reasonCode: "correlation_key_invalid",
+      requiredUserAction: [
+        `Set correlation.key.source.stepOrder to an existing plan step order; received ${source.stepOrder}.`,
+      ],
     };
   }
   const expectations = correlation.strictLineExpectations;

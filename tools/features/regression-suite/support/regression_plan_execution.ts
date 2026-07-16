@@ -145,7 +145,9 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
   const extractedContextValidation = validateExtractedContextDependencies({
     steps: contract.steps,
     ...(contract.watchers ? { watchers: contract.watchers } : {}),
-    ...(contract.externalVerification ? { externalVerification: contract.externalVerification } : {}),
+    ...(contract.externalVerification
+      ? { externalVerification: contract.externalVerification }
+      : {}),
   });
   if (!extractedContextValidation.ok) {
     return {
@@ -199,7 +201,10 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
       requiredUserAction: externalVerificationValidation.requiredUserAction,
     };
   }
-  const correlationValidation = validateCorrelationPolicy(contract.correlation);
+  const correlationValidation = validateCorrelationPolicy(
+    contract.correlation,
+    contract.steps.map((step) => step.order),
+  );
   if (!correlationValidation.ok) {
     return {
       status: "blocked_invalid",

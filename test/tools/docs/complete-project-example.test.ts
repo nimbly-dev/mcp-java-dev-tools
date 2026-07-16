@@ -80,7 +80,7 @@ test("complete project guide contains parseable, schema-validated examples", () 
   );
   const contextBindings = (readJson(path.join(projectRoot, "projects.json")).workspaces as any[])[0]
     ?.variables?.contextBindings as Record<string, string>;
-  assert.equal(contextBindings?.["sql.connection.analytics.kind"], "postgresql");
+  assert.equal(contextBindings?.["sql.connection.analytics.kind"], "EXAMPLE_SQL_KIND");
   for (const key of [
     "sql.connection.analytics.kind",
     "sql.connection.analytics.host",

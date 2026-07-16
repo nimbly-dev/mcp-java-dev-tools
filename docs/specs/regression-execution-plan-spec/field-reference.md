@@ -372,6 +372,7 @@ Cross-service/cross-plan deterministic post-analysis policy.
 - `key.source.type` (string, optional): `header` | `json_path` | `capture_field`
 - `key.source.path` (string, required when `key.source` is set): extraction path.
 - `key.source.path` for `json_path` SHOULD use canonical normalized response paths such as `response.bodyJson.id`.
+- `key.source.stepOrder` (number, optional): restricts source resolution to the selected producer step. Without it, `json_path` retains the legacy latest-matching-step behavior; set it when a deterministic producer response must win.
 - `window.maxWindowMs` (number, required): bounded matching window.
 - `window.startEpochMs` (number, optional)
 - `window.endEpochMs` (number, optional)
