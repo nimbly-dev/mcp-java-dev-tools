@@ -1,0 +1,20 @@
+{
+  "defaultProfile": "local",
+  "profiles": {
+    "local": {
+      "probes": {
+        "example-service": {
+          "baseUrl": "http://127.0.0.1:9191",
+          "include": ["com.example.**"],
+          "exclude": []
+        }
+      }
+    }
+  },
+  "workspaces": [
+    {
+      "root": "<workspace-root>",
+      "profile": "local"
+    }
+  ]
+}

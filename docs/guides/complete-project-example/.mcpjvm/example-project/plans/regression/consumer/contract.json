@@ -1,0 +1,110 @@
+{
+  "targets": [
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.events.EventQueryController",
+        "method": "getImport",
+        "sourceRoot": "src/main/java"
+      }
+    }
+  ],
+  "prerequisites": [
+    {
+      "key": "apiBaseUrl",
+      "required": true,
+      "secret": false,
+      "provisioning": "user_input"
+    },
+    {
+      "key": "auth.bearer",
+      "required": true,
+      "secret": true,
+      "provisioning": "discoverable",
+      "discoverySource": "runtime_context"
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "id": "read-import",
+      "targetRef": 0,
+      "protocol": "http",
+      "transport": {
+        "http": {
+          "method": "GET",
+          "pathTemplate": "/imports/${eventId}",
+          "headers": {
+            "Authorization": "Bearer ${auth.bearer}"
+          }
+        }
+      },
+      "expect": [
+        {
+          "id": "retrieved",
+          "actualPath": "response.statusCode",
+          "operator": "field_equals",
+          "expected": 200
+        }
+      ]
+    }
+  ],
+  "watchers": [
+    {
+      "id": "indexed-event",
+      "dependency": {
+        "stepOrder": 1
+      },
+      "provider": {
+        "type": "http",
+        "transport": {
+          "request": {
+            "method": "GET",
+            "url": "${apiBaseUrl}/index/${eventId}"
+          }
+        }
+      },
+      "waitPolicy": {
+        "timeoutMs": 120000,
+        "retryMax": 12
+      },
+      "expect": [
+        {
+          "id": "ready",
+          "actualPath": "response.bodyJson.state",
+          "operator": "field_equals",
+          "expected": "ready"
+        }
+      ]
+    }
+  ],
+  "externalVerification": [
+    {
+      "id": "analytics-row",
+      "provider": {
+        "type": "sql"
+      },
+      "request": {
+        "sql": {
+          "connectionRef": "analytics",
+          "statement": "SELECT event_id, indexed_count FROM event_index WHERE event_id = $1",
+          "parameters": [
+            {
+              "name": "event_id",
+              "valueFromContext": "eventId"
+            }
+          ],
+          "timeoutMs": 5000
+        }
+      },
+      "expect": [
+        {
+          "id": "indexed-count",
+          "actualPath": "sql.firstRow.indexed_count",
+          "operator": "numeric_gte",
+          "expected": 1
+        }
+      ]
+    }
+  ]
+}

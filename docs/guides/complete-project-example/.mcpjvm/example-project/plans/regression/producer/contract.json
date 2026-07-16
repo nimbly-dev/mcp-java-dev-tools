@@ -1,0 +1,94 @@
+{
+  "targets": [
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.events.EventController",
+        "method": "create",
+        "sourceRoot": "src/main/java"
+      }
+    }
+  ],
+  "prerequisites": [
+    {
+      "key": "apiBaseUrl",
+      "required": true,
+      "secret": false,
+      "provisioning": "user_input"
+    },
+    {
+      "key": "auth.bearer",
+      "required": true,
+      "secret": true,
+      "provisioning": "discoverable",
+      "discoverySource": "runtime_context"
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "id": "create-event",
+      "targetRef": 0,
+      "protocol": "http",
+      "transport": {
+        "http": {
+          "method": "POST",
+          "pathTemplate": "/events",
+          "headers": {
+            "Authorization": "Bearer ${auth.bearer}"
+          },
+          "body": {
+            "type": "example",
+            "payload": "<event-payload>"
+          }
+        }
+      },
+      "extract": [
+        {
+          "from": "response.bodyJson.id",
+          "as": "eventId",
+          "scope": "suite",
+          "secret": false,
+          "required": true
+        }
+      ],
+      "expect": [
+        {
+          "id": "accepted",
+          "actualPath": "response.statusCode",
+          "operator": "field_equals",
+          "expected": 202
+        }
+      ]
+    }
+  ],
+  "correlation": {
+    "enabled": true,
+    "keyType": "requestId",
+    "key": {
+      "type": "requestId",
+      "source": {
+        "type": "json_path",
+        "path": "response.bodyJson.requestId"
+      }
+    },
+    "window": {
+      "maxWindowMs": 30000
+    },
+    "probeIds": [],
+    "matchPolicy": {
+      "requireExactKeyMatch": true,
+      "requireWindowMatch": true,
+      "ambiguityStrategy": "fail_closed"
+    },
+    "strictLineExpectations": [
+      {
+        "strictLineKey": "com.example.events.EventService#create:42",
+        "sequenceOrder": 1,
+        "selectorPolicy": "exact_instance",
+        "operator": "at_least",
+        "expectedHitDelta": 1
+      }
+    ]
+  }
+}

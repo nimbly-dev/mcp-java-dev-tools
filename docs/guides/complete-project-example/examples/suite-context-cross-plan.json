@@ -1,0 +1,43 @@
+{
+  "targets": [
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.events.EventController",
+        "method": "create"
+      }
+    }
+  ],
+  "prerequisites": [],
+  "steps": [
+    {
+      "order": 1,
+      "id": "create-event",
+      "targetRef": 0,
+      "protocol": "http",
+      "transport": {
+        "http": {
+          "method": "POST",
+          "pathTemplate": "/events"
+        }
+      },
+      "extract": [
+        {
+          "from": "response.bodyJson.id",
+          "as": "eventId",
+          "scope": "suite",
+          "secret": false,
+          "required": true
+        }
+      ],
+      "expect": [
+        {
+          "id": "accepted",
+          "actualPath": "response.statusCode",
+          "operator": "field_equals",
+          "expected": 202
+        }
+      ]
+    }
+  ]
+}
