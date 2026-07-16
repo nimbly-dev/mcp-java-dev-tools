@@ -5,6 +5,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 
 const { dispatchExecutionOrchestrationAction } = require("@tools-feature-execution-orchestration");
+const { cutoverRunStateStore } = require("@tools-feature-artifact-management");
 const executionOrchestrationDomain = (input: Record<string, unknown>) =>
   dispatchExecutionOrchestrationAction({
     workspaceRootAbs: input.workspaceRootAbs,
@@ -211,6 +212,89 @@ test("executionOrchestrationDomain resumes persisted suite progress by suiteRunI
     } else {
       delete process.env.MCP_PROBE_CONFIG_FILE;
     }
+    await new Promise<void>((resolve, reject) => server.close((error: Error | undefined) => (error ? reject(error) : resolve())));
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("executionOrchestrationDomain uses SQLite-only suite state after cutover", async () => {
+  const root = createTestTempDir("execution-orchestration-domain-post-cutover");
+  const priorProbeConfigEnv = process.env.MCP_PROBE_CONFIG_FILE;
+  const server = http.createServer((req: typeof http.IncomingMessage.prototype, res: typeof http.ServerResponse.prototype) => {
+    if (req.url === "/a" || req.url === "/b") {
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+    res.statusCode = 404;
+    res.end(JSON.stringify({ ok: false }));
+  });
+  try {
+    const port = await listen(server);
+    const projectName = "post-cutover-project";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{
+        projectRoot: root,
+        defaults: {
+          requestTimeoutMs: 500,
+          retryMax: 1,
+          orchestrator: { resumePollMax: 1, resumePollIntervalMs: 10, resumePollTimeoutMs: 120000 },
+        },
+        executionProfiles: [{
+          executionProfile: "post-cutover-suite",
+          executionPolicy: "stop_on_fail",
+          plans: [{ order: 1, planName: "plan-a" }, { order: 2, planName: "plan-b" }],
+        }],
+      }],
+    });
+    writeJson(path.join(root, ".mcpjvm", "probe-config.json"), {
+      defaultProfile: "dev",
+      profiles: { dev: { probes: { "gateway-service": { baseUrl: `http://127.0.0.1:${String(port)}`, include: ["org.example.**"], exclude: [] } } } },
+      workspaces: [{ root, profile: "dev" }],
+    });
+    process.env.MCP_PROBE_CONFIG_FILE = path.join(root, ".mcpjvm", "probe-config.json");
+    for (const [planName, routePath] of [["plan-a", "/a"], ["plan-b", "/b"]] as const) {
+      writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "metadata.json"), {
+        specVersion: "1.0.0",
+        execution: { intent: "regression", probeVerification: false, pinStrictProbeKey: false, discoveryPolicy: "allow_discoverable_prerequisites" },
+      });
+      writeJson(path.join(root, ".mcpjvm", projectName, "plans", "regression", planName, "contract.json"), {
+        targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" } }],
+        prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: `http://127.0.0.1:${String(port)}` }],
+        steps: [{ order: 1, id: `${planName}_step`, targetRef: 0, protocol: "http", transport: { http: { method: "GET", pathTemplate: routePath } }, expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }] }],
+      });
+    }
+    const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName });
+    assert.equal(cutover.ok, true);
+
+    const first = await executionOrchestrationDomain({ workspaceRootAbs: root, payload: { projectName, executionProfile: "post-cutover-suite", maxPlansPerCall: 1 } });
+    assert.equal(first.structuredContent.status, "in_progress");
+    assert.equal(first.structuredContent.stateSurface, "run_state");
+    assert.equal("statusArtifactPath" in first.structuredContent, false);
+    const suiteRunId = String(first.structuredContent.suiteRunId);
+    const suiteJson = path.join(root, ".mcpjvm", projectName, "suite-runs", suiteRunId, "execution_orchestration.result.json");
+    assert.equal(fs.existsSync(suiteJson), false);
+
+    writeJson(suiteJson, { resultType: "execution_orchestration", status: "fail", suiteRunId, planRuns: [] });
+    const second = await executionOrchestrationDomain({ workspaceRootAbs: root, payload: { projectName, executionProfile: "post-cutover-suite", suiteRunId, maxPlansPerCall: 1 } });
+    assert.equal(second.structuredContent.status, "pass");
+    assert.equal(second.structuredContent.stateSurface, "run_state");
+    assert.equal("statusArtifactPath" in second.structuredContent, false);
+    fs.rmSync(suiteJson, { force: true });
+    const afterDeletion = await executionOrchestrationDomain({ workspaceRootAbs: root, payload: { projectName, executionProfile: "post-cutover-suite", suiteRunId, maxPlansPerCall: 1 } });
+    assert.equal(afterDeletion.structuredContent.status, "pass");
+    assert.equal(afterDeletion.structuredContent.stateSurface, "run_state");
+    assert.equal("statusArtifactPath" in afterDeletion.structuredContent, false);
+    const store = new (require("node:sqlite").DatabaseSync)(path.join(root, ".mcpjvm", projectName, "run-state.sqlite"));
+    try {
+      assert.equal(store.prepare("SELECT COUNT(*) AS count FROM artifacts WHERE artifact_kind = 'execution_orchestration'").get().count, 0);
+    } finally {
+      store.close();
+    }
+  } finally {
+    if (typeof priorProbeConfigEnv === "string") process.env.MCP_PROBE_CONFIG_FILE = priorProbeConfigEnv;
+    else delete process.env.MCP_PROBE_CONFIG_FILE;
     await new Promise<void>((resolve, reject) => server.close((error: Error | undefined) => (error ? reject(error) : resolve())));
     fs.rmSync(root, { recursive: true, force: true });
   }

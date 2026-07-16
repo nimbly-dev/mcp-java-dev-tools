@@ -5,6 +5,7 @@ import { cutoverMarkerPath, cutoverSentinelPath } from "./state_store_cutover_ma
 import type {
   RunStateCutover,
   RunStateCutoverResult,
+  RunStateCutoverStatus,
   RunStateStoreFailure,
   RunStateStoreOpenResult,
 } from "./model/run_state_store.model";
@@ -69,6 +70,19 @@ function readCutover(store: RunStateStoreOpenResult): RunStateCutover | RunState
       : {}),
     ...(typeof row.reason_code === "string" ? { reasonCode: row.reason_code } : {}),
   };
+}
+
+export function readRunStateCutoverStatus(args: {
+  store: Extract<RunStateStoreOpenResult, { ok: true }>;
+}): RunStateCutoverStatus | undefined {
+  const row = args.store.database
+    .prepare("SELECT status FROM state_store_cutover WHERE project_name = ?")
+    .get(args.store.projectName);
+  return row?.status === "pre_cutover" ||
+    row?.status === "cutover_in_progress" ||
+    row?.status === "cutover_complete"
+    ? row.status
+    : undefined;
 }
 
 async function legacySourceIsPending(
@@ -179,6 +193,42 @@ export async function cutoverRunStateStore(args: {
     }
     store.database.exec("BEGIN IMMEDIATE;");
     try {
+      const activeSuite = store.database
+        .prepare(
+          "SELECT suite_run_id, status, active_plan_name, active_phase FROM suite_runs WHERE project_name = ? AND status = 'in_progress' LIMIT 1",
+        )
+        .get(store.projectName);
+      if (activeSuite) {
+        store.database.exec("ROLLBACK;");
+        try {
+          await fs.rm(cutoverSentinelPath(args.workspaceRootAbs, store.projectName), {
+            force: true,
+          });
+        } catch (error) {
+          return failure(
+            "state_store_cutover_failed",
+            "SQLite cutover was rejected but its temporary sentinel could not be removed",
+            "retry_cutover",
+            { projectName: store.projectName, error: error instanceof Error ? error.message : String(error) },
+          );
+        }
+        return failure(
+          "cutover_active_suite",
+          "SQLite cutover is not permitted while a suite is in progress",
+          "retry_cutover",
+          {
+            projectName: store.projectName,
+            suiteRunId: activeSuite.suite_run_id,
+            status: activeSuite.status,
+            ...(typeof activeSuite.active_plan_name === "string"
+              ? { activePlanName: activeSuite.active_plan_name }
+              : {}),
+            ...(typeof activeSuite.active_phase === "string"
+              ? { activePhase: activeSuite.active_phase }
+              : {}),
+          },
+        );
+      }
       store.database
         .prepare(
           `

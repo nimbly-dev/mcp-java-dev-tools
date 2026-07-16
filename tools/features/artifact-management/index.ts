@@ -1,11 +1,12 @@
 export { dispatchArtifactManagementAction } from "./actions/artifact_management.action";
 export { buildFailClosedArtifactResponse } from "./shared/fail_closed";
 export { readProjectArtifact, writeProjectArtifact } from "./support/project_artifact_io";
-export { openRunStateStore } from "./state-store/run_state_store";
+export { inspectRunStateCutoverStatus, openRunStateStore } from "./state-store/run_state_store";
 export {
   acquireRegressionSuiteLease,
   persistRegressionSuiteState,
   readRegressionSuiteCheckpoint,
+  readRegressionSuiteState,
   releaseRegressionSuiteLease,
 } from "./state-store/suite_state_store";
 export {
@@ -17,7 +18,7 @@ export { upsertRunStateArtifact } from "./state-store/artifact_state_store";
 export { upsertWatcherRun } from "./state-store/watcher_state_store";
 export { rebuildRunStateStore } from "./state-store/rebuild/run_state_store_rebuild";
 export { backfillLegacyCorrelationIndex } from "./state-store/legacy_backfill_state_store";
-export { cutoverRunStateStore } from "./state-store/state_store_cutover";
+export { cutoverRunStateStore, readRunStateCutoverStatus } from "./state-store/state_store_cutover";
 export { queryRunState } from "./state-store/run_state_query";
 export { queryCorrelationState } from "./state-store/correlation_state_query";
 export { queryWatcherState } from "./state-store/watcher_state_query";
@@ -33,6 +34,7 @@ export type {
   RegressionSuiteCheckpoint,
   RunStateCheckpointFailure,
   PersistedRegressionSuiteCheckpoint,
+  PersistedRegressionSuiteState,
   AcquireRegressionSuiteLeaseResult,
   CorrelationObservation,
   CorrelationObservationResult,

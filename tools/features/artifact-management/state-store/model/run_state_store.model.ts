@@ -19,6 +19,7 @@ export type RunStateStoreFailureCode =
   | "state_store_cutover_not_ready"
   | "state_store_cutover_conflict"
   | "state_store_cutover_failed"
+  | "cutover_active_suite"
   | "legacy_backfill_required"
   | "legacy_write_disabled"
   | "state_store_required_after_cutover";
@@ -358,6 +359,10 @@ export type PersistedRegressionSuiteCheckpoint = {
   activeRunId?: string;
   activePhase?: RegressionSuiteCheckpoint["activePhase"];
   continuation?: Record<string, unknown>;
+};
+export type PersistedRegressionSuiteState = {
+  checkpoint: PersistedRegressionSuiteCheckpoint;
+  planRuns: RegressionPlanRunProjection[];
 };
 
 export type ExternalVerificationAssertionProjection = {
