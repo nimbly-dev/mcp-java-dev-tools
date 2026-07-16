@@ -384,11 +384,16 @@ async function forceStop(child: ChildProcess): Promise<void> {
 async function createTempProbeRegistryConfig(args: {
   workspaceRootAbs: string;
   probeBaseUrl: string;
-}): Promise<{ dirAbs: string; fileAbs: string }> {
-  const parentAbs = path.join(repoRootAbs, "test", ".tmp", "probe-registry");
-  await fs.mkdir(parentAbs, { recursive: true });
-  const dirAbs = await fs.mkdtemp(path.join(parentAbs, "mcp-"));
+}): Promise<{ fileAbs: string; previousContents?: string }> {
+  const dirAbs = path.join(args.workspaceRootAbs, ".mcpjvm");
+  await fs.mkdir(dirAbs, { recursive: true });
   const fileAbs = path.join(dirAbs, "probe-config.json");
+  let previousContents: string | undefined;
+  try {
+    previousContents = await fs.readFile(fileAbs, "utf8");
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+  }
   const registry = {
     defaultProfile: "dev",
     profiles: {
@@ -410,7 +415,18 @@ async function createTempProbeRegistryConfig(args: {
     ],
   };
   await fs.writeFile(fileAbs, `${JSON.stringify(registry, null, 2)}\n`, "utf8");
-  return { dirAbs, fileAbs };
+  return previousContents === undefined ? { fileAbs } : { fileAbs, previousContents };
+}
+
+async function cleanupTempProbeRegistryConfig(config: {
+  fileAbs: string;
+  previousContents?: string;
+}): Promise<void> {
+  if (config.previousContents === undefined) {
+    await fs.rm(config.fileAbs, { force: true });
+    return;
+  }
+  await fs.writeFile(config.fileAbs, config.previousContents, "utf8");
 }
 
 export async function findLineNumberBySnippet(
@@ -657,7 +673,7 @@ export async function startMcpClient(args: {
     await client.connect(transport);
   } catch (error) {
     await transport.close().catch(() => undefined);
-    if (tempProbeConfig) await fs.rm(tempProbeConfig.dirAbs, { recursive: true, force: true }).catch(() => undefined);
+    if (tempProbeConfig) await cleanupTempProbeRegistryConfig(tempProbeConfig).catch(() => undefined);
     throw new Error(`Failed to start MCP client.\n${logBuffer.join("\n")}\n${String(error)}`);
   }
 
@@ -665,7 +681,7 @@ export async function startMcpClient(args: {
     client,
     close: async () => {
       await transport.close();
-      if (tempProbeConfig) await fs.rm(tempProbeConfig.dirAbs, { recursive: true, force: true });
+      if (tempProbeConfig) await cleanupTempProbeRegistryConfig(tempProbeConfig);
     },
     logs: () => logBuffer.join(""),
   };

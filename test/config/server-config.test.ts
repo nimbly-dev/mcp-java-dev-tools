@@ -66,7 +66,7 @@ test("missing probe-config fails closed and does not rely on environment probe r
   );
 });
 
-test("loads explicit probe registry from MCP_PROBE_CONFIG_FILE", () => {
+test("fails closed when MCP_PROBE_CONFIG_FILE points outside the canonical location", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-file-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -81,9 +81,10 @@ test("loads explicit probe registry from MCP_PROBE_CONFIG_FILE", () => {
         PWD: undefined,
       },
       () => {
-        const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-        assert.equal(cfg.workspaceRootSource, "env");
-        assert.equal(cfg.probeBaseUrl, "");
+        assert.throws(
+          () => loadConfigFromEnvAndArgs(["node", "server"]),
+          /probe_config_location_invalid/i,
+        );
       },
     );
   } finally {
@@ -91,7 +92,7 @@ test("loads explicit probe registry from MCP_PROBE_CONFIG_FILE", () => {
   }
 });
 
-test("ignores stale absolute MCP_PROBE_CONFIG_FILE from another workspace when active workspace has probe-config.json", () => {
+test("derives workspace from an explicit canonical probe-config in another workspace", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-stale-env-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -101,18 +102,7 @@ test("ignores stale absolute MCP_PROBE_CONFIG_FILE from another workspace when a
     fs.mkdirSync(workspaceMcpjvmDir, { recursive: true });
     fs.mkdirSync(otherMcpjvmDir, { recursive: true });
     fs.copyFileSync(FIXTURE, path.join(workspaceMcpjvmDir, "probe-config.json"));
-    fs.writeFileSync(
-      path.join(otherMcpjvmDir, "probe-config.json"),
-      JSON.stringify(
-        {
-          profiles: [{ name: "dev", probes: [{ id: "wrong-service", baseUrl: "http://127.0.0.1:9292" }] }],
-          defaultProfile: "dev",
-        },
-        null,
-        2,
-      ),
-      "utf8",
-    );
+    fs.copyFileSync(FIXTURE, path.join(otherMcpjvmDir, "probe-config.json"));
     withEnv(
       {
         [MCP_ENV.WORKSPACE_ROOT]: workspaceRoot,
@@ -122,8 +112,12 @@ test("ignores stale absolute MCP_PROBE_CONFIG_FILE from another workspace when a
       },
       () => {
         const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-        assert.equal(cfg.probeRegistry?.configFileAbs, path.join(workspaceMcpjvmDir, "probe-config.json"));
-        assert.equal(cfg.probeBaseUrl, "");
+        assert.equal(cfg.workspaceRootSource, "probe-config");
+        assert.equal(cfg.workspaceRootAbs, path.resolve(otherWorkspace));
+        assert.equal(
+          cfg.probeRegistry?.configFileAbs,
+          path.join(otherMcpjvmDir, "probe-config.json"),
+        );
       },
     );
   } finally {
@@ -154,4 +148,3 @@ test("resolves workspace-relative MCP_PROBE_CONFIG_FILE to active workspace prob
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
 });
-
