@@ -4,7 +4,7 @@
       "projectRoot": "<workspace-root>",
       "variables": {
         "contextBindings": {
-          "sql.connection.analytics.kind": "postgresql",
+          "sql.connection.analytics.kind": "EXAMPLE_SQL_KIND",
           "sql.connection.analytics.host": "EXAMPLE_SQL_HOST",
           "sql.connection.analytics.port": "EXAMPLE_SQL_PORT",
           "sql.connection.analytics.database": "EXAMPLE_SQL_DATABASE",

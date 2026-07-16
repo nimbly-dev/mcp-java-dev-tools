@@ -393,6 +393,8 @@ export type PlanCorrelationPolicy = {
     source?: {
       type: CorrelationSourceType;
       path: string;
+      /** Restrict source resolution to the response/context produced by this step. */
+      stepOrder?: number;
     };
   };
   window: {

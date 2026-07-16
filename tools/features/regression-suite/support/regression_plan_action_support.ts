@@ -116,6 +116,7 @@ export function resolveCorrelationKeyValue(args: {
   correlation: PlanCorrelationPolicy;
   resolvedContext: Record<string, unknown>;
   stepOutputsByOrder: Record<number, Record<string, unknown>>;
+  stepContextsByOrder?: Map<number, Record<string, unknown>>;
 }): CorrelationKeyResolution {
   const directValue = asString(args.correlation.key.value);
   if (directValue) {
@@ -133,13 +134,31 @@ export function resolveCorrelationKeyValue(args: {
   }
   const sourcePath = source.path.trim();
 
-  const orders = Object.keys(args.stepOutputsByOrder)
+  const availableOrders = Object.keys(args.stepOutputsByOrder)
     .map((value) => Number(value))
     .filter((value) => Number.isInteger(value))
     .sort((a, b) => b - a);
+  const orders =
+    typeof source.stepOrder === "number"
+      ? availableOrders.filter((order) => order === source.stepOrder)
+      : availableOrders;
   for (const order of orders) {
     const stepOutput = args.stepOutputsByOrder[order];
     if (!stepOutput) continue;
+    if (source.type === "capture_field") {
+      const stepContext = args.stepContextsByOrder?.get(order);
+      const value = stepContext ? readValueByPath(stepContext, sourcePath) : undefined;
+      const textValue = asString(value);
+      if (textValue) {
+        return {
+          keyValue: textValue,
+          sourceType: source.type,
+          sourcePath,
+          ...(typeof source.stepOrder === "number" ? { sourceStepOrder: source.stepOrder } : {}),
+        };
+      }
+      continue;
+    }
     if (source.type === "header") {
       const headers = asRecord(readValueByPath(stepOutput, "response.headers"));
       if (!headers) continue;
@@ -152,6 +171,9 @@ export function resolveCorrelationKeyValue(args: {
               keyValue,
               sourceType: source.type,
               sourcePath,
+              ...(typeof source.stepOrder === "number"
+                ? { sourceStepOrder: source.stepOrder }
+                : {}),
             };
           }
         }
@@ -179,6 +201,9 @@ export function resolveCorrelationKeyValue(args: {
               keyValue: textValue,
               sourceType: source.type,
               sourcePath,
+              ...(typeof source.stepOrder === "number"
+                ? { sourceStepOrder: source.stepOrder }
+                : {}),
             };
           }
         }
@@ -193,6 +218,7 @@ export function resolveCorrelationKeyValue(args: {
         keyValue: textValue,
         sourceType: source.type,
         sourcePath,
+        ...(typeof source.stepOrder === "number" ? { sourceStepOrder: source.stepOrder } : {}),
       };
     }
   }
@@ -208,6 +234,7 @@ export function buildPlanCorrelationEvidence(args: {
   contract: PlanContract;
   resolvedContext: Record<string, unknown>;
   stepOutputsByOrder: Record<number, Record<string, unknown>>;
+  stepContextsByOrder?: Map<number, Record<string, unknown>>;
   stepEventTimesByOrder: Record<number, number>;
 }):
   | {
@@ -222,6 +249,7 @@ export function buildPlanCorrelationEvidence(args: {
     correlation,
     resolvedContext: args.resolvedContext,
     stepOutputsByOrder: args.stepOutputsByOrder,
+    ...(args.stepContextsByOrder ? { stepContextsByOrder: args.stepContextsByOrder } : {}),
   });
   const keyValue = keyResolution.keyValue;
 
@@ -236,9 +264,10 @@ export function buildPlanCorrelationEvidence(args: {
       asString(target?.runtimeVerification?.probeId) ??
       (correlation.probeIds.length === 1 ? correlation.probeIds[0] : undefined);
     if (!probeId) continue;
-    const strictLineKey = typeof target?.runtimeVerification?.strictProbeKey === "string"
-      ? target.runtimeVerification.strictProbeKey
-      : undefined;
+    const strictLineKey =
+      typeof target?.runtimeVerification?.strictProbeKey === "string"
+        ? target.runtimeVerification.strictProbeKey
+        : undefined;
     const expectation = strictLineKey
       ? correlation.strictLineExpectations?.find(
           (entry) =>
@@ -254,18 +283,34 @@ export function buildPlanCorrelationEvidence(args: {
       keyType: correlation.key.type,
       ...(keyValue ? { keyValue } : {}),
       ...(strictLineKey ? { lineKey: strictLineKey } : {}),
-      ...(expectation ? {
-        sequenceOrder: expectation.sequenceOrder,
-        ...(typeof expectation.stepOrder === "number" ? { stepOrder: expectation.stepOrder } : {}),
-        selectorPolicy: expectation.selectorPolicy,
-        operator: expectation.operator,
-        ...(typeof expectation.expectedHitDelta === "number" ? { expectedHitDelta: expectation.expectedHitDelta } : {}),
-        ...(typeof expectation.expectedMinHitDelta === "number" ? { expectedMinHitDelta: expectation.expectedMinHitDelta } : {}),
-        ...(typeof expectation.expectedMaxHitDelta === "number" ? { expectedMaxHitDelta: expectation.expectedMaxHitDelta } : {}),
-      } : {}),
-      ...(typeof probeEvidence?.runtimeInstanceId === "string" ? { runtimeInstanceId: probeEvidence.runtimeInstanceId } : {}),
-      ...(typeof probeEvidence?.baselineHitCount === "number" ? { baselineHitCount: probeEvidence.baselineHitCount } : {}),
-      ...(typeof probeEvidence?.currentHitCount === "number" ? { currentHitCount: probeEvidence.currentHitCount } : {}),
+      ...(expectation
+        ? {
+            sequenceOrder: expectation.sequenceOrder,
+            ...(typeof expectation.stepOrder === "number"
+              ? { stepOrder: expectation.stepOrder }
+              : {}),
+            selectorPolicy: expectation.selectorPolicy,
+            operator: expectation.operator,
+            ...(typeof expectation.expectedHitDelta === "number"
+              ? { expectedHitDelta: expectation.expectedHitDelta }
+              : {}),
+            ...(typeof expectation.expectedMinHitDelta === "number"
+              ? { expectedMinHitDelta: expectation.expectedMinHitDelta }
+              : {}),
+            ...(typeof expectation.expectedMaxHitDelta === "number"
+              ? { expectedMaxHitDelta: expectation.expectedMaxHitDelta }
+              : {}),
+          }
+        : {}),
+      ...(typeof probeEvidence?.runtimeInstanceId === "string"
+        ? { runtimeInstanceId: probeEvidence.runtimeInstanceId }
+        : {}),
+      ...(typeof probeEvidence?.baselineHitCount === "number"
+        ? { baselineHitCount: probeEvidence.baselineHitCount }
+        : {}),
+      ...(typeof probeEvidence?.currentHitCount === "number"
+        ? { currentHitCount: probeEvidence.currentHitCount }
+        : {}),
       eventType: step.protocol,
     });
   }
@@ -279,6 +324,9 @@ export function buildPlanCorrelationEvidence(args: {
         : {}),
       ...(typeof keyResolution.sourcePath === "string"
         ? { keySourcePath: keyResolution.sourcePath }
+        : {}),
+      ...(typeof keyResolution.sourceStepOrder === "number"
+        ? { keySourceStepOrder: keyResolution.sourceStepOrder }
         : {}),
       ...(typeof keyResolution.reasonCode === "string"
         ? { keyExtractionReasonCode: keyResolution.reasonCode }

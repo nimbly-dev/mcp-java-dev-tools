@@ -63,6 +63,7 @@ export type CorrelationKeyResolution = {
   keyValue?: string;
   sourceType?: "header" | "json_path" | "capture_field";
   sourcePath?: string;
+  sourceStepOrder?: number;
   reasonCode?: "correlation_key_extraction_failed";
 };
 

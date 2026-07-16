@@ -267,7 +267,11 @@ export async function executeRegressionPlanWorkflow(
           const baselineResponse = asRecord(baselineStructured?.response);
           const baselineJson = asRecord(baselineResponse?.json);
           const baselineRuntime = asRecord(baselineJson?.runtime);
-          if (typeof baselineJson?.hitCount !== "number" || typeof baselineRuntime?.sessionId !== "string" || !baselineRuntime.sessionId.trim()) {
+          if (
+            typeof baselineJson?.hitCount !== "number" ||
+            typeof baselineRuntime?.sessionId !== "string" ||
+            !baselineRuntime.sessionId.trim()
+          ) {
             hardRuntimeBlocker = true;
             stepRows.push({
               order: step.order,
@@ -365,7 +369,11 @@ export async function executeRegressionPlanWorkflow(
           const finalResponse = asRecord(finalStructured?.response);
           const finalJson = asRecord(finalResponse?.json);
           const finalRuntime = asRecord(finalJson?.runtime);
-          if (typeof finalJson?.hitCount !== "number" || typeof finalRuntime?.sessionId !== "string" || finalRuntime.sessionId !== runtimeInstanceId) {
+          if (
+            typeof finalJson?.hitCount !== "number" ||
+            typeof finalRuntime?.sessionId !== "string" ||
+            finalRuntime.sessionId !== runtimeInstanceId
+          ) {
             hardRuntimeBlocker = true;
             stepRows.push({
               order: step.order,
@@ -439,11 +447,14 @@ export async function executeRegressionPlanWorkflow(
               conditionEvaluation: {
                 status: true as const,
               },
-        }),
+            }),
       });
       if (stepStatus === "pass") {
         for (const extract of step.extract ?? []) {
-          if (extract.scope !== "suite" || !Object.prototype.hasOwnProperty.call(extractOutcome.context, extract.as)) {
+          if (
+            extract.scope !== "suite" ||
+            !Object.prototype.hasOwnProperty.call(extractOutcome.context, extract.as)
+          ) {
             continue;
           }
           suiteContext[extract.as] = extractOutcome.context[extract.as];
@@ -569,6 +580,7 @@ export async function executeRegressionPlanWorkflow(
           contract,
           resolvedContext,
           stepOutputsByOrder,
+          stepContextsByOrder,
           stepEventTimesByOrder,
         })
       : args.resumeState?.evidence
