@@ -1,0 +1,109 @@
+{
+  "workspaces": [
+    {
+      "projectRoot": "<workspace-root>",
+      "envFile": ".mcpjvm/example-project/.env",
+      "variables": {
+        "bearerTokenEnv": "EXAMPLE_BEARER_TOKEN",
+        "contextBindings": {
+          "apiBaseUrl": "EXAMPLE_API_BASE_URL",
+          "sql.connection.analytics.kind": "postgresql",
+          "sql.connection.analytics.host": "EXAMPLE_SQL_HOST",
+          "sql.connection.analytics.port": "EXAMPLE_SQL_PORT",
+          "sql.connection.analytics.database": "EXAMPLE_SQL_DATABASE",
+          "sql.connection.analytics.username": "EXAMPLE_SQL_USERNAME",
+          "sql.connection.analytics.password": "EXAMPLE_SQL_PASSWORD",
+          "sql.connection.analytics.tls.mode": "EXAMPLE_SQL_TLS_MODE"
+        }
+      },
+      "runtimeContexts": [
+        {
+          "name": "terminal-cli",
+          "mode": "terminal",
+          "autoStart": false,
+          "startups": [
+            {
+              "name": "application",
+              "command": "<java-command>",
+              "args": ["<application-arguments>"]
+            }
+          ]
+        }
+      ],
+      "scripts": [
+        {
+          "name": "refresh-token",
+          "phase": "prePlan",
+          "command": "<script-command>",
+          "args": [".mcpjvm/example-project/scripts/refresh-token.<ext>"],
+          "appdir": "<workspace-root>"
+        }
+      ],
+      "externalSystems": [
+        {
+          "name": "analytics-postgres",
+          "kind": "postgresql",
+          "host": "<postgres-host>",
+          "port": 5432,
+          "healthChecks": [
+            {
+              "id": "postgres-port",
+              "type": "tcp",
+              "target": "<postgres-host>:5432",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "executionProfiles": [
+        {
+          "executionProfile": "example-regression",
+          "suiteType": "regression",
+          "runtimeContextName": "terminal-cli",
+          "executionPolicy": "stop_on_fail",
+          "runtimeConfig": {
+            "requestTimeoutMs": 5000,
+            "retryMax": 2
+          },
+          "scriptRefs": [
+            {
+              "name": "refresh-token",
+              "phase": "prePlan"
+            }
+          ],
+          "plans": [
+            {
+              "order": 1,
+              "planName": "producer"
+            },
+            {
+              "order": 2,
+              "planName": "consumer"
+            }
+          ]
+        },
+        {
+          "executionProfile": "example-performance",
+          "suiteType": "performance",
+          "runtimeContextName": "terminal-cli",
+          "executionPolicy": "stop_on_fail",
+          "plans": [
+            {
+              "order": 1,
+              "planName": "load-profile"
+            }
+          ]
+        }
+      ],
+      "defaults": {
+        "requestTimeoutMs": 5000,
+        "retryMax": 2,
+        "orchestrator": {
+          "resumePollMax": 30,
+          "resumePollIntervalMs": 10000,
+          "resumePollTimeoutMs": 300000
+        }
+      }
+    }
+  ]
+}

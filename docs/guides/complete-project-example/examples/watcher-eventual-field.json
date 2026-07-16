@@ -1,0 +1,76 @@
+{
+  "targets": [
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.events.EventQueryController",
+        "method": "getImport"
+      }
+    }
+  ],
+  "prerequisites": [
+    {
+      "key": "apiBaseUrl",
+      "required": true,
+      "secret": false,
+      "provisioning": "user_input"
+    },
+    {
+      "key": "eventId",
+      "required": true,
+      "secret": false,
+      "provisioning": "user_input"
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "id": "read-import",
+      "targetRef": 0,
+      "protocol": "http",
+      "transport": {
+        "http": {
+          "method": "GET",
+          "pathTemplate": "/imports/${eventId}"
+        }
+      },
+      "expect": [
+        {
+          "id": "retrieved",
+          "actualPath": "response.statusCode",
+          "operator": "field_equals",
+          "expected": 200
+        }
+      ]
+    }
+  ],
+  "watchers": [
+    {
+      "id": "indexed-event",
+      "dependency": {
+        "stepOrder": 1
+      },
+      "provider": {
+        "type": "http",
+        "transport": {
+          "request": {
+            "method": "GET",
+            "url": "${apiBaseUrl}/index/${eventId}"
+          }
+        }
+      },
+      "waitPolicy": {
+        "timeoutMs": 120000,
+        "retryMax": 12
+      },
+      "expect": [
+        {
+          "id": "ready",
+          "actualPath": "response.bodyJson.state",
+          "operator": "field_equals",
+          "expected": "ready"
+        }
+      ]
+    }
+  ]
+}

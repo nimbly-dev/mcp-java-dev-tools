@@ -1,0 +1,37 @@
+{
+  "entrypoints": [
+    {
+      "transport": {
+        "protocol": "http",
+        "baseUrl": "http://127.0.0.1:8080",
+        "healthCheckPath": "/actuator/health"
+      },
+      "request": {
+        "method": "GET",
+        "path": "/events/{id}",
+        "queryTemplate": {
+          "id": "<event-id>"
+        }
+      }
+    }
+  ],
+  "workloadProvider": {
+    "type": "builtin"
+  },
+  "observationTargets": {
+    "probeId": "example-service",
+    "requiredLineHits": ["com.example.events.EventQueryController#getImport:42"],
+    "optionalLineHits": ["com.example.events.EventRepository#findById:18"]
+  },
+  "loadModel": {
+    "mode": "concurrency",
+    "concurrency": 8,
+    "rampUpSeconds": 5,
+    "durationSeconds": 30
+  },
+  "successCriteria": {
+    "maxErrorRatePct": 1,
+    "minThroughputPerSec": 5,
+    "p95LatencyMs": 500
+  }
+}

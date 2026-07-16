@@ -1,0 +1,9 @@
+{
+  "specVersion": "1.0.0",
+  "execution": {
+    "intent": "regression",
+    "probeVerification": false,
+    "pinStrictProbeKey": false,
+    "discoveryPolicy": "disabled"
+  }
+}
