@@ -105,3 +105,25 @@ test("executeWatchers keeps an optional missing path non-terminal", async () => 
   assert.equal(out.watcherRows[0]?.assertions?.[0]?.status, "skipped_optional");
   assert.equal(out.watcherRows[0]?.assertions?.[0]?.reasonCode, "optional_actual_path_missing");
 });
+
+test("executeWatchers renews the active suite lease before each poll", async () => {
+  let renewals = 0;
+  const args = watcherArgs(
+    {
+      id: "required_state",
+      actualPath: "response.bodyJson.state",
+      operator: "field_equals",
+      expected: "ready",
+    },
+    3,
+    () => 1_000,
+  ) as any;
+  args.renewSuiteLease = async () => {
+    renewals += 1;
+  };
+  const out = await executeWatchers(args);
+
+  assert.equal(out.watcherRows[0]?.attemptCount, 3);
+  assert.equal(renewals >= 3, true);
+  assert.notEqual(out.watcherRows[0]?.reasonCode, "watcher_attempt_non_monotonic");
+});

@@ -11,6 +11,7 @@ const {
   queryWatcherState,
   persistCorrelationSession,
   persistRegressionSuiteState,
+  readRegressionSuiteCheckpoint,
   upsertCorrelationObservation,
   upsertExternalVerificationSummary,
   upsertRunStateArtifact,
@@ -506,6 +507,90 @@ test("run-state store persists suite and plan checkpoints with revision protecti
     });
     assert.equal(stale.ok, false);
     if (!stale.ok) assert.equal(stale.reasonCode, "suite_checkpoint_stale_revision");
+    store.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("stale suite checkpoint writes preserve resumable Watcher state", async () => {
+  const root = createTestTempDir("run-state-stale-watcher-write");
+  try {
+    const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(store.ok, true);
+    if (!store.ok) return;
+    const initial = persistRegressionSuiteState({
+      store,
+      checkpoint: {
+        suiteRunId: "suite-stale",
+        executionProfile: "regression",
+        status: "in_progress",
+        startedAtEpochMs: 10,
+        updatedAtEpochMs: 10,
+        nextPlanOrder: 2,
+        activePlanName: "watcher-plan",
+        activePlanOrder: 1,
+        activePhase: "watchers",
+        continuation: { phase: "watchers", watcherIndex: 0, attemptCount: 2 },
+      },
+      planRuns: [],
+    });
+    assert.deepEqual(initial, { ok: true, revision: 1 });
+
+    const stale = persistRegressionSuiteState({
+      store,
+      checkpoint: {
+        suiteRunId: "suite-stale",
+        executionProfile: "regression",
+        status: "in_progress",
+        startedAtEpochMs: 10,
+        updatedAtEpochMs: 11,
+        expectedRevision: 0,
+        continuation: { phase: "watchers", watcherIndex: 0, attemptCount: 1 },
+      },
+      planRuns: [],
+    });
+    assert.equal(stale.ok, false);
+    if (!stale.ok) assert.equal(stale.reasonCode, "suite_checkpoint_stale_revision");
+
+    const current = readRegressionSuiteCheckpoint({ store, suiteRunId: "suite-stale" });
+    assert.equal(current?.status, "in_progress");
+    const watcher = {
+      store,
+      projectName: "alpha",
+      projection: {
+        planName: "watcher-plan",
+        runId: "watcher-run",
+        suiteRunId: "suite-stale",
+        watcherName: "active-watcher",
+        dependencyStepOrder: 1,
+        watcherIndex: 0,
+        providerType: "http",
+        status: "in_progress" as const,
+        outcome: "blocked" as const,
+        startedAtEpochMs: 10,
+        deadlineAtEpochMs: 1_000,
+        timeoutMs: 900,
+        pollIntervalMs: 100,
+        retryMax: 4,
+        attemptCount: 2,
+        attempts: [
+          { attemptNumber: 1, observedAtEpochMs: 20, status: "fail_http" as const },
+          { attemptNumber: 2, observedAtEpochMs: 30, status: "fail_http" as const },
+        ],
+      },
+    };
+    assert.equal(upsertWatcherRun(watcher).ok, true);
+    const staleWatcher = upsertWatcherRun({
+      ...watcher,
+      projection: { ...watcher.projection, attemptCount: 1, attempts: watcher.projection.attempts.slice(0, 1) },
+    });
+    assert.equal(staleWatcher.ok, false);
+    if (!staleWatcher.ok) assert.equal(staleWatcher.reasonCode, "watcher_attempt_non_monotonic");
+    assert.equal(
+      store.database.prepare("SELECT status FROM watcher_runs").get()?.status,
+      "in_progress",
+    );
     store.close();
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });

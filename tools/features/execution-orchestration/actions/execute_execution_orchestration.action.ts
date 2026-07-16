@@ -105,6 +105,100 @@ function blockedResponse(args: {
   };
 }
 
+function inProgressResumeConflictResponse(args: {
+  projectName: string;
+  executionProfile: string;
+  suite: RuntimeSuiteRunResult;
+  sqliteCanonicalSuiteState: boolean;
+}) {
+  const structuredContent: Record<string, unknown> = {
+    resultType: "execution_orchestration",
+    status: "in_progress",
+    action: "execute",
+    projectName: args.projectName,
+    executionProfile: args.suite.executionProfile,
+    executionPolicy: args.suite.executionPolicy,
+    suiteRunId: args.suite.suiteRunId,
+    reasonCode: "suite_checkpoint_owner_active",
+    nextActionCode: "resume_same_suite",
+    ...(args.sqliteCanonicalSuiteState ? { stateSurface: "run_state" } : {}),
+    planRuns: args.suite.planRuns,
+    ...(typeof args.suite.nextPlanOrder === "number"
+      ? { nextPlanOrder: args.suite.nextPlanOrder }
+      : {}),
+    ...(typeof args.suite.completedPlanCount === "number"
+      ? { completedPlanCount: args.suite.completedPlanCount }
+      : {}),
+    ...(args.suite.progressSummary ? { progressSummary: args.suite.progressSummary } : {}),
+  };
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(structuredContent, null, 2) }],
+    structuredContent,
+  };
+}
+
+async function releaseSuiteLeaseBestEffort(args: {
+  workspaceRootAbs: string;
+  projectName: string;
+  suiteRunId: string;
+  ownerId: string;
+}): Promise<void> {
+  const store = await openRunStateStore({
+    workspaceRootAbs: args.workspaceRootAbs,
+    projectName: args.projectName,
+  });
+  if (!store.ok) return;
+  try {
+    releaseRegressionSuiteLease({
+      store,
+      suiteRunId: args.suiteRunId,
+      ownerId: args.ownerId,
+      nowEpochMs: Date.now(),
+    });
+  } finally {
+    store.close();
+  }
+}
+
+function isResumeConflictPersistenceReason(reason: string): boolean {
+  return (
+    reason === "suite_checkpoint_stale_revision" ||
+    reason === "watcher_attempt_non_monotonic"
+  );
+}
+
+async function readLatestResumeState(args: {
+  workspaceRootAbs: string;
+  projectName: string;
+  suiteRunId: string;
+}): Promise<{ suite: RuntimeSuiteRunResult | null; sqliteCanonical: boolean }> {
+  const store = await openRunStateStore({
+    workspaceRootAbs: args.workspaceRootAbs,
+    projectName: args.projectName,
+  });
+  if (!store.ok) return { suite: null, sqliteCanonical: false };
+  try {
+    const sqliteCanonical = readRunStateCutoverStatus({ store }) === "cutover_complete";
+    const sqliteState = readRegressionSuiteState({ store, suiteRunId: args.suiteRunId });
+    if (sqliteState) {
+      return {
+        suite: runtimeSuiteFromSQLiteState({ state: sqliteState }),
+        sqliteCanonical,
+      };
+    }
+    return {
+      suite: await readExecutionOrchestrationSuiteResult({
+        workspaceRootAbs: args.workspaceRootAbs,
+        projectName: args.projectName,
+        suiteRunId: args.suiteRunId,
+      }),
+      sqliteCanonical,
+    };
+  } finally {
+    store.close();
+  }
+}
+
 function isSuiteBlockedResult(
   value: RuntimeSuiteRunResult | RuntimeSuiteBlockedResult,
 ): value is RuntimeSuiteBlockedResult {
@@ -260,6 +354,37 @@ export async function executeExecutionOrchestrationAction(
 
   let priorSuite: Awaited<ReturnType<typeof readExecutionOrchestrationSuiteResult>> | null = null;
   let sqliteCanonicalSuiteState = false;
+  let suiteLeaseAcquired = false;
+  const releaseOwnedSuiteLease = async (): Promise<void> => {
+    if (!suiteLeaseAcquired || typeof suiteRunId !== "string") return;
+    suiteLeaseAcquired = false;
+    await releaseSuiteLeaseBestEffort({
+      workspaceRootAbs: input.workspaceRootAbs,
+      projectName,
+      suiteRunId,
+      ownerId: checkpointOwnerId,
+    });
+  };
+  const renewOwnedSuiteLease = async (): Promise<void> => {
+    if (!suiteLeaseAcquired || typeof suiteRunId !== "string") return;
+    const store = await openRunStateStore({
+      workspaceRootAbs: input.workspaceRootAbs,
+      projectName,
+    });
+    if (!store.ok) throw new CheckpointPersistenceError(store.reasonCode);
+    try {
+      const renewed = acquireRegressionSuiteLease({
+        store,
+        suiteRunId,
+        ownerId: checkpointOwnerId,
+        nowEpochMs: Date.now(),
+        leaseDurationMs: 30_000,
+      });
+      if (!renewed.ok) throw new CheckpointPersistenceError(renewed.reasonCode);
+    } finally {
+      store.close();
+    }
+  };
   if (typeof suiteRunId === "string") {
     const stateStore = await openRunStateStore({
       workspaceRootAbs: input.workspaceRootAbs,
@@ -300,13 +425,36 @@ export async function executeExecutionOrchestrationAction(
     const sqliteState = sqliteCanonicalSuiteState
       ? readRegressionSuiteState({ store: stateStore, suiteRunId })
       : null;
-    stateStore.close();
-    if (!lease.ok)
+    if (!lease.ok) {
+      if (lease.reasonCode === "suite_checkpoint_owner_active") {
+        const latestSqliteState = readRegressionSuiteState({ store: stateStore, suiteRunId });
+        stateStore.close();
+        const latestSuite = latestSqliteState
+          ? runtimeSuiteFromSQLiteState({ state: latestSqliteState })
+          : await readExecutionOrchestrationSuiteResult({
+              workspaceRootAbs: input.workspaceRootAbs,
+              projectName,
+              suiteRunId,
+            });
+        if (latestSuite?.status === "in_progress") {
+          return inProgressResumeConflictResponse({
+            projectName,
+            executionProfile,
+            suite: latestSuite,
+            sqliteCanonicalSuiteState,
+          });
+        }
+      } else {
+        stateStore.close();
+      }
       return blockedResponse({
         reasonCode: lease.reasonCode,
         reason: lease.reasonCode,
         reasonMeta: { projectName, executionProfile, suiteRunId },
       });
+    }
+    stateStore.close();
+    suiteLeaseAcquired = true;
     priorSuite = sqliteCanonicalSuiteState
       ? runtimeSuiteFromSQLiteState({ state: sqliteState })
       : await readExecutionOrchestrationSuiteResult({
@@ -315,6 +463,7 @@ export async function executeExecutionOrchestrationAction(
           suiteRunId,
         });
     if (!priorSuite) {
+      await releaseOwnedSuiteLease();
       return blockedResponse({
         reasonCode: "suite_resume_evidence_missing",
         reason: "suite_resume_evidence_missing",
@@ -322,6 +471,7 @@ export async function executeExecutionOrchestrationAction(
       });
     }
     if (priorSuite.executionProfile !== executionProfile) {
+      await releaseOwnedSuiteLease();
       return blockedResponse({
         reasonCode: "suite_progress_mismatch",
         reason: "suite_progress_mismatch",
@@ -329,6 +479,7 @@ export async function executeExecutionOrchestrationAction(
       });
     }
     if (priorSuite.status !== "in_progress") {
+      await releaseOwnedSuiteLease();
       const structuredContent = {
         resultType: "execution_orchestration",
         status: priorSuite.status,
@@ -355,6 +506,7 @@ export async function executeExecutionOrchestrationAction(
       };
     }
     if (typeof priorSuite.nextPlanOrder !== "number") {
+      await releaseOwnedSuiteLease();
       return blockedResponse({
         reasonCode: "suite_progress_invalid",
         reason: "suite_progress_invalid",
@@ -375,6 +527,7 @@ export async function executeExecutionOrchestrationAction(
     errors: [`Create project artifact at ${projectsFileAbs}.`],
   }));
   if (!projectArtifact.ok) {
+    await releaseOwnedSuiteLease();
     return blockedResponse({
       reasonCode: projectArtifact.reasonCode,
       reason: projectArtifact.reasonCode,
@@ -389,6 +542,7 @@ export async function executeExecutionOrchestrationAction(
     (entry) => entry.projectRoot === input.workspaceRootAbs,
   );
   if (!workspace) {
+    await releaseOwnedSuiteLease();
     return blockedResponse({
       reasonCode: "runtime_suite_missing",
       reason: "runtime_suite_missing",
@@ -403,6 +557,7 @@ export async function executeExecutionOrchestrationAction(
     (entry) => entry.executionProfile === executionProfile,
   );
   if (!profile) {
+    await releaseOwnedSuiteLease();
     return blockedResponse({
       reasonCode: "runtime_suite_missing",
       reason: "runtime_suite_missing",
@@ -430,6 +585,7 @@ export async function executeExecutionOrchestrationAction(
   }
   const orchestratorDefaults = workspace.defaults?.orchestrator;
   if (!orchestratorDefaults) {
+    await releaseOwnedSuiteLease();
     return blockedResponse({
       reasonCode: "runtime_suite_missing",
       reason: "runtime_suite_missing",
@@ -561,6 +717,7 @@ export async function executeExecutionOrchestrationAction(
               ? { startPlanOrder: state.priorSuite.nextPlanOrder }
               : {}),
             mcpInvoke: invokeSuiteTool,
+            ...(profile.suiteType === "regression" ? { renewSuiteLease: renewOwnedSuiteLease } : {}),
             orchestrationTimeoutBudgetMs: remainingBudgetMs,
           },
         });
@@ -623,6 +780,29 @@ export async function executeExecutionOrchestrationAction(
           loopPolicy.effectiveTimeoutBudgetMs,
         );
   } catch (error) {
+    const persistenceReason =
+      error instanceof CheckpointPersistenceError
+        ? error.reasonCode
+        : error instanceof Error
+          ? error.message
+          : String(error);
+    if (isResumeConflictPersistenceReason(persistenceReason) && typeof suiteRunId === "string") {
+      const latest = await readLatestResumeState({
+        workspaceRootAbs: input.workspaceRootAbs,
+        projectName,
+        suiteRunId,
+      });
+      if (latest.suite?.status === "in_progress") {
+        await releaseOwnedSuiteLease();
+        return inProgressResumeConflictResponse({
+          projectName,
+          executionProfile,
+          suite: latest.suite,
+          sqliteCanonicalSuiteState: latest.sqliteCanonical,
+        });
+      }
+    }
+    await releaseOwnedSuiteLease();
     if (error instanceof CheckpointPersistenceError) {
       return blockedResponse({
         reasonCode: error.reasonCode,
@@ -634,6 +814,7 @@ export async function executeExecutionOrchestrationAction(
   }
 
   if (isSuiteBlockedResult(suite)) {
+    await releaseOwnedSuiteLease();
     return blockedResponse({
       reasonCode: suite.reasonCode,
       reason: suite.reasonCode,
@@ -646,15 +827,15 @@ export async function executeExecutionOrchestrationAction(
   }
 
   if (!enableOuterResiliencyLoop) {
-    if (!sqliteCanonicalSuiteState) {
-      await writeExecutionOrchestrationSuiteResult({
-        workspaceRootAbs: input.workspaceRootAbs,
-        projectName,
-        suite,
-      });
-    }
-    if (profile.suiteType === "regression") {
-      try {
+    try {
+      if (!sqliteCanonicalSuiteState) {
+        await writeExecutionOrchestrationSuiteResult({
+          workspaceRootAbs: input.workspaceRootAbs,
+          projectName,
+          suite,
+        });
+      }
+      if (profile.suiteType === "regression") {
         await persistSQLiteSuiteCheckpoint({
           workspaceRootAbs: input.workspaceRootAbs,
           projectName,
@@ -662,16 +843,17 @@ export async function executeExecutionOrchestrationAction(
           ownerId: checkpointOwnerId,
           linkLegacyArtifact: !sqliteCanonicalSuiteState,
         });
-      } catch (error) {
-        if (error instanceof CheckpointPersistenceError) {
-          return blockedResponse({
-            reasonCode: error.reasonCode,
-            reason: error.reasonCode,
-            reasonMeta: { projectName, executionProfile },
-          });
-        }
-        throw error;
       }
+    } catch (error) {
+      await releaseOwnedSuiteLease();
+      if (error instanceof CheckpointPersistenceError) {
+        return blockedResponse({
+          reasonCode: error.reasonCode,
+          reason: error.reasonCode,
+          reasonMeta: { projectName, executionProfile },
+        });
+      }
+      throw error;
     }
   }
 
@@ -688,6 +870,7 @@ export async function executeExecutionOrchestrationAction(
           ownerId: checkpointOwnerId,
           nowEpochMs: Date.now(),
         });
+        suiteLeaseAcquired = false;
       } finally {
         store.close();
       }

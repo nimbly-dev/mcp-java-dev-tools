@@ -106,6 +106,7 @@ export type ExecuteRegressionPlanWorkflowArgs = {
   suiteRunId?: string;
   runtimeConfigOverride?: RegressionPlanRuntimeConfigOverride;
   orchestrationTimeoutBudgetMs?: number;
+  renewSuiteLease?: () => Promise<void>;
   resumeState?: {
     resolvedContext: Record<string, unknown>;
     executionResult: RegressionRunExecutionResult;
@@ -138,4 +139,5 @@ export type ExecuteRegressionRuntimeSuiteArgs = {
   priorSuiteContext?: Record<string, unknown>;
   maxPlansPerCall?: number;
   orchestrationTimeoutBudgetMs?: number;
+  renewSuiteLease?: () => Promise<void>;
 };

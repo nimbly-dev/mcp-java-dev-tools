@@ -2196,12 +2196,31 @@ test("mcp IT: execution_orchestration resumes a suite Watcher with the prior ext
       assert.equal(first.structuredContent?.status, "in_progress");
       const suiteRunId = String(first.structuredContent?.suiteRunId ?? "");
       assert.ok(suiteRunId);
-      const second = await callTool(mcp, "execution_orchestration", {
+      const [second, concurrent] = await Promise.all([
+        callTool(mcp, "execution_orchestration", {
+          action: "execute",
+          input: { projectName, executionProfile: "resumed-watcher-run", suiteRunId },
+        }),
+        callTool(mcp, "execution_orchestration", {
+          action: "execute",
+          input: { projectName, executionProfile: "resumed-watcher-run", suiteRunId },
+        }),
+      ]);
+      const statuses = [second.structuredContent?.status, concurrent.structuredContent?.status];
+      assert.equal(statuses.filter((status) => status === "pass").length, 1);
+      assert.equal(statuses.filter((status) => status === "in_progress").length, 1);
+      assert.equal(second.structuredContent?.suiteRunId, suiteRunId);
+      assert.equal(concurrent.structuredContent?.suiteRunId, suiteRunId);
+      const conflict = [second, concurrent].find(
+        (result) => result.structuredContent?.status === "in_progress",
+      );
+      assert.equal(conflict?.structuredContent?.reasonCode, "suite_checkpoint_owner_active");
+      const retry = await callTool(mcp, "execution_orchestration", {
         action: "execute",
         input: { projectName, executionProfile: "resumed-watcher-run", suiteRunId },
       });
-      assert.equal(second.structuredContent?.status, "pass");
-      assert.equal(second.structuredContent?.suiteRunId, suiteRunId);
+      assert.equal(retry.structuredContent?.status, "pass");
+      assert.equal(retry.structuredContent?.suiteRunId, suiteRunId);
       assert.equal(postCount, 1);
       assert.equal(indexChecks, 4);
       assert.ok(requests.includes(`GET /imports/${eventId}`));

@@ -217,6 +217,7 @@ export async function executeRegressionRuntimeSuite(
         ? { orchestrationTimeoutBudgetMs: remainingOrchestrationBudgetMs }
         : {}),
       ...(resumeState ? { resumeState } : {}),
+      ...(args.renewSuiteLease ? { renewSuiteLease: args.renewSuiteLease } : {}),
     });
     if (run.status === "blocked") {
       processedPlansThisCall += 1;
