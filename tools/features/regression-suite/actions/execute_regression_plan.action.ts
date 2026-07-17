@@ -515,8 +515,12 @@ export async function executeRegressionPlanWorkflow(
     ...(typeof orchestrationDeadlineEpochMs === "number" ? { orchestrationDeadlineEpochMs } : {}),
     ...(args.renewSuiteLease ? { renewSuiteLease: args.renewSuiteLease } : {}),
   });
-  const watcherRows = watcherExecution.watcherRows;
-  const watcherEvidence = watcherExecution.watcherEvidence;
+  const watcherRows = [
+    ...new Map(watcherExecution.watcherRows.map((row) => [row.id, row])).values(),
+  ];
+  const watcherEvidence = [
+    ...new Map(watcherExecution.watcherEvidence.map((entry) => [entry.id, entry])).values(),
+  ];
   const watcherStatus = watcherExecution.phaseStatus;
   const externalVerification =
     watcherStatus === "in_progress"

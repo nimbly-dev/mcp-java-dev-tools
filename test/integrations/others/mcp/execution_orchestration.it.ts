@@ -2215,16 +2215,51 @@ test("mcp IT: execution_orchestration resumes a suite Watcher with the prior ext
         (result) => result.structuredContent?.status === "in_progress",
       );
       assert.equal(conflict?.structuredContent?.reasonCode, "suite_checkpoint_owner_active");
+      assert.equal(typeof conflict?.structuredContent?.leaseExpiresAtEpochMs, "number");
       const retry = await callTool(mcp, "execution_orchestration", {
         action: "execute",
         input: { projectName, executionProfile: "resumed-watcher-run", suiteRunId },
       });
       assert.equal(retry.structuredContent?.status, "pass");
       assert.equal(retry.structuredContent?.suiteRunId, suiteRunId);
+      assert.equal(
+        (retry.structuredContent?.progressSummary as Record<string, unknown>)?.progressState,
+        "terminal",
+      );
       assert.equal(postCount, 1);
       assert.equal(indexChecks, 4);
       assert.ok(requests.includes(`GET /imports/${eventId}`));
       assert.ok(requests.includes(`GET /index/${eventId}`));
+
+      const consumerRunId = String(
+        (
+          (retry.structuredContent?.planRuns as Array<Record<string, unknown>>).find(
+            (entry) => entry.planName === "consumer",
+          ) ?? {}
+        ).runId ?? "",
+      );
+      assert.ok(consumerRunId);
+      const database = new (require("node:sqlite").DatabaseSync)(
+        path.join(workspaceRootAbs, ".mcpjvm", projectName, "run-state.sqlite"),
+      );
+      const suiteRow = database
+        .prepare(
+          "SELECT status, owner_id, lease_expires_at_epoch_ms FROM suite_runs WHERE suite_run_id = ?",
+        )
+        .get(suiteRunId);
+      assert.equal(suiteRow.status, "pass");
+      assert.equal(suiteRow.owner_id, null);
+      assert.equal(suiteRow.lease_expires_at_epoch_ms, null);
+      const watcherRow = database
+        .prepare(
+          "SELECT status, outcome, continuation_json, attempt_count FROM watcher_runs WHERE suite_run_id = ? AND plan_name = 'consumer' AND run_id = ? AND watcher_name = 'indexed'",
+        )
+        .get(suiteRunId, consumerRunId);
+      assert.equal(watcherRow.status, "pass");
+      assert.equal(watcherRow.outcome, "verified");
+      assert.equal(watcherRow.continuation_json, null);
+      assert.equal(watcherRow.attempt_count, 4);
+      database.close();
     } finally {
       await mcp.close();
     }
@@ -2390,6 +2425,13 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
       extraEnv: { MCP_PROBE_CONFIG_FILE: probeConfigAbs },
     });
 
+    const cutover = await callTool(mcp, "artifact_management", {
+      artifactType: "run_result",
+      action: "cutover",
+      input: { projectName },
+    });
+    assert.equal(cutover.structuredContent?.status, "ok");
+
     const first = await callTool(mcp, "execution_orchestration", {
       action: "execute",
       input: {
@@ -2424,23 +2466,13 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
     );
 
     const suiteRunId = String(first.structuredContent?.suiteRunId ?? "");
-    const persisted = JSON.parse(
-      await fs.readFile(
-        path.join(
-          workspaceRootAbs,
-          ".mcpjvm",
-          projectName,
-          "suite-runs",
-          suiteRunId,
-          "execution_orchestration.result.json",
-        ),
-        "utf8",
-      ),
-    ) as Record<string, unknown>;
-    assert.equal(persisted.reasonCode, "orchestrator_poll_limit_exhausted");
-    const persistedSummary = persisted.progressSummary as Record<string, unknown>;
+    assert.equal(first.structuredContent?.stateSurface, "run_state");
+    assert.equal(first.structuredContent?.statusArtifactPath, undefined);
+    const persistedSummary = first.structuredContent?.progressSummary as Record<string, unknown>;
     assert.equal(persistedSummary.progressState, "terminal");
-    assert.equal((persistedSummary.activePlan as Record<string, unknown>)?.phase, "watchers");
+    const persistedActivePlan = persistedSummary.activePlan as Record<string, unknown>;
+    assert.equal(persistedActivePlan?.phase, "watchers");
+    assert.equal(typeof persistedActivePlan?.deadlineAtEpochMs, "number");
     assert.equal(
       (
         (persistedSummary.activePlan as Record<string, unknown>)?.waitingOn as Record<
@@ -2452,6 +2484,9 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
     );
 
     const watcherChecksBeforeTerminalResume = watcherChecks;
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(0, Number(persistedActivePlan.deadlineAtEpochMs) - Date.now() + 25)),
+    );
     await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
       workspaces: [
         {
@@ -2486,7 +2521,8 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
     });
 
     assert.equal(second.structuredContent?.status, "blocked");
-    assert.equal(second.structuredContent?.reasonCode, "orchestrator_poll_limit_exhausted");
+    assert.equal(second.structuredContent?.reasonCode, "watcher_timeout");
+    assert.equal(second.structuredContent?.stateSurface, "run_state");
     assert.equal(watcherChecks, watcherChecksBeforeTerminalResume);
   } finally {
     appServer.close();

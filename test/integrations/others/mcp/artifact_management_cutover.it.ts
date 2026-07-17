@@ -165,6 +165,37 @@ test("mcp IT: artifact_management exposes bounded read-only run_state queries", 
       resumable: true,
       artifactReferences: [],
     });
+    assert.equal(query.structuredContent?.hasMore, false);
+
+    const exact = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "query",
+        input: {
+          projectName,
+          stateSurface: "run_state",
+          query: { filters: { suiteRunId: "suite-1" } },
+        },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(exact.structuredContent?.status, "ok");
+    assert.equal((exact.structuredContent?.items as Array<unknown>).length, 1);
+
+    const missing = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "query",
+        input: {
+          projectName,
+          stateSurface: "run_state",
+          query: { filters: { suiteRunId: "missing" } },
+        },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(missing.structuredContent?.reasonCode, "run_state_not_found");
+    assert.equal(missing.structuredContent?.items, undefined);
   } finally {
     await mcp?.close();
     await removeTempRoot(tmpRoot);
@@ -260,8 +291,8 @@ test("mcp IT: artifact_management exposes active watcher_state progress", async 
       .get(projectName)?.plan_run_pk;
     database
       .prepare(
-        `INSERT INTO watcher_runs (plan_run_pk, project_name, plan_name, run_id, watcher_name, dependency_step_order, watcher_index, provider_type, status, outcome, started_at_epoch_ms, deadline_at_epoch_ms, timeout_ms, poll_interval_ms, retry_max, attempt_count, revision)
-       VALUES (?, ?, 'p1', 'r1', 'health-check', 1, 0, 'http', 'in_progress', 'blocked', 10, 1000, 60000, 1000, 3, 1, 1)`,
+        `INSERT INTO watcher_runs (plan_run_pk, project_name, plan_name, run_id, suite_run_id, watcher_name, dependency_step_order, watcher_index, provider_type, status, outcome, started_at_epoch_ms, deadline_at_epoch_ms, timeout_ms, poll_interval_ms, retry_max, attempt_count, revision)
+       VALUES (?, ?, 'p1', 'r1', 'suite-1', 'health-check', 1, 0, 'http', 'in_progress', 'blocked', 10, 1000, 60000, 1000, 3, 1, 1)`,
       )
       .run(planPk, projectName);
     database.close();
@@ -284,6 +315,55 @@ test("mcp IT: artifact_management exposes active watcher_state progress", async 
       (query.structuredContent?.items as Array<Record<string, unknown>>)?.[0]?.active,
       true,
     );
+
+    const exact = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "query",
+        input: {
+          projectName,
+          stateSurface: "watcher_state",
+          query: {
+            filters: {
+              suiteRunId: "suite-1",
+              planName: "p1",
+              runId: "r1",
+              watcherName: "health-check",
+            },
+          },
+        },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(exact.structuredContent?.status, "ok");
+    assert.equal((exact.structuredContent?.items as Array<unknown>).length, 1);
+
+    const missing = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "query",
+        input: {
+          projectName,
+          stateSurface: "watcher_state",
+          query: {
+            filters: { suiteRunId: "suite-1", planName: "p1", runId: "r1", watcherName: "missing" },
+          },
+        },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(missing.structuredContent?.reasonCode, "watcher_state_not_found");
+    assert.equal(missing.structuredContent?.items, undefined);
+
+    const flat = (await mcp.client.callTool({
+      name: "artifact_management",
+      arguments: {
+        artifactType: "run_result",
+        action: "query",
+        input: { projectName, stateSurface: "watcher_state", query: { suiteRunId: "suite-1" } },
+      },
+    })) as { structuredContent?: Record<string, unknown> };
+    assert.equal(flat.structuredContent?.reasonCode, "watcher_state_query_invalid");
   } finally {
     await mcp?.close();
     await removeTempRoot(tmpRoot);

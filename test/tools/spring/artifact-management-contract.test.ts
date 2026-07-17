@@ -130,6 +130,23 @@ test("artifact_management handler rejects run_result watcher query when paginati
   assert.equal(out.structuredContent.reasonMeta.failedStep, "input_validation");
 });
 
+test("artifact_management handler rejects flat watcher filters instead of broadening the query", async () => {
+  const handler = captureRegisteredHandler((server: any) =>
+    registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
+  );
+  const out = await handler({
+    artifactType: "run_result",
+    action: "query",
+    input: {
+      projectName: "missing-project",
+      stateSurface: "watcher_state",
+      query: { suiteRunId: "suite-1" },
+    },
+  });
+  assert.equal(out.structuredContent.resultType, "report");
+  assert.equal(out.structuredContent.reasonCode, "watcher_state_query_invalid");
+});
+
 test("artifact_management handler requires correlation_state for run_result backfill", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),

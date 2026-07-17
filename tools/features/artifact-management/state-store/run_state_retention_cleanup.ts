@@ -225,12 +225,36 @@ function terminalCandidates(database: RunStateDatabase, projectName: string): Ca
     }));
 }
 
+function overdueActivePlanRunPks(
+  database: RunStateDatabase,
+  projectName: string,
+  nowEpochMs: number,
+): Set<number> {
+  const rows = database
+    .prepare(
+      `SELECT DISTINCT pr.plan_run_pk
+       FROM suite_runs sr
+       JOIN plan_runs pr ON pr.suite_run_pk = sr.suite_run_pk
+         AND pr.project_name = sr.project_name
+         AND pr.plan_name = sr.active_plan_name
+         AND pr.run_id = sr.active_run_id
+       JOIN watcher_runs wr ON wr.plan_run_pk = pr.plan_run_pk
+       WHERE sr.project_name = ?
+         AND sr.status = 'in_progress'
+         AND wr.status = 'in_progress'
+         AND wr.deadline_at_epoch_ms IS NOT NULL
+         AND wr.deadline_at_epoch_ms <= ?`,
+    )
+    .all(projectName, nowEpochMs) as Array<Record<string, unknown>>;
+  return new Set(rows.map((row) => Number(row.plan_run_pk)).filter(Number.isInteger));
+}
+
 async function candidateSafety(
   store: OpenRunStateStore,
   workspaceRootAbs: string,
   candidate: Candidate,
   now: number,
-): Promise<"active" | "artifact_missing" | "artifact_stale" | "eligible"> {
+): Promise<"active" | "expired_active_state" | "artifact_missing" | "artifact_stale" | "eligible"> {
   const suite =
     candidate.suiteRunPk === undefined
       ? undefined
@@ -247,8 +271,15 @@ async function candidateSafety(
        LIMIT 1`,
     )
     .get(candidate.planRunPk);
+  if (suite?.status === "in_progress") {
+    const overdue = store.database
+      .prepare(
+        "SELECT 1 AS overdue FROM watcher_runs WHERE plan_run_pk = ? AND status = 'in_progress' AND deadline_at_epoch_ms <= ? LIMIT 1",
+      )
+      .get(candidate.planRunPk, now);
+    return overdue ? "expired_active_state" : "active";
+  }
   if (
-    suite?.status === "in_progress" ||
     suite?.active_run_id === candidate.runId ||
     (typeof suite?.lease_expires_at_epoch_ms === "number" &&
       suite.lease_expires_at_epoch_ms > now) ||
@@ -420,7 +451,10 @@ export async function cleanupRunStateRetention(
       policyCandidates.push(candidate);
     }
     const eligible: Candidate[] = [];
-    let skippedActive = 0;
+    const overdueActive = overdueActivePlanRunPks(store.database, projectName, now);
+    let skippedActive = overdueActive.size;
+    for (let index = 0; index < overdueActive.size; index += 1)
+      addReason(reasons, "expired_active_state");
     let skippedArtifactLink = 0;
     for (const candidate of policyCandidates) {
       const safety = await candidateSafety(store, input.workspaceRootAbs, candidate, now);
@@ -428,6 +462,11 @@ export async function cleanupRunStateRetention(
       else if (safety === "active") {
         skippedActive += 1;
         addReason(reasons, "state_store_retention_active_state");
+      } else if (safety === "expired_active_state") {
+        if (!overdueActive.has(candidate.planRunPk)) {
+          skippedActive += 1;
+          addReason(reasons, "expired_active_state");
+        }
       } else {
         skippedArtifactLink += 1;
         addReason(

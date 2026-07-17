@@ -23,6 +23,7 @@ export { queryRunState } from "./state-store/run_state_query";
 export { queryCorrelationState } from "./state-store/correlation_state_query";
 export { queryWatcherState } from "./state-store/watcher_state_query";
 export { cleanupRunStateRetention } from "./state-store/run_state_retention_cleanup";
+export { reconcileExpiredActiveState } from "./state-store/run_state_expired_reconcile";
 export type {
   OpenRunStateStore,
   RunStateArtifactLink,

@@ -177,7 +177,7 @@ export function readRegressionSuiteCheckpoint(args: {
 }): PersistedRegressionSuiteCheckpoint | null {
   const row = args.store.database
     .prepare(
-      `SELECT suite_run_id, execution_profile, status, revision, started_at_epoch_ms, updated_at_epoch_ms, next_plan_order, active_plan_name, active_plan_order, active_run_id, active_phase, continuation_json FROM suite_runs WHERE project_name = ? AND suite_run_id = ?`,
+      `SELECT suite_run_id, execution_profile, status, revision, started_at_epoch_ms, updated_at_epoch_ms, next_plan_order, active_plan_name, active_plan_order, active_run_id, active_phase, continuation_json, lease_expires_at_epoch_ms FROM suite_runs WHERE project_name = ? AND suite_run_id = ?`,
     )
     .get(args.store.projectName, args.suiteRunId);
   if (
@@ -219,6 +219,9 @@ export function readRegressionSuiteCheckpoint(args: {
       ? { activePhase: row.active_phase }
       : {}),
     ...(continuation ? { continuation } : {}),
+    ...(typeof row.lease_expires_at_epoch_ms === "number"
+      ? { leaseExpiresAtEpochMs: row.lease_expires_at_epoch_ms }
+      : {}),
   };
 }
 

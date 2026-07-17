@@ -10,7 +10,7 @@ const { DatabaseSync } = require("node:sqlite") as {
 
 const PROJECTION_VERSION = 1;
 const MAX_PAGE_SIZE = 100;
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 10;
 const STATUS_VALUES = new Set([
   "pass",
   "fail",
@@ -69,6 +69,7 @@ type QuerySuccess = {
   projectName: string;
   projectionVersion: 1;
   pageSize: number;
+  hasMore: boolean;
   sort: { field: "updatedAtEpochMs"; direction: "asc" | "desc" };
   items: Array<Record<string, unknown>>;
   nextCursor?: string;
@@ -411,6 +412,13 @@ export async function queryRunState(args: {
     `,
       )
       .all(...parameters, pageSize + 1);
+    if (rows.length === 0 && input.suiteRunId) {
+      return failure(
+        "run_state_not_found",
+        "no run-state record matches the requested suiteRunId",
+        "correct_run_state_query",
+      );
+    }
     const limited = rows.slice(0, pageSize);
     const artifactStatement = store.database.prepare(`
       SELECT artifact_kind, path_rel, checksum
@@ -459,6 +467,7 @@ export async function queryRunState(args: {
       projectName: input.projectName,
       projectionVersion: PROJECTION_VERSION,
       pageSize,
+      hasMore: rows.length > pageSize,
       sort: { field: "updatedAtEpochMs", direction },
       items,
     };

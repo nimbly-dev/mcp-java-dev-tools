@@ -138,6 +138,21 @@ test("run-state query returns bounded suite and plan projections with determinis
       ["plan"],
     );
 
+    const defaultPage = await queryRunState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha" },
+    });
+    assert.equal(defaultPage.ok, true);
+    if (!defaultPage.ok) return;
+    assert.equal(defaultPage.pageSize, 10);
+
+    const missingSuite = await queryRunState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha", suiteRunId: "missing-suite" },
+    });
+    assert.equal(missingSuite.ok, false);
+    if (!missingSuite.ok) assert.equal(missingSuite.reasonCode, "run_state_not_found");
+
     const mismatchedCursor = await queryRunState({
       workspaceRootAbs: root,
       input: { projectName: "alpha", planName: "p1", cursor: first.nextCursor },
@@ -157,6 +172,97 @@ test("run-state query fails closed before cutover and does not bootstrap a missi
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.reasonCode, "run_state_store_not_ready");
     assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test("state browse defaults are bounded and cursors do not duplicate seeded records", async () => {
+  const root = createTestTempDir("state-query-default-bounds");
+  try {
+    const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(cutover.ok, true);
+    const db = new (require("node:sqlite").DatabaseSync)(
+      path.join(root, ".mcpjvm", "alpha", "run-state.sqlite"),
+    );
+    for (let index = 1; index <= 26; index += 1) {
+      db.prepare(
+        `INSERT INTO suite_runs (project_name, suite_run_id, execution_profile, status, revision, started_at_epoch_ms, updated_at_epoch_ms)
+         VALUES ('alpha', ?, 'profile', 'pass', 1, ?, ?)`,
+      ).run(`suite-${index}`, index, index);
+    }
+    const suitePk = db
+      .prepare("SELECT suite_run_pk FROM suite_runs WHERE suite_run_id = 'suite-1'")
+      .get().suite_run_pk;
+    db.prepare(
+      `INSERT INTO plan_runs (suite_run_pk, project_name, plan_name, run_id, status, run_dir_path_rel)
+       VALUES (?, 'alpha', 'plan-1', 'run-1', 'executed', '.mcpjvm/alpha/plans/regression/plan-1/runs/run-1')`,
+    ).run(suitePk);
+    const planPk = db
+      .prepare(
+        "SELECT plan_run_pk FROM plan_runs WHERE project_name = 'alpha' AND plan_name = 'plan-1'",
+      )
+      .get().plan_run_pk;
+    for (let index = 1; index <= 51; index += 1) {
+      db.prepare(
+        `INSERT INTO watcher_runs (plan_run_pk, project_name, plan_name, run_id, suite_run_id, watcher_name, dependency_step_order, watcher_index, provider_type, status, outcome, started_at_epoch_ms, deadline_at_epoch_ms, timeout_ms, poll_interval_ms, retry_max, attempt_count, revision)
+         VALUES (?, 'alpha', 'plan-1', 'run-1', 'suite-1', ?, 1, ?, 'http', 'pass', 'verified', ?, ?, 1000, 25, 1, 1, 1)`,
+      ).run(planPk, `watcher-${index}`, index, index, index + 1000);
+    }
+    db.close();
+
+    const firstRuns = await queryRunState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha" },
+    });
+    assert.equal(firstRuns.ok, true);
+    if (!firstRuns.ok) return;
+    assert.equal(firstRuns.pageSize, 10);
+    assert.equal(firstRuns.hasMore, true);
+    assert.equal(firstRuns.items.length, 10);
+    assert.match(String(firstRuns.nextCursor), /^[A-Za-z0-9_-]+$/);
+    const secondRuns = await queryRunState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha", cursor: firstRuns.nextCursor },
+    });
+    assert.equal(secondRuns.ok, true);
+    if (!secondRuns.ok) return;
+    assert.equal(secondRuns.items.length, 10);
+    assert.equal(
+      new Set(
+        [...firstRuns.items, ...secondRuns.items].map(
+          (item: Record<string, unknown>) =>
+            `${item.stateKind}:${item.suiteRunId}:${item.runId ?? ""}`,
+        ),
+      ).size,
+      20,
+    );
+
+    const firstWatchers = await queryWatcherState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha" },
+    });
+    assert.equal(firstWatchers.ok, true);
+    if (!firstWatchers.ok) return;
+    assert.equal(firstWatchers.pageSize, 10);
+    assert.equal(firstWatchers.hasMore, true);
+    assert.equal(firstWatchers.items.length, 10);
+    assert.match(String(firstWatchers.nextCursor), /^[A-Za-z0-9_-]+$/);
+    const secondWatchers = await queryWatcherState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha", page: { cursor: firstWatchers.nextCursor } },
+    });
+    assert.equal(secondWatchers.ok, true);
+    if (!secondWatchers.ok) return;
+    assert.equal(secondWatchers.items.length, 10);
+    assert.equal(
+      new Set(
+        [...firstWatchers.items, ...secondWatchers.items].map(
+          (item: Record<string, unknown>) => item.watcherName,
+        ),
+      ).size,
+      20,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
@@ -305,6 +411,29 @@ test("watcher_state query returns active progress, bounded attempts, and artifac
     assert.deepEqual(result.items[0].continuation, { phase: "watchers" });
     assert.equal((result.items[0].attempts as Record<string, unknown>).returned, 1);
     assert.equal(result.items[0].ownerLease as unknown, undefined);
+
+    const defaultPage = await queryWatcherState({
+      workspaceRootAbs: root,
+      input: { projectName: "alpha" },
+    });
+    assert.equal(defaultPage.ok, true);
+    if (!defaultPage.ok) return;
+    assert.equal(defaultPage.pageSize, 10);
+
+    const missingWatcher = await queryWatcherState({
+      workspaceRootAbs: root,
+      input: {
+        projectName: "alpha",
+        filters: {
+          suiteRunId: "missing-suite",
+          planName: "p1",
+          runId: "r1",
+          watcherName: "missing-watcher",
+        },
+      },
+    });
+    assert.equal(missingWatcher.ok, false);
+    if (!missingWatcher.ok) assert.equal(missingWatcher.reasonCode, "watcher_state_not_found");
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
@@ -583,7 +712,11 @@ test("stale suite checkpoint writes preserve resumable Watcher state", async () 
     assert.equal(upsertWatcherRun(watcher).ok, true);
     const staleWatcher = upsertWatcherRun({
       ...watcher,
-      projection: { ...watcher.projection, attemptCount: 1, attempts: watcher.projection.attempts.slice(0, 1) },
+      projection: {
+        ...watcher.projection,
+        attemptCount: 1,
+        attempts: watcher.projection.attempts.slice(0, 1),
+      },
     });
     assert.equal(staleWatcher.ok, false);
     if (!staleWatcher.ok) assert.equal(staleWatcher.reasonCode, "watcher_attempt_non_monotonic");

@@ -162,6 +162,23 @@ export async function handleRunResultArtifact(
 
   if (request.action === "query") {
     if (request.input.stateSurface === "watcher_state") {
+      const watcherQuery = request.input.query;
+      const misplacedWatcherFilters = [
+        "suiteRunId",
+        "planName",
+        "runId",
+        "watcherName",
+        "providerType",
+        "status",
+        "outcome",
+        "reasonCode",
+      ].some((key) => Object.prototype.hasOwnProperty.call(watcherQuery ?? {}, key));
+      if (misplacedWatcherFilters) {
+        return buildFailClosedArtifactResponse({
+          reasonCode: "watcher_state_query_invalid",
+          reason: "Watcher filters must be nested under query.filters",
+        });
+      }
       const queried = await queryWatcherState({
         workspaceRootAbs: ctx.workspaceRootAbs,
         input: {
@@ -188,6 +205,7 @@ export async function handleRunResultArtifact(
         projectName: queried.projectName,
         projectionVersion: queried.projectionVersion,
         pageSize: queried.pageSize,
+        hasMore: queried.hasMore,
         sort: queried.sort,
         items: queried.items,
         ...(queried.nextCursor ? { nextCursor: queried.nextCursor } : {}),
@@ -232,13 +250,21 @@ export async function handleRunResultArtifact(
         reasonMeta: { artifactType: request.artifactType, action: request.action },
       });
     }
+    const runQuery = asRecord(request.input.query);
+    const runFilters = asRecord(runQuery?.filters);
+    const suiteRunId =
+      typeof runFilters?.suiteRunId === "string"
+        ? runFilters.suiteRunId
+        : typeof runQuery?.suiteRunId === "string"
+          ? runQuery.suiteRunId
+          : undefined;
     const queried = await queryRunState({
       workspaceRootAbs: ctx.workspaceRootAbs,
       input: {
         projectName,
         ...(request.input.query?.planName ? { planName: request.input.query.planName } : {}),
         ...(request.input.query?.runId ? { runId: request.input.query.runId } : {}),
-        ...(request.input.query?.suiteRunId ? { suiteRunId: request.input.query.suiteRunId } : {}),
+        ...(suiteRunId ? { suiteRunId } : {}),
         ...(request.input.query?.executionProfile
           ? { executionProfile: request.input.query.executionProfile }
           : {}),
@@ -283,6 +309,7 @@ export async function handleRunResultArtifact(
       projectName: queried.projectName,
       projectionVersion: queried.projectionVersion,
       pageSize: queried.pageSize,
+      hasMore: queried.hasMore,
       sort: queried.sort,
       items: queried.items,
       ...(queried.nextCursor ? { nextCursor: queried.nextCursor } : {}),
