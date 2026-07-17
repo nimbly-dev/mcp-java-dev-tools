@@ -1992,6 +1992,7 @@ test("executeRegressionPlanWorkflow returns in_progress during watcher polling a
       assert.equal(second.executionResult.watcherStatus, "pass");
       assert.equal(second.executionResult.continuation, undefined);
       assert.equal(second.suiteContext?.eventId, "evt-500");
+      assert.equal(second.executionResult.watchers?.length, 1);
     }
     assert.equal(stepCalls, 1);
     assert.equal(watcherCalls, 2);

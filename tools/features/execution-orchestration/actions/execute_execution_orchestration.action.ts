@@ -15,6 +15,7 @@ import {
   readRunStateCutoverStatus,
   releaseRegressionSuiteLease,
   readProjectArtifact,
+  reconcileExpiredActiveState,
   upsertRunStateArtifact,
 } from "@tools-feature-artifact-management";
 import {
@@ -110,6 +111,7 @@ function inProgressResumeConflictResponse(args: {
   executionProfile: string;
   suite: RuntimeSuiteRunResult;
   sqliteCanonicalSuiteState: boolean;
+  leaseExpiresAtEpochMs?: number;
 }) {
   const structuredContent: Record<string, unknown> = {
     resultType: "execution_orchestration",
@@ -119,6 +121,9 @@ function inProgressResumeConflictResponse(args: {
     executionProfile: args.suite.executionProfile,
     executionPolicy: args.suite.executionPolicy,
     suiteRunId: args.suite.suiteRunId,
+    ...(typeof args.leaseExpiresAtEpochMs === "number"
+      ? { leaseExpiresAtEpochMs: args.leaseExpiresAtEpochMs }
+      : {}),
     reasonCode: "suite_checkpoint_owner_active",
     nextActionCode: "resume_same_suite",
     ...(args.sqliteCanonicalSuiteState ? { stateSurface: "run_state" } : {}),
@@ -171,7 +176,11 @@ async function readLatestResumeState(args: {
   workspaceRootAbs: string;
   projectName: string;
   suiteRunId: string;
-}): Promise<{ suite: RuntimeSuiteRunResult | null; sqliteCanonical: boolean }> {
+}): Promise<{
+  suite: RuntimeSuiteRunResult | null;
+  sqliteCanonical: boolean;
+  leaseExpiresAtEpochMs?: number;
+}> {
   const store = await openRunStateStore({
     workspaceRootAbs: args.workspaceRootAbs,
     projectName: args.projectName,
@@ -184,6 +193,9 @@ async function readLatestResumeState(args: {
       return {
         suite: runtimeSuiteFromSQLiteState({ state: sqliteState }),
         sqliteCanonical,
+        ...(typeof sqliteState.checkpoint.leaseExpiresAtEpochMs === "number"
+          ? { leaseExpiresAtEpochMs: sqliteState.checkpoint.leaseExpiresAtEpochMs }
+          : {}),
       };
     }
     return {
@@ -228,18 +240,26 @@ async function persistSQLiteSuiteCheckpoint(args: {
   try {
     const priorCheckpoint = readRegressionSuiteCheckpoint({ store, suiteRunId });
     const activePlan = args.suite.progressSummary?.activePlan;
+    const preserveActiveWatcherCheckpoint =
+      args.suite.status === "blocked" &&
+      (args.suite.reasonCode === "orchestrator_poll_limit_exhausted" ||
+        args.suite.reasonCode === "orchestrator_timeout_budget_exhausted") &&
+      activePlan?.phase === "watchers";
+    const checkpointStatus = preserveActiveWatcherCheckpoint ? "in_progress" : args.suite.status;
     const now = Date.now();
     const persisted = persistRegressionSuiteState({
       store,
       checkpoint: {
         suiteRunId,
         executionProfile: args.suite.executionProfile,
-        status: args.suite.status,
+        status: checkpointStatus,
         startedAtEpochMs: priorCheckpoint?.startedAtEpochMs ?? now,
         updatedAtEpochMs: now,
         ...(typeof args.suite.nextPlanOrder === "number"
           ? { nextPlanOrder: args.suite.nextPlanOrder }
-          : {}),
+          : preserveActiveWatcherCheckpoint && typeof activePlan?.order === "number"
+            ? { nextPlanOrder: activePlan.order }
+            : {}),
         ...(activePlan
           ? {
               activePlanName: activePlan.planName,
@@ -248,7 +268,7 @@ async function persistSQLiteSuiteCheckpoint(args: {
               activePhase: activePlan.phase,
             }
           : {}),
-        ...(args.suite.status === "in_progress" ? {} : { completedAtEpochMs: now }),
+        ...(checkpointStatus === "in_progress" ? {} : { completedAtEpochMs: now }),
         ...(typeof args.suite.reasonCode === "string" ? { reasonCode: args.suite.reasonCode } : {}),
         continuation: {
           runtimeSuite: {
@@ -365,7 +385,7 @@ export async function executeExecutionOrchestrationAction(
       ownerId: checkpointOwnerId,
     });
   };
-  const renewOwnedSuiteLease = async (): Promise<void> => {
+  const renewOwnedSuiteLease = async (deadlineAtEpochMs?: number): Promise<void> => {
     if (!suiteLeaseAcquired || typeof suiteRunId !== "string") return;
     const store = await openRunStateStore({
       workspaceRootAbs: input.workspaceRootAbs,
@@ -373,12 +393,17 @@ export async function executeExecutionOrchestrationAction(
     });
     if (!store.ok) throw new CheckpointPersistenceError(store.reasonCode);
     try {
+      const nowEpochMs = Date.now();
+      const leaseDurationMs =
+        typeof deadlineAtEpochMs === "number" && deadlineAtEpochMs > nowEpochMs
+          ? Math.max(30_000, deadlineAtEpochMs - nowEpochMs + 5_000)
+          : 30_000;
       const renewed = acquireRegressionSuiteLease({
         store,
         suiteRunId,
         ownerId: checkpointOwnerId,
-        nowEpochMs: Date.now(),
-        leaseDurationMs: 30_000,
+        nowEpochMs,
+        leaseDurationMs,
       });
       if (!renewed.ok) throw new CheckpointPersistenceError(renewed.reasonCode);
     } finally {
@@ -442,6 +467,11 @@ export async function executeExecutionOrchestrationAction(
             executionProfile,
             suite: latestSuite,
             sqliteCanonicalSuiteState,
+            ...(typeof latestSqliteState?.checkpoint.leaseExpiresAtEpochMs === "number"
+              ? { leaseExpiresAtEpochMs: latestSqliteState.checkpoint.leaseExpiresAtEpochMs }
+              : typeof lease.reasonMeta?.leaseExpiresAtEpochMs === "number"
+                ? { leaseExpiresAtEpochMs: lease.reasonMeta.leaseExpiresAtEpochMs }
+                : {}),
           });
         }
       } else {
@@ -512,6 +542,43 @@ export async function executeExecutionOrchestrationAction(
         reason: "suite_progress_invalid",
         reasonMeta: { projectName, executionProfile, suiteRunId },
       });
+    }
+
+    const reconciled = await reconcileExpiredActiveState({
+      workspaceRootAbs: input.workspaceRootAbs,
+      projectName,
+      executionProfile,
+      suiteRunId,
+      ownerId: checkpointOwnerId,
+      nowEpochMs: Date.now(),
+    });
+    if (!reconciled.ok) {
+      await releaseOwnedSuiteLease();
+      return blockedResponse({
+        reasonCode: reconciled.reasonCode,
+        reason: reconciled.reason,
+        ...(reconciled.reasonMeta ? { reasonMeta: reconciled.reasonMeta } : {}),
+      });
+    }
+    if (reconciled.reconciled) {
+      suiteLeaseAcquired = false;
+      const terminal = reconciled.suite;
+      const structuredContent = {
+        resultType: "execution_orchestration",
+        status: terminal.status,
+        action: "execute",
+        projectName,
+        executionProfile,
+        suiteRunId,
+        stateSurface: "run_state",
+        reasonCode: terminal.reasonCode,
+        planRuns: terminal.planRuns,
+        progressSummary: terminal.progressSummary,
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+        structuredContent,
+      };
     }
   }
 
@@ -799,6 +866,9 @@ export async function executeExecutionOrchestrationAction(
           executionProfile,
           suite: latest.suite,
           sqliteCanonicalSuiteState: latest.sqliteCanonical,
+          ...(typeof latest.leaseExpiresAtEpochMs === "number"
+            ? { leaseExpiresAtEpochMs: latest.leaseExpiresAtEpochMs }
+            : {}),
         });
       }
     }

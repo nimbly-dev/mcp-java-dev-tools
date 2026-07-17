@@ -88,6 +88,8 @@ export type RuntimeSuiteActivePlanProgressSummary = {
   watcherStatus?: RegressionWatcherPhaseStatus;
   externalVerificationStatus?: RegressionExternalVerificationPhaseStatus;
   waitingOn?: RuntimeSuiteProgressTargetSummary;
+  notBeforeEpochMs?: number;
+  deadlineAtEpochMs?: number;
 };
 
 export type RuntimeSuiteCompletedPlanSummary = {

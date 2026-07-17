@@ -5,7 +5,7 @@ import { sanitizePersistedWatcherJson } from "./watcher_state_store";
 import type { RunStateDatabase } from "./model/run_state_store.model";
 
 const PROJECTION_VERSION = 1;
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 200;
 const MAX_ATTEMPT_LIMIT = 100;
 const STATUSES = new Set([
@@ -70,6 +70,7 @@ type Success = {
   projectName: string;
   projectionVersion: 1;
   pageSize: number;
+  hasMore: boolean;
   sort: { field: "startedAtEpochMs"; direction: "asc" | "desc" };
   items: Array<Record<string, unknown>>;
   nextCursor?: string;
@@ -421,6 +422,17 @@ export async function queryWatcherState(args: {
         `SELECT wr.* FROM watcher_runs wr WHERE ${clauses.join(" AND ")} ORDER BY wr.started_at_epoch_ms ${direction.toUpperCase()}, wr.watcher_run_pk ${direction.toUpperCase()} LIMIT ?`,
       )
       .all(...parameters, pageSize + 1);
+    const exactWatcherLookup =
+      typeof filters.suiteRunId === "string" &&
+      typeof filters.planName === "string" &&
+      typeof filters.runId === "string" &&
+      typeof filters.watcherName === "string";
+    if (rows.length === 0 && exactWatcherLookup)
+      return failure(
+        "watcher_state_not_found",
+        "no Watcher state record matches the requested identity",
+        "correct_watcher_state_query",
+      );
     if (rows.length === 0)
       return failure(
         "watcher_state_unavailable",
@@ -503,6 +515,7 @@ export async function queryWatcherState(args: {
       projectName: input.projectName,
       projectionVersion: PROJECTION_VERSION,
       pageSize,
+      hasMore: rows.length > pageSize,
       sort: { field: "startedAtEpochMs", direction },
       items,
     };

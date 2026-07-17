@@ -303,6 +303,70 @@ test("retention cleanup excludes active suites, Watchers, leases, and missing li
   }
 });
 
+test("retention cleanup skips an overdue active Watcher and audits expired_active_state", async () => {
+  const root = tempRoot("retention-overdue-active");
+  try {
+    const opened = await createCutoverStore(root);
+    const now = Date.now();
+    const old = now - 200 * 86400000;
+    opened.database
+      .prepare(
+        `INSERT INTO suite_runs (project_name, suite_run_id, status, active_plan_name, active_run_id, active_phase, started_at_epoch_ms, updated_at_epoch_ms)
+         VALUES (?, 'overdue-suite', 'in_progress', 'p1', 'overdue-run', 'watchers', ?, ?)`,
+      )
+      .run("alpha", old, now);
+    const suitePk = opened.database
+      .prepare("SELECT suite_run_pk FROM suite_runs WHERE suite_run_id = 'overdue-suite'")
+      .get()?.suite_run_pk;
+    opened.database
+      .prepare(
+        `INSERT INTO plan_runs (suite_run_pk, project_name, plan_name, run_id, status, started_at_epoch_ms, completed_at_epoch_ms, run_dir_path_rel)
+         VALUES (?, 'alpha', 'p1', 'overdue-run', 'in_progress', ?, NULL, '.mcpjvm/alpha/plans/regression/p1/runs/overdue-run')`,
+      )
+      .run(suitePk, old);
+    const planPk = opened.database
+      .prepare("SELECT plan_run_pk FROM plan_runs WHERE run_id = 'overdue-run'")
+      .get()?.plan_run_pk;
+    opened.database
+      .prepare(
+        `INSERT INTO watcher_runs (plan_run_pk, project_name, plan_name, run_id, suite_run_id, watcher_name, dependency_step_order, watcher_index, provider_type, status, outcome, started_at_epoch_ms, deadline_at_epoch_ms, timeout_ms, poll_interval_ms, retry_max, attempt_count)
+         VALUES (?, 'alpha', 'p1', 'overdue-run', 'overdue-suite', 'watcher', 1, 0, 'http', 'in_progress', 'blocked', ?, ?, 60000, 1000, 3, 1)`,
+      )
+      .run(planPk, old, now - 1);
+    opened.close();
+
+    const result = await cleanupRunStateRetention({
+      workspaceRootAbs: root,
+      projectName: "alpha",
+      retention: {
+        terminalOlderThanDays: 90,
+        keepMostRecentTerminalRuns: 0,
+        maxDeleteBatch: 500,
+        dryRun: false,
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.summary.scannedRuns, 0);
+    assert.equal(result.summary.deletedRuns, 0);
+    assert.equal(result.summary.skippedActive, 1);
+    assert.deepEqual(result.summary.reasons, [
+      { reasonCode: "expired_active_state", count: 1 },
+    ]);
+
+    const reopened = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
+    assert.equal(reopened.ok, true);
+    if (!reopened.ok) return;
+    const watcher = reopened.database
+      .prepare("SELECT status FROM watcher_runs WHERE run_id = 'overdue-run'")
+      .get();
+    assert.equal(watcher?.status, "in_progress");
+    reopened.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("retention cleanup prunes audits to the newest 100 rows", async () => {
   const root = tempRoot("retention-audit-pruning");
   try {

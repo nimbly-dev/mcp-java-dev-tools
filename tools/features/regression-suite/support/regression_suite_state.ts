@@ -331,6 +331,14 @@ export async function buildRuntimeSuiteProgressSummary(args: {
       ? { externalVerificationStatus: args.activeExecutionResult.externalVerificationStatus }
       : {}),
     ...(waitingOn ? { waitingOn } : {}),
+    ...(continuation?.phase === "watchers" &&
+    typeof continuation.nextAttemptAt === "string" &&
+    Number.isFinite(Date.parse(continuation.nextAttemptAt))
+      ? { notBeforeEpochMs: Date.parse(continuation.nextAttemptAt) }
+      : {}),
+    ...(continuation?.phase === "watchers" && typeof continuation.deadlineAtEpochMs === "number"
+      ? { deadlineAtEpochMs: continuation.deadlineAtEpochMs }
+      : {}),
   };
 
   return summary;

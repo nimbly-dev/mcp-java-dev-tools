@@ -633,6 +633,7 @@ export async function writeRegressionRunArtifacts(
   }
 
   const activeWatcherContinuation =
+    args.executionResult.status === "in_progress" &&
     args.executionResult.continuation?.phase === "watchers"
       ? args.executionResult.continuation
       : undefined;

@@ -359,6 +359,7 @@ export type PersistedRegressionSuiteCheckpoint = {
   activeRunId?: string;
   activePhase?: RegressionSuiteCheckpoint["activePhase"];
   continuation?: Record<string, unknown>;
+  leaseExpiresAtEpochMs?: number;
 };
 export type PersistedRegressionSuiteState = {
   checkpoint: PersistedRegressionSuiteCheckpoint;

@@ -106,7 +106,7 @@ export const RunResultQuerySchema = ArtifactSelectQuerySchema.extend({
   completedFromEpochMs: z.number().int().nonnegative().optional(),
   completedToEpochMs: z.number().int().nonnegative().optional(),
   sortDirection: z.enum(["asc", "desc"]).default("desc"),
-  pageSize: z.number().int().min(1).max(100).default(25),
+  pageSize: z.number().int().min(1).max(100).default(10),
   cursor: z.string().min(1).optional(),
   watchers: SectionWindowSchema.optional(),
   watcherEvidence: SectionWindowSchema.optional(),
