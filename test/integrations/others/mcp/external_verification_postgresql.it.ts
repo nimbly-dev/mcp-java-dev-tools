@@ -92,7 +92,7 @@ test("mcp IT: PostgreSQL external verification uses native pg with bound values"
       "-d",
       "it_database",
       "-c",
-      "CREATE TABLE verification_rows (tenant_id text primary key, indexed_count integer not null); INSERT INTO verification_rows VALUES ('tenant-it', 500);",
+      "CREATE TABLE verification_rows (tenant_id text primary key, indexed_count integer not null, pending_count integer not null); INSERT INTO verification_rows VALUES ('tenant-it', 500, 0);",
     ]);
 
     await writeJson(probeConfigAbs, {
@@ -190,7 +190,7 @@ test("mcp IT: PostgreSQL external verification uses native pg with bound values"
           request: {
             sql: {
               connectionRef: "catalog",
-              statement: "SELECT indexed_count FROM verification_rows WHERE tenant_id = :tenant",
+              statement: "SELECT indexed_count, pending_count FROM verification_rows WHERE tenant_id = :tenant",
               parameters: [{ name: "tenant", value: "tenant-it" }],
             },
           },
@@ -200,6 +200,12 @@ test("mcp IT: PostgreSQL external verification uses native pg with bound values"
               actualPath: "sql.firstRow.indexed_count",
               operator: "field_equals",
               expected: 500,
+            },
+            {
+              id: "pending_count_zero",
+              actualPath: "sql.firstRow.pending_count",
+              operator: "field_equals",
+              expected: 0,
             },
           ],
         },

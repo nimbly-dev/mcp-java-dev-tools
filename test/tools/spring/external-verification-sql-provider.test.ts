@@ -298,6 +298,9 @@ test("executeSqlExternalVerification fails closed when SQL execution throws", as
     assert.equal(out.result.status, "blocked_runtime");
     assert.equal(out.result.reasonCode, "external_verification_execution_failed");
     assert.equal(out.result.reasonMeta.connectionRef, "catalogDb");
+    assert.equal(out.result.reasonMeta.cause, "sqlite_query_failed");
+    assert.equal(out.result.reasonMeta.nextActionCode, "retry_external_verification");
+    assert.equal("connectionKind" in out.result.reasonMeta, false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -512,4 +515,85 @@ test("executeSqlExternalVerification preserves deterministic PostgreSQL timeout 
   assert.equal(out.result.reasonCode, "external_verification_execution_failed");
   assert.equal(out.result.reasonMeta.timeoutMs, 10);
   assert.equal(out.result.reasonMeta.cause, "sql_execution_timeout");
+});
+
+test("executeSqlExternalVerification classifies PostgreSQL failures without persisting driver details", async () => {
+  const cases = [
+    ["ECONNREFUSED", "postgres_connection_refused", "retry_postgresql_connection"],
+    ["28P01", "postgres_authentication_failed", "refresh_postgresql_credentials"],
+    ["3D000", "postgres_database_missing", "verify_postgresql_database"],
+    ["42501", "postgres_permission_denied", "check_postgresql_permissions"],
+    ["42601", "postgres_query_invalid", "correct_postgresql_query"],
+  ] as const;
+  for (const [errorCode, cause, nextActionCode] of cases) {
+    const out = await executeSqlExternalVerification({
+      workspaceRootAbs: process.cwd(),
+      resolvedContext: {
+        "sql.connection.catalogDb.kind": "postgresql",
+        "sql.connection.catalogDb.host": "db.internal",
+        "sql.connection.catalogDb.port": 5432,
+        "sql.connection.catalogDb.database": "catalog",
+        "sql.connection.catalogDb.username": "catalog_user",
+        "sql.connection.catalogDb.password": "secret-password",
+        "sql.connection.catalogDb.tls.mode": "disable",
+      },
+      verification: {
+        id: "verify_postgresql_failure",
+        provider: { type: "sql" },
+        request: { sql: { connectionRef: "catalogDb", statement: "SELECT 1" } },
+        expect: [],
+      },
+      internals: {
+        executePostgresqlQuery: async () => ({
+          ok: false as const,
+          errorMessage: errorCode,
+          durationMs: 2,
+        }),
+      },
+    });
+    assert.equal(out.result.reasonMeta.cause, cause);
+    assert.equal(out.result.reasonMeta.nextActionCode, nextActionCode);
+    assert.equal(JSON.stringify(out.result).includes("secret-password"), false);
+    assert.equal(JSON.stringify(out.result).includes(errorCode), false);
+  }
+});
+
+test("executeSqlExternalVerification redacts unexpected PostgreSQL exceptions and returns a fingerprint", async () => {
+  const rawError =
+    "password=secret-password host=db.internal SELECT token=:token certificate timeout syntax error permission denied";
+  const out = await executeSqlExternalVerification({
+    workspaceRootAbs: process.cwd(),
+    resolvedContext: {
+      "sql.connection.catalogDb.kind": "postgresql",
+      "sql.connection.catalogDb.host": "db.internal",
+      "sql.connection.catalogDb.port": 5432,
+      "sql.connection.catalogDb.database": "catalog",
+      "sql.connection.catalogDb.username": "catalog_user",
+      "sql.connection.catalogDb.password": "secret-password",
+      "sql.connection.catalogDb.tls.mode": "disable",
+    },
+    verification: {
+      id: "verify_postgresql_unexpected_failure",
+      provider: { type: "sql" },
+      request: { sql: { connectionRef: "catalogDb", statement: "SELECT 1" } },
+      expect: [],
+    },
+    internals: {
+      executePostgresqlQuery: async () => {
+        throw new Error(rawError);
+      },
+    },
+  });
+
+  assert.equal(out.result.status, "blocked_runtime");
+  assert.equal(out.result.reasonCode, "external_verification_execution_failed");
+  assert.equal(out.result.reasonMeta.connectionKind, "postgresql");
+  assert.equal(out.result.reasonMeta.cause, "postgres_query_failed");
+  assert.equal(out.result.reasonMeta.nextActionCode, "retry_external_verification");
+  assert.match(String(out.result.reasonMeta.errorFingerprint), /^sha256:[a-f0-9]{64}$/);
+  const serialized = JSON.stringify(out.result);
+  assert.equal(serialized.includes(rawError), false);
+  assert.equal(serialized.includes("secret-password"), false);
+  assert.equal(serialized.includes("db.internal"), false);
+  assert.equal(serialized.includes("SELECT token=:token"), false);
 });

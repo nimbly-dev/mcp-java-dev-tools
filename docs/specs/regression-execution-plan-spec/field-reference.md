@@ -520,6 +520,28 @@ SQL runtime canonical reason codes:
 - `external_verification_expectation_failed`
 - `extract_path_missing`
 
+For `external_verification_execution_failed` with a PostgreSQL provider,
+`reasonMeta.cause` is a sanitized deterministic category and
+`reasonMeta.nextActionCode` is the corresponding bounded follow-up action:
+
+- `postgres_connection_refused` / `retry_postgresql_connection`
+- `postgres_authentication_failed` / `refresh_postgresql_credentials`
+- `postgres_tls_failed` / `verify_postgresql_tls`
+- `postgres_database_missing` / `verify_postgresql_database`
+- `postgres_permission_denied` / `check_postgresql_permissions`
+- `postgres_query_invalid` / `correct_postgresql_query`
+- `postgres_query_failed` / `retry_external_verification`
+- `result_limit_exceeded` / `reduce_postgresql_result`
+- `result_size_limit_exceeded` / `reduce_postgresql_result`
+- `sql_execution_timeout` / `retry_external_verification`
+
+Raw PostgreSQL driver messages, credentials, connection strings, and SQL
+parameter values are not persisted in `reasonMeta`. If the provider or driver
+throws an otherwise unclassified exception, `reasonMeta.cause` is
+`postgres_query_failed`, `reasonMeta.nextActionCode` is
+`retry_external_verification`, and `reasonMeta.errorFingerprint` contains only
+an opaque `sha256:<hex>` correlation value.
+
 ## `.mcpjvm/regression/<plan>/runs/<run_id>/evidence.json`
 
 Supporting evidence for result interpretation.

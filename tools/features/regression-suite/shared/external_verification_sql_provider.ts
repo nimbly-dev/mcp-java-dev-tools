@@ -18,6 +18,7 @@ import type {
   SqlWorkerResult,
 } from "../models/external_verification_sql.model";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { Worker } from "node:worker_threads";
 import { Client } from "pg";
 import QueryStream from "pg-query-stream";
@@ -126,6 +127,79 @@ function normalizeSqlRows(rows: unknown[]): Record<string, unknown>[] {
         Object.entries(row).map(([key, value]) => [key, normalizeSqlCellValue(value)]),
       ),
     );
+}
+
+type PostgresqlFailureClassification = {
+  cause: string;
+  nextActionCode: string;
+};
+
+type SqliteFailureClassification = {
+  cause: string;
+  nextActionCode: string;
+};
+
+function classifyPostgresqlFailure(errorMessage: string): PostgresqlFailureClassification {
+  if (errorMessage === "sql_execution_timeout" || errorMessage.startsWith("sql_execution_timeout_"))
+    return { cause: errorMessage, nextActionCode: "retry_external_verification" };
+  if (errorMessage === "result_limit_exceeded" || errorMessage === "result_size_limit_exceeded")
+    return { cause: errorMessage, nextActionCode: "reduce_postgresql_result" };
+  if (errorMessage.startsWith("missing_parameter:"))
+    return { cause: "postgres_query_invalid", nextActionCode: "correct_postgresql_query" };
+  if (errorMessage === "postgres_connection_refused" || errorMessage === "ECONNREFUSED")
+    return { cause: "postgres_connection_refused", nextActionCode: "retry_postgresql_connection" };
+  if (errorMessage === "postgres_authentication_failed" || errorMessage === "28P01" || errorMessage === "28000")
+    return { cause: "postgres_authentication_failed", nextActionCode: "refresh_postgresql_credentials" };
+  if (errorMessage === "postgres_tls_failed" || errorMessage === "TLS_ERROR")
+    return { cause: "postgres_tls_failed", nextActionCode: "verify_postgresql_tls" };
+  if (errorMessage === "postgres_database_missing" || errorMessage === "3D000")
+    return { cause: "postgres_database_missing", nextActionCode: "verify_postgresql_database" };
+  if (errorMessage === "postgres_permission_denied" || errorMessage === "42501")
+    return { cause: "postgres_permission_denied", nextActionCode: "check_postgresql_permissions" };
+  if (errorMessage === "postgres_query_invalid" || errorMessage === "42601")
+    return { cause: "postgres_query_invalid", nextActionCode: "correct_postgresql_query" };
+  return { cause: "postgres_query_failed", nextActionCode: "retry_external_verification" };
+}
+
+function classifySqliteFailure(errorMessage: string): SqliteFailureClassification {
+  if (errorMessage === "sql_execution_timeout" || errorMessage.startsWith("sql_execution_timeout_")) {
+    return { cause: errorMessage, nextActionCode: "retry_external_verification" };
+  }
+  return { cause: "sqlite_query_failed", nextActionCode: "retry_external_verification" };
+}
+
+function classifyPostgresqlError(error: unknown): string {
+  const code =
+    typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+  if (code === "57014") return "sql_execution_timeout";
+  if (code === "ECONNREFUSED") return "postgres_connection_refused";
+  if (code === "28P01" || code === "28000")
+    return "postgres_authentication_failed";
+  if (
+    code === "DEPTH_ZERO_SELF_SIGNED_CERT" ||
+    code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
+    code === "ERR_TLS_CERT_ALTNAME_INVALID"
+  )
+    return "postgres_tls_failed";
+  if (code === "3D000") return "postgres_database_missing";
+  if (code === "42501") return "postgres_permission_denied";
+  if (code === "42601") return "postgres_query_invalid";
+  return "postgres_query_failed";
+}
+
+function classifySqliteError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  if (/timeout/i.test(message)) return "sql_execution_timeout";
+  return "sqlite_query_failed";
+}
+
+function postgresqlErrorFingerprint(error: unknown): string {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String(error.code)
+      : "";
+  const message = error instanceof Error ? error.message : String(error);
+  return `sha256:${createHash("sha256").update(`${code}\u0000${message}`).digest("hex")}`;
 }
 
 function resolveSqlConnectionConfig(args: {
@@ -568,15 +642,9 @@ async function executePostgresqlQueryWithTimeout(args: {
     }
     return { ok: true, rows, durationMs: Date.now() - startedAt };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown";
-    const code =
-      typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
     return {
       ok: false,
-      errorMessage:
-        code === "57014" || /timeout/i.test(message)
-          ? "sql_execution_timeout"
-          : "postgres_query_failed",
+      errorMessage: classifyPostgresqlError(error),
       durationMs: Date.now() - startedAt,
     };
   } finally {
@@ -696,7 +764,7 @@ function buildSqlExecutionEnvelope(args: {
   };
 }
 
-export async function executeSqlExternalVerification(
+async function executeSqlExternalVerificationUnsafe(
   args: ExecuteSqlExternalVerificationArgs,
 ): Promise<SqlProviderExecutionResult> {
   const request = args.verification.request.sql;
@@ -751,13 +819,18 @@ export async function executeSqlExternalVerification(
         });
 
   if (!execution.ok) {
+    const classification =
+      connection.config.kind === "postgresql"
+        ? classifyPostgresqlFailure(execution.errorMessage)
+        : classifySqliteFailure(execution.errorMessage);
     return buildSqlFailureResult({
       verification: args.verification,
       reasonCode: "external_verification_execution_failed",
       reasonMeta: {
         connectionRef: request.connectionRef,
         ...(connection.config.kind === "postgresql" ? { connectionKind: "postgresql" } : {}),
-        cause: execution.errorMessage,
+        cause: classification.cause,
+        nextActionCode: classification.nextActionCode,
         ...(typeof request.timeoutMs === "number" &&
         (execution.errorMessage === "sql_execution_timeout" ||
           execution.errorMessage.startsWith("sql_execution_timeout_"))
@@ -771,4 +844,34 @@ export async function executeSqlExternalVerification(
     execution,
     resolvedContext: args.resolvedContext,
   });
+}
+
+export async function executeSqlExternalVerification(
+  args: ExecuteSqlExternalVerificationArgs,
+): Promise<SqlProviderExecutionResult> {
+  try {
+    return await executeSqlExternalVerificationUnsafe(args);
+  } catch (error) {
+    const request = args.verification.request.sql;
+    const connectionKind = request
+      ? args.resolvedContext[`sql.connection.${request.connectionRef}.kind`]
+      : undefined;
+    const classification =
+      connectionKind === "postgresql"
+        ? classifyPostgresqlFailure(classifyPostgresqlError(error))
+        : classifySqliteFailure(classifySqliteError(error));
+    return buildSqlFailureResult({
+      verification: args.verification,
+      reasonCode: "external_verification_execution_failed",
+      reasonMeta: {
+        ...(typeof request?.connectionRef === "string"
+          ? { connectionRef: request.connectionRef }
+          : {}),
+        ...(connectionKind === "postgresql" ? { connectionKind: "postgresql" } : {}),
+        cause: classification.cause,
+        nextActionCode: classification.nextActionCode,
+        errorFingerprint: postgresqlErrorFingerprint(error),
+      },
+    });
+  }
 }
