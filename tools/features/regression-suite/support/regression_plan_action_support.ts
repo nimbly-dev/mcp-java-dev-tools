@@ -341,6 +341,7 @@ export function buildPlanCorrelationEvidence(args: {
       correlation.correlationSessionId.trim().length > 0
         ? { correlationSessionId: correlation.correlationSessionId.trim() }
         : {}),
+      ...(correlation.crossPlan === true ? { crossPlan: true } : {}),
       maxWindowMs: correlation.window.maxWindowMs,
       ...(Array.isArray(correlation.expectedFlow)
         ? { expectedFlow: correlation.expectedFlow }

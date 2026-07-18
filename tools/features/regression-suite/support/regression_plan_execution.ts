@@ -204,6 +204,8 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
   const correlationValidation = validateCorrelationPolicy(
     contract.correlation,
     contract.steps.map((step) => step.order),
+    args.availableProbeIds,
+    args.probeRegistryAvailable,
   );
   if (!correlationValidation.ok) {
     return {
@@ -211,6 +213,12 @@ export function buildReplayPreflight(args: BuildPreflightArgs): PreflightResult 
       reasonCode: correlationValidation.reasonCode,
       ...emptyPreflightDetails(),
       requiredUserAction: correlationValidation.requiredUserAction,
+      ...(correlationValidation.unknownExpectedFlowProbeIds
+        ? { unknownExpectedFlowProbeIds: correlationValidation.unknownExpectedFlowProbeIds }
+        : {}),
+      ...(correlationValidation.availableProbeIds
+        ? { availableProbeIds: correlationValidation.availableProbeIds }
+        : {}),
     };
   }
   const watcherValidation = validateWatchers(contract.watchers, contract.steps);

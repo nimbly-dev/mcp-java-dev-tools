@@ -47,13 +47,18 @@ async function writeJson(filePath: string, payload: Record<string, unknown>): Pr
       ? {
           ...payload,
           workspaces: payload.workspaces.map((workspace) => {
-            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) return workspace;
+            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace))
+              return workspace;
             const defaults =
-              "defaults" in workspace && workspace.defaults && typeof workspace.defaults === "object"
+              "defaults" in workspace &&
+              workspace.defaults &&
+              typeof workspace.defaults === "object"
                 ? workspace.defaults
                 : {};
             const orchestrator =
-              "orchestrator" in defaults && defaults.orchestrator && typeof defaults.orchestrator === "object"
+              "orchestrator" in defaults &&
+              defaults.orchestrator &&
+              typeof defaults.orchestrator === "object"
                 ? defaults.orchestrator
                 : {
                     resumePollMax: 30,
@@ -93,6 +98,7 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
   projectName?: string;
   tmpPrefix?: string;
   keepTmpEnvVar?: string;
+  consumerAgentExclude?: string;
 }) {
   const tmpRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), args?.tmpPrefix ?? "mcp-event-cross-service-regression-suite-it-"),
@@ -124,7 +130,11 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
   let producerRuntime: Awaited<ReturnType<typeof startEventProducerAppWithAgent>> | undefined;
   let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
 
-  consumerRuntime = await startEventConsumerAppWithAgent();
+  consumerRuntime = await startEventConsumerAppWithAgent({
+    ...(typeof args?.consumerAgentExclude === "string"
+      ? { agentExclude: args.consumerAgentExclude }
+      : {}),
+  });
   producerRuntime = await startEventProducerAppWithAgent({
     consumerBaseUrl: consumerRuntime.apiBaseUrl,
   });
@@ -189,10 +199,17 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
     target: TriggerTarget;
     probeId?: string;
     includeProbeExpectation?: boolean;
+    probeVerification?: boolean;
+    requestMode?: "trigger" | "readiness";
     correlation?: {
       correlationSessionId: string;
       expectedFlow: string[];
-      keyMode: "explicit_message_id" | "response_body_id" | "suite_session_message_id" | "suite_last_message_id";
+      crossPlan?: boolean;
+      keyMode:
+        | "explicit_message_id"
+        | "response_body_id"
+        | "suite_session_message_id"
+        | "suite_last_message_id";
       explicitKeyValue?: string;
       responseJsonPath?: string;
     };
@@ -224,7 +241,7 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
       specVersion: "1.0.0",
       execution: {
         intent: "regression",
-        probeVerification: true,
+        probeVerification: args.probeVerification !== false,
         pinStrictProbeKey: true,
         discoveryPolicy: "disabled",
       },
@@ -260,25 +277,32 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
           targetRef: 0,
           protocol: "http",
           transport: {
-            http: {
-              method: "POST",
-              pathTemplate: "/api/v1/events/trigger",
-              headers: {
-                Authorization: "Bearer alice-token",
-                "x-tenant-id": "tenant-social-001",
-              },
-              body: {
-                context: "entities",
-                type: "TriggerIndex",
-                groupId: "group-001",
-                source: "event-cross-service-api",
-                dataFormatVersion: 1,
-                dataId: "tenant-batch-01",
-                data: ["tenant-social-001"],
-                notes: "Trigger reindex per tenant",
-              },
-              timeoutMs: 10_000,
-            },
+            http:
+              args.requestMode === "readiness"
+                ? {
+                    method: "GET",
+                    pathTemplate: "/actuator/health",
+                    timeoutMs: 10_000,
+                  }
+                : {
+                    method: "POST",
+                    pathTemplate: "/api/v1/events/trigger",
+                    headers: {
+                      Authorization: "Bearer alice-token",
+                      "x-tenant-id": "tenant-social-001",
+                    },
+                    body: {
+                      context: "entities",
+                      type: "TriggerIndex",
+                      groupId: "group-001",
+                      source: "event-cross-service-api",
+                      dataFormatVersion: 1,
+                      dataId: "tenant-batch-01",
+                      data: ["tenant-social-001"],
+                      notes: "Trigger reindex per tenant",
+                    },
+                    timeoutMs: 10_000,
+                  },
           },
           expect: [
             {
@@ -310,8 +334,8 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
         ? {
             correlation: {
               enabled: true,
-              crossPlan: true,
-                correlationSessionId: args.correlation.correlationSessionId,
+              crossPlan: args.correlation.crossPlan !== false,
+              correlationSessionId: args.correlation.correlationSessionId,
               key:
                 args.correlation.keyMode === "explicit_message_id"
                   ? { type: "messageId", value: args.correlation.explicitKeyValue ?? "evt-unknown" }
@@ -325,18 +349,15 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
                           type: "messageId",
                           value: "${suite.correlation.last.keyValue}",
                         }
-                  : {
-                      type: "messageId",
-                      source: {
-                        type: "json_path",
-                        path: args.correlation.responseJsonPath ?? "response.bodyJson.id",
-                      },
-                    },
+                      : {
+                          type: "messageId",
+                          source: {
+                            type: "json_path",
+                            path: args.correlation.responseJsonPath ?? "response.bodyJson.id",
+                          },
+                        },
               window: { maxWindowMs: 60_000 },
-              probeIds:
-                typeof args.probeId === "string"
-                  ? [args.probeId]
-                  : [],
+              probeIds: typeof args.probeId === "string" ? [args.probeId] : [],
               expectedFlow: args.correlation.expectedFlow,
               matchPolicy: {
                 requireExactKeyMatch: true,

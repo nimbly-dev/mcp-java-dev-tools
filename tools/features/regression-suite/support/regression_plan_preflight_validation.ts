@@ -564,6 +564,8 @@ export function validateSuiteContextDependencies(args: {
 export function validateCorrelationPolicy(
   correlation: PlanCorrelationPolicy | undefined,
   stepOrders?: number[],
+  availableProbeIds?: string[],
+  probeRegistryAvailable?: boolean,
 ):
   | { ok: true }
   | {
@@ -573,10 +575,44 @@ export function validateCorrelationPolicy(
         | "correlation_window_invalid"
         | "correlation_key_invalid"
         | "correlation_expectation_invalid"
-        | "correlation_runtime_evidence_policy_invalid";
+        | "correlation_runtime_evidence_policy_invalid"
+        | "expected_flow_probe_unknown"
+        | "expected_flow_probe_registry_unavailable";
       requiredUserAction: string[];
+      unknownExpectedFlowProbeIds?: string[];
+      availableProbeIds?: string[];
     } {
   if (!correlation || correlation.enabled !== true) return { ok: true };
+  if (
+    Array.isArray(correlation.expectedFlow) &&
+    correlation.expectedFlow.length > 0 &&
+    probeRegistryAvailable === false
+  ) {
+    return {
+      ok: false,
+      reasonCode: "expected_flow_probe_registry_unavailable",
+      requiredUserAction: [
+        "Restore the active Probe registry configuration, then rerun plan preflight.",
+      ],
+    };
+  }
+  if (Array.isArray(correlation.expectedFlow) && Array.isArray(availableProbeIds)) {
+    const available = new Set(availableProbeIds);
+    const unknownExpectedFlowProbeIds = Array.from(
+      new Set(correlation.expectedFlow.filter((probeId) => !available.has(probeId))),
+    );
+    if (unknownExpectedFlowProbeIds.length > 0) {
+      return {
+        ok: false,
+        reasonCode: "expected_flow_probe_unknown",
+        unknownExpectedFlowProbeIds,
+        availableProbeIds: [...availableProbeIds].sort(),
+        requiredUserAction: [
+          `Update correlation.expectedFlow to use active Probe IDs. Unknown IDs: ${unknownExpectedFlowProbeIds.join(", ")}.`,
+        ],
+      };
+    }
+  }
   if (
     !correlation.key ||
     (correlation.key.type !== "traceId" &&

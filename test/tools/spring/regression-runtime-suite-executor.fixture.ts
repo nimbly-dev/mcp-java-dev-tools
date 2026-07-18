@@ -38,6 +38,26 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(normalizedPayload, null, 2)}\n`, "utf8");
 }
 
+function ensureProbeConfig(root: string, probeId: string): void {
+  const filePath = path.join(root, ".mcpjvm", "probe-config.json");
+  let payload: Record<string, any> = {
+    defaultProfile: "dev",
+    profiles: { dev: { probes: {} } },
+  };
+  if (fs.existsSync(filePath)) {
+    payload = JSON.parse(fs.readFileSync(filePath, "utf8")) as Record<string, any>;
+  }
+  payload.profiles ??= {};
+  payload.profiles.dev ??= {};
+  payload.profiles.dev.probes ??= {};
+  payload.profiles.dev.probes[probeId] ??= {
+    baseUrl: "http://127.0.0.1:9191",
+    include: [],
+    exclude: [],
+  };
+  writeJson(filePath, payload);
+}
+
 function writePlan(root: string, projectName: string, planName: string, routePath: string): void {
   const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
   writeJson(path.join(planRoot, "metadata.json"), {
@@ -78,6 +98,7 @@ function writeCorrelatedPlan(
     expectedFlow?: string[];
   },
 ): void {
+  ensureProbeConfig(root, args.probeId);
   const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
   writeJson(path.join(planRoot, "metadata.json"), {
     specVersion: "1.0.0",
@@ -109,6 +130,7 @@ function writeCorrelatedPlan(
     ],
     correlation: {
       enabled: true,
+      crossPlan: true,
       correlationSessionId: args.correlationSessionId,
       key: args.keyValue
         ? { type: "traceId", value: args.keyValue }
@@ -178,6 +200,7 @@ function writeAuthenticatedStrictProbeCorrelatedPlan(
     correlationSourcePath?: string;
   },
 ): void {
+  ensureProbeConfig(root, args.probeId);
   const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
   const verifyProbe = args.verifyProbe !== false;
   writeJson(path.join(planRoot, "metadata.json"), {

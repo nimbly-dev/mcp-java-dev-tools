@@ -44,6 +44,8 @@ export type PreflightReasonCode =
   | "correlation_key_invalid"
   | "correlation_expectation_invalid"
   | "correlation_runtime_evidence_policy_invalid"
+  | "expected_flow_probe_unknown"
+  | "expected_flow_probe_registry_unavailable"
   | "watcher_id_invalid"
   | "watcher_dependency_invalid"
   | "watcher_provider_invalid"
@@ -97,6 +99,9 @@ export type PreflightResult = {
   nextAction?: string;
   prerequisiteResolution: PrerequisiteResolution[];
   requiredUserAction: string[];
+  unknownExpectedFlowProbeIds?: string[];
+  availableProbeIds?: string[];
+  probeRegistryAvailable?: boolean;
 };
 
 export type PlanMetadata = {
@@ -341,6 +346,8 @@ export type BuildPreflightArgs = {
   contract: PlanContract;
   providedContext: Record<string, unknown>;
   targetCandidateCount: number;
+  availableProbeIds?: string[];
+  probeRegistryAvailable?: boolean;
   projectContext?: {
     status: "ok" | "blocked";
     reasonCode?:

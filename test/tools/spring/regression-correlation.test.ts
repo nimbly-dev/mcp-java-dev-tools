@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { correlateEvents } = require("@tools-feature-regression-suite");
+const { correlateEvents, validateCorrelationPolicy } = require("@tools-feature-regression-suite");
 
 test("correlateEvents returns deterministic ordered timeline when correlation is valid", () => {
   const result = correlateEvents(
@@ -88,6 +88,206 @@ test("correlateEvents fails closed when expected flow ordering is violated", () 
   );
   assert.equal(result.status, "fail_closed");
   assert.equal(result.reasonCode, "flow_expectation_mismatch");
+});
+
+test("correlateEvents fails closed when a required expected flow stage is missing", () => {
+  const result = correlateEvents(
+    [
+      {
+        eventId: "e1",
+        probeId: "producer-service",
+        eventType: "runtime_line_hit",
+        runtimeInstanceId: "producer-1",
+        timestampEpochMs: 1000,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+    ],
+    {
+      keyType: "messageId",
+      keyValue: "evt-1",
+      maxWindowMs: 5000,
+      expectedFlow: ["producer-service", "consumer-service"],
+    },
+  );
+  assert.equal(result.status, "fail_closed");
+  assert.equal(result.reasonCode, "missing_expected_flow_event");
+  assert.deepEqual(result.expectedFlow, ["producer-service", "consumer-service"]);
+  assert.deepEqual(result.observedProbeIds, ["producer-service"]);
+  assert.deepEqual(result.missingProbeIds, ["consumer-service"]);
+  assert.equal(result.firstUnsatisfiedFlowIndex, 1);
+});
+
+test("correlateEvents fails closed when only the downstream expected flow stage is observed", () => {
+  const result = correlateEvents(
+    [
+      {
+        eventId: "e1",
+        probeId: "consumer-service",
+        timestampEpochMs: 1000,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+    ],
+    {
+      keyType: "messageId",
+      keyValue: "evt-1",
+      maxWindowMs: 5000,
+      expectedFlow: ["producer-service", "consumer-service"],
+    },
+  );
+  assert.equal(result.reasonCode, "missing_expected_flow_event");
+  assert.deepEqual(result.missingProbeIds, ["producer-service"]);
+  assert.equal(result.firstUnsatisfiedFlowIndex, 0);
+});
+
+test("correlateEvents does not let repeated hits satisfy a missing distinct expected stage", () => {
+  const result = correlateEvents(
+    [
+      {
+        eventId: "e1",
+        probeId: "producer-service",
+        eventType: "runtime_line_hit",
+        runtimeInstanceId: "producer-1",
+        timestampEpochMs: 1000,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+      {
+        eventId: "e2",
+        probeId: "producer-service",
+        eventType: "runtime_line_hit",
+        runtimeInstanceId: "producer-1",
+        timestampEpochMs: 1100,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+    ],
+    {
+      keyType: "messageId",
+      keyValue: "evt-1",
+      maxWindowMs: 5000,
+      expectedFlow: ["producer-service", "consumer-service"],
+      runtimeEvidenceRequired: true,
+      runtimeProbeIds: ["producer-service"],
+    },
+  );
+  assert.equal(result.reasonCode, "missing_expected_flow_event");
+  assert.deepEqual(result.missingProbeIds, ["consumer-service"]);
+});
+
+test("correlateEvents rejects repeated expected stages when their order is not an ordered subsequence", () => {
+  const result = correlateEvents(
+    [
+      {
+        eventId: "a-1",
+        probeId: "a",
+        timestampEpochMs: 1000,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+      {
+        eventId: "a-2",
+        probeId: "a",
+        timestampEpochMs: 1100,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+      {
+        eventId: "b-1",
+        probeId: "b",
+        timestampEpochMs: 1200,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+    ],
+    {
+      keyType: "messageId",
+      keyValue: "evt-1",
+      maxWindowMs: 5000,
+      expectedFlow: ["a", "b", "a"],
+    },
+  );
+  assert.equal(result.reasonCode, "flow_expectation_mismatch");
+  assert.equal(result.firstUnsatisfiedFlowIndex, 2);
+});
+
+test("correlateEvents accepts a repeated expected stage when the ordered subsequence is observed", () => {
+  const result = correlateEvents(
+    [
+      {
+        eventId: "a-1",
+        probeId: "a",
+        timestampEpochMs: 1000,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+      {
+        eventId: "b-1",
+        probeId: "b",
+        timestampEpochMs: 1100,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+      {
+        eventId: "a-2",
+        probeId: "a",
+        timestampEpochMs: 1200,
+        keyType: "messageId",
+        keyValue: "evt-1",
+      },
+    ],
+    {
+      keyType: "messageId",
+      keyValue: "evt-1",
+      maxWindowMs: 5000,
+      expectedFlow: ["a", "b", "a"],
+    },
+  );
+  assert.equal(result.status, "ok");
+});
+
+test("validateCorrelationPolicy fails closed for unknown expected flow Probe IDs", () => {
+  const result = validateCorrelationPolicy(
+    {
+      enabled: true,
+      key: { type: "messageId" },
+      window: { maxWindowMs: 5000 },
+      probeIds: ["producer-service"],
+      expectedFlow: ["producer-service", "consumer-service"],
+      matchPolicy: {
+        requireExactKeyMatch: true,
+        requireWindowMatch: true,
+        ambiguityStrategy: "fail_closed",
+      },
+    },
+    [1],
+    ["producer-service"],
+  );
+  assert.equal(result.reasonCode, "expected_flow_probe_unknown");
+  assert.deepEqual(result.unknownExpectedFlowProbeIds, ["consumer-service"]);
+  assert.deepEqual(result.availableProbeIds, ["producer-service"]);
+});
+
+test("validateCorrelationPolicy distinguishes an unavailable Probe registry", () => {
+  const result = validateCorrelationPolicy(
+    {
+      enabled: true,
+      key: { type: "messageId" },
+      window: { maxWindowMs: 5000 },
+      probeIds: ["producer-service"],
+      expectedFlow: ["producer-service", "consumer-service"],
+      matchPolicy: {
+        requireExactKeyMatch: true,
+        requireWindowMatch: true,
+        ambiguityStrategy: "fail_closed",
+      },
+    },
+    [1],
+    undefined,
+    false,
+  );
+  assert.equal(result.reasonCode, "expected_flow_probe_registry_unavailable");
 });
 
 test("correlateEvents accepts repeated runtime line hits from one runtime identity", () => {
