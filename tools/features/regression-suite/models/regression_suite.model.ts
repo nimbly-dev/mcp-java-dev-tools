@@ -32,7 +32,8 @@ export type CorrelationFailureReason =
   | "correlation_probe_response_invalid"
   | "correlation_context_not_propagated"
   | "ambiguous_correlation"
-  | "flow_expectation_mismatch";
+  | "flow_expectation_mismatch"
+  | "missing_expected_flow_event";
 export type CorrelationInputEvent = {
   sequence?: number;
   lastSequence?: number;
@@ -61,13 +62,19 @@ export type CorrelationPolicy = {
   runtimeLineKeys?: string[];
   runtimeExecutionId?: string;
 };
+export type CorrelationDiagnostics = {
+  expectedFlow?: string[];
+  observedProbeIds?: string[];
+  missingProbeIds?: string[];
+  firstUnsatisfiedFlowIndex?: number;
+};
 export type CorrelationMatchResult =
-  | { status: "ok"; timeline: CorrelationInputEvent[]; reasonCode: "ok" }
-  | {
+  | ({ status: "ok"; timeline: CorrelationInputEvent[]; reasonCode: "ok" } & CorrelationDiagnostics)
+  | ({
       status: "fail_closed";
       timeline: CorrelationInputEvent[];
       reasonCode: CorrelationFailureReason;
-    };
+    } & CorrelationDiagnostics);
 
 export type RuntimeSuiteCorrelationSession = {
   correlationSessionId: string;

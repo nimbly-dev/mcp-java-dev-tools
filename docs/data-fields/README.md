@@ -501,6 +501,13 @@ Typed request envelope examples:
 | `progressSummary.lastCompletedPlan`  | Optional summary of the latest terminal per-plan checkpoint already persisted for the suite run.                                                                                                                            | `execution_orchestration` | false    | `{"order":1,"planName":"producer-trigger","status":"executed","runStatus":"pass","runId":"06-10-2026-12-07-42AM"}`                                                                                                                       |
 | `correlations`                       | Optional suite-level cross-plan correlation summary for completed runs.                                                                                                                                                     | `execution_orchestration` | false    | `[{"correlationSessionId":"order-flow","status":"ok","reasonCode":"ok","keyType":"traceId","contributingPlans":["producer-plan","consumer-plan"]}]`                                                                                      |
 
+Correlation diagnostics notes:
+
+- A configured `expectedFlow` is validated against the active Probe registry during plan preflight. Unknown IDs fail closed with `expected_flow_probe_unknown`; the blocked preflight includes `unknownExpectedFlowProbeIds` and `availableProbeIds`.
+- If the active Probe registry cannot be loaded, preflight fails closed with `expected_flow_probe_registry_unavailable`; it does not classify every configured ID as unknown.
+- Missing runtime stages fail closed with `missing_expected_flow_event`; correlation `reasonMeta` includes `expectedFlow`, `observedProbeIds`, `missingProbeIds`, and (when applicable) `firstUnsatisfiedFlowIndex`.
+- `flow_expectation_mismatch` remains reserved for timelines where all required stages were observed but their order is invalid.
+
 HTTP transport diagnostics notes:
 
 - `http_payload_invalid` may include `reasonMeta.missingFields` with one or more missing required transport fields.

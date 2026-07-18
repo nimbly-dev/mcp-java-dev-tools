@@ -58,7 +58,7 @@ function asCorrelationKeyType(value: unknown): "traceId" | "requestId" | "messag
   return value === "requestId" ? "requestId" : value === "messageId" ? "messageId" : "traceId";
 }
 
-function toCorrelationArtifactFromEvidence(args: {
+export function toCorrelationArtifactFromEvidence(args: {
   evidence: Record<string, unknown>;
   resolvedContext: Record<string, unknown>;
   now: Date;
@@ -75,6 +75,7 @@ function toCorrelationArtifactFromEvidence(args: {
   const expectedFlow = Array.isArray(policyRaw.expectedFlow)
     ? policyRaw.expectedFlow.map((value) => String(value))
     : undefined;
+  const crossPlan = policyRaw.crossPlan === true;
   const runtimeEvidenceRequired = policyRaw.runtimeEvidenceRequired === true;
   const runtimeProbeIds = Array.isArray(policyRaw.runtimeProbeIds)
     ? policyRaw.runtimeProbeIds.filter((value): value is string => typeof value === "string")
@@ -187,7 +188,7 @@ function toCorrelationArtifactFromEvidence(args: {
     keyType,
     keyValue,
     maxWindowMs,
-    ...(Array.isArray(expectedFlow) ? { expectedFlow } : {}),
+    ...(Array.isArray(expectedFlow) && !crossPlan ? { expectedFlow } : {}),
     ...(runtimeEvidenceRequired ? { runtimeEvidenceRequired: true } : {}),
     ...(runtimeProbeIds ? { runtimeProbeIds } : {}),
     ...(runtimeInstanceIds ? { runtimeInstanceIds } : {}),
@@ -220,6 +221,18 @@ function toCorrelationArtifactFromEvidence(args: {
   return {
     status: matched.status === "ok" ? "ok" : "fail_closed",
     reasonCode: matched.reasonCode === "ok" ? "ok" : matched.reasonCode,
+    ...(matched.expectedFlow
+      ? {
+          reasonMeta: {
+            expectedFlow: matched.expectedFlow,
+            observedProbeIds: matched.observedProbeIds ?? [],
+            missingProbeIds: matched.missingProbeIds ?? [],
+            ...(typeof matched.firstUnsatisfiedFlowIndex === "number"
+              ? { firstUnsatisfiedFlowIndex: matched.firstUnsatisfiedFlowIndex }
+              : {}),
+          },
+        }
+      : {}),
     ...(typeof policyRaw.correlationSessionId === "string"
       ? { correlationSessionId: policyRaw.correlationSessionId }
       : {}),
@@ -589,7 +602,8 @@ export async function writeRegressionRunArtifacts(
               : -1;
         return leftSequence - rightSequence;
       });
-    const runtimeCursorTimeline = runtimeTimeline.length > 0 ? [runtimeTimeline[runtimeTimeline.length - 1]!] : [];
+    const runtimeCursorTimeline =
+      runtimeTimeline.length > 0 ? [runtimeTimeline[runtimeTimeline.length - 1]!] : [];
 
     // Advance the durable cursor only after the artifact is complete. A pending
     // marker lets resume ignore a cursor if the process dies between these two

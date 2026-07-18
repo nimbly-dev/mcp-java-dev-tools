@@ -307,6 +307,7 @@ export type CorrelationReasonCode =
   | "ambiguous_correlation"
   | "ambiguous_cross_plan_correlation"
   | "flow_expectation_mismatch"
+  | "missing_expected_flow_event"
   | "insufficient_evidence";
 
 export type CorrelationVerdict = "ok" | "fail_closed";

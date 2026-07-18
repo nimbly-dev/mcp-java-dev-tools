@@ -232,7 +232,6 @@ export async function writeSuiteCorrelationResults(args: {
             keyType: session.keyType,
             keyValue,
             maxWindowMs: session.maxWindowMs,
-            ...(session.expectedFlow ? { expectedFlow: session.expectedFlow } : {}),
             ...(session.runtimeEvidenceRequired ? { runtimeEvidenceRequired: true } : {}),
             ...(session.runtimeProbeIds ? { runtimeProbeIds: session.runtimeProbeIds } : {}),
             ...(session.runtimeInstanceIds
@@ -281,6 +280,18 @@ export async function writeSuiteCorrelationResults(args: {
         maxWindowMs: session.maxWindowMs,
       },
       ...(session.expectedFlow ? { expectedFlow: session.expectedFlow } : {}),
+      ...(matched.expectedFlow
+        ? {
+            reasonMeta: {
+              expectedFlow: matched.expectedFlow,
+              observedProbeIds: matched.observedProbeIds ?? [],
+              missingProbeIds: matched.missingProbeIds ?? [],
+              ...(typeof matched.firstUnsatisfiedFlowIndex === "number"
+                ? { firstUnsatisfiedFlowIndex: matched.firstUnsatisfiedFlowIndex }
+                : {}),
+            },
+          }
+        : {}),
       timeline,
       generatedAtEpochMs: args.now.getTime(),
     };

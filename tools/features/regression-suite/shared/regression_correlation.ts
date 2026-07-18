@@ -8,6 +8,7 @@ import type {
   CorrelationPolicy,
 } from "../models/regression_suite.model";
 export type {
+  CorrelationDiagnostics,
   CorrelationFailureReason,
   CorrelationInputEvent,
   CorrelationKeyType,
@@ -46,17 +47,66 @@ function sortEvents(
   });
 }
 
-function hasFlowViolation(timeline: CorrelationInputEvent[], expectedFlow: string[]): boolean {
-  const indexes = timeline
-    .map((event) => expectedFlow.indexOf(event.probeId))
-    .filter((idx): idx is number => idx >= 0);
-  for (let i = 1; i < indexes.length; i += 1) {
-    const current = indexes[i];
-    const previous = indexes[i - 1];
-    if (typeof current === "number" && typeof previous === "number" && current < previous)
-      return true;
+function findFlowSubsequenceFailure(
+  timeline: CorrelationInputEvent[],
+  expectedFlow: string[],
+): number | undefined {
+  let timelineIndex = 0;
+  for (let flowIndex = 0; flowIndex < expectedFlow.length; flowIndex += 1) {
+    const expectedProbeId = expectedFlow[flowIndex];
+    while (
+      timelineIndex < timeline.length &&
+      timeline[timelineIndex]?.probeId !== expectedProbeId
+    ) {
+      timelineIndex += 1;
+    }
+    if (timelineIndex >= timeline.length) return flowIndex;
+    timelineIndex += 1;
   }
-  return false;
+  return undefined;
+}
+
+function findMissingFlowStage(
+  timeline: CorrelationInputEvent[],
+  expectedFlow: string[],
+): { missingProbeIds: string[]; firstUnsatisfiedFlowIndex?: number } {
+  const observedCounts = new Map<string, number>();
+  for (const event of timeline) {
+    observedCounts.set(event.probeId, (observedCounts.get(event.probeId) ?? 0) + 1);
+  }
+  const requiredCounts = new Map<string, number>();
+  for (const probeId of expectedFlow) {
+    requiredCounts.set(probeId, (requiredCounts.get(probeId) ?? 0) + 1);
+  }
+  const missingProbeIds = Array.from(requiredCounts.keys()).filter(
+    (probeId) => (observedCounts.get(probeId) ?? 0) < requiredCounts.get(probeId)!,
+  );
+  if (missingProbeIds.length === 0) return { missingProbeIds: [] };
+  const firstUnsatisfiedFlowIndex = findFlowSubsequenceFailure(timeline, expectedFlow);
+  if (typeof firstUnsatisfiedFlowIndex !== "number") {
+    return { missingProbeIds };
+  }
+  return {
+    missingProbeIds,
+    firstUnsatisfiedFlowIndex,
+  };
+}
+
+function flowDiagnostics(
+  timeline: CorrelationInputEvent[],
+  expectedFlow: string[],
+): {
+  expectedFlow: string[];
+  observedProbeIds: string[];
+  missingProbeIds: string[];
+  firstUnsatisfiedFlowIndex?: number;
+} {
+  const missing = findMissingFlowStage(timeline, expectedFlow);
+  return {
+    expectedFlow,
+    observedProbeIds: timeline.map((event) => event.probeId),
+    ...missing,
+  };
 }
 
 export function correlateEvents(
@@ -176,19 +226,41 @@ export function correlateEvents(
       .map((event) => event.runtimeInstanceId)
       .filter((value): value is string => typeof value === "string" && value.length > 0),
   );
+  const expectedFlowConfigured =
+    Array.isArray(policy.expectedFlow) && policy.expectedFlow.length > 0;
   if (
     runtimeIdentities.size > 1 ||
     Array.from(duplicatesByIdentity.values()).some(
-      (count) => count > 1 && !sorted.some((event) => event.eventType === "runtime_line_hit"),
+      (count) =>
+        count > 1 &&
+        !sorted.some((event) => event.eventType === "runtime_line_hit") &&
+        !expectedFlowConfigured,
     )
   ) {
     return { status: "fail_closed", reasonCode: "ambiguous_correlation", timeline: sorted };
   }
 
   if (Array.isArray(policy.expectedFlow) && policy.expectedFlow.length > 0) {
-    if (hasFlowViolation(sorted, policy.expectedFlow)) {
-      return { status: "fail_closed", reasonCode: "flow_expectation_mismatch", timeline: sorted };
+    const diagnostics = flowDiagnostics(sorted, policy.expectedFlow);
+    if (diagnostics.missingProbeIds.length > 0) {
+      return {
+        status: "fail_closed",
+        reasonCode: "missing_expected_flow_event",
+        timeline: sorted,
+        ...diagnostics,
+      };
     }
+    const flowSubsequenceFailureIndex = findFlowSubsequenceFailure(sorted, policy.expectedFlow);
+    if (typeof flowSubsequenceFailureIndex === "number") {
+      return {
+        status: "fail_closed",
+        reasonCode: "flow_expectation_mismatch",
+        timeline: sorted,
+        ...diagnostics,
+        firstUnsatisfiedFlowIndex: flowSubsequenceFailureIndex,
+      };
+    }
+    return { status: "ok", reasonCode: "ok", timeline: sorted, ...diagnostics };
   }
 
   return { status: "ok", reasonCode: "ok", timeline: sorted };

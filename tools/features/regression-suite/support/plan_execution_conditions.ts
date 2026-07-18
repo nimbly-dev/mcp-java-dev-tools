@@ -180,6 +180,8 @@ export function resolveBlockedShape(preflight: {
   checks?: string[];
   nextAction?: string;
   requiredUserAction: string[];
+  unknownExpectedFlowProbeIds?: string[];
+  availableProbeIds?: string[];
 }) {
   return {
     status: preflight.status,
@@ -187,6 +189,10 @@ export function resolveBlockedShape(preflight: {
     missing: preflight.missing,
     checks: preflight.checks ?? [],
     ...(typeof preflight.nextAction === "string" ? { nextAction: preflight.nextAction } : {}),
+    ...(preflight.unknownExpectedFlowProbeIds
+      ? { unknownExpectedFlowProbeIds: preflight.unknownExpectedFlowProbeIds }
+      : {}),
+    ...(preflight.availableProbeIds ? { availableProbeIds: preflight.availableProbeIds } : {}),
     requiredUserAction: preflight.requiredUserAction,
   };
 }
