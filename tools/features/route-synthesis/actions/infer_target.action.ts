@@ -9,10 +9,7 @@ import {
   selectRuntimeValidatedLine,
 } from "../support/inference/runtime_line_selection.util";
 import { resolveAdditionalSourceRoots } from "../support/source_roots_resolve";
-import {
-  discoverClassMethods,
-  inferTargets,
-} from "../shared/target_inference";
+import { discoverClassMethods, inferTargets } from "../shared/target_inference";
 
 function resolveProbeBaseUrlForTargetInfer(args: {
   config: RouteSynthesisTargetInferenceDeps["config"];
@@ -188,8 +185,23 @@ export async function runTargetInfer(
   }
 
   const rootAbs = validated.projectRootAbs;
+  const workspaceRootAbs = deps.config.workspaceRootAbs;
+  if (!workspaceRootAbs) {
+    const structuredContent = {
+      resultType: "report",
+      status: "workspace_context_missing",
+      reasonCode: "workspace_context_missing",
+      nextActionCode: "bind_workspace_root",
+      failedStep: "workspace_resolution",
+      reason: "No MCP workspace root is bound to this session.",
+    };
+    return {
+      content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+      structuredContent,
+    };
+  }
   const additionalRoots = await resolveAdditionalSourceRoots({
-    workspaceRootAbs: deps.config.workspaceRootAbs,
+    workspaceRootAbs,
     ...(Array.isArray(additionalSourceRoots) &&
     additionalSourceRoots.every((value) => typeof value === "string")
       ? { additionalSourceRoots: additionalSourceRoots as string[] }
@@ -246,8 +258,7 @@ export async function runTargetInfer(
           },
           TARGET_INFER_REASON_META_KEYS,
         ),
-        nextAction:
-          "Provide classHint and rerun route_synthesis with action=class_methods.",
+        nextAction: "Provide classHint and rerun route_synthesis with action=class_methods.",
       };
       return {
         content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
@@ -590,8 +601,7 @@ export async function runTargetInfer(
     };
   }
 
-  const selectedCandidates =
-    typeof lineHint === "number" ? lineMatches : runtimeResolvedCandidates;
+  const selectedCandidates = typeof lineHint === "number" ? lineMatches : runtimeResolvedCandidates;
 
   if (selectedCandidates.length > 1) {
     const reasonCode = "target_ambiguous";

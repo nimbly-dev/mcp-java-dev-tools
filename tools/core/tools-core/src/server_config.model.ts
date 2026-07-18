@@ -2,8 +2,8 @@ import type { ProbeRegistry } from "./probe-registry";
 
 /** Capability-neutral runtime configuration consumed by Feature Modules. */
 export type ServerConfig = {
-  workspaceRootAbs: string;
-  workspaceRootSource: "arg" | "env" | "session" | "cwd" | "probe-config";
+  workspaceRootAbs: string | undefined;
+  workspaceRootSource: "arg" | "env" | "session" | "cwd" | "roots" | "probe-config" | "missing" | "ambiguous";
   probeBaseUrl: string;
   probeStatusPath: string;
   probeResetPath: string;

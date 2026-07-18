@@ -47,26 +47,29 @@ test("loads from probe-config.json and applies fixed probe path defaults", () =>
   }
 });
 
-test("missing probe-config fails closed and does not rely on environment probe routing", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_CONFIG_FILE]: undefined,
-      [MCP_ENV.WORKSPACE_ROOT]: undefined,
-    },
-    () => {
-      assert.throws(
-        () => loadConfigFromEnvAndArgs(["node", "server"]),
-        (err: any) => {
-          assert.ok(err instanceof Error);
-          assert.match(err.message, /probe-config\.json/i);
-          return true;
-        },
-      );
-    },
-  );
+test("missing probe-config keeps the server startable without environment probe routing", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-no-probe-"));
+  try {
+    withEnv(
+      {
+        [MCP_ENV.PROBE_CONFIG_FILE]: undefined,
+        [MCP_ENV.WORKSPACE_ROOT]: undefined,
+        INIT_CWD: undefined,
+        PWD: undefined,
+      },
+      () => {
+        const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", tmpRoot]);
+        assert.equal(cfg.probeRegistry, undefined);
+        assert.equal(cfg.workspaceRootSource, "arg");
+        assert.equal(cfg.workspaceRootAbs, path.resolve(tmpRoot));
+      },
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
 });
 
-test("fails closed when MCP_PROBE_CONFIG_FILE points outside the canonical location", () => {
+test("preserves an absolute MCP_PROBE_CONFIG_FILE override outside the canonical location", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-file-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -81,10 +84,9 @@ test("fails closed when MCP_PROBE_CONFIG_FILE points outside the canonical locat
         PWD: undefined,
       },
       () => {
-        assert.throws(
-          () => loadConfigFromEnvAndArgs(["node", "server"]),
-          /probe_config_location_invalid/i,
-        );
+        const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
+        assert.equal(cfg.workspaceRootAbs, path.resolve(workspaceRoot));
+        assert.equal(cfg.probeRegistry?.configFileAbs, path.join(configDir, "probe-config.json"));
       },
     );
   } finally {
@@ -142,6 +144,32 @@ test("resolves workspace-relative MCP_PROBE_CONFIG_FILE to active workspace prob
       () => {
         const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
         assert.equal(cfg.probeRegistry?.configFileAbs, path.join(mcpjvmDir, "probe-config.json"));
+      },
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("preserves an explicit noncanonical Probe-config override with an explicit workspace", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-noncanonical-env-"));
+  try {
+    const workspaceRoot = path.join(tmpRoot, "workspace");
+    const probeConfigAbs = path.join(tmpRoot, "shared", "probe-config.json");
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    fs.mkdirSync(path.dirname(probeConfigAbs), { recursive: true });
+    fs.copyFileSync(FIXTURE, probeConfigAbs);
+    withEnv(
+      {
+        [MCP_ENV.WORKSPACE_ROOT]: workspaceRoot,
+        [MCP_ENV.PROBE_CONFIG_FILE]: probeConfigAbs,
+        INIT_CWD: undefined,
+        PWD: undefined,
+      },
+      () => {
+        const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
+        assert.equal(cfg.workspaceRootAbs, path.resolve(workspaceRoot));
+        assert.equal(cfg.probeRegistry?.configFileAbs, path.resolve(probeConfigAbs));
       },
     );
   } finally {
