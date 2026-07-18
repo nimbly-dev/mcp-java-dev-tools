@@ -5,9 +5,12 @@ import type { ProbeDomainConfig } from "@tools-feature-probe";
 
 import { EXECUTION_ORCHESTRATION_TOOL } from "@/tools/core/execution_orchestration/contract";
 import { dispatchExecutionOrchestrationAction } from "@tools-feature-execution-orchestration";
+import type { WorkspaceContext } from "@/config/workspace-context";
 
 export type ExecutionOrchestrationHandlerDeps = {
-  workspaceRootAbs: string;
+  workspaceRootAbs: string | undefined;
+  getWorkspaceRootAbs?: () => string | undefined;
+  getWorkspaceContext?: () => WorkspaceContext;
   probeConfig: ProbeDomainConfig;
 };
 
@@ -43,8 +46,25 @@ export function registerExecutionOrchestrationTool(
         };
       }
 
+      const workspaceRootAbs = deps.getWorkspaceRootAbs?.() ?? deps.workspaceRootAbs;
+      if (!workspaceRootAbs) {
+        const reasonCode = deps.getWorkspaceContext?.()?.reasonCode ?? "workspace_context_missing";
+        const structuredContent = {
+          resultType: "report",
+          status: reasonCode,
+          reasonCode,
+          reason:
+            reasonCode === "workspace_context_ambiguous"
+              ? "Multiple MCP Roots contain canonical workspace state; select one workspace root explicitly."
+              : "No MCP workspace root is bound to this session.",
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+          structuredContent,
+        };
+      }
       return await dispatchExecutionOrchestrationAction({
-        workspaceRootAbs: deps.workspaceRootAbs,
+        workspaceRootAbs,
         probeConfig: deps.probeConfig,
         request: parsed.data,
       });

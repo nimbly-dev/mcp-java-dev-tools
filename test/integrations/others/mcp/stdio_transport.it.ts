@@ -3,10 +3,14 @@ import { spawn, type ChildProcess } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { mcpServerEntryAbs, repoRootAbs } from "@test/integrations/support/spring/social_platform/shared.fixture";
+import {
+  mcpServerEntryAbs,
+  repoRootAbs,
+} from "@test/integrations/support/spring/social_platform/shared.fixture";
 
 async function waitFor(
   check: () => boolean,
@@ -257,23 +261,17 @@ test("mcp IT: stdio server exits after stdin closes", async () => {
   });
 
   try {
-    await waitFor(
-      () => stderrChunks.join("").includes("running (stdio)"),
-      {
-        timeoutMs: 10_000,
-        failureMessage: `server did not start.\n${stderrChunks.join("")}`,
-      },
-    );
+    await waitFor(() => stderrChunks.join("").includes("running (stdio)"), {
+      timeoutMs: 10_000,
+      failureMessage: `server did not start.\n${stderrChunks.join("")}`,
+    });
 
     child.stdin?.end();
 
-    await waitFor(
-      () => child.exitCode !== null,
-      {
-        timeoutMs: 10_000,
-        failureMessage: `server did not exit after stdin closed.\n${stderrChunks.join("")}`,
-      },
-    );
+    await waitFor(() => child.exitCode !== null, {
+      timeoutMs: 10_000,
+      failureMessage: `server did not exit after stdin closed.\n${stderrChunks.join("")}`,
+    });
 
     assert.equal(child.exitCode, 0);
     assert.equal(stderrChunks.join("").includes("shutdown: stdin_"), true);
@@ -283,3 +281,123 @@ test("mcp IT: stdio server exits after stdin closes", async () => {
   }
 });
 
+test("mcp IT: Roots bind workspace context and expose ambiguity across Roots changes", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-roots-context-it-"));
+  const firstRoot = path.join(tmpRoot, "first");
+  const secondRoot = path.join(tmpRoot, "second");
+  for (const root of [firstRoot, secondRoot]) {
+    const probeConfigAbs = path.join(root, ".mcpjvm", "probe-config.json");
+    await fs.mkdir(path.dirname(probeConfigAbs), { recursive: true });
+    await fs.writeFile(probeConfigAbs, "{}\n", "utf8");
+  }
+
+  const env = { ...process.env };
+  delete env.MCP_WORKSPACE_ROOT;
+  delete env.MCP_PROBE_CONFIG_FILE;
+  delete env.INIT_CWD;
+  delete env.PWD;
+  const child = spawn(process.execPath, [mcpServerEntryAbs], {
+    cwd: repoRootAbs,
+    env,
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  const messages: Array<Record<string, unknown>> = [];
+  let stdoutBuffer = "";
+  child.stdout?.on("data", (chunk) => {
+    stdoutBuffer += String(chunk);
+    const lines = stdoutBuffer.split(/\r?\n/);
+    stdoutBuffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      messages.push(JSON.parse(line) as Record<string, unknown>);
+    }
+  });
+
+  const send = (message: Record<string, unknown>) => {
+    child.stdin?.write(`${JSON.stringify(message)}\n`);
+  };
+  const waitForMessage = async (
+    predicate: (message: Record<string, unknown>) => boolean,
+    failureMessage: string,
+  ): Promise<Record<string, unknown>> => {
+    await waitFor(() => messages.some(predicate), {
+      timeoutMs: 10_000,
+      failureMessage: `${failureMessage}\nMessages: ${JSON.stringify(messages)}`,
+    });
+    return messages.find(predicate) as Record<string, unknown>;
+  };
+  const rootUris = [pathToFileURL(firstRoot).toString(), pathToFileURL(secondRoot).toString()];
+
+  try {
+    send({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-03-26",
+        capabilities: { roots: { listChanged: true } },
+        clientInfo: { name: "roots-context-it", version: "1.0.0" },
+      },
+    });
+    await waitForMessage((message) => message.id === 1, "initialize response missing");
+    send({ jsonrpc: "2.0", method: "notifications/initialized", params: {} });
+
+    const initialRootsRequest = await waitForMessage(
+      (message) => message.method === "roots/list",
+      "initial roots/list request missing",
+    );
+    send({
+      jsonrpc: "2.0",
+      id: initialRootsRequest.id,
+      result: { roots: rootUris.map((uri) => ({ uri })) },
+    });
+
+    send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+    const toolsList = await waitForMessage(
+      (message) => message.id === 2,
+      "tools/list response missing",
+    );
+    const toolsResult = toolsList.result as { tools?: unknown[] };
+    assert.equal(Array.isArray(toolsResult.tools), true);
+
+    send({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: { name: "probe", arguments: { action: "status", input: {} } },
+    });
+    const ambiguousCall = await waitForMessage(
+      (message) => message.id === 3,
+      "ambiguous action response missing",
+    );
+    const ambiguousText =
+      (ambiguousCall.result as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? "";
+    assert.equal(ambiguousText.includes("workspace_context_ambiguous"), true);
+
+    send({ jsonrpc: "2.0", method: "notifications/roots/list_changed", params: {} });
+    const changedRootsRequest = await waitForMessage(
+      (message) => message.method === "roots/list" && message.id !== initialRootsRequest.id,
+      "Roots-change roots/list request missing",
+    );
+    send({ jsonrpc: "2.0", id: changedRootsRequest.id, result: { roots: [] } });
+
+    send({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: { name: "probe", arguments: { action: "status", input: {} } },
+    });
+    const missingCall = await waitForMessage(
+      (message) => message.id === 4,
+      "post-removal action response missing",
+    );
+    const missingText =
+      (missingCall.result as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? "";
+    assert.equal(missingText.includes("workspace_context_missing"), true);
+  } finally {
+    child.stdin?.end();
+    await forceStop(child);
+    await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});

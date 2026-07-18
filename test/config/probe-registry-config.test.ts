@@ -71,19 +71,19 @@ test("loads with empty default probe base URL when active profile has multiple p
   }
 });
 
-test("fails closed when no probe registry is discoverable", () => {
+test("keeps the server startable when no probe registry is discoverable", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-probe-registry-missing-"));
   const originalProbeConfigFile = process.env[MCP_ENV.PROBE_CONFIG_FILE];
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
     fs.mkdirSync(workspaceRoot, { recursive: true });
     delete process.env[MCP_ENV.PROBE_CONFIG_FILE];
-    assert.throws(
-      () => loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", workspaceRoot]),
-      /Missing required probe-config\.json Probe registry/i,
-    );
+    const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", workspaceRoot]);
+    assert.equal(cfg.workspaceRootAbs, path.resolve(workspaceRoot));
+    assert.equal(cfg.probeRegistry, undefined);
   } finally {
-    if (typeof originalProbeConfigFile === "string") process.env[MCP_ENV.PROBE_CONFIG_FILE] = originalProbeConfigFile;
+    if (typeof originalProbeConfigFile === "string")
+      process.env[MCP_ENV.PROBE_CONFIG_FILE] = originalProbeConfigFile;
     else delete process.env[MCP_ENV.PROBE_CONFIG_FILE];
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
@@ -125,7 +125,7 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
-test("auto-discovers probe-config.json from parent directories when workspace is nested", () => {
+test("does not auto-discover probe-config.json from parent directories when workspace is nested", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-probe-registry-parent-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -135,10 +135,7 @@ test("auto-discovers probe-config.json from parent directories when workspace is
     fs.mkdirSync(mcpjvmDir, { recursive: true });
     fs.copyFileSync(FIXTURE, path.join(mcpjvmDir, "probe-config.json"));
     const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", nestedRoot]);
-    assert.equal(
-      cfg.probeRegistry?.configFileAbs,
-      path.join(workspaceRoot, ".mcpjvm", "probe-config.json"),
-    );
+    assert.equal(cfg.probeRegistry, undefined);
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }

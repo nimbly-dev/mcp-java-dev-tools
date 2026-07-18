@@ -6,8 +6,21 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { loadConfigFromEnvAndArgs } from "@/config/server-config";
+import {
+  resolveProbeConfigFileForWorkspace,
+  resolveWorkspaceFromRoots,
+  type WorkspaceContext,
+} from "@/config/workspace-context";
+import {
+  InitializedNotificationSchema,
+  RootsListChangedNotificationSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import { CONFIG_DEFAULTS } from "@tools-core/probe_defaults";
-import { loadProbeRegistry, summarizeProbeRegistry, type ProbeRegistrySummary } from "@tools-core/probe-registry";
+import {
+  loadProbeRegistry,
+  summarizeProbeRegistry,
+  type ProbeRegistrySummary,
+} from "@tools-core/probe-registry";
 import { registerRouteSynthesisTool } from "@/tools/core/route_synthesis/handler";
 import { registerProbeTools } from "@/tools/core/probe/handler";
 import { registerTransportExecuteTool } from "@/tools/core/transport_execute/handler";
@@ -56,6 +69,13 @@ async function main() {
   const serverVersion = resolveServerVersion();
   const buildFingerprint = resolveBuildFingerprint();
   const cfg = loadConfigFromEnvAndArgs(process.argv);
+  const explicitProbeConfigOverride = process.env.MCP_PROBE_CONFIG_FILE?.trim();
+  let workspaceContext: WorkspaceContext = {
+    workspaceRootAbs: cfg.workspaceRootAbs,
+    source: cfg.workspaceRootSource,
+    ...(cfg.workspaceRootAbs ? {} : { reasonCode: "workspace_context_missing" }),
+  };
+  let workspaceRootAbs = cfg.workspaceRootAbs;
   const probeStatusPath = cfg.probeStatusPath;
   const probeResetPath = cfg.probeResetPath;
   const probeActuatePath = CONFIG_DEFAULTS.PROBE_ACTUATE_PATH;
@@ -74,12 +94,16 @@ async function main() {
     if (!activeRegistry) return undefined;
     try {
       const raw = fs.readFileSync(activeRegistry.configFileAbs, "utf8");
-      if (source === "watch" && typeof lastRegistryContent === "string" && raw === lastRegistryContent) {
+      if (
+        source === "watch" &&
+        typeof lastRegistryContent === "string" &&
+        raw === lastRegistryContent
+      ) {
         return toRegistrySummary();
       }
       const nextRegistry = loadProbeRegistry({
         filePath: activeRegistry.configFileAbs,
-        workspaceRootAbs: cfg.workspaceRootAbs,
+        workspaceRootAbs: cfg.workspaceRootAbs ?? path.dirname(activeRegistry.configFileAbs),
       });
       activeRegistry = nextRegistry;
       lastRegistryContent = raw;
@@ -140,10 +164,53 @@ async function main() {
     }
   };
 
+  const resetRegistryWatcher = () => {
+    if (registryReloadTimer) {
+      clearTimeout(registryReloadTimer);
+      registryReloadTimer = undefined;
+    }
+    registryWatch?.close();
+    registryWatch = undefined;
+    lastRegistryContent = undefined;
+    lastReloadAt = undefined;
+    lastReloadStatus = undefined;
+    lastReloadError = undefined;
+  };
+
   const server = new McpServer({
     name: "mcp-java-dev-tools",
     version: serverVersion,
   });
+
+  const bindWorkspaceContext = (next: WorkspaceContext) => {
+    resetRegistryWatcher();
+    workspaceContext = next;
+    workspaceRootAbs = next.workspaceRootAbs;
+    cfg.workspaceRootAbs = next.workspaceRootAbs;
+    cfg.workspaceRootSource = next.source;
+    delete cfg.probeRegistry;
+    activeRegistry = undefined;
+    if (next.workspaceRootAbs) {
+      const probeConfigFile = resolveProbeConfigFileForWorkspace(
+        next.workspaceRootAbs,
+        explicitProbeConfigOverride,
+      );
+      if (probeConfigFile && fs.existsSync(probeConfigFile)) {
+        try {
+          activeRegistry = loadProbeRegistry({
+            filePath: probeConfigFile,
+            workspaceRootAbs: next.workspaceRootAbs,
+          });
+          cfg.probeRegistry = activeRegistry;
+        } catch (err) {
+          console.error(
+            `probe registry unavailable: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    }
+    if (startupComplete) setupRegistryWatcher();
+  };
 
   let shutdownStarted = false;
   let startupComplete = false;
@@ -218,7 +285,9 @@ async function main() {
             ? {
                 activeProfile: activeRegistry.activeProfile,
                 profileSource: activeRegistry.profileSource,
-                ...(activeRegistry.implicitProbeId ? { implicitProbeId: activeRegistry.implicitProbeId } : {}),
+                ...(activeRegistry.implicitProbeId
+                  ? { implicitProbeId: activeRegistry.implicitProbeId }
+                  : {}),
                 registryProbeCount: activeRegistry.probesById.size,
                 allowNonWrappedExecutable: activeRegistry.allowNonWrappedExecutable,
               }
@@ -270,8 +339,9 @@ async function main() {
     config: cfg,
     probeBaseUrl: currentBaseUrl(),
     probeStatusPath,
-    workspaceRootAbs: cfg.workspaceRootAbs,
+    workspaceRootAbs: cfg.workspaceRootAbs ?? "",
     getProbeRegistry: () => activeRegistry,
+    getWorkspaceContext: () => workspaceContext,
   });
   registerProbeTools(server, {
     probeBaseUrl: currentBaseUrl(),
@@ -284,20 +354,28 @@ async function main() {
     probeWaitUnreachableRetryEnabled: cfg.probeWaitUnreachableRetryEnabled,
     probeWaitUnreachableMaxRetries: cfg.probeWaitUnreachableMaxRetries,
     getProbeRegistry: () => activeRegistry,
+    getWorkspaceRootAbs: () => workspaceRootAbs,
+    getWorkspaceContext: () => workspaceContext,
   });
   registerTransportExecuteTool(server, {
     allowNonWrappedExecutable: () => activeRegistry?.allowNonWrappedExecutable ?? false,
   });
   registerExecutionProfileExportTool(server, {
-    workspaceRootAbs: cfg.workspaceRootAbs,
+    workspaceRootAbs,
+    getWorkspaceRootAbs: () => workspaceRootAbs,
+    getWorkspaceContext: () => workspaceContext,
   });
   registerArtifactManagementTool(server, {
-    workspaceRootAbs: cfg.workspaceRootAbs,
+    workspaceRootAbs,
+    getWorkspaceRootAbs: () => workspaceRootAbs,
+    getWorkspaceContext: () => workspaceContext,
     getProbeRegistrySummary: () => toRegistrySummary(),
     reloadProbeRegistry: () => reloadRegistry(),
   });
   registerExecutionOrchestrationTool(server, {
-    workspaceRootAbs: cfg.workspaceRootAbs,
+    workspaceRootAbs,
+    getWorkspaceRootAbs: () => workspaceRootAbs,
+    getWorkspaceContext: () => workspaceContext,
     probeConfig: {
       probeBaseUrl: cfg.probeBaseUrl,
       probeStatusPath: cfg.probeStatusPath,
@@ -308,12 +386,32 @@ async function main() {
       probeWaitMaxRetries: cfg.probeWaitMaxRetries,
       probeWaitUnreachableRetryEnabled: cfg.probeWaitUnreachableRetryEnabled,
       probeWaitUnreachableMaxRetries: cfg.probeWaitUnreachableMaxRetries,
-      ...(cfg.probeRegistry ? { getProbeRegistry: () => cfg.probeRegistry } : {}),
+      getProbeRegistry: () => activeRegistry,
     },
   });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  const refreshRoots = async () => {
+    const capabilities = server.server.getClientCapabilities();
+    if (!capabilities?.roots) return;
+    try {
+      const listed = await server.server.listRoots();
+      const next = resolveWorkspaceFromRoots(listed.roots);
+      bindWorkspaceContext(next);
+    } catch (err) {
+      console.error(
+        `workspace roots unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  };
+  server.server.setNotificationHandler(RootsListChangedNotificationSchema, async () => {
+    await refreshRoots();
+  });
+  server.server.setNotificationHandler(InitializedNotificationSchema, async () => {
+    await refreshRoots();
+  });
+  await refreshRoots();
   startupComplete = true;
   setupRegistryWatcher();
   console.error(

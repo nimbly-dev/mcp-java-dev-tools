@@ -3,10 +3,16 @@ import type { ProbeRegistrySummary } from "@tools-core/probe-registry";
 import { ArtifactManagementRequestSchema } from "@tools-contracts/artifact-management";
 import { MCP_REQUEST_REASON_CODES } from "@tools-contracts/reason-codes";
 import { ARTIFACT_MANAGEMENT_TOOL } from "@/tools/core/artifact_management/contract";
-import { dispatchArtifactManagementAction, buildFailClosedArtifactResponse } from "@tools-feature-artifact-management";
+import {
+  dispatchArtifactManagementAction,
+  buildFailClosedArtifactResponse,
+} from "@tools-feature-artifact-management";
+import type { WorkspaceContext } from "@/config/workspace-context";
 
 export type ArtifactManagementHandlerDeps = {
-  workspaceRootAbs: string;
+  workspaceRootAbs: string | undefined;
+  getWorkspaceRootAbs?: () => string | undefined;
+  getWorkspaceContext?: () => WorkspaceContext;
   getProbeRegistrySummary?: () => ProbeRegistrySummary | undefined;
   reloadProbeRegistry?: () => ProbeRegistrySummary | undefined;
 };
@@ -27,10 +33,16 @@ function normalizeInputAliases(raw: unknown): unknown {
   if (typeof normalizedInput.projectName !== "string" && typeof input.project_name === "string") {
     normalizedInput.projectName = input.project_name;
   }
-  if (typeof normalizedInput.projectRootAbs !== "string" && typeof input.project_root_abs === "string") {
+  if (
+    typeof normalizedInput.projectRootAbs !== "string" &&
+    typeof input.project_root_abs === "string"
+  ) {
     normalizedInput.projectRootAbs = input.project_root_abs;
   }
-  if (typeof normalizedInput.executionProfile !== "string" && typeof input.execution_profile === "string") {
+  if (
+    typeof normalizedInput.executionProfile !== "string" &&
+    typeof input.execution_profile === "string"
+  ) {
     normalizedInput.executionProfile = input.execution_profile;
   }
   if (typeof normalizedInput.planName !== "string" && typeof input.plan_name === "string") {
@@ -46,7 +58,10 @@ function normalizeInputAliases(raw: unknown): unknown {
   };
 }
 
-export function registerArtifactManagementTool(server: McpServer, deps: ArtifactManagementHandlerDeps): void {
+export function registerArtifactManagementTool(
+  server: McpServer,
+  deps: ArtifactManagementHandlerDeps,
+): void {
   server.registerTool(
     ARTIFACT_MANAGEMENT_TOOL.name,
     {
@@ -69,9 +84,23 @@ export function registerArtifactManagementTool(server: McpServer, deps: Artifact
           },
         });
       }
+      const workspaceRootAbs = deps.getWorkspaceRootAbs?.() ?? deps.workspaceRootAbs;
+      if (!workspaceRootAbs) {
+        const reasonCode = deps.getWorkspaceContext?.()?.reasonCode ?? "workspace_context_missing";
+        return buildFailClosedArtifactResponse({
+          reasonCode,
+          reason:
+            reasonCode === "workspace_context_ambiguous"
+              ? "Multiple MCP Roots contain canonical workspace state; select one workspace root explicitly."
+              : "No MCP workspace root is bound to this session.",
+          reasonMeta: { failedStep: "workspace_resolution" },
+        });
+      }
       return await dispatchArtifactManagementAction({
-        workspaceRootAbs: deps.workspaceRootAbs,
-        ...(deps.getProbeRegistrySummary ? { getProbeRegistrySummary: deps.getProbeRegistrySummary } : {}),
+        workspaceRootAbs,
+        ...(deps.getProbeRegistrySummary
+          ? { getProbeRegistrySummary: deps.getProbeRegistrySummary }
+          : {}),
         ...(deps.reloadProbeRegistry ? { reloadProbeRegistry: deps.reloadProbeRegistry } : {}),
         request: parsed.data,
       });
