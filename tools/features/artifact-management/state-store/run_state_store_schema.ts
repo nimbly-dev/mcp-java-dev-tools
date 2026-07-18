@@ -7,7 +7,7 @@ import type {
   RunStateStoreFailureCode,
 } from "./model/run_state_store.model";
 
-export const CURRENT_SCHEMA_VERSION = 10;
+export const CURRENT_SCHEMA_VERSION = 11;
 const BUSY_TIMEOUT_MS = 5_000;
 
 type Migration = {
@@ -66,6 +66,11 @@ const MIGRATIONS: readonly Migration[] = [
     version: 10,
     name: "legacy_backfill_audits",
     resourceFile: "010_legacy_backfill_audits.sql",
+  },
+  {
+    version: 11,
+    name: "runtime_evidence_cursors",
+    resourceFile: "011_runtime_evidence_cursors.sql",
   },
 ];
 

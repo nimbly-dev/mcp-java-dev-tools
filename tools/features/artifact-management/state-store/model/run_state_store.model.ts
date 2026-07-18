@@ -295,6 +295,24 @@ export type CorrelationSession = {
 export type CorrelationSessionResult =
   | { ok: true; revision: number }
   | CorrelationPersistenceFailure;
+export type RuntimeEvidenceCursor = {
+  suiteRunId?: string;
+  runId: string;
+  correlationSessionId: string;
+  probeId: string;
+  runtimeInstanceId: string;
+  lastSequence: number;
+  streamRuntimeInstanceId: string;
+  streamResetEpoch: number;
+  latestObservationAtEpochMs: number;
+  status: "collecting" | "pending_artifact" | "matched" | "fail_closed";
+  reasonCode: string;
+  dedupeIdentity: string;
+  expectedRevision?: number;
+};
+export type RuntimeEvidenceCursorResult =
+  | { ok: true; revision: number; cursor: RuntimeEvidenceCursor }
+  | CorrelationPersistenceFailure;
 export type WatcherRunProjection = {
   planName: string;
   runId: string;

@@ -12,6 +12,8 @@ import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStateSnapshot;
 import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopRequest;
 import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopResult;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
+import com.nimbly.mcpjavadevtools.agent.runtime.RuntimeLineHitEvent;
+import com.nimbly.mcpjavadevtools.agent.runtime.RuntimeLineHitEventPage;
 import com.nimbly.mcpjavadevtools.agent.runtime.model.ActuationState;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -24,6 +26,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class ProbeHttpServer {
   private static final String CONTRACT_VERSION = ContractVersion.value();
@@ -37,6 +41,8 @@ public final class ProbeHttpServer {
   public static ProbeHttpServer start(String host, int port) throws IOException {
     HttpServer server = HttpServer.create(new InetSocketAddress(host, port), 16);
     server.createContext("/__probe/status", new StatusHandler());
+    server.createContext("/__probe/correlation/events", new CorrelationEventsHandler());
+    server.createContext("/__probe/correlation/configure", new CorrelationConfigureHandler());
     server.createContext("/__probe/reset", new ResetHandler());
     server.createContext("/__probe/actuate", new ActuateHandler());
     server.createContext("/__probe/capture", new CaptureHandler());
@@ -44,6 +50,119 @@ public final class ProbeHttpServer {
     server.setExecutor(null);
     server.start();
     return new ProbeHttpServer(server);
+  }
+
+  private static final class CorrelationEventsHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+        ProbeHttpJson.writeJson(exchange, 405, new ProbeHttpPayloads.ErrorEnvelope("method_not_allowed", null));
+        return;
+      }
+      if (!ProbeAuth.authorizeObserve(exchange)) {
+        ProbeHttpJson.writeJson(exchange, 401, new ProbeHttpPayloads.ErrorEnvelope("unauthorized", "observe"));
+        return;
+      }
+      String sessionId = ProbeHttpJson.queryParam(exchange.getRequestURI(), "sessionId");
+      if (sessionId == null || sessionId.isBlank()) {
+        ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("missing_session_id", null));
+        return;
+      }
+      long afterSequence = parseLongQuery(exchange, "afterSequence", 0L);
+      int limit = (int) parseLongQuery(exchange, "limit", 256L);
+      if (afterSequence < 0 || limit < 1 || limit > 10_000) {
+        ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("invalid_cursor", null));
+        return;
+      }
+      RuntimeLineHitEventPage page = ProbeRuntime.runtimeLineHitEventPage(
+          sessionId.trim(),
+          afterSequence,
+          limit
+      );
+      List<Map<String, Object>> payloadEvents = new ArrayList<>();
+      for (RuntimeLineHitEvent event : page.events()) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("eventId", event.lineKey() + "@" + event.sequence());
+        payload.put("sequence", event.sequence());
+        payload.put("lastSequence", event.lastSequence());
+        payload.put("hitCount", event.hitCount());
+        payload.put("correlationSessionId", event.correlationSessionId());
+        payload.put("correlationExecutionId", event.correlationExecutionId());
+        payload.put("probeId", event.probeId());
+        payload.put("runtimeInstanceId", event.runtimeInstanceId());
+        payload.put("lineKey", event.lineKey());
+        payload.put("timestampEpochMs", event.timestampEpochMs());
+        payload.put("firstTimestampEpochMs", event.firstTimestampEpochMs());
+        payload.put("keyType", event.keyType());
+        payload.put("keyFingerprint", event.keyFingerprint());
+        payload.put("eventType", "runtime_line_hit");
+        payloadEvents.add(payload);
+      }
+      Map<String, Object> response = new LinkedHashMap<>();
+      response.put("contractVersion", CONTRACT_VERSION);
+      response.put("correlationSessionId", sessionId.trim());
+      response.put("streamRuntimeInstanceId", ProbeRuntime.runtimeInstanceId());
+      response.put("streamResetEpoch", ProbeRuntime.runtimeLineHitStreamResetEpoch());
+      response.put("afterSequence", afterSequence);
+      response.put("lastDeliveredSequence", page.lastDeliveredSequence());
+      response.put("highWaterSequence", ProbeRuntime.runtimeLineHitNextSequence());
+      response.put("hasMore", page.hasMore());
+      response.put("events", payloadEvents);
+      ProbeHttpJson.writeJson(exchange, 200, response);
+    }
+
+    private static long parseLongQuery(HttpExchange exchange, String key, long defaultValue) {
+      String value = ProbeHttpJson.queryParam(exchange.getRequestURI(), key);
+      if (value == null || value.isBlank()) return defaultValue;
+      try {
+        return Long.parseLong(value);
+      } catch (NumberFormatException ignored) {
+        return -1L;
+      }
+    }
+  }
+
+  private static final class CorrelationConfigureHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+        ProbeHttpJson.writeJson(exchange, 405, new ProbeHttpPayloads.ErrorEnvelope("method_not_allowed", null));
+        return;
+      }
+      if (!ProbeAuth.authorizeActuate(exchange)) {
+        ProbeHttpJson.writeJson(exchange, 401, new ProbeHttpPayloads.ErrorEnvelope("unauthorized", "actuate"));
+        return;
+      }
+      ProbeHttpRequests.CorrelationConfigRequest request =
+          ProbeHttpJson.readBodyJson(exchange.getRequestBody(), ProbeHttpRequests.CorrelationConfigRequest.class);
+      if (Boolean.TRUE.equals(request.release())) {
+        boolean released = ProbeRuntime.releaseCorrelationContext(request.executionId());
+        ProbeHttpJson.writeJson(exchange, released ? 200 : 409,
+            new ProbeHttpPayloads.ErrorEnvelope(released ? "released" : "correlation_lease_owner_mismatch", null));
+        return;
+      }
+      if (request.sessionId() == null || request.sessionId().isBlank()
+          || request.executionId() == null || request.executionId().isBlank()
+          || request.eventKeyPath() == null || !request.eventKeyPath().startsWith("$.")) {
+        ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("invalid_correlation_config", null));
+        return;
+      }
+      boolean configured = ProbeRuntime.tryConfigureCorrelationContext(
+          request.sessionId().trim(), request.executionId().trim(), request.eventKeyPath().trim(),
+          request.leaseTtlMs() == null ? 300_000L : request.leaseTtlMs());
+      if (!configured) {
+        ProbeHttpJson.writeJson(exchange, 409,
+            new ProbeHttpPayloads.ErrorEnvelope("correlation_lease_conflict", null));
+        return;
+      }
+      Map<String, Object> response = new LinkedHashMap<>();
+      response.put("contractVersion", CONTRACT_VERSION);
+      response.put("configured", true);
+      response.put("correlationSessionId", request.sessionId().trim());
+      response.put("correlationExecutionId", request.executionId().trim());
+      response.put("eventKeyPath", request.eventKeyPath().trim());
+      ProbeHttpJson.writeJson(exchange, 200, response);
+    }
   }
 
   public HttpServer rawServer() {

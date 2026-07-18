@@ -297,6 +297,11 @@ export type CorrelationReasonCode =
   | "correlation_key_extraction_failed"
   | "missing_correlation_session_id"
   | "no_matching_events"
+  | "correlation_probe_scope_mismatch"
+  | "correlation_key_not_observed"
+  | "correlation_runtime_identity_missing"
+  | "correlation_probe_response_invalid"
+  | "correlation_context_not_propagated"
   | "no_runs_in_scope"
   | "window_exceeded"
   | "ambiguous_correlation"
@@ -320,6 +325,7 @@ export type CorrelationTimelineEvent = {
   expectedMinHitDelta?: number;
   expectedMaxHitDelta?: number;
   runtimeInstanceId?: string;
+  keyFingerprint?: string;
   baselineHitCount?: number;
   currentHitCount?: number;
   stepOrder?: number;

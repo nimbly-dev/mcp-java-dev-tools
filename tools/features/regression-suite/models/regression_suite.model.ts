@@ -5,6 +5,12 @@ import type {
 import type { RuntimeSuiteRunResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
 
 export type RuntimeSuiteCorrelationEvent = {
+  sequence?: number;
+  lastSequence?: number;
+  hitCount?: number;
+  firstTimestampEpochMs?: number;
+  correlationSessionId?: string;
+  correlationExecutionId?: string;
   eventId: string;
   probeId: string;
   timestampEpochMs: number;
@@ -12,27 +18,48 @@ export type RuntimeSuiteCorrelationEvent = {
   keyValue?: string;
   lineKey?: string;
   eventType?: string;
+  runtimeInstanceId?: string;
+  keyFingerprint?: string;
 };
 export type CorrelationKeyType = "traceId" | "requestId" | "messageId";
 export type CorrelationFailureReason =
   | "missing_correlation_key"
   | "window_exceeded"
   | "no_matching_events"
+  | "correlation_probe_scope_mismatch"
+  | "correlation_key_not_observed"
+  | "correlation_runtime_identity_missing"
+  | "correlation_probe_response_invalid"
+  | "correlation_context_not_propagated"
   | "ambiguous_correlation"
   | "flow_expectation_mismatch";
 export type CorrelationInputEvent = {
+  sequence?: number;
+  lastSequence?: number;
+  hitCount?: number;
+  firstTimestampEpochMs?: number;
+  correlationSessionId?: string;
   eventId: string;
   probeId: string;
   timestampEpochMs: number;
   keyType: CorrelationKeyType;
   keyValue?: string;
   lineKey?: string;
+  eventType?: string;
+  runtimeInstanceId?: string;
+  keyFingerprint?: string;
+  correlationExecutionId?: string;
 };
 export type CorrelationPolicy = {
   keyType: CorrelationKeyType;
   keyValue: string;
   maxWindowMs: number;
   expectedFlow?: string[];
+  runtimeEvidenceRequired?: boolean;
+  runtimeProbeIds?: string[];
+  runtimeInstanceIds?: string[];
+  runtimeLineKeys?: string[];
+  runtimeExecutionId?: string;
 };
 export type CorrelationMatchResult =
   | { status: "ok"; timeline: CorrelationInputEvent[]; reasonCode: "ok" }
@@ -48,6 +75,11 @@ export type RuntimeSuiteCorrelationSession = {
   keyValue?: string;
   maxWindowMs: number;
   expectedFlow?: string[];
+  runtimeEvidenceRequired?: boolean;
+  runtimeProbeIds?: string[];
+  runtimeInstanceIds?: string[];
+  runtimeLineKeys?: string[];
+  runtimeExecutionId?: string;
   contributingPlans: Set<string>;
   events: RuntimeSuiteCorrelationEvent[];
 };

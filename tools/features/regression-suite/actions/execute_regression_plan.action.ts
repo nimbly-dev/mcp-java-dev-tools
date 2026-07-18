@@ -30,6 +30,10 @@ import {
 } from "../shared/regression_transport_executor";
 import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import { writeRegressionRunArtifacts } from "../persistence/regression_run_artifact_writer";
+import { readRuntimeCorrelationEvents } from "../support/regression_runtime_correlation_events";
+import { openRunStateStore, readRuntimeEvidenceCursor } from "@tools-feature-artifact-management";
+import { loadProbeRegistry } from "@tools-core/probe-registry";
+import { fetchJson } from "@tools-core/http";
 
 import type {
   ExecuteRegressionPlanWorkflowArgs,
@@ -172,6 +176,179 @@ export async function executeRegressionPlanWorkflow(
   }
   let hardRuntimeBlocker = resumeExecutionResult?.triggerStatus === "blocked";
   let eventCursorEpochMs = now.getTime();
+  const runtimeCorrelationAfterSequenceByProbe = new Map<string, number>();
+  let runtimeCorrelationCursorAvailable = false;
+  const runtimeEvidence = contract.correlation?.runtimeEvidence;
+  const runtimeCorrelationLeaseTtlMs = Math.min(
+    300_000,
+    Math.max(5_000, (runtimeEvidence?.maxDurationMs ?? 30_000) + 60_000),
+  );
+  const runtimeCorrelationEventKeyPath = runtimeEvidence?.eventKeyPath?.trim() ?? "";
+  let runtimeCorrelationLeaseLost = false;
+  let runtimeCorrelationLeaseRenewal: ReturnType<typeof setInterval> | undefined;
+  const correlationSessionId =
+    typeof contract.correlation?.correlationSessionId === "string"
+      ? contract.correlation.correlationSessionId.trim()
+      : "";
+  const runtimeProbeTargets: Array<{ probeId: string; baseUrl: string }> = [];
+  let probeBaseUrl =
+    typeof resolvedContext.probeBaseUrl === "string" ? resolvedContext.probeBaseUrl.trim() : "";
+  const configuredConsumerProbeIds = runtimeEvidence?.probeIds ?? [];
+  if (configuredConsumerProbeIds.length > 0) {
+    try {
+      const registry = loadProbeRegistry({
+        filePath: path.join(args.workspaceRootAbs, ".mcpjvm", "probe-config.json"),
+        workspaceRootAbs: args.workspaceRootAbs,
+      });
+      for (const probeId of configuredConsumerProbeIds) {
+        const configuredProbe = registry.probesById.get(probeId);
+        if (configuredProbe?.baseUrl)
+          runtimeProbeTargets.push({ probeId, baseUrl: configuredProbe.baseUrl.trim() });
+      }
+      probeBaseUrl = runtimeProbeTargets[0]?.baseUrl ?? probeBaseUrl;
+    } catch {
+      // Preserve the resolved context fallback; retrieval will fail closed if it is unavailable.
+    }
+  }
+  const releaseRuntimeCorrelationLeases = async (): Promise<void> => {
+    if (runtimeEvidence?.required !== true || runtimeProbeTargets.length === 0) return;
+    await Promise.all(
+      runtimeProbeTargets.map(async (target) => {
+        try {
+          await fetchJson(new URL("/__probe/correlation/configure", target.baseUrl).toString(), {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ executionId: runId, release: true }),
+            timeoutMs: 5_000,
+          });
+        } catch {
+          // Lease expiry remains the fail-safe if the Sidecar is unreachable.
+        }
+      }),
+    );
+  };
+  if (runtimeProbeTargets.length === 0 && probeBaseUrl)
+    runtimeProbeTargets.push({
+      probeId: configuredConsumerProbeIds[0] ?? "runtime",
+      baseUrl: probeBaseUrl,
+    });
+  try {
+    if (
+      runtimeEvidence?.required === true &&
+      correlationSessionId &&
+      runtimeProbeTargets.length > 0
+    ) {
+    try {
+      if (!runtimeCorrelationEventKeyPath) throw new Error("correlation_event_key_path_missing");
+      for (const target of runtimeProbeTargets) {
+        const configured = await fetchJson(
+          new URL("/__probe/correlation/configure", target.baseUrl).toString(),
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              sessionId: correlationSessionId,
+              executionId: runId,
+              eventKeyPath: runtimeCorrelationEventKeyPath,
+              leaseTtlMs: runtimeCorrelationLeaseTtlMs,
+            }),
+            timeoutMs: 5_000,
+          },
+        );
+        if (
+          configured.status < 200 ||
+          configured.status >= 300 ||
+          configured.json?.configured !== true
+        )
+          throw new Error("correlation_runtime_configure_failed");
+      }
+      runtimeCorrelationLeaseRenewal = setInterval(() => {
+        void (async () => {
+          for (const target of runtimeProbeTargets) {
+            try {
+              const renewed = await fetchJson(
+                new URL("/__probe/correlation/configure", target.baseUrl).toString(),
+                {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({
+                    sessionId: correlationSessionId,
+                    executionId: runId,
+                    eventKeyPath: runtimeCorrelationEventKeyPath,
+                    leaseTtlMs: runtimeCorrelationLeaseTtlMs,
+                  }),
+                  timeoutMs: 5_000,
+                },
+              );
+              if (
+                renewed.status < 200 ||
+                renewed.status >= 300 ||
+                renewed.json?.configured !== true
+              ) {
+                runtimeCorrelationLeaseLost = true;
+              }
+            } catch {
+              runtimeCorrelationLeaseLost = true;
+            }
+          }
+        })();
+      }, Math.max(1_000, Math.floor(runtimeCorrelationLeaseTtlMs / 3)));
+      const projectStore = await openRunStateStore({
+        workspaceRootAbs: args.workspaceRootAbs,
+        projectName,
+      });
+      if (projectStore.ok) {
+        try {
+          const configuredRuntimeInstanceId =
+            runtimeEvidence.runtimeInstanceIds?.length === 1
+              ? runtimeEvidence.runtimeInstanceIds[0]
+              : undefined;
+          for (const target of runtimeProbeTargets) {
+            const candidateCursor = readRuntimeEvidenceCursor({
+              store: projectStore,
+              projectName,
+              runId,
+              correlationSessionId,
+              probeId: target.probeId,
+              ...(configuredRuntimeInstanceId
+                ? { runtimeInstanceId: configuredRuntimeInstanceId }
+                : {}),
+            });
+            if (candidateCursor?.status === "pending_artifact") continue;
+            const baseline = await readRuntimeCorrelationEvents({
+              baseUrl: target.baseUrl,
+              sessionId: correlationSessionId,
+              afterSequence: candidateCursor?.lastSequence ?? 0,
+              limit: 1,
+              maxEvents: 1,
+            });
+            if (
+              candidateCursor &&
+              baseline.streamRuntimeInstanceId &&
+              baseline.streamRuntimeInstanceId !== candidateCursor.streamRuntimeInstanceId
+            ) {
+              runtimeCorrelationCursorAvailable = false;
+              continue;
+            }
+            if (!baseline.contractValid) {
+              runtimeCorrelationCursorAvailable = false;
+              continue;
+            }
+            runtimeCorrelationAfterSequenceByProbe.set(
+              target.probeId,
+              candidateCursor?.lastSequence ?? baseline.highWaterSequence,
+            );
+          }
+        } finally {
+          projectStore.close();
+        }
+      }
+      if (runtimeCorrelationAfterSequenceByProbe.size === runtimeProbeTargets.length)
+        runtimeCorrelationCursorAvailable = true;
+    } catch {
+      runtimeCorrelationCursorAvailable = false;
+    }
+  }
   if (!isResumedInProgress) {
     for (const step of [...contract.steps].sort((a, b) => a.order - b.order)) {
       if (typeof step.when !== "undefined") {
@@ -578,24 +755,58 @@ export async function executeRegressionPlanWorkflow(
       : {}),
   };
 
-  const correlationEvidence =
+  let correlationEvidence: Record<string, unknown> | undefined;
+  correlationEvidence =
     Object.keys(stepOutputsByOrder).length > 0
-      ? buildPlanCorrelationEvidence({
-          contract,
-          resolvedContext,
-          stepOutputsByOrder,
-          stepContextsByOrder,
-          stepEventTimesByOrder,
-        })
-      : args.resumeState?.evidence
-        ? {
-            ...(args.resumeState.evidence.correlationPolicy
-              ? { correlationPolicy: args.resumeState.evidence.correlationPolicy }
-              : {}),
-            ...(args.resumeState.evidence.correlationEvents
-              ? { correlationEvents: args.resumeState.evidence.correlationEvents }
-              : {}),
-          }
+      ? await (async () => {
+            let runtimeCorrelationEvents: Array<Record<string, unknown>> = [];
+            if (
+              runtimeEvidence?.required === true &&
+              correlationSessionId &&
+              probeBaseUrl &&
+              runtimeCorrelationCursorAvailable &&
+              !runtimeCorrelationLeaseLost
+            ) {
+              try {
+                for (const target of runtimeProbeTargets) {
+                  const cursor = await readRuntimeCorrelationEvents({
+                    baseUrl: target.baseUrl,
+                    sessionId: correlationSessionId,
+                    afterSequence: runtimeCorrelationAfterSequenceByProbe.get(target.probeId) ?? 0,
+                    limit: runtimeEvidence.pageLimit ?? 256,
+                    maxEvents: runtimeEvidence.maxEvents ?? 10_000,
+                    maxBytes: runtimeEvidence.maxBytes ?? 1_048_576,
+                    maxDurationMs: runtimeEvidence.maxDurationMs ?? 30_000,
+                  });
+                  if (cursor.budgetExceeded || !cursor.contractValid) {
+                    runtimeCorrelationEvents = [];
+                    break;
+                  }
+                  runtimeCorrelationEvents.push(...cursor.events);
+                }
+              } catch {
+                runtimeCorrelationEvents = [];
+              }
+            }
+            return buildPlanCorrelationEvidence({
+              contract,
+              resolvedContext,
+              stepOutputsByOrder,
+              stepContextsByOrder,
+              stepEventTimesByOrder,
+              runtimeCorrelationEvents,
+              runtimeExecutionId: runId,
+            });
+          })()
+        : args.resumeState?.evidence
+          ? {
+              ...(args.resumeState.evidence.correlationPolicy
+                ? { correlationPolicy: args.resumeState.evidence.correlationPolicy }
+                : {}),
+              ...(args.resumeState.evidence.correlationEvents
+                ? { correlationEvents: args.resumeState.evidence.correlationEvents }
+                : {}),
+            }
         : undefined;
 
   const artifacts = await writeRegressionRunArtifacts({
@@ -646,4 +857,8 @@ export async function executeRegressionPlanWorkflow(
     executionResult,
     ...(Object.keys(suiteContext).length > 0 ? { suiteContext } : {}),
   };
+  } finally {
+    if (runtimeCorrelationLeaseRenewal) clearInterval(runtimeCorrelationLeaseRenewal);
+    await releaseRuntimeCorrelationLeases();
+  }
 }

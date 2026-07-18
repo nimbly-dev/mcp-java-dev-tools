@@ -432,7 +432,7 @@ test("artifact_management project_context creation provisions an empty run-state
     assert.deepEqual(created.structuredContent.stateStore, {
       provisioned: true,
       databasePathRel: ".mcpjvm/alpha/run-state.sqlite",
-      schemaVersion: 10,
+      schemaVersion: 11,
     });
     assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "projects.json")), true);
 
@@ -442,7 +442,7 @@ test("artifact_management project_context creation provisions an empty run-state
     const migrations = opened.database
       .prepare("SELECT version, checksum FROM schema_migrations ORDER BY version")
       .all();
-    assert.equal(migrations.length, 10);
+    assert.equal(migrations.length, 11);
     assert.equal(typeof migrations[0].checksum, "string");
     opened.close();
 
@@ -454,7 +454,7 @@ test("artifact_management project_context creation provisions an empty run-state
     if (reopened.ok) {
       assert.equal(
         reopened.database.prepare("SELECT COUNT(*) AS count FROM schema_migrations").get()?.count,
-        10,
+        11,
       );
       reopened.close();
     }

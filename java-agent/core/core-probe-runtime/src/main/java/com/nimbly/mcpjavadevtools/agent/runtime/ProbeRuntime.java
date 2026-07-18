@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.ArrayDeque;
+import java.util.HashMap;
 
 public final class ProbeRuntime {
   private static final ConcurrentHashMap<String, AtomicLong> COUNTS = new ConcurrentHashMap<>();
@@ -20,6 +22,13 @@ public final class ProbeRuntime {
       new ConcurrentHashMap<>();
   private static final ConcurrentHashMap<String, SessionActuation> SESSION_ACTUATIONS =
       new ConcurrentHashMap<>();
+  private static final ArrayDeque<String> RUNTIME_LINE_HIT_EVENT_KEYS = new ArrayDeque<>();
+  private static final HashMap<String, RuntimeLineHitEvent> RUNTIME_LINE_HIT_AGGREGATES = new HashMap<>();
+  private static final AtomicLong RUNTIME_LINE_HIT_SEQUENCE = new AtomicLong();
+  private static final Object RUNTIME_LINE_HIT_EVENT_LOCK = new Object();
+  private static final String RUNTIME_INSTANCE_ID = java.util.UUID.randomUUID().toString();
+  private static volatile String PROBE_ID = "runtime";
+  private static final int MAX_RUNTIME_LINE_HIT_EVENTS = 10_000;
 
   private static final long MIN_TTL_MS = 1_000L;
   private static final long MAX_TTL_MS = 300_000L;
@@ -32,6 +41,17 @@ public final class ProbeRuntime {
       String actuateTargetKey,
       boolean actuateReturnBoolean
   ) {
+    configure(mode, actuatorId, actuateTargetKey, actuateReturnBoolean, "runtime");
+  }
+
+  public static void configure(
+      String mode,
+      String actuatorId,
+      String actuateTargetKey,
+      boolean actuateReturnBoolean,
+      String probeId
+  ) {
+    PROBE_ID = sanitize(probeId).isEmpty() ? "runtime" : sanitize(probeId);
     // Pre-1.0 breaking behavior: runtime-wide actuation is retired.
     // Startup configuration only resets to safe observe semantics.
     SESSION_ACTUATIONS.clear();
@@ -127,7 +147,143 @@ public final class ProbeRuntime {
   public static void hitLineByClassMethod(String dottedClassName, String methodName, int lineNumber) {
     if (dottedClassName == null || methodName == null) return;
     if (lineNumber <= 0) return;
-    hit(dottedClassName + "#" + methodName + ":" + lineNumber);
+    String lineKey = dottedClassName + "#" + methodName + ":" + lineNumber;
+    hit(lineKey);
+    CorrelationContext.BindingSnapshot context = CorrelationContext.current();
+    if (context != null) {
+      long sequence = RUNTIME_LINE_HIT_SEQUENCE.incrementAndGet();
+      synchronized (RUNTIME_LINE_HIT_EVENT_LOCK) {
+        long observedAt = System.currentTimeMillis();
+        String aggregateKey = context.executionId() + "\u0000" + context.sessionId() + "\u0000" + PROBE_ID + "\u0000" +
+            RUNTIME_INSTANCE_ID + "\u0000" + lineKey + "\u0000" + context.keyType() + "\u0000" + context.keyFingerprint();
+        RuntimeLineHitEvent prior = RUNTIME_LINE_HIT_AGGREGATES.get(aggregateKey);
+        if (prior == null) {
+          RUNTIME_LINE_HIT_EVENT_KEYS.addLast(aggregateKey);
+          RUNTIME_LINE_HIT_AGGREGATES.put(aggregateKey, new RuntimeLineHitEvent(
+              sequence, sequence, 1, context.executionId(), context.sessionId(), PROBE_ID, lineKey, RUNTIME_INSTANCE_ID,
+              observedAt, observedAt, context.keyType(), context.keyFingerprint()));
+        } else {
+          RUNTIME_LINE_HIT_AGGREGATES.put(aggregateKey, new RuntimeLineHitEvent(
+              prior.sequence(), sequence, prior.hitCount() + 1, prior.correlationExecutionId(), prior.correlationSessionId(),
+              prior.probeId(), prior.lineKey(), prior.runtimeInstanceId(), observedAt,
+              prior.firstTimestampEpochMs(), prior.keyType(), prior.keyFingerprint()));
+        }
+        while (RUNTIME_LINE_HIT_EVENT_KEYS.size() > MAX_RUNTIME_LINE_HIT_EVENTS) {
+          String removed = RUNTIME_LINE_HIT_EVENT_KEYS.pollFirst();
+          if (removed != null) RUNTIME_LINE_HIT_AGGREGATES.remove(removed);
+        }
+      }
+    }
+  }
+
+  public static void bindCorrelationContext(String keyType, String rawKey) {
+    CorrelationContext.bindEventEnvelope(keyType, rawKey);
+  }
+
+  public static void bindCorrelationContext(String sessionId, String keyType, String rawKey) {
+    CorrelationContext.bindEventEnvelope(sessionId, keyType, rawKey);
+  }
+
+  public static void bindCorrelationContext(
+      String executionId, String sessionId, String keyType, String rawKey
+  ) {
+    CorrelationContext.bindEventEnvelope(executionId, sessionId, keyType, rawKey);
+  }
+
+  /** Executes a supported event-consumer callback with correlation identity bound locally. */
+  public static void runWithCorrelationContext(String keyType, String rawKey, Runnable task) {
+    CorrelationContext.runWithEventContext(keyType, rawKey, task);
+  }
+
+  public static void runWithCorrelationContext(
+      String sessionId,
+      String keyType,
+      String rawKey,
+      Runnable task
+  ) {
+    CorrelationContext.runWithEventContext(sessionId, keyType, rawKey, task);
+  }
+
+  public static void runWithCorrelationContext(
+      String executionId,
+      String sessionId,
+      String keyType,
+      String rawKey,
+      Runnable task
+  ) {
+    CorrelationContext.runWithEventContext(executionId, sessionId, keyType, rawKey, task);
+  }
+
+  public static void clearCorrelationContext() {
+    CorrelationContext.clear();
+  }
+
+  public static void configureCorrelationContext(String sessionId, String executionId, String eventKeyPath) {
+    CorrelationEventConsumerAdapter.configure(eventKeyPath, sessionId, executionId);
+  }
+
+  public static boolean tryConfigureCorrelationContext(
+      String sessionId, String executionId, String eventKeyPath, long leaseTtlMs
+  ) {
+    return CorrelationEventConsumerAdapter.tryConfigure(eventKeyPath, sessionId, executionId, leaseTtlMs);
+  }
+
+  public static boolean releaseCorrelationContext(String executionId) {
+    return CorrelationEventConsumerAdapter.release(executionId);
+  }
+
+  public static List<RuntimeLineHitEvent> runtimeLineHitEvents() {
+    synchronized (RUNTIME_LINE_HIT_EVENT_LOCK) {
+      return RUNTIME_LINE_HIT_EVENT_KEYS.stream().map(RUNTIME_LINE_HIT_AGGREGATES::get).toList();
+    }
+  }
+
+  public static List<RuntimeLineHitEvent> runtimeLineHitEvents(
+      String sessionId,
+      long afterSequence,
+      int limit
+  ) {
+    return runtimeLineHitEventPage(sessionId, afterSequence, limit).events();
+  }
+
+  public static RuntimeLineHitEventPage runtimeLineHitEventPage(
+      String sessionId,
+      long afterSequence,
+      int limit
+  ) {
+    int boundedLimit = Math.max(1, Math.min(limit, MAX_RUNTIME_LINE_HIT_EVENTS));
+    List<RuntimeLineHitEvent> events = new ArrayList<>();
+    synchronized (RUNTIME_LINE_HIT_EVENT_LOCK) {
+      for (String key : RUNTIME_LINE_HIT_EVENT_KEYS) {
+        RuntimeLineHitEvent event = RUNTIME_LINE_HIT_AGGREGATES.get(key);
+        if (event == null) continue;
+        if (!event.correlationSessionId().equals(sessionId)) continue;
+        if (event.lastSequence() <= afterSequence) continue;
+        events.add(event);
+        if (events.size() >= boundedLimit) break;
+      }
+      long lastDeliveredSequence = events.isEmpty()
+          ? afterSequence
+          : events.get(events.size() - 1).lastSequence();
+      boolean hasMore = RUNTIME_LINE_HIT_EVENT_KEYS.stream()
+          .map(RUNTIME_LINE_HIT_AGGREGATES::get)
+          .anyMatch(event -> event != null
+              && event.correlationSessionId().equals(sessionId)
+              && event.lastSequence() > lastDeliveredSequence);
+      return new RuntimeLineHitEventPage(List.copyOf(events), lastDeliveredSequence, hasMore);
+    }
+  }
+
+  public static long runtimeLineHitNextSequence() {
+    return RUNTIME_LINE_HIT_SEQUENCE.get();
+  }
+
+  public static String runtimeInstanceId() {
+    return RUNTIME_INSTANCE_ID;
+  }
+
+  public static long runtimeLineHitStreamResetEpoch() {
+    return 0L;
   }
 
   public static void registerResolvableLine(
