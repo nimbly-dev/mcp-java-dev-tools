@@ -236,6 +236,8 @@ export function buildPlanCorrelationEvidence(args: {
   stepOutputsByOrder: Record<number, Record<string, unknown>>;
   stepContextsByOrder?: Map<number, Record<string, unknown>>;
   stepEventTimesByOrder: Record<number, number>;
+  runtimeCorrelationEvents?: Array<Record<string, unknown>>;
+  runtimeExecutionId?: string;
 }):
   | {
       correlationPolicy: Record<string, unknown>;
@@ -253,7 +255,11 @@ export function buildPlanCorrelationEvidence(args: {
   });
   const keyValue = keyResolution.keyValue;
 
-  const correlationEvents: Array<Record<string, unknown>> = [];
+  const correlationEvents: Array<Record<string, unknown>> = Array.isArray(
+    args.runtimeCorrelationEvents,
+  )
+    ? [...args.runtimeCorrelationEvents]
+    : [];
   for (const step of [...args.contract.steps].sort((a, b) => a.order - b.order)) {
     const stepOutput = args.stepOutputsByOrder[step.order];
     const timestampEpochMs = args.stepEventTimesByOrder[step.order];
@@ -347,6 +353,40 @@ export function buildPlanCorrelationEvidence(args: {
         : {}),
       ...(typeof correlation.window.endEpochMs === "number"
         ? { endEpochMs: correlation.window.endEpochMs }
+        : {}),
+      ...(args.runtimeExecutionId ? { runtimeExecutionId: args.runtimeExecutionId } : {}),
+      ...(correlation.runtimeEvidence?.required === true
+        ? {
+            runtimeEvidenceRequired: true,
+            ...(correlation.runtimeEvidence.eventKeyPath
+              ? { runtimeEventKeyPath: correlation.runtimeEvidence.eventKeyPath }
+              : {}),
+            ...(correlation.runtimeEvidence.probeIds
+              ? { runtimeProbeIds: correlation.runtimeEvidence.probeIds }
+              : {}),
+            ...(correlation.runtimeEvidence.runtimeInstanceIds
+              ? { runtimeInstanceIds: correlation.runtimeEvidence.runtimeInstanceIds }
+              : {}),
+            ...(typeof correlation.runtimeEvidence.pageLimit === "number"
+              ? { runtimeEvidencePageLimit: correlation.runtimeEvidence.pageLimit }
+              : {}),
+            ...(typeof correlation.runtimeEvidence.maxEvents === "number"
+              ? { runtimeEvidenceMaxEvents: correlation.runtimeEvidence.maxEvents }
+              : {}),
+            ...(typeof correlation.runtimeEvidence.maxBytes === "number"
+              ? { runtimeEvidenceMaxBytes: correlation.runtimeEvidence.maxBytes }
+              : {}),
+            ...(typeof correlation.runtimeEvidence.maxDurationMs === "number"
+              ? { runtimeEvidenceMaxDurationMs: correlation.runtimeEvidence.maxDurationMs }
+              : {}),
+            ...(correlation.strictLineExpectations?.length
+              ? {
+                  runtimeLineKeys: correlation.strictLineExpectations.map(
+                    (expectation) => expectation.strictLineKey,
+                  ),
+                }
+              : {}),
+          }
         : {}),
     },
     correlationEvents,

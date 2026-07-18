@@ -572,7 +572,8 @@ export function validateCorrelationPolicy(
         | "correlation_session_missing"
         | "correlation_window_invalid"
         | "correlation_key_invalid"
-        | "correlation_expectation_invalid";
+        | "correlation_expectation_invalid"
+        | "correlation_runtime_evidence_policy_invalid";
       requiredUserAction: string[];
     } {
   if (!correlation || correlation.enabled !== true) return { ok: true };
@@ -727,6 +728,34 @@ export function validateCorrelationPolicy(
         "Set non-empty correlation.correlationSessionId when correlation is session-scoped.",
       ],
     };
+  }
+  if (correlation.runtimeEvidence?.required === true) {
+    const runtimeEvidence = correlation.runtimeEvidence;
+    const bounded = [
+      runtimeEvidence.pageLimit,
+      runtimeEvidence.maxEvents,
+      runtimeEvidence.maxBytes,
+      runtimeEvidence.maxDurationMs,
+    ];
+    if (
+      bounded.some((value) => value !== undefined && (!Number.isInteger(value) || value <= 0)) ||
+      (runtimeEvidence.pageLimit !== undefined && runtimeEvidence.pageLimit > 1_000) ||
+      (runtimeEvidence.maxEvents !== undefined && runtimeEvidence.maxEvents > 10_000) ||
+      (runtimeEvidence.maxBytes !== undefined && runtimeEvidence.maxBytes > 1_048_576) ||
+      (runtimeEvidence.maxDurationMs !== undefined && runtimeEvidence.maxDurationMs > 60_000) ||
+      !Array.isArray(runtimeEvidence.probeIds) ||
+      runtimeEvidence.probeIds.length === 0 ||
+      typeof runtimeEvidence.eventKeyPath !== "string" ||
+      !runtimeEvidence.eventKeyPath.trim().startsWith("$.")
+    ) {
+      return {
+        ok: false,
+        reasonCode: "correlation_runtime_evidence_policy_invalid",
+        requiredUserAction: [
+          "Set runtimeEvidence.probeIds and bounded pageLimit, maxEvents, maxBytes, and maxDurationMs values.",
+        ],
+      };
+    }
   }
   return { ok: true };
 }

@@ -16,6 +16,7 @@ export {
 export { upsertExternalVerificationSummary } from "./state-store/external_verification_state_store";
 export { upsertRunStateArtifact } from "./state-store/artifact_state_store";
 export { upsertWatcherRun } from "./state-store/watcher_state_store";
+export { readRuntimeEvidenceCursor, upsertRuntimeEvidenceCursor } from "./state-store/runtime_evidence_cursor_store";
 export { rebuildRunStateStore } from "./state-store/rebuild/run_state_store_rebuild";
 export { backfillLegacyCorrelationIndex } from "./state-store/legacy_backfill_state_store";
 export { cutoverRunStateStore, readRunStateCutoverStatus } from "./state-store/state_store_cutover";
@@ -42,6 +43,8 @@ export type {
   CorrelationPersistenceFailure,
   CorrelationSession,
   CorrelationSessionResult,
+  RuntimeEvidenceCursor,
+  RuntimeEvidenceCursorResult,
   RunStateDatabase,
   WatcherRunProjection,
   WatcherPersistenceFailure,

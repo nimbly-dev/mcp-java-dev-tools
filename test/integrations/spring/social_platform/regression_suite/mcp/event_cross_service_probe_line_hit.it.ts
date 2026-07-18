@@ -27,13 +27,18 @@ async function writeJson(filePath: string, payload: Record<string, unknown>): Pr
       ? {
           ...payload,
           workspaces: payload.workspaces.map((workspace) => {
-            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) return workspace;
+            if (!workspace || typeof workspace !== "object" || Array.isArray(workspace))
+              return workspace;
             const defaults =
-              "defaults" in workspace && workspace.defaults && typeof workspace.defaults === "object"
+              "defaults" in workspace &&
+              workspace.defaults &&
+              typeof workspace.defaults === "object"
                 ? workspace.defaults
                 : {};
             const orchestrator =
-              "orchestrator" in defaults && defaults.orchestrator && typeof defaults.orchestrator === "object"
+              "orchestrator" in defaults &&
+              defaults.orchestrator &&
+              typeof defaults.orchestrator === "object"
                 ? defaults.orchestrator
                 : {
                     resumePollMax: 30,
@@ -66,7 +71,9 @@ async function callTool(
 }
 
 test("mcp IT: execution_orchestration preserves probe.hit across cross-service event trigger and downstream listener verification", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-event-cross-service-probe-line-hit-it-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mcp-event-cross-service-probe-line-hit-it-"),
+  );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "event-cross-service-probe-project";
   const projectRootAbs = workspaceRootAbs;
@@ -148,6 +155,7 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
       probeId: string;
       fqcn: string;
       method: string;
+      correlation?: Record<string, unknown>;
     }): Promise<void> {
       const planRootAbs = path.join(
         workspaceRootAbs,
@@ -211,7 +219,7 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
                   dataFormatVersion: 1,
                   dataId: "tenant-batch-01",
                   data: ["tenant-social-001"],
-                  notes: "Trigger reindex per tenant",
+                  notes: "fixture-sleep-ms:1000",
                 },
                 timeoutMs: 10_000,
               },
@@ -238,6 +246,7 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
             ],
           },
         ],
+        ...(args.correlation ? { correlation: args.correlation } : {}),
       });
     }
 
@@ -247,6 +256,30 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
       probeId: "event-producer-app",
       fqcn: eventProducerControllerFqcn,
       method: "triggerIndex",
+      correlation: {
+        enabled: true,
+        correlationSessionId: "cross-service-event-runtime",
+        key: {
+          type: "messageId",
+          source: { type: "json_path", path: "response.bodyJson.eventId" },
+        },
+        window: { maxWindowMs: 30_000 },
+        probeIds: ["event-producer-app", "event-consumer-app"],
+        matchPolicy: {
+          requireExactKeyMatch: true,
+          requireWindowMatch: true,
+          ambiguityStrategy: "fail_closed",
+        },
+        runtimeEvidence: {
+          required: true,
+          probeIds: ["event-producer-app", "event-consumer-app"],
+          eventKeyPath: "$.eventId",
+          pageLimit: 64,
+          maxEvents: 256,
+          maxBytes: 262_144,
+          maxDurationMs: 30_000,
+        },
+      },
     });
     await writePlan({
       planName: "consumer-listener-plan",
@@ -320,6 +353,54 @@ test("mcp IT: execution_orchestration preserves probe.hit across cross-service e
     assert.equal(producerExecution.steps[0]?.assertions[2]?.actualPath, "probe.hit");
     assert.equal(producerExecution.steps[0]?.assertions[2]?.status, "pass");
     assert.equal(producerExecution.steps[0]?.assertions[2]?.actual, true);
+
+    const runRootAbs = path.join(
+      workspaceRootAbs,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "regression",
+      "producer-trigger-plan",
+      "runs",
+    );
+    const producerRunId = (await fs.readdir(runRootAbs))[0]!;
+    const correlation = JSON.parse(
+      await fs.readFile(
+        path.join(runRootAbs, producerRunId, "correlation", "correlation.json"),
+        "utf8",
+      ),
+    ) as { status: string; timeline: Array<Record<string, unknown>> };
+    assert.equal(correlation.status, "ok");
+    assert.ok(
+      correlation.timeline.some(
+        (event) =>
+          event.eventType === "runtime_line_hit" &&
+          event.probeId === "event-consumer-app" &&
+          typeof event.lastSequence === "number" &&
+          event.correlationExecutionId === producerRunId,
+      ),
+    );
+
+    const { DatabaseSync } = require("node:sqlite") as {
+      DatabaseSync: new (path: string) => {
+        prepare(sql: string): { get(...params: unknown[]): Record<string, unknown> | undefined };
+        close(): void;
+      };
+    };
+    const database = new DatabaseSync(
+      path.join(workspaceRootAbs, ".mcpjvm", projectName, "run-state.sqlite"),
+    );
+    try {
+      const cursor = database
+        .prepare(
+          "SELECT last_sequence, probe_id FROM runtime_evidence_cursors WHERE run_id = ? AND probe_id = ?",
+        )
+        .get(producerRunId, "event-consumer-app");
+      assert.equal(cursor?.probe_id, "event-consumer-app");
+      assert.equal(typeof cursor?.last_sequence, "number");
+    } finally {
+      database.close();
+    }
 
     assert.equal(consumerExecution.status, "pass");
     assert.equal(consumerExecution.steps[0]?.status, "pass");

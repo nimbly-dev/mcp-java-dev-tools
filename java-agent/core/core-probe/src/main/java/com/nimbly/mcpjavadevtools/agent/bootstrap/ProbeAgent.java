@@ -8,6 +8,8 @@ import com.nimbly.mcpjavadevtools.agent.instrumentation.LineHitVisitor;
 import com.nimbly.mcpjavadevtools.agent.profiler.ProbeProfilerRegistry;
 import com.nimbly.mcpjavadevtools.agent.profiler.ProfilerPaths;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
+import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationConsumerAdvice;
+import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationEventConsumerAdapter;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.method.MethodDescription;
@@ -29,7 +31,14 @@ public final class ProbeAgent {
   public static void premain(String agentArgs, Instrumentation inst) {
     AgentConfig cfg = AgentConfig.fromAgentArgs(agentArgs);
     configureByteBuddyCompatibility(cfg);
-    ProbeRuntime.configure(cfg.mode, cfg.actuatorId, cfg.actuateTargetKey, cfg.actuateReturnBoolean);
+    ProbeRuntime.configure(
+        cfg.mode,
+        cfg.actuatorId,
+        cfg.actuateTargetKey,
+        cfg.actuateReturnBoolean,
+        cfg.probeId
+    );
+    CorrelationEventConsumerAdapter.configureFromSystemProperties();
     ProbeCaptureStore.configureCapture(
         cfg.captureEnabled,
         cfg.captureMaxKeys,
@@ -143,6 +152,13 @@ public final class ProbeAgent {
                     .and(ElementMatchers.not(ElementMatchers.isNative()))
                     .and(ElementMatchers.not(ElementMatchers.nameStartsWith("lambda$")));
             DynamicType.Builder<?> out = b.visit(Advice.to(HitAdvice.class).on(matcher));
+            ElementMatcher.Junction<MethodDescription> consumerMatcher =
+                ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.context.event.EventListener"))
+                    .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.kafka.annotation.KafkaListener")))
+                    .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.amqp.rabbit.annotation.RabbitListener")))
+                    .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.jms.annotation.JmsListener")))
+                    .or(ElementMatchers.nameMatches("(?i)(receive|consume|onMessage|handleMessage)[A-Z_].*"));
+            out = out.visit(Advice.to(CorrelationConsumerAdvice.class).on(consumerMatcher));
             out = out.visit(new LineHitVisitor(td.getName()));
             return out;
           }

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type {
   CorrelationFailureReason,
   CorrelationInputEvent,
@@ -15,6 +17,14 @@ export type {
 
 function normalizeString(value: string): string {
   return value.trim();
+}
+
+function isRuntimeLineHit(event: CorrelationInputEvent): boolean {
+  return event.eventType === "runtime_line_hit";
+}
+
+function keyFingerprint(value: string): string {
+  return `sha256:${createHash("sha256").update(value, "utf8").digest("hex")}`;
 }
 
 function sortEvents(
@@ -63,10 +73,77 @@ export function correlateEvents(
 
   const candidates = events.filter(
     (event) =>
-      event.keyType === policy.keyType &&
-      typeof event.keyValue === "string" &&
-      normalizeString(event.keyValue) === keyValue,
+      (event.keyType === policy.keyType &&
+        typeof event.keyValue === "string" &&
+        normalizeString(event.keyValue) === keyValue) ||
+      (event.keyType === policy.keyType && event.keyFingerprint === keyFingerprint(keyValue)),
   );
+
+  if (policy.runtimeEvidenceRequired) {
+    const runtimeEvents = events.filter(isRuntimeLineHit);
+    if (runtimeEvents.length === 0) {
+      return {
+        status: "fail_closed",
+        reasonCode: "correlation_key_not_observed",
+        timeline: [],
+      };
+    }
+    if (
+      runtimeEvents.some(
+        (event) =>
+          typeof event.runtimeInstanceId !== "string" ||
+          event.runtimeInstanceId.trim().length === 0,
+      )
+    ) {
+      return {
+        status: "fail_closed",
+        reasonCode: "correlation_runtime_identity_missing",
+        timeline: [],
+      };
+    }
+    const scopedRuntimeEvents = policy.runtimeProbeIds?.length
+      ? runtimeEvents.filter((event) => policy.runtimeProbeIds?.includes(event.probeId))
+      : runtimeEvents;
+    if (scopedRuntimeEvents.length === 0) {
+      return {
+        status: "fail_closed",
+        reasonCode: "correlation_probe_scope_mismatch",
+        timeline: [],
+      };
+    }
+    const instanceScopedRuntimeEvents = policy.runtimeInstanceIds?.length
+      ? scopedRuntimeEvents.filter(
+          (event) =>
+            typeof event.runtimeInstanceId === "string" &&
+            policy.runtimeInstanceIds?.includes(event.runtimeInstanceId),
+        )
+      : scopedRuntimeEvents;
+    if (instanceScopedRuntimeEvents.length === 0) {
+      return {
+        status: "fail_closed",
+        reasonCode: "correlation_probe_scope_mismatch",
+        timeline: [],
+      };
+    }
+    const scopedCandidates = instanceScopedRuntimeEvents.filter(
+      (event) =>
+        (!policy.runtimeLineKeys?.length ||
+          (typeof event.lineKey === "string" && policy.runtimeLineKeys.includes(event.lineKey))) &&
+        (!policy.runtimeExecutionId ||
+          event.correlationExecutionId === policy.runtimeExecutionId) &&
+        event.keyType === policy.keyType &&
+        ((typeof event.keyValue === "string" && normalizeString(event.keyValue) === keyValue) ||
+          event.keyFingerprint === keyFingerprint(keyValue)),
+    );
+    if (scopedCandidates.length === 0) {
+      return {
+        status: "fail_closed",
+        reasonCode: "correlation_key_not_observed",
+        timeline: [],
+      };
+    }
+    candidates.splice(0, candidates.length, ...scopedCandidates);
+  }
 
   if (candidates.length === 0) {
     return { status: "fail_closed", reasonCode: "no_matching_events", timeline: [] };
@@ -84,11 +161,27 @@ export function correlateEvents(
     return { status: "fail_closed", reasonCode: "window_exceeded", timeline: sorted };
   }
 
-  const duplicatesByProbe = new Map<string, number>();
+  const duplicatesByIdentity = new Map<string, number>();
   for (const event of sorted) {
-    duplicatesByProbe.set(event.probeId, (duplicatesByProbe.get(event.probeId) ?? 0) + 1);
+    const identity = event.runtimeInstanceId
+      ? `${event.probeId}:${event.runtimeInstanceId}`
+      : event.eventType === "runtime_line_hit"
+        ? `${event.probeId}:${event.eventId}`
+        : event.probeId;
+    duplicatesByIdentity.set(identity, (duplicatesByIdentity.get(identity) ?? 0) + 1);
   }
-  if (Array.from(duplicatesByProbe.values()).some((count) => count > 1)) {
+  const runtimeIdentities = new Set(
+    sorted
+      .filter(isRuntimeLineHit)
+      .map((event) => event.runtimeInstanceId)
+      .filter((value): value is string => typeof value === "string" && value.length > 0),
+  );
+  if (
+    runtimeIdentities.size > 1 ||
+    Array.from(duplicatesByIdentity.values()).some(
+      (count) => count > 1 && !sorted.some((event) => event.eventType === "runtime_line_hit"),
+    )
+  ) {
     return { status: "fail_closed", reasonCode: "ambiguous_correlation", timeline: sorted };
   }
 

@@ -16,6 +16,7 @@ public final class AgentConfig {
   public final int port;
   public final String mode;
   public final String actuatorId;
+  public final String probeId;
   public final String actuateTargetKey;
   public final boolean actuateReturnBoolean;
   public final boolean captureEnabled;
@@ -38,6 +39,7 @@ public final class AgentConfig {
       int port,
       String mode,
       String actuatorId,
+      String probeId,
       String actuateTargetKey,
       boolean actuateReturnBoolean,
       boolean captureEnabled,
@@ -57,6 +59,7 @@ public final class AgentConfig {
     this.port = port;
     this.mode = mode;
     this.actuatorId = actuatorId;
+    this.probeId = probeId;
     this.actuateTargetKey = actuateTargetKey;
     this.actuateReturnBoolean = actuateReturnBoolean;
     this.captureEnabled = captureEnabled;
@@ -82,6 +85,7 @@ public final class AgentConfig {
     int port = 9191;
     String mode = readDefaultMode();
     String actuatorId = readDefaultActuatorId();
+    String probeId = readDefaultProbeId();
     String actuateTargetKey = readDefaultActuateTargetKey();
     boolean actuateReturnBoolean = readDefaultActuateReturnBoolean();
     boolean captureEnabled = readDefaultCaptureEnabled();
@@ -119,6 +123,8 @@ public final class AgentConfig {
           mode = normalizeMode(v);
         } else if ("actuatorId".equalsIgnoreCase(k) || "actuator".equalsIgnoreCase(k)) {
           actuatorId = normalizeActuatorId(v);
+        } else if ("probeId".equalsIgnoreCase(k) || "probe".equalsIgnoreCase(k)) {
+          probeId = normalizeActuatorId(v);
         } else if (
             "actuateTarget".equalsIgnoreCase(k)
                 || "actuateTargetKey".equalsIgnoreCase(k)
@@ -180,6 +186,7 @@ public final class AgentConfig {
     if (port <= 0) port = 9191;
     mode = normalizeMode(mode);
     actuatorId = normalizeActuatorId(actuatorId);
+    probeId = normalizeActuatorId(probeId);
     actuateTargetKey = normalizeTargetKey(actuateTargetKey);
     captureMaxKeys = parseInt(String.valueOf(captureMaxKeys), 1000, 10, 20_000);
     captureMaxArgs = parseInt(String.valueOf(captureMaxArgs), 32, 1, 512);
@@ -199,6 +206,7 @@ public final class AgentConfig {
         port,
         mode,
         actuatorId,
+        probeId,
         actuateTargetKey,
         actuateReturnBoolean,
         captureEnabled,
@@ -236,6 +244,16 @@ public final class AgentConfig {
     if (fromEnv != null && !fromEnv.trim().isEmpty()) return normalizeActuatorId(fromEnv);
 
     return "";
+  }
+
+  private static String readDefaultProbeId() {
+    String fromProp = System.getProperty("mcp.probe.id");
+    if (fromProp != null && !fromProp.trim().isEmpty()) return normalizeActuatorId(fromProp);
+
+    String fromEnv = System.getenv("MCP_PROBE_ID");
+    if (fromEnv != null && !fromEnv.trim().isEmpty()) return normalizeActuatorId(fromEnv);
+
+    return "runtime";
   }
 
   private static String readDefaultActuateTargetKey() {

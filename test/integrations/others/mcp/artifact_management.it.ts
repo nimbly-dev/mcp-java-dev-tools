@@ -161,7 +161,7 @@ test("mcp IT: artifact_management project_context creation provisions the run-st
     assert.deepEqual(out.structuredContent?.stateStore, {
       provisioned: true,
       databasePathRel: ".mcpjvm/new-project/run-state.sqlite",
-      schemaVersion: 10,
+      schemaVersion: 11,
     });
     assert.equal(
       await fs

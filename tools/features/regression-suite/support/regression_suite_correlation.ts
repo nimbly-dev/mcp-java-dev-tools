@@ -53,6 +53,10 @@ function asCanonicalCorrelationEvent(value: unknown): RuntimeSuiteCorrelationEve
     ...(typeof value.keyValue === "string" ? { keyValue: value.keyValue } : {}),
     ...(typeof value.lineKey === "string" ? { lineKey: value.lineKey } : {}),
     ...(typeof value.eventType === "string" ? { eventType: value.eventType } : {}),
+    ...(typeof value.runtimeInstanceId === "string"
+      ? { runtimeInstanceId: value.runtimeInstanceId }
+      : {}),
+    ...(typeof value.keyFingerprint === "string" ? { keyFingerprint: value.keyFingerprint } : {}),
   };
 }
 
@@ -137,6 +141,18 @@ export async function collectSuiteCorrelationSession(args: {
     typeof policy.maxWindowMs === "number" && Number.isFinite(policy.maxWindowMs)
       ? policy.maxWindowMs
       : 0;
+  const runtimeEvidenceRequired = policy.runtimeEvidenceRequired === true;
+  const runtimeProbeIds = Array.isArray(policy.runtimeProbeIds)
+    ? policy.runtimeProbeIds.filter((value): value is string => typeof value === "string")
+    : undefined;
+  const runtimeInstanceIds = Array.isArray(policy.runtimeInstanceIds)
+    ? policy.runtimeInstanceIds.filter((value): value is string => typeof value === "string")
+    : undefined;
+  const runtimeLineKeys = Array.isArray(policy.runtimeLineKeys)
+    ? policy.runtimeLineKeys.filter((value): value is string => typeof value === "string")
+    : undefined;
+  const runtimeExecutionId =
+    typeof policy.runtimeExecutionId === "string" ? policy.runtimeExecutionId : undefined;
   const session = args.sessions.get(sessionId) ?? {
     correlationSessionId: sessionId,
     keyType,
@@ -145,6 +161,11 @@ export async function collectSuiteCorrelationSession(args: {
       : {}),
     maxWindowMs,
     ...(expectedFlow ? { expectedFlow } : {}),
+    ...(runtimeEvidenceRequired ? { runtimeEvidenceRequired: true } : {}),
+    ...(runtimeProbeIds ? { runtimeProbeIds } : {}),
+    ...(runtimeInstanceIds ? { runtimeInstanceIds } : {}),
+    ...(runtimeLineKeys ? { runtimeLineKeys } : {}),
+    ...(runtimeExecutionId ? { runtimeExecutionId } : {}),
     contributingPlans: new Set<string>(),
     events: [],
   };
@@ -168,6 +189,15 @@ export async function collectSuiteCorrelationSession(args: {
   }
   if (!session.expectedFlow && expectedFlow) {
     session.expectedFlow = expectedFlow;
+  }
+  if (runtimeEvidenceRequired) {
+    session.runtimeEvidenceRequired = true;
+  }
+  if (!session.runtimeProbeIds && runtimeProbeIds) {
+    session.runtimeProbeIds = runtimeProbeIds;
+  }
+  if (!session.runtimeInstanceIds && runtimeInstanceIds) {
+    session.runtimeInstanceIds = runtimeInstanceIds;
   }
   args.sessions.set(sessionId, session);
   if (args.suiteContext) {
@@ -203,6 +233,15 @@ export async function writeSuiteCorrelationResults(args: {
             keyValue,
             maxWindowMs: session.maxWindowMs,
             ...(session.expectedFlow ? { expectedFlow: session.expectedFlow } : {}),
+            ...(session.runtimeEvidenceRequired ? { runtimeEvidenceRequired: true } : {}),
+            ...(session.runtimeProbeIds ? { runtimeProbeIds: session.runtimeProbeIds } : {}),
+            ...(session.runtimeInstanceIds
+              ? { runtimeInstanceIds: session.runtimeInstanceIds }
+              : {}),
+            ...(session.runtimeLineKeys ? { runtimeLineKeys: session.runtimeLineKeys } : {}),
+            ...(session.runtimeExecutionId
+              ? { runtimeExecutionId: session.runtimeExecutionId }
+              : {}),
           })
         : {
             status: "fail_closed" as const,
@@ -215,6 +254,11 @@ export async function writeSuiteCorrelationResults(args: {
       probeId: event.probeId,
       timestampEpochMs: event.timestampEpochMs,
       ...(typeof event.lineKey === "string" ? { lineKey: event.lineKey } : {}),
+      ...(typeof event.runtimeInstanceId === "string"
+        ? { runtimeInstanceId: event.runtimeInstanceId }
+        : {}),
+      ...(typeof event.keyFingerprint === "string" ? { keyFingerprint: event.keyFingerprint } : {}),
+      ...(typeof event.eventType === "string" ? { eventType: event.eventType } : {}),
     }));
     const startEvent = timeline[0];
     const endEvent = timeline.length > 0 ? timeline[timeline.length - 1] : undefined;

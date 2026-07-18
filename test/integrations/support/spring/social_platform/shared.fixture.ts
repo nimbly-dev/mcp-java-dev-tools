@@ -42,7 +42,8 @@ const repoPackageJson = JSON.parse(
 ) as {
   version?: string;
 };
-const repoVersion = typeof repoPackageJson.version === "string" ? repoPackageJson.version.trim() : "";
+const repoVersion =
+  typeof repoPackageJson.version === "string" ? repoPackageJson.version.trim() : "";
 export const socialPlatformRootAbs = path.join(
   repoRootAbs,
   "test",
@@ -50,11 +51,7 @@ export const socialPlatformRootAbs = path.join(
   "spring-apps",
   "social-platform",
 );
-export const postAppProjectRootAbs = path.join(
-  socialPlatformRootAbs,
-  "post-service",
-  "post-app",
-);
+export const postAppProjectRootAbs = path.join(socialPlatformRootAbs, "post-service", "post-app");
 export const postAppTargetDirAbs = path.join(postAppProjectRootAbs, "target");
 export const eventAppProjectRootAbs = path.join(
   socialPlatformRootAbs,
@@ -236,8 +233,9 @@ async function resolveJarByPattern(args: {
   if (matches.length > 1) {
     const preferredVersion = args.preferredVersion?.trim();
     if (preferredVersion) {
-      const preferredMatches = matches.filter((entry) =>
-        entry.includes(`-${preferredVersion}-`) || entry.includes(`-${preferredVersion}.jar`),
+      const preferredMatches = matches.filter(
+        (entry) =>
+          entry.includes(`-${preferredVersion}-`) || entry.includes(`-${preferredVersion}.jar`),
       );
       if (preferredMatches.length === 1) {
         return path.join(args.dirAbs, preferredMatches[0]!);
@@ -429,10 +427,7 @@ async function cleanupTempProbeRegistryConfig(config: {
   await fs.writeFile(config.fileAbs, config.previousContents, "utf8");
 }
 
-export async function findLineNumberBySnippet(
-  fileAbs: string,
-  snippet: string,
-): Promise<number> {
+export async function findLineNumberBySnippet(fileAbs: string, snippet: string): Promise<number> {
   const source = await fs.readFile(fileAbs, "utf8");
   const lines = source.split(/\r?\n/);
   const index = lines.findIndex((line) => line.includes(snippet));
@@ -482,9 +477,11 @@ async function startSpringBootAppWithAgent(args: {
   const probeBaseUrl = `http://127.0.0.1:${probePort}`;
   const logBuffer: string[] = [];
 
-  const agentInclude = args.agentInclude?.trim() ?? args.defaultAgentInclude ?? "com.example.social.**";
+  const agentInclude =
+    args.agentInclude?.trim() ?? args.defaultAgentInclude ?? "com.example.social.**";
   const agentExclude = args.agentExclude?.trim() ?? args.defaultAgentExclude ?? "**.config.**";
   const agentOptions = [`host=127.0.0.1`, `port=${probePort}`];
+  agentOptions.push(`probeId=${args.appLabel}`);
   if (agentInclude.length > 0) agentOptions.push(`include=${agentInclude}`);
   if (agentExclude.length > 0) agentOptions.push(`exclude=${agentExclude}`);
   agentOptions.push("allowJava21=true");
@@ -555,7 +552,9 @@ export async function startPostAppWithAgent(args?: {
     appJarLabel: "post-app jar",
     ...(typeof args?.appPort === "number" ? { appPort: args.appPort } : {}),
     ...(typeof args?.probePort === "number" ? { probePort: args.probePort } : {}),
-    ...(typeof args?.actuateAuthToken === "string" ? { actuateAuthToken: args.actuateAuthToken } : {}),
+    ...(typeof args?.actuateAuthToken === "string"
+      ? { actuateAuthToken: args.actuateAuthToken }
+      : {}),
     ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
     ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
   });
@@ -576,7 +575,9 @@ export async function startEventAppWithAgent(args?: {
     appJarLabel: "event-app jar",
     ...(typeof args?.appPort === "number" ? { appPort: args.appPort } : {}),
     ...(typeof args?.probePort === "number" ? { probePort: args.probePort } : {}),
-    ...(typeof args?.actuateAuthToken === "string" ? { actuateAuthToken: args.actuateAuthToken } : {}),
+    ...(typeof args?.actuateAuthToken === "string"
+      ? { actuateAuthToken: args.actuateAuthToken }
+      : {}),
     ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
     ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
   });
@@ -598,7 +599,9 @@ export async function startEventProducerAppWithAgent(args?: {
     appJarLabel: "event-producer-app jar",
     ...(typeof args?.appPort === "number" ? { appPort: args.appPort } : {}),
     ...(typeof args?.probePort === "number" ? { probePort: args.probePort } : {}),
-    ...(typeof args?.actuateAuthToken === "string" ? { actuateAuthToken: args.actuateAuthToken } : {}),
+    ...(typeof args?.actuateAuthToken === "string"
+      ? { actuateAuthToken: args.actuateAuthToken }
+      : {}),
     ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
     ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
     ...(typeof args?.consumerBaseUrl === "string"
@@ -627,7 +630,9 @@ export async function startEventConsumerAppWithAgent(args?: {
     appJarLabel: "event-consumer-app jar",
     ...(typeof args?.appPort === "number" ? { appPort: args.appPort } : {}),
     ...(typeof args?.probePort === "number" ? { probePort: args.probePort } : {}),
-    ...(typeof args?.actuateAuthToken === "string" ? { actuateAuthToken: args.actuateAuthToken } : {}),
+    ...(typeof args?.actuateAuthToken === "string"
+      ? { actuateAuthToken: args.actuateAuthToken }
+      : {}),
     ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
     ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
     ...(extraJavaArgs.length > 0 ? { extraJavaArgs } : {}),
@@ -673,7 +678,8 @@ export async function startMcpClient(args: {
     await client.connect(transport);
   } catch (error) {
     await transport.close().catch(() => undefined);
-    if (tempProbeConfig) await cleanupTempProbeRegistryConfig(tempProbeConfig).catch(() => undefined);
+    if (tempProbeConfig)
+      await cleanupTempProbeRegistryConfig(tempProbeConfig).catch(() => undefined);
     throw new Error(`Failed to start MCP client.\n${logBuffer.join("\n")}\n${String(error)}`);
   }
 

@@ -43,6 +43,7 @@ export type PreflightReasonCode =
   | "correlation_window_invalid"
   | "correlation_key_invalid"
   | "correlation_expectation_invalid"
+  | "correlation_runtime_evidence_policy_invalid"
   | "watcher_id_invalid"
   | "watcher_dependency_invalid"
   | "watcher_provider_invalid"
@@ -415,5 +416,15 @@ export type PlanCorrelationPolicy = {
     includePayloadPreview?: boolean;
     payloadPreviewMaxBytes?: number;
     includeExecutionPath?: boolean;
+  };
+  runtimeEvidence?: {
+    required: boolean;
+    probeIds?: string[];
+    eventKeyPath?: string;
+    runtimeInstanceIds?: string[];
+    pageLimit?: number;
+    maxEvents?: number;
+    maxBytes?: number;
+    maxDurationMs?: number;
   };
 };

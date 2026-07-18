@@ -7,12 +7,14 @@
  */
 import { promises as fs } from "node:fs";
 import { readdirSync, statSync, type Dirent } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import {
   openRunStateStore,
   persistCorrelationSession,
   upsertExternalVerificationSummary,
   upsertCorrelationObservation,
+  upsertRuntimeEvidenceCursor,
   upsertWatcherRun,
 } from "@tools-feature-artifact-management";
 
@@ -73,6 +75,13 @@ function toCorrelationArtifactFromEvidence(args: {
   const expectedFlow = Array.isArray(policyRaw.expectedFlow)
     ? policyRaw.expectedFlow.map((value) => String(value))
     : undefined;
+  const runtimeEvidenceRequired = policyRaw.runtimeEvidenceRequired === true;
+  const runtimeProbeIds = Array.isArray(policyRaw.runtimeProbeIds)
+    ? policyRaw.runtimeProbeIds.filter((value): value is string => typeof value === "string")
+    : undefined;
+  const runtimeInstanceIds = Array.isArray(policyRaw.runtimeInstanceIds)
+    ? policyRaw.runtimeInstanceIds.filter((value): value is string => typeof value === "string")
+    : undefined;
 
   const keyValueRaw = policyRaw.keyValue;
   const keyFromContextPath =
@@ -129,6 +138,22 @@ function toCorrelationArtifactFromEvidence(args: {
         ...(typeof event.runtimeInstanceId === "string"
           ? { runtimeInstanceId: event.runtimeInstanceId }
           : {}),
+        ...(typeof event.correlationSessionId === "string"
+          ? { correlationSessionId: event.correlationSessionId }
+          : {}),
+        ...(typeof event.correlationExecutionId === "string"
+          ? { correlationExecutionId: event.correlationExecutionId }
+          : {}),
+        ...(typeof event.sequence === "number" ? { sequence: event.sequence } : {}),
+        ...(typeof event.lastSequence === "number" ? { lastSequence: event.lastSequence } : {}),
+        ...(typeof event.hitCount === "number" ? { hitCount: event.hitCount } : {}),
+        ...(typeof event.firstTimestampEpochMs === "number"
+          ? { firstTimestampEpochMs: event.firstTimestampEpochMs }
+          : {}),
+        ...(typeof event.eventType === "string" ? { eventType: event.eventType } : {}),
+        ...(typeof event.keyFingerprint === "string"
+          ? { keyFingerprint: event.keyFingerprint }
+          : {}),
         ...(typeof event.baselineHitCount === "number"
           ? { baselineHitCount: event.baselineHitCount }
           : {}),
@@ -163,6 +188,9 @@ function toCorrelationArtifactFromEvidence(args: {
     keyValue,
     maxWindowMs,
     ...(Array.isArray(expectedFlow) ? { expectedFlow } : {}),
+    ...(runtimeEvidenceRequired ? { runtimeEvidenceRequired: true } : {}),
+    ...(runtimeProbeIds ? { runtimeProbeIds } : {}),
+    ...(runtimeInstanceIds ? { runtimeInstanceIds } : {}),
   });
 
   const timeline = matched.timeline.map((event) => ({
@@ -170,6 +198,23 @@ function toCorrelationArtifactFromEvidence(args: {
     probeId: event.probeId,
     timestampEpochMs: event.timestampEpochMs,
     ...(typeof event.lineKey === "string" ? { lineKey: event.lineKey } : {}),
+    ...(typeof event.runtimeInstanceId === "string"
+      ? { runtimeInstanceId: event.runtimeInstanceId }
+      : {}),
+    ...(typeof event.correlationSessionId === "string"
+      ? { correlationSessionId: event.correlationSessionId }
+      : {}),
+    ...(typeof event.correlationExecutionId === "string"
+      ? { correlationExecutionId: event.correlationExecutionId }
+      : {}),
+    ...(typeof event.sequence === "number" ? { sequence: event.sequence } : {}),
+    ...(typeof event.lastSequence === "number" ? { lastSequence: event.lastSequence } : {}),
+    ...(typeof event.hitCount === "number" ? { hitCount: event.hitCount } : {}),
+    ...(typeof event.firstTimestampEpochMs === "number"
+      ? { firstTimestampEpochMs: event.firstTimestampEpochMs }
+      : {}),
+    ...(typeof event.keyFingerprint === "string" ? { keyFingerprint: event.keyFingerprint } : {}),
+    ...(typeof event.eventType === "string" ? { eventType: event.eventType } : {}),
   }));
 
   return {
@@ -222,7 +267,13 @@ export async function rebuildCorrelationIndex(args: {
 }
 
 async function writeJsonFile(filePathAbs: string, payload: Record<string, unknown>): Promise<void> {
-  await fs.writeFile(filePathAbs, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  const temporaryPath = `${filePathAbs}.pending-${process.pid}-${Date.now()}`;
+  try {
+    await fs.writeFile(temporaryPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    await fs.rename(temporaryPath, filePathAbs);
+  } finally {
+    await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
+  }
 }
 
 function buildExternalVerificationResponseSummary(result: {
@@ -517,6 +568,87 @@ export async function writeRegressionRunArtifacts(
       normalizeCorrelationPayload(correlation),
       explicitSecretPaths,
     ) as Record<string, unknown>;
+    const runtimeTimeline = [...correlation.timeline]
+      .filter(
+        (event) => (event as unknown as Record<string, unknown>).eventType === "runtime_line_hit",
+      )
+      .sort((left, right) => {
+        const leftRecord = left as unknown as Record<string, unknown>;
+        const rightRecord = right as unknown as Record<string, unknown>;
+        const leftSequence =
+          typeof leftRecord.lastSequence === "number"
+            ? leftRecord.lastSequence
+            : typeof leftRecord.sequence === "number"
+              ? leftRecord.sequence
+              : -1;
+        const rightSequence =
+          typeof rightRecord.lastSequence === "number"
+            ? rightRecord.lastSequence
+            : typeof rightRecord.sequence === "number"
+              ? rightRecord.sequence
+              : -1;
+        return leftSequence - rightSequence;
+      });
+    const runtimeCursorTimeline = runtimeTimeline.length > 0 ? [runtimeTimeline[runtimeTimeline.length - 1]!] : [];
+
+    // Advance the durable cursor only after the artifact is complete. A pending
+    // marker lets resume ignore a cursor if the process dies between these two
+    // independent durable stores.
+    const pendingProject = await resolveProjectRootAbs({
+      workspaceRootAbs: args.workspaceRootAbs,
+      ...(typeof args.projectName === "string" && args.projectName.trim()
+        ? { projectName: args.projectName.trim() }
+        : {}),
+    });
+    const pendingStore = await openRunStateStore({
+      workspaceRootAbs: args.workspaceRootAbs,
+      projectName: pendingProject.projectName,
+    });
+    if (!pendingStore.ok) throw new Error(pendingStore.reasonCode);
+    try {
+      for (const event of runtimeCursorTimeline) {
+        const eventRecord = event as unknown as Record<string, unknown>;
+        if (eventRecord.eventType !== "runtime_line_hit") continue;
+        const runtimeInstanceId =
+          typeof eventRecord.runtimeInstanceId === "string"
+            ? eventRecord.runtimeInstanceId.trim()
+            : "";
+        const sequence =
+          typeof eventRecord.lastSequence === "number"
+            ? eventRecord.lastSequence
+            : typeof eventRecord.sequence === "number"
+              ? eventRecord.sequence
+              : -1;
+        if (!runtimeInstanceId || !Number.isInteger(sequence) || sequence < 0)
+          throw new Error("correlation_runtime_cursor_missing");
+        const dedupeIdentity = createHash("sha256")
+          .update(
+            `${correlation.correlationSessionId ?? args.runId}\u0000${event.probeId}\u0000${runtimeInstanceId}\u0000${sequence}`,
+          )
+          .digest("hex");
+        const persisted = upsertRuntimeEvidenceCursor({
+          store: pendingStore,
+          projectName: pendingProject.projectName,
+          cursor: {
+            ...(args.suiteRunId ? { suiteRunId: args.suiteRunId } : {}),
+            runId: args.runId,
+            correlationSessionId: correlation.correlationSessionId ?? args.runId,
+            probeId: event.probeId,
+            runtimeInstanceId,
+            lastSequence: sequence,
+            streamRuntimeInstanceId: runtimeInstanceId,
+            streamResetEpoch: 0,
+            latestObservationAtEpochMs: event.timestampEpochMs,
+            status: "pending_artifact",
+            reasonCode: "correlation_artifact_pending",
+            dedupeIdentity,
+          },
+        });
+        if (!persisted.ok) throw new Error(persisted.reasonCode);
+      }
+    } finally {
+      pendingStore.close();
+    }
     await writeJsonFile(correlationPathAbs, correlationPayload);
     writtenCorrelationPathAbs = correlationPathAbs;
     const project = await resolveProjectRootAbs({
@@ -623,6 +755,46 @@ export async function writeRegressionRunArtifacts(
             baselineHitCount,
             currentHitCount,
             observedAtEpochMs: event.timestampEpochMs,
+          },
+        });
+        if (!persisted.ok) throw new Error(persisted.reasonCode);
+      }
+      for (const event of runtimeCursorTimeline) {
+        const eventRecord = event as unknown as Record<string, unknown>;
+        if (eventRecord.eventType !== "runtime_line_hit") continue;
+        const runtimeInstanceId =
+          typeof eventRecord.runtimeInstanceId === "string"
+            ? eventRecord.runtimeInstanceId.trim()
+            : "";
+        const sequence =
+          typeof eventRecord.lastSequence === "number"
+            ? eventRecord.lastSequence
+            : typeof eventRecord.sequence === "number"
+              ? eventRecord.sequence
+              : -1;
+        if (!runtimeInstanceId || !Number.isInteger(sequence) || sequence < 0)
+          throw new Error("correlation_runtime_cursor_missing");
+        const dedupeIdentity = createHash("sha256")
+          .update(
+            `${correlation.correlationSessionId ?? args.runId}\u0000${event.probeId}\u0000${runtimeInstanceId}\u0000${sequence}`,
+          )
+          .digest("hex");
+        const persisted = upsertRuntimeEvidenceCursor({
+          store,
+          projectName: project.projectName,
+          cursor: {
+            ...(args.suiteRunId ? { suiteRunId: args.suiteRunId } : {}),
+            runId: args.runId,
+            correlationSessionId: correlation.correlationSessionId ?? args.runId,
+            probeId: event.probeId,
+            runtimeInstanceId,
+            lastSequence: sequence,
+            streamRuntimeInstanceId: runtimeInstanceId,
+            streamResetEpoch: 0,
+            latestObservationAtEpochMs: event.timestampEpochMs,
+            status: correlation.status === "ok" ? "matched" : "fail_closed",
+            reasonCode: correlation.reasonCode,
+            dedupeIdentity,
           },
         });
         if (!persisted.ok) throw new Error(persisted.reasonCode);

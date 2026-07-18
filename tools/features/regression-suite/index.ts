@@ -49,6 +49,7 @@ export {
   summarizeWatcherObservation,
 } from "./shared/regression_watcher_provider";
 export { deriveRunStatusFromStepOutcomes } from "./shared/regression_expectation_evaluator";
+export { readRuntimeCorrelationEvents } from "./support/regression_runtime_correlation_events";
 export {
   buildReplayUserMessage,
   resolveReplayInvocation,

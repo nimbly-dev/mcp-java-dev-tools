@@ -26,4 +26,8 @@ public final class ProbeHttpRequests {
       String outputPath,
       String outputFormat
   ) {}
+
+  public record CorrelationConfigRequest(
+      String sessionId, String executionId, String eventKeyPath, Long leaseTtlMs, Boolean release
+  ) {}
 }
