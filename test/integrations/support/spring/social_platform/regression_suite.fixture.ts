@@ -99,6 +99,8 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
   tmpPrefix?: string;
   keepTmpEnvVar?: string;
   consumerAgentExclude?: string;
+  consumerExtraJavaArgs?: string[];
+  producerExtraJavaArgs?: string[];
 }) {
   const tmpRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), args?.tmpPrefix ?? "mcp-event-cross-service-regression-suite-it-"),
@@ -134,9 +136,11 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
     ...(typeof args?.consumerAgentExclude === "string"
       ? { agentExclude: args.consumerAgentExclude }
       : {}),
+    ...(args?.consumerExtraJavaArgs ? { extraJavaArgs: args.consumerExtraJavaArgs } : {}),
   });
   producerRuntime = await startEventProducerAppWithAgent({
     consumerBaseUrl: consumerRuntime.apiBaseUrl,
+    ...(args?.producerExtraJavaArgs ? { extraJavaArgs: args.producerExtraJavaArgs } : {}),
   });
 
   const activeConsumerRuntime = consumerRuntime;
@@ -201,6 +205,8 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
     includeProbeExpectation?: boolean;
     probeVerification?: boolean;
     requestMode?: "trigger" | "readiness";
+    notes?: string;
+    maxWindowMs?: number;
     correlation?: {
       correlationSessionId: string;
       expectedFlow: string[];
@@ -212,6 +218,16 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
         | "suite_last_message_id";
       explicitKeyValue?: string;
       responseJsonPath?: string;
+      runtimeEvidence?: {
+        required: boolean;
+        probeIds?: string[];
+        eventKeyPath?: string;
+        pageLimit?: number;
+        maxEvents?: number;
+        maxBytes?: number;
+        maxDurationMs?: number;
+      };
+      probeIds?: string[];
     };
   }): Promise<void> {
     const planRootAbs = path.join(
@@ -299,7 +315,7 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
                       dataFormatVersion: 1,
                       dataId: "tenant-batch-01",
                       data: ["tenant-social-001"],
-                      notes: "Trigger reindex per tenant",
+                      notes: args.notes ?? "Trigger reindex per tenant",
                     },
                     timeoutMs: 10_000,
                   },
@@ -356,9 +372,14 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
                             path: args.correlation.responseJsonPath ?? "response.bodyJson.id",
                           },
                         },
-              window: { maxWindowMs: 60_000 },
-              probeIds: typeof args.probeId === "string" ? [args.probeId] : [],
+              window: { maxWindowMs: args.maxWindowMs ?? 60_000 },
+              probeIds:
+                args.correlation.probeIds ??
+                (typeof args.probeId === "string" ? [args.probeId] : []),
               expectedFlow: args.correlation.expectedFlow,
+              ...(args.correlation.runtimeEvidence
+                ? { runtimeEvidence: args.correlation.runtimeEvidence }
+                : {}),
               matchPolicy: {
                 requireExactKeyMatch: true,
                 requireWindowMatch: true,

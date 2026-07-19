@@ -57,6 +57,7 @@ export type CorrelationPolicy = {
   maxWindowMs: number;
   expectedFlow?: string[];
   runtimeEvidenceRequired?: boolean;
+  probeIds?: string[];
   runtimeProbeIds?: string[];
   runtimeInstanceIds?: string[];
   runtimeLineKeys?: string[];

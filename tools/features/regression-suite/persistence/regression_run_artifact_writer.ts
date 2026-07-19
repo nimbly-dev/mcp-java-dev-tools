@@ -91,6 +91,9 @@ export function toCorrelationArtifactFromEvidence(args: {
     keyFromContextPath && typeof args.resolvedContext[keyFromContextPath] !== "undefined"
       ? String(args.resolvedContext[keyFromContextPath])
       : undefined;
+  const probeIds = Array.isArray(policyRaw.probeIds)
+    ? policyRaw.probeIds.filter((value): value is string => typeof value === "string")
+    : undefined;
   const keyValue =
     typeof keyValueRaw === "string" && keyValueRaw.trim().length > 0 ? keyValueRaw : keyFromContext;
   const keySourceType =
@@ -190,6 +193,7 @@ export function toCorrelationArtifactFromEvidence(args: {
     maxWindowMs,
     ...(Array.isArray(expectedFlow) && !crossPlan ? { expectedFlow } : {}),
     ...(runtimeEvidenceRequired ? { runtimeEvidenceRequired: true } : {}),
+    ...(probeIds ? { probeIds } : {}),
     ...(runtimeProbeIds ? { runtimeProbeIds } : {}),
     ...(runtimeInstanceIds ? { runtimeInstanceIds } : {}),
   });

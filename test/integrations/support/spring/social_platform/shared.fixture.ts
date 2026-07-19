@@ -566,6 +566,7 @@ export async function startEventAppWithAgent(args?: {
   actuateAuthToken?: string;
   agentInclude?: string;
   agentExclude?: string;
+  extraJavaArgs?: string[];
 }): Promise<RunningApp> {
   return await startSpringBootAppWithAgent({
     appLabel: "event-app",
@@ -580,6 +581,7 @@ export async function startEventAppWithAgent(args?: {
       : {}),
     ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
     ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
+    ...(args?.extraJavaArgs ? { extraJavaArgs: args.extraJavaArgs } : {}),
   });
 }
 
@@ -590,6 +592,7 @@ export async function startEventProducerAppWithAgent(args?: {
   agentInclude?: string;
   agentExclude?: string;
   consumerBaseUrl?: string;
+  extraJavaArgs?: string[];
 }): Promise<RunningApp> {
   return await startSpringBootAppWithAgent({
     appLabel: "event-producer-app",
@@ -604,8 +607,15 @@ export async function startEventProducerAppWithAgent(args?: {
       : {}),
     ...(typeof args?.agentInclude === "string" ? { agentInclude: args.agentInclude } : {}),
     ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
-    ...(typeof args?.consumerBaseUrl === "string"
-      ? { extraJavaArgs: [`-Dfixture.consumer.base-url=${args.consumerBaseUrl}`] }
+    ...(typeof args?.consumerBaseUrl === "string" || args?.extraJavaArgs
+      ? {
+          extraJavaArgs: [
+            ...(typeof args?.consumerBaseUrl === "string"
+              ? [`-Dfixture.consumer.base-url=${args.consumerBaseUrl}`]
+              : []),
+            ...(args?.extraJavaArgs ?? []),
+          ],
+        }
       : {}),
   });
 }
@@ -617,11 +627,13 @@ export async function startEventConsumerAppWithAgent(args?: {
   agentInclude?: string;
   agentExclude?: string;
   sqliteFileAbs?: string;
+  extraJavaArgs?: string[];
 }): Promise<RunningApp> {
   const extraJavaArgs: string[] = [];
   if (typeof args?.sqliteFileAbs === "string" && args.sqliteFileAbs.trim().length > 0) {
     extraJavaArgs.push(`-Dfixture.sqlite.file=${args.sqliteFileAbs}`);
   }
+  if (Array.isArray(args?.extraJavaArgs)) extraJavaArgs.push(...args.extraJavaArgs);
   return await startSpringBootAppWithAgent({
     appLabel: "event-consumer-app",
     appProjectRootAbs: eventConsumerAppProjectRootAbs,

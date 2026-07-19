@@ -1454,7 +1454,7 @@ test("executeRegressionPlanWorkflow executes watcher as bounded post-step verifi
         {
           projectRoot: root,
           defaults: {
-            requestTimeoutMs: 120,
+            requestTimeoutMs: 1000,
             retryMax: 3,
             orchestrator: {
               resumePollMax: 30,

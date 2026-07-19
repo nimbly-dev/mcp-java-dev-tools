@@ -346,6 +346,7 @@ export function buildPlanCorrelationEvidence(args: {
       ...(Array.isArray(correlation.expectedFlow)
         ? { expectedFlow: correlation.expectedFlow }
         : {}),
+      ...(Array.isArray(correlation.probeIds) ? { probeIds: correlation.probeIds } : {}),
       ...(Array.isArray(correlation.strictLineExpectations)
         ? { strictLineExpectations: correlation.strictLineExpectations }
         : {}),

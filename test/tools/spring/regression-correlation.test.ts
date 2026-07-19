@@ -426,6 +426,110 @@ test("correlateEvents does not match a fingerprint with the wrong key type", () 
   assert.equal(result.reasonCode, "correlation_key_not_observed");
 });
 
+test("correlateEvents preserves producer plan evidence when runtime scope is downstream", () => {
+  const result = correlateEvents(
+    [
+      {
+        eventId: "producer-http",
+        probeId: "producer-service",
+        timestampEpochMs: 1_000,
+        keyType: "messageId",
+        keyValue: "evt-1",
+        eventType: "http_response",
+      },
+      {
+        eventId: "consumer-line",
+        probeId: "consumer-service",
+        runtimeInstanceId: "consumer-1",
+        timestampEpochMs: 2_000,
+        keyType: "messageId",
+        keyValue: "evt-1",
+        eventType: "runtime_line_hit",
+        lineKey: "example.Consumer#process:42",
+      },
+    ],
+    {
+      keyType: "messageId",
+      keyValue: "evt-1",
+      maxWindowMs: 5_000,
+      expectedFlow: ["producer-service", "consumer-service"],
+      runtimeEvidenceRequired: true,
+      runtimeProbeIds: ["consumer-service"],
+      runtimeLineKeys: ["example.Consumer#process:42"],
+    },
+  );
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.observedProbeIds, ["producer-service", "consumer-service"]);
+  assert.deepEqual(result.timeline.map((event: { probeId: string }) => event.probeId), [
+    "producer-service",
+    "consumer-service",
+  ]);
+});
+
+test("correlateEvents fails closed when a bound consumer key lacks async runtime propagation", () => {
+  const result = correlateEvents(
+    [
+      {
+        eventId: "consumer-entry",
+        probeId: "consumer-service",
+        timestampEpochMs: 1_000,
+        keyType: "messageId",
+        keyValue: "evt-1",
+        eventType: "consumer_entry",
+      },
+    ],
+    {
+      keyType: "messageId",
+      keyValue: "evt-1",
+      maxWindowMs: 5_000,
+      runtimeEvidenceRequired: true,
+      runtimeProbeIds: ["consumer-service"],
+    },
+  );
+  assert.equal(result.status, "fail_closed");
+  assert.equal(result.reasonCode, "correlation_context_not_propagated");
+});
+
+test("correlateEvents does not infer propagation loss from missing runtime evidence", () => {
+  const result = correlateEvents([], {
+    keyType: "messageId",
+    keyValue: "evt-1",
+    maxWindowMs: 5_000,
+    runtimeEvidenceRequired: true,
+    runtimeProbeIds: ["consumer-service"],
+    runtimeLineKeys: ["example.AsyncProcessor#process:42"],
+  });
+  assert.equal(result.status, "fail_closed");
+  assert.equal(result.reasonCode, "correlation_key_not_observed");
+});
+
+test("correlateEvents reports propagation failure after bound runtime evidence", () => {
+  const result = correlateEvents(
+    [
+      {
+        eventId: "consumer-line",
+        probeId: "consumer-service",
+        runtimeInstanceId: "consumer-1",
+        timestampEpochMs: 1_000,
+        keyType: "messageId",
+        keyValue: "evt-1",
+        eventType: "runtime_line_hit",
+        lineKey: "example.Consumer#receive:10",
+      },
+    ],
+    {
+      keyType: "messageId",
+      keyValue: "evt-1",
+      maxWindowMs: 5_000,
+      runtimeEvidenceRequired: true,
+      runtimeProbeIds: ["consumer-service"],
+      runtimeLineKeys: ["example.AsyncProcessor#process:42"],
+    },
+  );
+  assert.equal(result.status, "fail_closed");
+  assert.equal(result.reasonCode, "correlation_context_not_propagated");
+});
+
 test("correlateEvents enforces configured runtime instance scope", () => {
   const result = correlateEvents(
     [
