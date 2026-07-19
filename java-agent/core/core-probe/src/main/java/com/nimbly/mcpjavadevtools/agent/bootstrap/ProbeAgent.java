@@ -10,6 +10,7 @@ import com.nimbly.mcpjavadevtools.agent.profiler.ProfilerPaths;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
 import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationConsumerAdvice;
 import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationEventConsumerAdapter;
+import com.nimbly.mcpjavadevtools.agent.runtime.JdkExecutorCorrelationAdvice;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.method.MethodDescription;
@@ -20,8 +21,13 @@ import net.bytebuddy.matcher.ElementMatchers;
 import net.bytebuddy.utility.JavaModule;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.ProtectionDomain;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 
 public final class ProbeAgent {
   private static final String BYTE_BUDDY_EXPERIMENTAL_PROPERTY = "net.bytebuddy.experimental";
@@ -29,6 +35,7 @@ public final class ProbeAgent {
   private ProbeAgent() {}
 
   public static void premain(String agentArgs, Instrumentation inst) {
+    boolean jdkCorrelationReady = appendCorrelationContextToBootstrap(inst);
     AgentConfig cfg = AgentConfig.fromAgentArgs(agentArgs);
     configureByteBuddyCompatibility(cfg);
     ProbeRuntime.configure(
@@ -105,7 +112,7 @@ public final class ProbeAgent {
       System.err.println("[probe-agent] Failed to start HTTP server: " + e.getMessage());
     }
 
-    installInstrumentation(inst, cfg);
+    installInstrumentation(inst, cfg, jdkCorrelationReady);
   }
 
   private static void configureByteBuddyCompatibility(AgentConfig cfg) {
@@ -115,7 +122,8 @@ public final class ProbeAgent {
     System.setProperty(BYTE_BUDDY_EXPERIMENTAL_PROPERTY, "true");
   }
 
-  private static void installInstrumentation(Instrumentation inst, AgentConfig cfg) {
+  private static void installInstrumentation(
+      Instrumentation inst, AgentConfig cfg, boolean jdkCorrelationReady) {
     AgentBuilder builder = new AgentBuilder.Default()
         .ignore(ElementMatchers.nameStartsWith("net.bytebuddy.")
             .or(ElementMatchers.nameStartsWith("java."))
@@ -187,6 +195,80 @@ public final class ProbeAgent {
           }
         })
         .installOn(inst);
+
+    if (!jdkCorrelationReady) {
+      return;
+    }
+    AgentBuilder jdkBuilder = new AgentBuilder.Default()
+        .ignore(ElementMatchers.none());
+    if (inst.isRetransformClassesSupported()) {
+      jdkBuilder = jdkBuilder.with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION);
+    }
+    jdkBuilder
+        .type(ElementMatchers.named("java.util.concurrent.AbstractExecutorService")
+            .or(ElementMatchers.named("java.util.concurrent.ThreadPoolExecutor"))
+            .or(ElementMatchers.named("java.util.concurrent.ScheduledThreadPoolExecutor"))
+            .or(ElementMatchers.named("java.util.concurrent.ForkJoinPool")))
+        .transform((b, td, cl, module, pd) -> b.visit(Advice.to(JdkExecutorCorrelationAdvice.class).on(
+            ElementMatchers.named("execute")
+                .or(ElementMatchers.named("submit"))
+                .or(ElementMatchers.named("schedule"))
+                .or(ElementMatchers.named("scheduleAtFixedRate"))
+                .or(ElementMatchers.named("scheduleWithFixedDelay")))))
+        .installOn(inst);
+    retransformJdkExecutors(inst);
+  }
+
+  private static void retransformJdkExecutors(Instrumentation inst) {
+    if (!inst.isRetransformClassesSupported()) {
+      return;
+    }
+    for (Class<?> loadedType : inst.getAllLoadedClasses()) {
+      if (!loadedType.getName().equals("java.util.concurrent.AbstractExecutorService")
+          && !loadedType.getName().equals("java.util.concurrent.ThreadPoolExecutor")
+          && !loadedType.getName().equals("java.util.concurrent.ScheduledThreadPoolExecutor")
+          && !loadedType.getName().equals("java.util.concurrent.ForkJoinPool")) {
+        continue;
+      }
+      if (!inst.isModifiableClass(loadedType)) {
+        continue;
+      }
+      try {
+        inst.retransformClasses(loadedType);
+      } catch (Exception exception) {
+        System.err.println("[probe-agent] Failed to retransform JDK executor "
+            + loadedType.getName() + ": " + exception.getMessage());
+      }
+    }
+  }
+
+  private static boolean appendCorrelationContextToBootstrap(Instrumentation inst) {
+    String[] bootstrapClasses = {
+      "com/nimbly/mcpjavadevtools/agent/runtime/CorrelationContext.class",
+      "com/nimbly/mcpjavadevtools/agent/runtime/CorrelationContext$Binding.class",
+      "com/nimbly/mcpjavadevtools/agent/runtime/CorrelationContext$BindingSnapshot.class"
+    };
+    try {
+      Path bootstrapJar = Files.createTempFile("mcp-correlation-bootstrap-", ".jar");
+      try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(bootstrapJar))) {
+        for (String classResource : bootstrapClasses) {
+          try (InputStream input = ProbeAgent.class.getClassLoader().getResourceAsStream(classResource)) {
+            if (input == null) {
+              return false;
+            }
+            output.putNextEntry(new JarEntry(classResource));
+            input.transferTo(output);
+            output.closeEntry();
+          }
+        }
+      }
+      inst.appendToBootstrapClassLoaderSearch(new java.util.jar.JarFile(bootstrapJar.toFile()));
+      return true;
+    } catch (Exception exception) {
+      System.err.println("[probe-agent] JDK correlation handoff instrumentation disabled: "
+          + exception.getMessage());
+      return false;
+    }
   }
 }
 

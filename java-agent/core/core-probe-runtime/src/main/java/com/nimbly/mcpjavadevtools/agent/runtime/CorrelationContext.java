@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.concurrent.Callable;
 
 /** Process-local correlation identity bound by an event-consumer adapter. */
 public final class CorrelationContext {
@@ -84,6 +85,28 @@ public final class CorrelationContext {
       }
       try {
         task.run();
+      } finally {
+        if (previous == null) {
+          CURRENT.remove();
+        } else {
+          CURRENT.set(previous);
+        }
+      }
+    };
+  }
+
+  /** Captures the current binding for a supported asynchronous Callable handoff. */
+  public static <T> Callable<T> wrap(Callable<T> task) {
+    Binding captured = CURRENT.get();
+    return () -> {
+      Binding previous = CURRENT.get();
+      if (captured == null) {
+        CURRENT.remove();
+      } else {
+        CURRENT.set(captured);
+      }
+      try {
+        return task.call();
       } finally {
         if (previous == null) {
           CURRENT.remove();

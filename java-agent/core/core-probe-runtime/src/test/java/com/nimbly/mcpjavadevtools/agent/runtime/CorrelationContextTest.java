@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
+import java.util.concurrent.Callable;
 import org.junit.jupiter.api.Test;
 
 class CorrelationContextTest {
@@ -44,6 +45,19 @@ class CorrelationContextTest {
       wrapped.run();
     });
     assertNull(CorrelationContext.current());
+  }
+
+  @Test
+  void wrappedCallablePropagatesOnlyTheBoundContext() throws Exception {
+    ProbeRuntime.runWithCorrelationContext("session-async", "messageId", "96", () -> {
+      Callable<CorrelationContext.BindingSnapshot> task = CorrelationContext.wrap(
+          CorrelationContext::current);
+      try {
+        assertEquals("session-async", task.call().sessionId());
+      } catch (Exception exception) {
+        throw new IllegalStateException(exception);
+      }
+    });
   }
 
   @Test

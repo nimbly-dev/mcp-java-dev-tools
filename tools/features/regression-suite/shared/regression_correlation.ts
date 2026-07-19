@@ -24,6 +24,10 @@ function isRuntimeLineHit(event: CorrelationInputEvent): boolean {
   return event.eventType === "runtime_line_hit";
 }
 
+function isSyntheticBoundConsumerEvidence(event: CorrelationInputEvent): boolean {
+  return event.eventType === "consumer_entry" || event.eventType === "consumer_listener";
+}
+
 function keyFingerprint(value: string): string {
   return `sha256:${createHash("sha256").update(value, "utf8").digest("hex")}`;
 }
@@ -113,6 +117,7 @@ export function correlateEvents(
   events: CorrelationInputEvent[],
   policy: CorrelationPolicy,
 ): CorrelationMatchResult {
+  const expectedFlow = policy.expectedFlow ?? [];
   const keyValue = normalizeString(policy.keyValue);
   if (!keyValue) {
     return { status: "fail_closed", reasonCode: "missing_correlation_key", timeline: [] };
@@ -134,7 +139,11 @@ export function correlateEvents(
     if (runtimeEvents.length === 0) {
       return {
         status: "fail_closed",
-        reasonCode: "correlation_key_not_observed",
+        reasonCode: candidates.some(isSyntheticBoundConsumerEvidence)
+          ? "correlation_context_not_propagated"
+          : candidates.length > 0 && expectedFlow.length > 1
+            ? "missing_expected_flow_event"
+            : "correlation_key_not_observed",
         timeline: [],
       };
     }
@@ -151,8 +160,9 @@ export function correlateEvents(
         timeline: [],
       };
     }
-    const scopedRuntimeEvents = policy.runtimeProbeIds?.length
-      ? runtimeEvents.filter((event) => policy.runtimeProbeIds?.includes(event.probeId))
+    const scopedProbeIds = policy.probeIds?.length ? policy.probeIds : policy.runtimeProbeIds;
+    const scopedRuntimeEvents = scopedProbeIds?.length
+      ? runtimeEvents.filter((event) => scopedProbeIds.includes(event.probeId))
       : runtimeEvents;
     if (scopedRuntimeEvents.length === 0) {
       return {
@@ -175,6 +185,9 @@ export function correlateEvents(
         timeline: [],
       };
     }
+    const scopedCorrelationEvents = instanceScopedRuntimeEvents.filter((event) =>
+      candidates.includes(event),
+    );
     const scopedCandidates = instanceScopedRuntimeEvents.filter(
       (event) =>
         (!policy.runtimeLineKeys?.length ||
@@ -186,20 +199,29 @@ export function correlateEvents(
           event.keyFingerprint === keyFingerprint(keyValue)),
     );
     if (scopedCandidates.length === 0) {
+      const downstreamRuntimeObserved = instanceScopedRuntimeEvents.some((event) =>
+        expectedFlow.slice(1).includes(event.probeId),
+      );
       return {
         status: "fail_closed",
-        reasonCode: "correlation_key_not_observed",
+        reasonCode:
+          scopedCorrelationEvents.length > 0
+            ? "correlation_context_not_propagated"
+            : downstreamRuntimeObserved || expectedFlow.length <= 1
+              ? "correlation_key_not_observed"
+              : "missing_expected_flow_event",
         timeline: [],
       };
     }
-    candidates.splice(0, candidates.length, ...scopedCandidates);
+    const planCandidates = candidates.filter((event) => !isRuntimeLineHit(event));
+    candidates.splice(0, candidates.length, ...planCandidates, ...scopedCandidates);
   }
 
   if (candidates.length === 0) {
     return { status: "fail_closed", reasonCode: "no_matching_events", timeline: [] };
   }
 
-  const sorted = sortEvents(candidates, policy.expectedFlow);
+  const sorted = sortEvents(candidates, expectedFlow);
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
   if (!first || !last) {

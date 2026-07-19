@@ -15,31 +15,46 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class EventTriggerService {
   private static final String NOTES_SLEEP_PREFIX = "fixture-sleep-ms:";
+  private static final String NOTES_CONSUMER_EVENT_ID_PREFIX = "fixture-consumer-event-id:";
+  private final boolean consumerForwardEnabled;
   private final RestClient restClient;
   private final ConcurrentMap<String, EventStatusResponse> acceptedByEventId = new ConcurrentHashMap<>();
 
-  public EventTriggerService(@Value("${fixture.consumer.base-url}") String consumerBaseUrl) {
+  public EventTriggerService(
+      @Value("${fixture.consumer.base-url}") String consumerBaseUrl,
+      @Value("${fixture.consumer.forward-enabled:true}") boolean consumerForwardEnabled) {
     this.restClient = RestClient.builder().baseUrl(consumerBaseUrl).build();
+    this.consumerForwardEnabled = consumerForwardEnabled;
   }
 
   public TriggerIndexResponse triggerIndex(TriggerIndexRequest request, String username) {
     String tenant = request.data().isEmpty() ? "unknown-tenant" : request.data().get(0);
     String eventId = "evt-" + UUID.randomUUID();
     acceptedByEventId.put(eventId, new EventStatusResponse(eventId, "accepted", username, tenant, request.type()));
-    restClient
-        .post()
-        .uri("/internal/events")
-        .header("X-Event-Id", eventId)
-        .header("X-Accepted-By", username)
-        .body(request)
-        .retrieve()
-        .toBodilessEntity();
+    if (consumerForwardEnabled) {
+      restClient
+          .post()
+          .uri("/internal/events")
+          .header("X-Event-Id", deliveredEventId(request.notes(), eventId))
+          .header("X-Accepted-By", username)
+          .body(request)
+          .retrieve()
+          .toBodilessEntity();
+    }
     sleepIfRequested(request.notes());
     return new TriggerIndexResponse(
         eventId,
         "accepted",
         username,
         "/api/v1/events/" + eventId);
+  }
+
+  private String deliveredEventId(String notes, String generatedEventId) {
+    if (notes == null || !notes.startsWith(NOTES_CONSUMER_EVENT_ID_PREFIX)) {
+      return generatedEventId;
+    }
+    String override = notes.substring(NOTES_CONSUMER_EVENT_ID_PREFIX.length()).trim();
+    return override.isEmpty() ? generatedEventId : override;
   }
 
   private void sleepIfRequested(String notes) {

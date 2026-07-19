@@ -17,6 +17,9 @@ public class ExampleQueueListener {
   @Async("eventFixtureExecutor")
   @EventListener
   public void receiveEvent(IndexRequestedEvent event) {
+    if ("generic-jdk-correlation".equals(event.notes())) {
+      return;
+    }
     processingStore.markProcessed(
         event.eventId(),
         event.tenant(),
