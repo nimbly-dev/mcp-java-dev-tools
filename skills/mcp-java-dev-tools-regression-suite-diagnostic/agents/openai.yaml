@@ -1,0 +1,4 @@
+interface:
+  display_name: "MCP Java Dev Tools Regression Suite Diagnostic"
+  short_description: "Diagnose regression plan readiness and execution evidence"
+  default_prompt: "Use $mcp-java-dev-tools-regression-suite-diagnostic to diagnose this regression plan or run from bounded Artifact, SQLite, and optional live Probe evidence."
