@@ -20,6 +20,8 @@ public final class ProbeRuntime {
   private static final ConcurrentHashMap<String, AtomicLong> LAST_HIT_EPOCH_MS = new ConcurrentHashMap<>();
   private static final ConcurrentHashMap<String, LineTable> RESOLVABLE_LINES_BY_METHOD =
       new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, LineTable> ACTUATABLE_LINES_BY_METHOD =
+      new ConcurrentHashMap<>();
   private static final ConcurrentHashMap<String, SessionActuation> SESSION_ACTUATIONS =
       new ConcurrentHashMap<>();
   private static final ArrayDeque<String> RUNTIME_LINE_HIT_EVENT_KEYS = new ArrayDeque<>();
@@ -298,6 +300,18 @@ public final class ProbeRuntime {
     RESOLVABLE_LINES_BY_METHOD.computeIfAbsent(methodKey, k -> new LineTable()).add(lineNumber);
   }
 
+  public static void registerActuatableLine(
+      String dottedClassName,
+      String methodName,
+      int lineNumber
+  ) {
+    if (dottedClassName == null || dottedClassName.isBlank()) return;
+    if (methodName == null || methodName.isBlank()) return;
+    if (lineNumber <= 0) return;
+    String methodKey = dottedClassName + "#" + methodName;
+    ACTUATABLE_LINES_BY_METHOD.computeIfAbsent(methodKey, k -> new LineTable()).add(lineNumber);
+  }
+
   public static boolean isLineKey(String key) {
     return parseLineKey(key) != null;
   }
@@ -309,6 +323,18 @@ public final class ProbeRuntime {
     if (table == null) {
       tryLoadClassWithoutInitialization(parsed.dottedClassName);
       table = RESOLVABLE_LINES_BY_METHOD.get(parsed.methodKey);
+    }
+    if (table == null) return false;
+    return table.contains(parsed.lineNumber);
+  }
+
+  public static boolean isLineActuatableKey(String key) {
+    ParsedLineKey parsed = parseLineKey(key);
+    if (parsed == null || !isLineResolvableKey(key)) return false;
+    LineTable table = ACTUATABLE_LINES_BY_METHOD.get(parsed.methodKey);
+    if (table == null) {
+      tryLoadClassWithoutInitialization(parsed.dottedClassName);
+      table = ACTUATABLE_LINES_BY_METHOD.get(parsed.methodKey);
     }
     if (table == null) return false;
     return table.contains(parsed.lineNumber);

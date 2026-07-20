@@ -127,6 +127,8 @@ public final class LineHitVisitor extends AsmVisitorWrapper.AbstractBase {
               return;
             }
 
+            ProbeRuntime.registerActuatableLine(dottedClassName, probeMethodName, currentLine);
+
             super.visitLdcInsn(dottedClassName);
             super.visitLdcInsn(probeMethodName);
             super.visitLdcInsn(currentLine);

@@ -220,6 +220,17 @@ examples:
 | `response`                     | Raw endpoint response payload.                        | `probe`    | true     | `{"status":200,"json":{"action":"arm","scopeState":"armed"}}` |
 | `response.json.scopeState`     | Session scope state (`armed`, `expired`, `disarmed`). | `probe`    | false    | `"armed"`                                                     |
 | `response.json.expiresAtEpoch` | Expiry timestamp for armed sessions.                  | `probe`    | false    | `1773318672847`                                               |
+| `response.json.error`           | Deterministic error code for a rejected arm request (`invalid_target_key`, `invalid_line_target`, or `target_line_not_actuatable`). | `probe` | false | `"target_line_not_actuatable"` |
+| `response.json.scope`           | Error scope for actuation target validation (`"actuate"` when returned). | `probe` | false | `"actuate"` |
+
+Arm target validation is fail-closed and occurs before session creation or replacement:
+
+| target state                              | HTTP | `response.json.error`          |
+| ----------------------------------------- | ---- | ------------------------------ |
+| Invalid Strict Line Key syntax            | 400  | `invalid_target_key`            |
+| Valid syntax but unresolved                | 400  | `invalid_line_target`           |
+| Resolvable but no conditional jump        | 400  | `target_line_not_actuatable`    |
+| Resolvable conditional target              | 200  | `scopeState=armed`              |
 
 ## probe action=status
 
