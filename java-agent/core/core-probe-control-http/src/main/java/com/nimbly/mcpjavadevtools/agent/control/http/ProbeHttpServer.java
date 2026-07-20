@@ -52,6 +52,14 @@ public final class ProbeHttpServer {
     return new ProbeHttpServer(server);
   }
 
+  int port() {
+    return server.getAddress().getPort();
+  }
+
+  void stop() {
+    server.stop(0);
+  }
+
   private static final class CorrelationEventsHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
@@ -325,6 +333,14 @@ public final class ProbeHttpServer {
         }
         if (!ProbeRuntime.isLineKey(targetKey)) {
           ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("invalid_target_key", null));
+          return;
+        }
+        if (!ProbeRuntime.isLineResolvableKey(targetKey)) {
+          ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("invalid_line_target", "actuate"));
+          return;
+        }
+        if (!ProbeRuntime.isLineActuatableKey(targetKey)) {
+          ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("target_line_not_actuatable", "actuate"));
           return;
         }
         if (ttlMs < ProbeRuntime.minTtlMs() || ttlMs > ProbeRuntime.maxTtlMs()) {
