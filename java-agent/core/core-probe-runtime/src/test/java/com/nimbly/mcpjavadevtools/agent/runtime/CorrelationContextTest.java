@@ -114,6 +114,30 @@ class CorrelationContextTest {
   }
 
   @Test
+  void agentConsumerBoundaryBindsNestedEventKeyPath() {
+    record Payload(String orderId) {}
+    record Envelope(Payload detail) {}
+    CorrelationEventConsumerAdapter.configure(
+        "$.detail.orderId", "session-nested", "execution-nested");
+    CorrelationContext.BindingSnapshot previous =
+        CorrelationEventConsumerAdapter.bindFromEventArguments(
+            new Object[] {new Envelope(new Payload("order-123"))});
+    try {
+      assertEquals("session-nested", CorrelationContext.current().sessionId());
+      ProbeRuntime.hitLineByClassMethod("example.Task", "nestedConsume", 51);
+      RuntimeLineHitEvent event = ProbeRuntime.runtimeLineHitEvents("session-nested", 0, 10).stream()
+          .filter(candidate -> candidate.lineKey().equals("example.Task#nestedConsume:51"))
+          .findFirst()
+          .orElseThrow();
+      assertEquals("execution-nested", event.correlationExecutionId());
+    } finally {
+      CorrelationEventConsumerAdapter.restore(previous);
+      CorrelationEventConsumerAdapter.configure("", "", "");
+    }
+    assertNull(CorrelationContext.current());
+  }
+
+  @Test
   void repeatedHotLineHitsRemainOneBoundedAggregate() {
     ProbeRuntime.runWithCorrelationContext("session-hot", "messageId", "96", () -> {
       for (int i = 0; i < 1_000; i++) {

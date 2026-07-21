@@ -112,28 +112,33 @@ public final class CorrelationEventConsumerAdapter {
     Object current = value;
     for (String segment : path.substring(2).split("\\.")) {
       if (current == null) return null;
-      String result = stringProperty(current, segment);
-      if (result == null) return null;
-      current = result;
+      current = propertyValue(current, segment);
+      if (current == null) return null;
     }
     return current == null ? null : String.valueOf(current).trim();
   }
 
   private static String stringProperty(Object value, String... names) {
     for (String name : names) {
+      Object result = propertyValue(value, name);
+      if (result != null) return String.valueOf(result).trim();
+    }
+    return null;
+  }
+
+  private static Object propertyValue(Object value, String name) {
+    try {
+      Method getter = value.getClass().getMethod(name);
+      Object result = getter.invoke(value);
+      if (result != null) return result;
+    } catch (ReflectiveOperationException ignored) {
       try {
-        Method getter = value.getClass().getMethod(name);
-        Object result = getter.invoke(value);
-        if (result != null) return String.valueOf(result).trim();
-      } catch (ReflectiveOperationException ignored) {
-        try {
-          Field field = value.getClass().getDeclaredField(name);
-          field.setAccessible(true);
-          Object result = field.get(value);
-          if (result != null) return String.valueOf(result).trim();
-        } catch (ReflectiveOperationException ignoredField) {
-          // Try the next convention.
-        }
+        Field field = value.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        Object result = field.get(value);
+        if (result != null) return result;
+      } catch (ReflectiveOperationException ignoredField) {
+        return null;
       }
     }
     return null;
