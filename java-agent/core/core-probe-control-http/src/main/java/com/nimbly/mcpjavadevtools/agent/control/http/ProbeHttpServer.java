@@ -42,6 +42,7 @@ public final class ProbeHttpServer {
     HttpServer server = HttpServer.create(new InetSocketAddress(host, port), 16);
     server.createContext("/__probe/status", new StatusHandler());
     server.createContext("/__probe/correlation/events", new CorrelationEventsHandler());
+    server.createContext("/__probe/correlation/status", new CorrelationStatusHandler());
     server.createContext("/__probe/correlation/configure", new CorrelationConfigureHandler());
     server.createContext("/__probe/reset", new ResetHandler());
     server.createContext("/__probe/actuate", new ActuateHandler());
@@ -169,6 +170,35 @@ public final class ProbeHttpServer {
       response.put("correlationSessionId", request.sessionId().trim());
       response.put("correlationExecutionId", request.executionId().trim());
       response.put("eventKeyPath", request.eventKeyPath().trim());
+      ProbeHttpJson.writeJson(exchange, 200, response);
+    }
+  }
+
+  private static final class CorrelationStatusHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+        ProbeHttpJson.writeJson(exchange, 405,
+            new ProbeHttpPayloads.ErrorEnvelope("method_not_allowed", null));
+        return;
+      }
+      if (!ProbeAuth.authorizeObserve(exchange)) {
+        ProbeHttpJson.writeJson(exchange, 401,
+            new ProbeHttpPayloads.ErrorEnvelope("unauthorized", "observe"));
+        return;
+      }
+      String requestedSessionId = ProbeHttpJson.queryParam(
+          exchange.getRequestURI(), "sessionId");
+      ProbeRuntime.KclBindingStatus status = ProbeRuntime.kclBindingStatus();
+      Map<String, Object> response = new LinkedHashMap<>();
+      response.put("contractVersion", CONTRACT_VERSION);
+      response.put("outcome", status.outcome());
+      response.put("reasonCode", status.reasonCode());
+      response.put("correlationSessionId", status.correlationSessionId());
+      response.put("correlationExecutionId", status.correlationExecutionId());
+      response.put("observedAtEpochMs", status.observedAtEpochMs());
+      response.put("sessionMatches", requestedSessionId == null
+          || requestedSessionId.trim().equals(status.correlationSessionId()));
       ProbeHttpJson.writeJson(exchange, 200, response);
     }
   }

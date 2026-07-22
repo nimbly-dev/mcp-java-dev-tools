@@ -17,6 +17,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>software.amazon.kinesis</groupId>
+      <artifactId>amazon-kinesis-client</artifactId>
+      <version>3.4.3</version>
+    </dependency>
+    <dependency>
       <groupId>com.example.social.fixture</groupId>
       <artifactId>event-api</artifactId>
       <version>${project.version}</version>

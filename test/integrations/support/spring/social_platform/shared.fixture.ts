@@ -174,6 +174,22 @@ export const eventConsumerListenerSourceFileAbs = path.join(
   "listener",
   "ExampleQueueListener.java",
 );
+export const kclProcessorFqcn =
+  "com.example.social.event.consumer.app.service.KclFixtureShardRecordProcessor";
+export const kclProcessorSourceFileAbs = path.join(
+  eventConsumerAppProjectRootAbs,
+  "src",
+  "main",
+  "java",
+  "com",
+  "example",
+  "social",
+  "event",
+  "consumer",
+  "app",
+  "service",
+  "KclFixtureShardRecordProcessor.java",
+);
 
 const LOG_TAIL_LIMIT = 200;
 

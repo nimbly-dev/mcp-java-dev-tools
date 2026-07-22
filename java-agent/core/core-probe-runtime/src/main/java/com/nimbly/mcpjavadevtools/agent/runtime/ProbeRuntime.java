@@ -30,6 +30,8 @@ public final class ProbeRuntime {
   private static final Object RUNTIME_LINE_HIT_EVENT_LOCK = new Object();
   private static final String RUNTIME_INSTANCE_ID = java.util.UUID.randomUUID().toString();
   private static volatile String PROBE_ID = "runtime";
+  private static volatile KclBindingStatus KCL_BINDING_STATUS =
+      new KclBindingStatus("not_observed", "kcl_binding_not_observed", "", "", 0L);
   private static final int MAX_RUNTIME_LINE_HIT_EVENTS = 10_000;
 
   private static final long MIN_TTL_MS = 1_000L;
@@ -220,6 +222,21 @@ public final class ProbeRuntime {
     CorrelationContext.clear();
   }
 
+  public static void recordKclBindingOutcome(
+      CorrelationEventConsumerAdapter.KclBindingResult result) {
+    if (result == null) return;
+    KCL_BINDING_STATUS = new KclBindingStatus(
+        result.outcome(),
+        result.reasonCode(),
+        result.correlationSessionId(),
+        result.correlationExecutionId(),
+        System.currentTimeMillis());
+  }
+
+  public static KclBindingStatus kclBindingStatus() {
+    return KCL_BINDING_STATUS;
+  }
+
   public static void configureCorrelationContext(String sessionId, String executionId, String eventKeyPath) {
     CorrelationEventConsumerAdapter.configure(eventKeyPath, sessionId, executionId);
   }
@@ -233,6 +250,13 @@ public final class ProbeRuntime {
   public static boolean releaseCorrelationContext(String executionId) {
     return CorrelationEventConsumerAdapter.release(executionId);
   }
+
+  public record KclBindingStatus(
+      String outcome,
+      String reasonCode,
+      String correlationSessionId,
+      String correlationExecutionId,
+      long observedAtEpochMs) {}
 
   public static List<RuntimeLineHitEvent> runtimeLineHitEvents() {
     synchronized (RUNTIME_LINE_HIT_EVENT_LOCK) {
