@@ -3,7 +3,11 @@ package com.example.social.event.consumer.app.controller;
 import com.example.social.event.api.model.TriggerIndexRequest;
 import com.example.social.event.consumer.app.model.EventProcessingStatusResponse;
 import com.example.social.event.consumer.app.model.IndexRequestedEvent;
+import com.example.social.event.consumer.app.model.KclFixtureBatchRequest;
+import com.example.social.event.consumer.app.model.KclFixtureBatchResponse;
 import com.example.social.event.consumer.app.service.EventProcessingStore;
+import com.example.social.event.consumer.app.service.KclInProcessFixtureService;
+import jakarta.validation.Valid;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,11 +25,23 @@ public class ExampleConsumerController {
   private static final String NOTES_DELAY_PREFIX = "fixture-listener-delay-ms:";
   private final ApplicationEventPublisher eventPublisher;
   private final EventProcessingStore processingStore;
+  private final KclInProcessFixtureService kclFixtureService;
 
   public ExampleConsumerController(
-      ApplicationEventPublisher eventPublisher, EventProcessingStore processingStore) {
+      ApplicationEventPublisher eventPublisher,
+      EventProcessingStore processingStore,
+      KclInProcessFixtureService kclFixtureService) {
     this.eventPublisher = eventPublisher;
     this.processingStore = processingStore;
+    this.kclFixtureService = kclFixtureService;
+  }
+
+  @PostMapping("/kcl")
+  public KclFixtureBatchResponse acceptKclBatch(
+      @Valid @RequestBody KclFixtureBatchRequest request) {
+    kclFixtureService.publish(request);
+    return new KclFixtureBatchResponse(
+        request.records().size(), request.records().get(0).partitionKey());
   }
 
   @PostMapping

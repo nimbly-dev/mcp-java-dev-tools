@@ -427,6 +427,7 @@ export type PlanCorrelationPolicy = {
   runtimeEvidence?: {
     required: boolean;
     probeIds?: string[];
+    /** Use `$.kcl.partitionKey` for KCL batch correlation. */
     eventKeyPath?: string;
     runtimeInstanceIds?: string[];
     pageLimit?: number;

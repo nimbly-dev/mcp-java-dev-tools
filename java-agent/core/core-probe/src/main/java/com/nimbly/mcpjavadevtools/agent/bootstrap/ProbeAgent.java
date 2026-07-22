@@ -11,6 +11,7 @@ import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
 import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationConsumerAdvice;
 import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationEventConsumerAdapter;
 import com.nimbly.mcpjavadevtools.agent.runtime.JdkExecutorCorrelationAdvice;
+import com.nimbly.mcpjavadevtools.agent.runtime.KclConsumerAdvice;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.method.MethodDescription;
@@ -167,6 +168,18 @@ public final class ProbeAgent {
                     .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.jms.annotation.JmsListener")))
                     .or(ElementMatchers.nameMatches("(?i)(receive|consume|onMessage|handleMessage)[A-Z_].*"));
             out = out.visit(Advice.to(CorrelationConsumerAdvice.class).on(consumerMatcher));
+            ElementMatcher.Junction<MethodDescription> kclConsumerMatcher =
+                ElementMatchers.named("processRecords")
+                    .and(ElementMatchers.takesArguments(1))
+                    .and(ElementMatchers.takesArgument(
+                        0,
+                        ElementMatchers.named(
+                            "software.amazon.kinesis.lifecycle.events.ProcessRecordsInput")))
+                    .and(ElementMatchers.returns(void.class))
+                    .and(ElementMatchers.isDeclaredBy(
+                        ElementMatchers.hasSuperType(
+                            ElementMatchers.named("software.amazon.kinesis.processor.ShardRecordProcessor"))));
+            out = out.visit(Advice.to(KclConsumerAdvice.class).on(kclConsumerMatcher));
             out = out.visit(new LineHitVisitor(td.getName()));
             return out;
           }

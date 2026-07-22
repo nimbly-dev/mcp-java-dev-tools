@@ -1,7 +1,6 @@
 package com.nimbly.mcpjavadevtools.agent.instrumentation;
 
 import com.nimbly.mcpjavadevtools.agent.capture.ProbeCaptureStore;
-import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.implementation.bytecode.assign.Assigner;
 
