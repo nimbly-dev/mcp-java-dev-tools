@@ -86,6 +86,23 @@ class ProbeActuationTargetValidationHttpTest {
     assertExistingSessionRemainsArmed();
   }
 
+  @Test
+  void statusExposesRuntimeIdentitySeparatelyFromActuationSession() throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create(
+            "http://127.0.0.1:" + server.port()
+                + "/__probe/status?key=example.HttpActuationTarget%23guard%3A20"))
+        .GET()
+        .build();
+    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    JsonNode runtime = JSON.readTree(response.body()).get("runtime");
+
+    assertEquals(200, response.statusCode());
+    assertEquals("", runtime.get("sessionId").asText());
+    assertEquals(ProbeRuntime.runtimeInstanceId(), runtime.get("runtimeInstanceId").asText());
+    assertFalse(runtime.get("runtimeInstanceId").asText().isBlank());
+  }
+
   private void assertRejectedArm(
       String sessionId,
       String targetKey,

@@ -1,5 +1,6 @@
 package com.nimbly.mcpjavadevtools.agent.runtime;
 
+import java.lang.reflect.Method;
 import net.bytebuddy.asm.Advice;
 
 /**
@@ -10,8 +11,30 @@ public final class CorrelationConsumerAdvice {
   private CorrelationConsumerAdvice() {}
 
   @Advice.OnMethodEnter
-  public static CorrelationContext.BindingSnapshot enter(@Advice.AllArguments Object[] arguments) {
-    return CorrelationEventConsumerAdapter.bindFromEventArguments(arguments);
+  public static CorrelationContext.BindingSnapshot enter(
+      @Advice.AllArguments Object[] arguments,
+      @Advice.Origin Method origin
+  ) {
+    return CorrelationEventConsumerAdapter.bindFromEventArguments(
+        arguments, origin, hasKnownConsumerAnnotation(origin));
+  }
+
+  public static boolean hasKnownConsumerAnnotation(Method origin) {
+    if (origin == null) return false;
+    try {
+      for (var annotation : origin.getDeclaredAnnotations()) {
+        String name = annotation.annotationType().getName();
+        if (name.equals("org.springframework.context.event.EventListener")
+            || name.equals("org.springframework.kafka.annotation.KafkaListener")
+            || name.equals("org.springframework.amqp.rabbit.annotation.RabbitListener")
+            || name.equals("org.springframework.jms.annotation.JmsListener")) {
+          return true;
+        }
+      }
+    } catch (LinkageError ignored) {
+      return false;
+    }
+    return false;
   }
 
   @Advice.OnMethodExit(onThrowable = Throwable.class)

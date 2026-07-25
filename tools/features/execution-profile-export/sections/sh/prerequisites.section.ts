@@ -286,11 +286,13 @@ function sanitizeAssetName(value: string, fallback: string): string {
 function renderEmbeddedScriptAsset(input: {
   id: string;
   order: number;
+  command: string;
   scriptPathAbs: string;
   scriptPathForShell: string;
   scriptText: string | null;
 }): { assetPathExpr: string; lines: string[] } {
-  const assetName = sanitizeAssetName(`${String(input.order).padStart(2, "0")}-${input.id}`, `script-${input.order}`);
+  const extension = input.command === "ps" ? ".ps1" : "";
+  const assetName = sanitizeAssetName(`${String(input.order).padStart(2, "0")}-${input.id}`, `script-${input.order}`) + extension;
   const assetPathExpr = `"${"$"}__MCPJVM_EXPORT_TMP/${assetName}"`;
   if (input.scriptText === null) {
     return {
@@ -361,6 +363,7 @@ async function renderRunPrerequisitesSection(input: {
       const embedded = renderEmbeddedScriptAsset({
         id,
         order: Number(entry.order ?? 0),
+        command,
         scriptPathAbs,
         scriptPathForShell,
         scriptText,

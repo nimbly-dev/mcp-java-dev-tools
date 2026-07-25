@@ -377,6 +377,12 @@ Cross-service/cross-plan deterministic post-analysis policy.
 - `window.startEpochMs` (number, optional)
 - `window.endEpochMs` (number, optional)
 - `probeIds[]` (string[]): target probe IDs.
+- `consumerBoundaries[]` (object[], optional): explicit unannotated event-consumer selectors used for runtime correlation binding.
+  - `id` (string): unique boundary identifier within the plan.
+  - `selector.fqcn` (string): exact declaring Java class name.
+  - `selector.method` (string): exact method name.
+  - `selector.parameterTypes[]` (string[]): exact Java parameter type names, in declaration order; this disambiguates overloads.
+  - `eventArgumentIndex` (number): zero-based event argument selected for key extraction.
 - `expectedFlow[]` (string[], optional): expected service order for validation.
 - `matchPolicy.requireExactKeyMatch` (boolean)
 - `matchPolicy.requireWindowMatch` (boolean)

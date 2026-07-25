@@ -192,7 +192,8 @@ final class ProbeHttpMapper {
         actuation.activeSessionCount(),
         runtime.serverEpoch(),
         buildRuntimeStringSignal(runtime.applicationType()),
-        buildRuntimePortSignal(runtime.appPort())
+        buildRuntimePortSignal(runtime.appPort()),
+        ProbeRuntime.runtimeInstanceId()
     );
   }
 

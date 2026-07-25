@@ -269,6 +269,41 @@ test("validateCorrelationPolicy fails closed for unknown expected flow Probe IDs
   assert.deepEqual(result.availableProbeIds, ["producer-service"]);
 });
 
+test("validateCorrelationPolicy rejects ambiguous consumer boundary selectors", () => {
+  const result = validateCorrelationPolicy({
+    enabled: true,
+    key: { type: "messageId" },
+    window: { maxWindowMs: 5000 },
+    probeIds: ["consumer-service"],
+    consumerBoundaries: [
+      {
+        id: "event-receiver",
+        selector: {
+          fqcn: "com.example.EventReceiver",
+          method: "receive",
+          parameterTypes: ["com.example.Event"],
+        },
+        eventArgumentIndex: 1,
+      },
+      {
+        id: "event-receiver",
+        selector: {
+          fqcn: "com.example.EventReceiver",
+          method: "receive",
+          parameterTypes: ["com.example.Event"],
+        },
+        eventArgumentIndex: 0,
+      },
+    ],
+    matchPolicy: {
+      requireExactKeyMatch: true,
+      requireWindowMatch: true,
+      ambiguityStrategy: "fail_closed",
+    },
+  });
+  assert.equal(result.reasonCode, "correlation_consumer_boundary_invalid");
+});
+
 test("validateCorrelationPolicy distinguishes an unavailable Probe registry", () => {
   const result = validateCorrelationPolicy(
     {
@@ -460,10 +495,10 @@ test("correlateEvents preserves producer plan evidence when runtime scope is dow
   );
   assert.equal(result.status, "ok");
   assert.deepEqual(result.observedProbeIds, ["producer-service", "consumer-service"]);
-  assert.deepEqual(result.timeline.map((event: { probeId: string }) => event.probeId), [
-    "producer-service",
-    "consumer-service",
-  ]);
+  assert.deepEqual(
+    result.timeline.map((event: { probeId: string }) => event.probeId),
+    ["producer-service", "consumer-service"],
+  );
 });
 
 test("correlateEvents fails closed when a bound consumer key lacks async runtime propagation", () => {

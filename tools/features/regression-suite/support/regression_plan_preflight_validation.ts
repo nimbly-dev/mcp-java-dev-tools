@@ -2,6 +2,7 @@
  * Regression plan preflight validation support.
  */
 import type {
+  PlanCorrelationConsumerBoundary,
   PlanCorrelationPolicy,
   PlanExternalVerification,
   PlanContract,
@@ -29,6 +30,45 @@ export function hasNonBlank(value: unknown): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isValidCorrelationConsumerBoundary(
+  value: unknown,
+): value is PlanCorrelationConsumerBoundary {
+  if (!isRecord(value) || typeof value.id !== "string" || !hasNonBlank(value.id)) return false;
+  if (!isRecord(value.selector)) return false;
+  const selector = value.selector;
+  if (
+    typeof selector.fqcn !== "string" ||
+    !hasNonBlank(selector.fqcn) ||
+    typeof selector.method !== "string" ||
+    !hasNonBlank(selector.method) ||
+    !Array.isArray(selector.parameterTypes) ||
+    selector.parameterTypes.length === 0 ||
+    !selector.parameterTypes.every(
+      (parameterType) => typeof parameterType === "string" && hasNonBlank(parameterType),
+    ) ||
+    typeof value.eventArgumentIndex !== "number" ||
+    !Number.isInteger(value.eventArgumentIndex) ||
+    value.eventArgumentIndex < 0 ||
+    value.eventArgumentIndex >= selector.parameterTypes.length
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function validateCorrelationConsumerBoundaries(boundaries: unknown): { ok: true } | { ok: false } {
+  if (typeof boundaries === "undefined") return { ok: true };
+  if (!Array.isArray(boundaries)) return { ok: false };
+  const ids = new Set<string>();
+  for (const boundary of boundaries) {
+    if (!isValidCorrelationConsumerBoundary(boundary) || ids.has(boundary.id.trim())) {
+      return { ok: false };
+    }
+    ids.add(boundary.id.trim());
+  }
+  return { ok: true };
 }
 
 export function emptyPreflightDetails() {
@@ -575,6 +615,7 @@ export function validateCorrelationPolicy(
         | "correlation_window_invalid"
         | "correlation_key_invalid"
         | "correlation_expectation_invalid"
+        | "correlation_consumer_boundary_invalid"
         | "correlation_runtime_evidence_policy_invalid"
         | "expected_flow_probe_unknown"
         | "expected_flow_probe_registry_unavailable";
@@ -762,6 +803,18 @@ export function validateCorrelationPolicy(
       reasonCode: "correlation_session_missing",
       requiredUserAction: [
         "Set non-empty correlation.correlationSessionId when correlation is session-scoped.",
+      ],
+    };
+  }
+  const consumerBoundaryValidation = validateCorrelationConsumerBoundaries(
+    correlation.consumerBoundaries,
+  );
+  if (!consumerBoundaryValidation.ok) {
+    return {
+      ok: false,
+      reasonCode: "correlation_consumer_boundary_invalid",
+      requiredUserAction: [
+        "Declare unique consumerBoundaries with exact fqcn, method, parameterTypes, and eventArgumentIndex values.",
       ],
     };
   }

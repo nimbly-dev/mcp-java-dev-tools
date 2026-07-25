@@ -102,6 +102,7 @@ test("probe_get_status supports 0.1.0 nested envelope", async () => {
           },
       runtime: {
         mode: "observe",
+        runtimeInstanceId: "runtime-instance-1",
         actuatorId: "",
         actuateTargetKey: "",
         actuateReturnBoolean: false,
@@ -141,6 +142,10 @@ test("probe_get_status supports 0.1.0 nested envelope", async () => {
     assert.equal(out.structuredContent.response.json.runtime.applicationType, undefined);
     assert.equal(out.structuredContent.response.json.runtime.serverEpoch, undefined);
     assert.equal(out.structuredContent.response.json.runtime.serverMs, undefined);
+    assert.equal(
+      out.structuredContent.response.json.runtime.runtimeInstanceId,
+      "runtime-instance-1",
+    );
     assert.equal(out.structuredContent.response.json.runtime.appPort.value, 8082);
     assert.equal(out.structuredContent.response.json.runtime.appPort.confidence, undefined);
     assert.equal(

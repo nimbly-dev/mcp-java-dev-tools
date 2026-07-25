@@ -43,6 +43,7 @@ export type PreflightReasonCode =
   | "correlation_window_invalid"
   | "correlation_key_invalid"
   | "correlation_expectation_invalid"
+  | "correlation_consumer_boundary_invalid"
   | "correlation_runtime_evidence_policy_invalid"
   | "expected_flow_probe_unknown"
   | "expected_flow_probe_registry_unavailable"
@@ -391,6 +392,16 @@ export type PlanCorrelationLineExpectation = {
   probeIds?: string[];
 };
 
+export type PlanCorrelationConsumerBoundary = {
+  id: string;
+  selector: {
+    fqcn: string;
+    method: string;
+    parameterTypes: string[];
+  };
+  eventArgumentIndex: number;
+};
+
 export type PlanCorrelationPolicy = {
   enabled: boolean;
   crossPlan?: boolean;
@@ -411,6 +422,7 @@ export type PlanCorrelationPolicy = {
     maxWindowMs: number;
   };
   probeIds: string[];
+  consumerBoundaries?: PlanCorrelationConsumerBoundary[];
   expectedFlow?: string[];
   strictLineExpectations?: PlanCorrelationLineExpectation[];
   matchPolicy: {
