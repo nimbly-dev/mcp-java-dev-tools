@@ -1,0 +1,4 @@
+interface:
+  display_name: "MCP Java Dev Tools Bug Fix"
+  short_description: "Draft evidence-backed Java bug-fix proposals"
+  default_prompt: "Use $mcp-java-dev-tools-bug-fix to localize a Java issue and draft a Probe-evidenced fix proposal without editing source."
