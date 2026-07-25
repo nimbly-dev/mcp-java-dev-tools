@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
+import java.lang.reflect.Method;
+import java.util.List;
 import java.util.concurrent.Callable;
 import org.junit.jupiter.api.Test;
 
@@ -135,6 +137,52 @@ class CorrelationContextTest {
       CorrelationEventConsumerAdapter.configure("", "", "");
     }
     assertNull(CorrelationContext.current());
+  }
+
+  @Test
+  void exactConsumerBoundarySelectsConfiguredArgumentAndOverload() throws Exception {
+    record Event(int jobId) {}
+    class Consumer {
+      void receive(Event event) {}
+
+      void receive(String ignored, Event event) {}
+    }
+    CorrelationEventConsumerAdapter.configure("$.jobId", "session-exact", "execution-exact");
+    CorrelationEventConsumerAdapter.configureConsumerBoundaries(List.of(
+        new CorrelationConsumerBoundary(
+            "consumer",
+            Consumer.class.getName(),
+            "receive",
+            List.of(" " + String.class.getName() + " ", " " + Event.class.getName() + " "),
+            1)));
+    Method selected = Consumer.class.getDeclaredMethod("receive", String.class, Event.class);
+    Method rejected = Consumer.class.getDeclaredMethod("receive", Event.class);
+    CorrelationContext.BindingSnapshot selectedPrevious =
+        CorrelationEventConsumerAdapter.bindFromEventArguments(
+            new Object[] {"not-an-event", new Event(96)}, selected);
+    try {
+      assertEquals("session-exact", CorrelationContext.current().sessionId());
+    } finally {
+      CorrelationEventConsumerAdapter.restore(selectedPrevious);
+    }
+    CorrelationContext.BindingSnapshot rejectedPrevious =
+        CorrelationEventConsumerAdapter.bindFromEventArguments(
+            new Object[] {new Event(97)}, rejected);
+    try {
+      assertNull(CorrelationContext.current());
+    } finally {
+      CorrelationEventConsumerAdapter.restore(rejectedPrevious);
+    }
+    CorrelationContext.BindingSnapshot annotationDrivenPrevious =
+        CorrelationEventConsumerAdapter.bindFromEventArguments(
+            new Object[] {new Event(98)}, rejected, true);
+    try {
+      assertEquals("session-exact", CorrelationContext.current().sessionId());
+    } finally {
+      CorrelationEventConsumerAdapter.restore(annotationDrivenPrevious);
+      CorrelationEventConsumerAdapter.configureConsumerBoundaries(List.of());
+      CorrelationEventConsumerAdapter.configure("", "", "");
+    }
   }
 
   @Test

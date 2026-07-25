@@ -28,6 +28,19 @@ public final class ProbeHttpRequests {
   ) {}
 
   public record CorrelationConfigRequest(
-      String sessionId, String executionId, String eventKeyPath, Long leaseTtlMs, Boolean release
+      String sessionId,
+      String executionId,
+      String eventKeyPath,
+      Long leaseTtlMs,
+      Boolean release,
+      List<CorrelationConsumerBoundaryRequest> consumerBoundaries
+  ) {}
+
+  public record CorrelationConsumerBoundaryRequest(
+      String id,
+      String fqcn,
+      String method,
+      List<String> parameterTypes,
+      Integer eventArgumentIndex
   ) {}
 }

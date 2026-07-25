@@ -174,6 +174,38 @@ export const eventConsumerListenerSourceFileAbs = path.join(
   "listener",
   "ExampleQueueListener.java",
 );
+export const exactConventionConsumerFqcn =
+  "com.example.social.event.consumer.app.listener.ExactConventionConsumer";
+export const exactConventionConsumerSourceFileAbs = path.join(
+  eventConsumerAppProjectRootAbs,
+  "src",
+  "main",
+  "java",
+  "com",
+  "example",
+  "social",
+  "event",
+  "consumer",
+  "app",
+  "listener",
+  "ExactConventionConsumer.java",
+);
+export const legacyConventionConsumerFqcn =
+  "com.example.social.event.consumer.app.listener.LegacyConventionConsumer";
+export const legacyConventionConsumerSourceFileAbs = path.join(
+  eventConsumerAppProjectRootAbs,
+  "src",
+  "main",
+  "java",
+  "com",
+  "example",
+  "social",
+  "event",
+  "consumer",
+  "app",
+  "listener",
+  "LegacyConventionConsumer.java",
+);
 export const kclProcessorFqcn =
   "com.example.social.event.consumer.app.service.KclFixtureShardRecordProcessor";
 export const kclProcessorSourceFileAbs = path.join(

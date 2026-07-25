@@ -707,6 +707,12 @@ export async function executeExecutionOrchestrationAction(
         );
         return { structuredContent: result.structuredContent as Record<string, unknown> };
       }
+      if (action === "status" && probeInput) {
+        const result = await probeDomain.getStatus(
+          probeInput as Parameters<typeof probeDomain.getStatus>[0],
+        );
+        return { structuredContent: result.structuredContent as Record<string, unknown> };
+      }
       if (action === "wait_for_hit" && probeInput) {
         const result = await probeDomain.waitForHit(
           probeInput as Parameters<typeof probeDomain.waitForHit>[0],

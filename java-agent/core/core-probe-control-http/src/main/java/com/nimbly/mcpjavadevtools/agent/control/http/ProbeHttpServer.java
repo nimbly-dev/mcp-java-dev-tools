@@ -12,6 +12,7 @@ import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStateSnapshot;
 import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopRequest;
 import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopResult;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
+import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationConsumerBoundary;
 import com.nimbly.mcpjavadevtools.agent.runtime.RuntimeLineHitEvent;
 import com.nimbly.mcpjavadevtools.agent.runtime.RuntimeLineHitEventPage;
 import com.nimbly.mcpjavadevtools.agent.runtime.model.ActuationState;
@@ -25,9 +26,11 @@ import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class ProbeHttpServer {
   private static final String CONTRACT_VERSION = ContractVersion.value();
@@ -156,12 +159,20 @@ public final class ProbeHttpServer {
         ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("invalid_correlation_config", null));
         return;
       }
-      boolean configured = ProbeRuntime.tryConfigureCorrelationContext(
+      BoundaryValidationResult boundaryValidation = normalizeConsumerBoundaries(
+          request.consumerBoundaries());
+      if (!boundaryValidation.valid()) {
+        ProbeHttpJson.writeJson(exchange, 400,
+            new ProbeHttpPayloads.ErrorEnvelope(boundaryValidation.reasonCode(), "actuate"));
+        return;
+      }
+      ProbeRuntime.CorrelationConfigureResult configuration = ProbeRuntime.tryConfigureCorrelationContext(
           request.sessionId().trim(), request.executionId().trim(), request.eventKeyPath().trim(),
-          request.leaseTtlMs() == null ? 300_000L : request.leaseTtlMs());
-      if (!configured) {
+          request.leaseTtlMs() == null ? 300_000L : request.leaseTtlMs(),
+          boundaryValidation.boundaries());
+      if (!configuration.configured()) {
         ProbeHttpJson.writeJson(exchange, 409,
-            new ProbeHttpPayloads.ErrorEnvelope("correlation_lease_conflict", null));
+            new ProbeHttpPayloads.ErrorEnvelope(configuration.reasonCode(), "actuate"));
         return;
       }
       Map<String, Object> response = new LinkedHashMap<>();
@@ -170,7 +181,48 @@ public final class ProbeHttpServer {
       response.put("correlationSessionId", request.sessionId().trim());
       response.put("correlationExecutionId", request.executionId().trim());
       response.put("eventKeyPath", request.eventKeyPath().trim());
+      response.put("consumerBoundaryCount", boundaryValidation.boundaries().size());
       ProbeHttpJson.writeJson(exchange, 200, response);
+    }
+  }
+
+  private static BoundaryValidationResult normalizeConsumerBoundaries(
+      List<ProbeHttpRequests.CorrelationConsumerBoundaryRequest> requests) {
+    if (requests == null || requests.isEmpty()) return BoundaryValidationResult.valid(List.of());
+    List<CorrelationConsumerBoundary> boundaries = new ArrayList<>();
+    Set<String> ids = new HashSet<>();
+    for (ProbeHttpRequests.CorrelationConsumerBoundaryRequest request : requests) {
+      if (request == null || request.id() == null || !ids.add(request.id().trim())) {
+        return BoundaryValidationResult.invalid("invalid_correlation_consumer_boundary");
+      }
+      if (request.eventArgumentIndex() == null) {
+        return BoundaryValidationResult.invalid("invalid_correlation_consumer_boundary");
+      }
+      try {
+        boundaries.add(new CorrelationConsumerBoundary(
+            request.id(),
+            request.fqcn(),
+            request.method(),
+            request.parameterTypes(),
+            request.eventArgumentIndex()));
+      } catch (RuntimeException exception) {
+        return BoundaryValidationResult.invalid("invalid_correlation_consumer_boundary");
+      }
+    }
+    return BoundaryValidationResult.valid(boundaries);
+  }
+
+  private record BoundaryValidationResult(
+      boolean valid,
+      String reasonCode,
+      List<CorrelationConsumerBoundary> boundaries
+  ) {
+    private static BoundaryValidationResult valid(List<CorrelationConsumerBoundary> boundaries) {
+      return new BoundaryValidationResult(true, "ok", List.copyOf(boundaries));
+    }
+
+    private static BoundaryValidationResult invalid(String reasonCode) {
+      return new BoundaryValidationResult(false, reasonCode, List.of());
     }
   }
 

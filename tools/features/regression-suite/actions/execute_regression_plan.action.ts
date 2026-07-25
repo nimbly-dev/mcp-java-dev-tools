@@ -7,6 +7,7 @@ import type {
 import type {
   RegressionRunExecutionResult,
   RegressionRunStepResult,
+  CorrelationArtifact,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 import { buildReplayPreflightWithDiscovery } from "../shared/regression_discovery_resolver";
 import {
@@ -203,6 +204,14 @@ export async function executeRegressionPlanWorkflow(
     Math.max(5_000, (runtimeEvidence?.maxDurationMs ?? 30_000) + 60_000),
   );
   const runtimeCorrelationEventKeyPath = runtimeEvidence?.eventKeyPath?.trim() ?? "";
+  const runtimeCorrelationConsumerBoundaries =
+    contract.correlation?.consumerBoundaries?.map((boundary) => ({
+      id: boundary.id,
+      fqcn: boundary.selector.fqcn,
+      method: boundary.selector.method,
+      parameterTypes: boundary.selector.parameterTypes,
+      eventArgumentIndex: boundary.eventArgumentIndex,
+    })) ?? [];
   let runtimeCorrelationLeaseLost = false;
   let runtimeCorrelationLeaseRenewal: ReturnType<typeof setInterval> | undefined;
   const correlationSessionId =
@@ -272,6 +281,9 @@ export async function executeRegressionPlanWorkflow(
                 executionId: runId,
                 eventKeyPath: runtimeCorrelationEventKeyPath,
                 leaseTtlMs: runtimeCorrelationLeaseTtlMs,
+                ...(runtimeCorrelationConsumerBoundaries.length > 0
+                  ? { consumerBoundaries: runtimeCorrelationConsumerBoundaries }
+                  : {}),
               }),
               timeoutMs: 5_000,
             },
@@ -298,6 +310,9 @@ export async function executeRegressionPlanWorkflow(
                         executionId: runId,
                         eventKeyPath: runtimeCorrelationEventKeyPath,
                         leaseTtlMs: runtimeCorrelationLeaseTtlMs,
+                        ...(runtimeCorrelationConsumerBoundaries.length > 0
+                          ? { consumerBoundaries: runtimeCorrelationConsumerBoundaries }
+                          : {}),
                       }),
                       timeoutMs: 5_000,
                     },
@@ -470,8 +485,8 @@ export async function executeRegressionPlanWorkflow(
             const baselineRuntime = asRecord(baselineJson?.runtime);
             if (
               typeof baselineJson?.hitCount !== "number" ||
-              typeof baselineRuntime?.sessionId !== "string" ||
-              !baselineRuntime.sessionId.trim()
+              typeof baselineRuntime?.runtimeInstanceId !== "string" ||
+              !baselineRuntime.runtimeInstanceId.trim()
             ) {
               hardRuntimeBlocker = true;
               stepRows.push({
@@ -486,7 +501,7 @@ export async function executeRegressionPlanWorkflow(
               break;
             }
             baselineHitCount = baselineJson.hitCount;
-            runtimeInstanceId = baselineRuntime.sessionId;
+            runtimeInstanceId = baselineRuntime.runtimeInstanceId;
           }
         }
 
@@ -572,8 +587,8 @@ export async function executeRegressionPlanWorkflow(
             const finalRuntime = asRecord(finalJson?.runtime);
             if (
               typeof finalJson?.hitCount !== "number" ||
-              typeof finalRuntime?.sessionId !== "string" ||
-              finalRuntime.sessionId !== runtimeInstanceId
+              typeof finalRuntime?.runtimeInstanceId !== "string" ||
+              finalRuntime.runtimeInstanceId !== runtimeInstanceId
             ) {
               hardRuntimeBlocker = true;
               stepRows.push({
@@ -786,6 +801,44 @@ export async function executeRegressionPlanWorkflow(
       Object.keys(stepOutputsByOrder).length > 0
         ? await (async () => {
             let runtimeCorrelationEvents: Array<Record<string, unknown>> = [];
+            const runtimeCorrelationEventsByIdentity = new Map<string, Record<string, unknown>>();
+            const buildEvidence = (): Record<string, unknown> =>
+              buildPlanCorrelationEvidence({
+                contract,
+                resolvedContext,
+                stepOutputsByOrder,
+                stepContextsByOrder,
+                stepEventTimesByOrder,
+                runtimeCorrelationEvents,
+                runtimeExecutionId: runId,
+              }) ?? {};
+            const collectRuntimeCorrelationEventsOnce = async (): Promise<boolean> => {
+              const collectedEvents: Array<Record<string, unknown>> = [];
+              for (const target of runtimeProbeTargets) {
+                const cursor = await readRuntimeCorrelationEvents({
+                  baseUrl: target.baseUrl,
+                  sessionId: correlationSessionId,
+                  afterSequence: runtimeCorrelationAfterSequenceByProbe.get(target.probeId) ?? 0,
+                  limit: runtimeEvidence?.pageLimit ?? 256,
+                  maxEvents: runtimeEvidence?.maxEvents ?? 10_000,
+                  maxBytes: runtimeEvidence?.maxBytes ?? 1_048_576,
+                  maxDurationMs: runtimeEvidence?.maxDurationMs ?? 30_000,
+                });
+                if (cursor.budgetExceeded || !cursor.contractValid) return false;
+                runtimeCorrelationAfterSequenceByProbe.set(target.probeId, cursor.nextSequence);
+                collectedEvents.push(...cursor.events);
+              }
+              for (const event of collectedEvents) {
+                const sequence =
+                  typeof event.sequence === "number" ? event.sequence : event.eventId;
+                runtimeCorrelationEventsByIdentity.set(
+                  `${event.probeId}:${event.runtimeInstanceId}:${sequence}`,
+                  event,
+                );
+              }
+              runtimeCorrelationEvents = [...runtimeCorrelationEventsByIdentity.values()];
+              return true;
+            };
             if (
               runtimeEvidence?.required === true &&
               correlationSessionId &&
@@ -794,35 +847,28 @@ export async function executeRegressionPlanWorkflow(
               !runtimeCorrelationLeaseLost
             ) {
               try {
-                for (const target of runtimeProbeTargets) {
-                  const cursor = await readRuntimeCorrelationEvents({
-                    baseUrl: target.baseUrl,
-                    sessionId: correlationSessionId,
-                    afterSequence: runtimeCorrelationAfterSequenceByProbe.get(target.probeId) ?? 0,
-                    limit: runtimeEvidence.pageLimit ?? 256,
-                    maxEvents: runtimeEvidence.maxEvents ?? 10_000,
-                    maxBytes: runtimeEvidence.maxBytes ?? 1_048_576,
-                    maxDurationMs: runtimeEvidence.maxDurationMs ?? 30_000,
-                  });
-                  if (cursor.budgetExceeded || !cursor.contractValid) {
+                const deadlineMs =
+                  Date.now() + Math.max(1_000, runtimeEvidence.maxDurationMs ?? 30_000);
+                while (true) {
+                  if (!(await collectRuntimeCorrelationEventsOnce())) {
                     runtimeCorrelationEvents = [];
                     break;
                   }
-                  runtimeCorrelationEvents.push(...cursor.events);
+                  const candidateArtifact = toCorrelationArtifactFromEvidence({
+                    evidence: buildEvidence(),
+                    resolvedContext,
+                    now: new Date(),
+                  }) as CorrelationArtifact;
+                  if (candidateArtifact.status === "ok" || Date.now() >= deadlineMs) break;
+                  await new Promise((resolve) =>
+                    setTimeout(resolve, Math.min(1_000, Math.max(100, deadlineMs - Date.now()))),
+                  );
                 }
               } catch {
                 runtimeCorrelationEvents = [];
               }
             }
-            return buildPlanCorrelationEvidence({
-              contract,
-              resolvedContext,
-              stepOutputsByOrder,
-              stepContextsByOrder,
-              stepEventTimesByOrder,
-              runtimeCorrelationEvents,
-              runtimeExecutionId: runId,
-            });
+            return buildEvidence();
           })()
         : args.resumeState?.evidence
           ? {

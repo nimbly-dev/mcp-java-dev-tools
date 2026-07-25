@@ -32,6 +32,8 @@ public final class ProbeRuntime {
   private static volatile String PROBE_ID = "runtime";
   private static volatile KclBindingStatus KCL_BINDING_STATUS =
       new KclBindingStatus("not_observed", "kcl_binding_not_observed", "", "", 0L);
+  private static volatile CorrelationBoundaryInstaller CORRELATION_BOUNDARY_INSTALLER;
+  private static volatile List<CorrelationConsumerBoundary> INSTALLED_CORRELATION_BOUNDARIES = List.of();
   private static final int MAX_RUNTIME_LINE_HIT_EVENTS = 10_000;
 
   private static final long MIN_TTL_MS = 1_000L;
@@ -241,14 +243,72 @@ public final class ProbeRuntime {
     CorrelationEventConsumerAdapter.configure(eventKeyPath, sessionId, executionId);
   }
 
+  public static void registerCorrelationBoundaryInstaller(
+      CorrelationBoundaryInstaller installer) {
+    CORRELATION_BOUNDARY_INSTALLER = installer;
+  }
+
   public static boolean tryConfigureCorrelationContext(
       String sessionId, String executionId, String eventKeyPath, long leaseTtlMs
   ) {
-    return CorrelationEventConsumerAdapter.tryConfigure(eventKeyPath, sessionId, executionId, leaseTtlMs);
+    return tryConfigureCorrelationContext(
+        sessionId,
+        executionId,
+        eventKeyPath,
+        leaseTtlMs,
+        List.of()).configured();
   }
 
-  public static boolean releaseCorrelationContext(String executionId) {
-    return CorrelationEventConsumerAdapter.release(executionId);
+  public static synchronized CorrelationConfigureResult tryConfigureCorrelationContext(
+      String sessionId,
+      String executionId,
+      String eventKeyPath,
+      long leaseTtlMs,
+      List<CorrelationConsumerBoundary> boundaries
+  ) {
+    boolean configured = CorrelationEventConsumerAdapter.tryConfigure(
+        eventKeyPath,
+        sessionId,
+        executionId,
+        leaseTtlMs);
+    if (!configured) return CorrelationConfigureResult.failure("correlation_lease_conflict");
+
+    List<CorrelationConsumerBoundary> requestedBoundaries = boundaries == null
+        ? List.of()
+        : List.copyOf(boundaries);
+    CorrelationEventConsumerAdapter.configureConsumerBoundaries(requestedBoundaries);
+    CorrelationBoundaryInstaller installer = CORRELATION_BOUNDARY_INSTALLER;
+    if (installer == null) return CorrelationConfigureResult.success();
+    if (requestedBoundaries.equals(INSTALLED_CORRELATION_BOUNDARIES)) {
+      return CorrelationConfigureResult.success();
+    }
+    CorrelationBoundaryInstaller.InstallationResult installation = installer.install(requestedBoundaries);
+    if (installation.installed()) {
+      INSTALLED_CORRELATION_BOUNDARIES = requestedBoundaries;
+      return CorrelationConfigureResult.success();
+    }
+    releaseCorrelationContext(executionId);
+    return CorrelationConfigureResult.failure(installation.reasonCode());
+  }
+
+  public static synchronized boolean releaseCorrelationContext(String executionId) {
+    boolean released = CorrelationEventConsumerAdapter.release(executionId);
+    CorrelationBoundaryInstaller installer = CORRELATION_BOUNDARY_INSTALLER;
+    if (released && installer != null && !INSTALLED_CORRELATION_BOUNDARIES.isEmpty()) {
+      installer.install(List.of());
+      INSTALLED_CORRELATION_BOUNDARIES = List.of();
+    }
+    return released;
+  }
+
+  public record CorrelationConfigureResult(boolean configured, String reasonCode) {
+    private static CorrelationConfigureResult success() {
+      return new CorrelationConfigureResult(true, "ok");
+    }
+
+    private static CorrelationConfigureResult failure(String reasonCode) {
+      return new CorrelationConfigureResult(false, reasonCode);
+    }
   }
 
   public record KclBindingStatus(

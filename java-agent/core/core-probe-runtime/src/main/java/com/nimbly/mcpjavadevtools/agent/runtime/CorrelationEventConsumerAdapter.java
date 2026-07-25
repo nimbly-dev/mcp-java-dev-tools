@@ -1,8 +1,9 @@
 package com.nimbly.mcpjavadevtools.agent.runtime;
 
-import java.util.Objects;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Objects;
 
 /** Transport-neutral production boundary for supported event-consumer adapters. */
 public final class CorrelationEventConsumerAdapter {
@@ -13,6 +14,7 @@ public final class CorrelationEventConsumerAdapter {
   private static volatile String configuredKeyPath = "";
   private static volatile String configuredSessionId = "";
   private static volatile String configuredExecutionId = "";
+  private static volatile List<CorrelationConsumerBoundary> configuredConsumerBoundaries = List.of();
   private static volatile long leaseExpiresAtEpochMs = 0L;
 
   private CorrelationEventConsumerAdapter() {}
@@ -24,6 +26,7 @@ public final class CorrelationEventConsumerAdapter {
       configuredKeyPath = "";
       configuredSessionId = "";
       configuredExecutionId = "";
+      configuredConsumerBoundaries = List.of();
       leaseExpiresAtEpochMs = 0L;
       return;
     }
@@ -46,6 +49,14 @@ public final class CorrelationEventConsumerAdapter {
     return true;
   }
 
+  public static void configureConsumerBoundaries(List<CorrelationConsumerBoundary> boundaries) {
+    configuredConsumerBoundaries = boundaries == null ? List.of() : List.copyOf(boundaries);
+  }
+
+  public static List<CorrelationConsumerBoundary> configuredConsumerBoundaries() {
+    return configuredConsumerBoundaries;
+  }
+
   public static synchronized boolean release(String executionId) {
     String owner = executionId == null ? "" : executionId.trim();
     if (!configuredExecutionId.isEmpty() && !configuredExecutionId.equals(owner)
@@ -53,6 +64,7 @@ public final class CorrelationEventConsumerAdapter {
     configuredKeyPath = "";
     configuredSessionId = "";
     configuredExecutionId = "";
+    configuredConsumerBoundaries = List.of();
     leaseExpiresAtEpochMs = 0L;
     return true;
   }
@@ -80,17 +92,34 @@ public final class CorrelationEventConsumerAdapter {
   public static CorrelationContext.BindingSnapshot bindFromEventArguments(Object[] arguments) {
     CorrelationContext.BindingSnapshot previous = CorrelationContext.current();
     if (arguments == null) return previous;
-    CorrelationEventEnvelope envelope = null;
     for (Object argument : arguments) {
-      if (envelope == null) envelope = envelopeFrom(argument);
+      CorrelationEventEnvelope envelope = envelopeFrom(argument);
+      if (envelope != null) {
+        bind(envelope);
+        return previous;
+      }
     }
-    if (envelope != null) {
-      ProbeRuntime.bindCorrelationContext(
-          envelope.correlationExecutionId(),
-          envelope.correlationSessionId(),
-          envelope.keyType(),
-          envelope.keyValue());
+    return previous;
+  }
+
+  /** Binds only the configured event argument for an exact selector, including overload identity. */
+  public static CorrelationContext.BindingSnapshot bindFromEventArguments(
+      Object[] arguments, Method origin) {
+    return bindFromEventArguments(arguments, origin, false);
+  }
+
+  /** Binds an exact selector while preserving annotation-driven consumer fallback. */
+  public static CorrelationContext.BindingSnapshot bindFromEventArguments(
+      Object[] arguments, Method origin, boolean annotationDriven) {
+    CorrelationContext.BindingSnapshot previous = CorrelationContext.current();
+    CorrelationConsumerBoundary boundary = findBoundary(origin);
+    if (boundary == null) {
+      if (!annotationDriven && isConfiguredMethodFamily(origin)) return previous;
+      return bindFromEventArgumentsAfterSnapshot(arguments, previous);
     }
+    if (arguments == null || boundary.eventArgumentIndex() >= arguments.length) return previous;
+    CorrelationEventEnvelope envelope = envelopeFrom(arguments[boundary.eventArgumentIndex()]);
+    if (envelope != null) bind(envelope);
     return previous;
   }
 
@@ -117,6 +146,46 @@ public final class CorrelationEventConsumerAdapter {
 
   public static void restore(CorrelationContext.BindingSnapshot previous) {
     CorrelationContext.restore(previous);
+  }
+
+  private static CorrelationContext.BindingSnapshot bindFromEventArgumentsAfterSnapshot(
+      Object[] arguments, CorrelationContext.BindingSnapshot previous) {
+    if (arguments == null) return previous;
+    for (Object argument : arguments) {
+      CorrelationEventEnvelope envelope = envelopeFrom(argument);
+      if (envelope != null) {
+        bind(envelope);
+        return previous;
+      }
+    }
+    return previous;
+  }
+
+  private static CorrelationConsumerBoundary findBoundary(Method origin) {
+    if (origin == null) return null;
+    for (CorrelationConsumerBoundary boundary : configuredConsumerBoundaries) {
+      if (boundary.matches(origin)) return boundary;
+    }
+    return null;
+  }
+
+  private static boolean isConfiguredMethodFamily(Method origin) {
+    if (origin == null) return false;
+    for (CorrelationConsumerBoundary boundary : configuredConsumerBoundaries) {
+      if (boundary.fqcn().equals(origin.getDeclaringClass().getName())
+          && boundary.method().equals(origin.getName())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static void bind(CorrelationEventEnvelope envelope) {
+    ProbeRuntime.bindCorrelationContext(
+        envelope.correlationExecutionId(),
+        envelope.correlationSessionId(),
+        envelope.keyType(),
+        envelope.keyValue());
   }
 
   private static Object findKclProcessRecordsInput(Object[] arguments) {

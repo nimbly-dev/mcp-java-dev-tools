@@ -145,7 +145,8 @@ public final class ProbeHttpPayloads {
       int activeSessionCount,
       long serverEpoch,
       RuntimeStringSignalPayload applicationType,
-      RuntimePortSignalPayload appPort
+      RuntimePortSignalPayload appPort,
+      String runtimeInstanceId
   ) {}
 
   public record RuntimeStringSignalPayload(

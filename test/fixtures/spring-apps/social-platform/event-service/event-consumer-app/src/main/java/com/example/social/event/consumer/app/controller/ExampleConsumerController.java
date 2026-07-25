@@ -5,6 +5,8 @@ import com.example.social.event.consumer.app.model.EventProcessingStatusResponse
 import com.example.social.event.consumer.app.model.IndexRequestedEvent;
 import com.example.social.event.consumer.app.model.KclFixtureBatchRequest;
 import com.example.social.event.consumer.app.model.KclFixtureBatchResponse;
+import com.example.social.event.consumer.app.listener.ExactConventionConsumer;
+import com.example.social.event.consumer.app.listener.LegacyConventionConsumer;
 import com.example.social.event.consumer.app.service.EventProcessingStore;
 import com.example.social.event.consumer.app.service.KclInProcessFixtureService;
 import jakarta.validation.Valid;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/internal/events")
@@ -26,14 +29,20 @@ public class ExampleConsumerController {
   private final ApplicationEventPublisher eventPublisher;
   private final EventProcessingStore processingStore;
   private final KclInProcessFixtureService kclFixtureService;
+  private final ExactConventionConsumer exactConventionConsumer;
+  private final LegacyConventionConsumer legacyConventionConsumer;
 
   public ExampleConsumerController(
       ApplicationEventPublisher eventPublisher,
       EventProcessingStore processingStore,
-      KclInProcessFixtureService kclFixtureService) {
+      KclInProcessFixtureService kclFixtureService,
+      ExactConventionConsumer exactConventionConsumer,
+      LegacyConventionConsumer legacyConventionConsumer) {
     this.eventPublisher = eventPublisher;
     this.processingStore = processingStore;
     this.kclFixtureService = kclFixtureService;
+    this.exactConventionConsumer = exactConventionConsumer;
+    this.legacyConventionConsumer = legacyConventionConsumer;
   }
 
   @PostMapping("/kcl")
@@ -60,7 +69,32 @@ public class ExampleConsumerController {
             request.type(),
             acceptedBy,
             indexedCount,
-            parseProcessingDelayMs(request.notes())));
+        parseProcessingDelayMs(request.notes())));
+  }
+
+  @PostMapping("/convention/{consumer}")
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  public void invokeConventionConsumer(
+      @PathVariable String consumer,
+      @RequestBody TriggerIndexRequest request,
+      @RequestHeader("X-Event-Id") String eventId,
+      @RequestHeader("X-Accepted-By") String acceptedBy) {
+    String tenant = request.data().isEmpty() ? "unknown-tenant" : request.data().get(0);
+    IndexRequestedEvent event =
+        new IndexRequestedEvent(
+            eventId,
+            tenant,
+            request.type(),
+            acceptedBy,
+            request.data().size(),
+            parseProcessingDelayMs(request.notes()));
+    switch (consumer) {
+      case "exact" -> exactConventionConsumer.receive(event);
+      case "exact-overload" -> exactConventionConsumer.receive(acceptedBy, event);
+      case "legacy" -> legacyConventionConsumer.receiveEvent(event);
+      default -> throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Unknown convention consumer: " + consumer);
+    }
   }
 
   @GetMapping("/{eventId}")

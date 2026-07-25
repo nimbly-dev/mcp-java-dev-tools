@@ -9,6 +9,8 @@ import com.nimbly.mcpjavadevtools.agent.profiler.ProbeProfilerRegistry;
 import com.nimbly.mcpjavadevtools.agent.profiler.ProfilerPaths;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
 import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationConsumerAdvice;
+import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationBoundaryInstaller;
+import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationConsumerBoundary;
 import com.nimbly.mcpjavadevtools.agent.runtime.CorrelationEventConsumerAdapter;
 import com.nimbly.mcpjavadevtools.agent.runtime.JdkExecutorCorrelationAdvice;
 import com.nimbly.mcpjavadevtools.agent.runtime.KclConsumerAdvice;
@@ -27,6 +29,8 @@ import java.lang.instrument.Instrumentation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.ProtectionDomain;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
@@ -161,12 +165,7 @@ public final class ProbeAgent {
                     .and(ElementMatchers.not(ElementMatchers.isNative()))
                     .and(ElementMatchers.not(ElementMatchers.nameStartsWith("lambda$")));
             DynamicType.Builder<?> out = b.visit(Advice.to(HitAdvice.class).on(matcher));
-            ElementMatcher.Junction<MethodDescription> consumerMatcher =
-                ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.context.event.EventListener"))
-                    .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.kafka.annotation.KafkaListener")))
-                    .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.amqp.rabbit.annotation.RabbitListener")))
-                    .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.jms.annotation.JmsListener")))
-                    .or(ElementMatchers.nameMatches("(?i)(receive|consume|onMessage|handleMessage)[A-Z_].*"));
+            ElementMatcher.Junction<MethodDescription> consumerMatcher = buildConsumerMatcher();
             out = out.visit(Advice.to(CorrelationConsumerAdvice.class).on(consumerMatcher));
             ElementMatcher.Junction<MethodDescription> kclConsumerMatcher =
                 ElementMatchers.named("processRecords")
@@ -208,6 +207,7 @@ public final class ProbeAgent {
           }
         })
         .installOn(inst);
+    registerCorrelationBoundaryInstaller(inst, cfg);
 
     if (!jdkCorrelationReady) {
       return;
@@ -230,6 +230,73 @@ public final class ProbeAgent {
                 .or(ElementMatchers.named("scheduleWithFixedDelay")))))
         .installOn(inst);
     retransformJdkExecutors(inst);
+  }
+
+  private static ElementMatcher.Junction<MethodDescription> buildConsumerMatcher() {
+    ElementMatcher.Junction<MethodDescription> matcher =
+        ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.context.event.EventListener"))
+            .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.kafka.annotation.KafkaListener")))
+            .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.amqp.rabbit.annotation.RabbitListener")))
+            .or(ElementMatchers.isAnnotatedWith(ElementMatchers.named("org.springframework.jms.annotation.JmsListener")))
+            // Deprecated compatibility path. Keep convention consumers instrumented while
+            // plans migrate to exact contract-owned correlation.consumerBoundaries selectors.
+            .or(ElementMatchers.nameMatches("(?i)(receive|consume|onMessage|handleMessage)[A-Z_].*"));
+    for (var boundary : CorrelationEventConsumerAdapter.configuredConsumerBoundaries()) {
+      matcher = matcher.or(buildBoundaryMatcher(boundary));
+    }
+    return matcher;
+  }
+
+  private static ElementMatcher.Junction<MethodDescription> buildBoundaryMatcher(
+      CorrelationConsumerBoundary boundary) {
+    ElementMatcher.Junction<MethodDescription> matcher = ElementMatchers.isMethod()
+        .and(ElementMatchers.not(ElementMatchers.isAbstract()))
+        .and(ElementMatchers.not(ElementMatchers.isNative()))
+        .and(ElementMatchers.isDeclaredBy(ElementMatchers.named(boundary.fqcn())))
+        .and(ElementMatchers.named(boundary.method()))
+        .and(ElementMatchers.takesArguments(boundary.parameterTypes().size()));
+    for (int index = 0; index < boundary.parameterTypes().size(); index++) {
+      matcher = matcher.and(ElementMatchers.takesArgument(
+          index,
+          ElementMatchers.named(boundary.parameterTypes().get(index))));
+    }
+    return matcher;
+  }
+
+  private static void registerCorrelationBoundaryInstaller(
+      Instrumentation inst,
+      AgentConfig cfg) {
+    Set<String> configuredClassNames = ConcurrentHashMap.newKeySet();
+    ProbeRuntime.registerCorrelationBoundaryInstaller(boundaries -> {
+      configuredClassNames.clear();
+      for (var boundary : boundaries) {
+        if (!cfg.shouldInstrument(boundary.fqcn())) {
+          return CorrelationBoundaryInstaller.InstallationResult.failed(
+              "correlation_boundary_outside_instrumentation_scope");
+        }
+        configuredClassNames.add(boundary.fqcn());
+      }
+      if (!inst.isRetransformClassesSupported()) {
+        return CorrelationBoundaryInstaller.InstallationResult.failed(
+            "correlation_boundary_retransformation_unsupported");
+      }
+      for (Class<?> loadedType : inst.getAllLoadedClasses()) {
+        if (!configuredClassNames.contains(loadedType.getName())) {
+          continue;
+        }
+        if (!inst.isModifiableClass(loadedType)) {
+          return CorrelationBoundaryInstaller.InstallationResult.failed(
+              "correlation_boundary_class_not_modifiable");
+        }
+        try {
+          inst.retransformClasses(loadedType);
+        } catch (Exception exception) {
+          return CorrelationBoundaryInstaller.InstallationResult.failed(
+              "correlation_boundary_installation_failed");
+        }
+      }
+      return CorrelationBoundaryInstaller.InstallationResult.success();
+    });
   }
 
   private static void retransformJdkExecutors(Instrumentation inst) {
