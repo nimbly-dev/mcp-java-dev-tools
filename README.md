@@ -60,6 +60,7 @@ This installs the default skill set:
 - `mcp-java-dev-tools-regression-plan-crafter`
 - `mcp-java-dev-tools-regression-result`
 - `mcp-java-dev-tools-issue-report`
+- `mcp-java-dev-tools-bug-drill`
 - `mcp-java-dev-tools-probe-registry-manager`
 
 To update/overwrite existing installed skills (and add missing new skills):
@@ -246,6 +247,7 @@ These paths are fixed and cannot be overridden.
 | `mcp-java-dev-tools-regression-plan-crafter` | Craft and refine deterministic persisted regression plan specs (`metadata.json`, `contract.json`, `plan.md`) |
 | `mcp-java-dev-tools-regression-result` | Artifact-derived result rendering with extensible display templates (default endpoint table) |
 | `mcp-java-dev-tools-issue-report` | Sanitized issue reporting from session, runtime, and probe evidence |
+| `mcp-java-dev-tools-bug-drill` | Bounded method-level diagnosis using Route Synthesis and live Probe evidence |
 
 ---
 
