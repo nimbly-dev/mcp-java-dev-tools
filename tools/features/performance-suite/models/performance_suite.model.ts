@@ -101,9 +101,20 @@ export type PerformancePlanContract = {
     msta?: {
       enabled: true;
       mode?: "method_targets" | "target_plus_path";
-      methodTargets: Array<{ methodRef: string }>;
+      methodTargets?: Array<{ methodRef: string }>;
+      anchorSelection?: {
+        source: "verified_required_line_hits";
+        strategy: "all";
+      };
       includePackages?: string[];
       allowThirdPartyFrames?: boolean;
+    };
+    correlation?: {
+      enabled: true;
+      kind: "sampled_attribution";
+      anchorSource: "msta_resolved_anchors";
+      requireLineHit: boolean;
+      requireMsta: boolean;
     };
   };
 };

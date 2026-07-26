@@ -79,7 +79,7 @@ Load only the references needed for the current phase.
 5. Do not mix regression and performance plans in one execution profile.
 6. `Strict Line Key` proof is not optional in performance mode.
 7. Empty `requiredLineHits` is invalid and must fail closed before execution.
-8. `analysis.msta.enabled=true` requires a valid `analysis.executionTiming` block and explicit method targets.
+8. `analysis.msta.enabled=true` requires a valid `analysis.executionTiming` block and either explicit method targets or dynamic `anchorSelection.source=verified_required_line_hits` with `strategy=all`.
 
 ## Context and Read Budget
 
@@ -110,6 +110,12 @@ Always align with:
    - `evidence.json`
    - optional `execution-timing.msta.json`
 4. Performance-plan `contract.json` is workload-centric, not step-centric.
+5. When `analysis.correlation.enabled=true`, the executor persists
+   `correlation/correlation.json` from run Artifacts. It derives dynamic MSTA
+   anchors from verified Strict Line Keys and never reconstructs correlation
+   from transient logs.
+6. Correlation-unavailable runs remain valid deterministic outputs with empty
+   `attributions`; they are not result-render failures.
 
 ## MCP-First and Wrapped Transport
 

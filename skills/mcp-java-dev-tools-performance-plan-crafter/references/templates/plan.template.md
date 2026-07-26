@@ -22,8 +22,14 @@ Validate performance behavior for the selected Java target under a concurrency-b
 # MSTA (Optional)
 
 1. Uses profiler-backed timing analysis only when explicitly configured in `contract.json`.
-2. Targets method-level timing evidence through `analysis.msta.methodTargets[]`.
+2. Targets method-level timing evidence through explicit `analysis.msta.methodTargets[]` or dynamic `analysis.msta.anchorSelection` resolved from verified required Strict Line Keys.
 3. Does not replace required strict line-hit verification.
+
+# Correlation (Optional)
+
+1. Enables persisted sampled attribution through `analysis.correlation.enabled=true`.
+2. Persists `runs/<run_id>/correlation/correlation.json` with redacted workload identity and JVM execution evidence.
+3. Uses unavailable correlation state with empty attribution rows when required evidence is not available.
 
 # Expected Outcomes
 

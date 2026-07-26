@@ -81,6 +81,10 @@ async function readJsonFile(absPath: string): Promise<unknown> {
 
 import { verifyHealthcheck } from "./performance_request_health";
 import { executePerformanceWorkload } from "./performance_workload_execution";
+import {
+  buildPerformanceExecutionCorrelation,
+  persistPerformanceExecutionCorrelation,
+} from "./performance_execution_correlation";
 
 export async function executePerformancePlanWorkflow(
   args: ExecutePerformancePlanWorkflowArgs,
@@ -555,6 +559,62 @@ export async function executePerformancePlanWorkflow(
     phase: "msta_complete",
     detail: mstaSummary.status,
   });
+  let correlationSummary:
+    | {
+        enabled: true;
+        status: "available" | "unavailable";
+        reasonCode: string;
+        artifactPath: "correlation/correlation.json";
+        policyStatus: "satisfied" | "msta_required_unavailable";
+      }
+    | undefined;
+  if (contract.analysis?.correlation?.enabled === true) {
+    const correlationArtifact = buildPerformanceExecutionCorrelation({
+      planId: args.planName,
+      runId,
+      contract,
+      requiredLineHitResults,
+      msta: mstaSummary,
+      correlationPolicy: contract.analysis.correlation,
+    });
+    logPerformancePhase({
+      runId,
+      planName: args.planName,
+      phase: "correlation_artifact_write_begin",
+    });
+    const persistedCorrelation = await persistPerformanceExecutionCorrelation({
+      runDirAbs,
+      artifact: correlationArtifact,
+    });
+    logPerformancePhase({
+      runId,
+      planName: args.planName,
+      phase: "correlation_artifact_write_complete",
+      detail: persistedCorrelation.ok
+        ? correlationArtifact.status
+        : persistedCorrelation.reasonCode,
+    });
+    if (!persistedCorrelation.ok) {
+      return buildBlockedResult({
+        reasonCode: persistedCorrelation.reasonCode,
+        requiredUserAction: [
+          "Regenerate the performance run to persist a valid correlation Artifact.",
+        ],
+        runId,
+        runDirAbs,
+      });
+    }
+    correlationSummary = {
+      enabled: true,
+      status: correlationArtifact.status,
+      reasonCode: correlationArtifact.reasonCode,
+      artifactPath: "correlation/correlation.json",
+      policyStatus:
+        contract.analysis.correlation.requireMsta && mstaSummary.status !== "available"
+          ? "msta_required_unavailable"
+          : "satisfied",
+    };
+  }
   const throughputPerSec = totalRequests / (totalDurationMs / 1000);
   const errorRatePct = totalRequests > 0 ? (failedRequests / totalRequests) * 100 : 100;
   const p95LatencyMs = percentile(latencies, 0.95);
@@ -579,16 +639,23 @@ export async function executePerformancePlanWorkflow(
   const requiredLineHitsPass =
     strictLineBlockedReasonCode === undefined &&
     requiredLineHitResults.every((entry) => entry.hit === true);
+  const correlationPolicyBlockedReasonCode =
+    contract.analysis?.correlation?.enabled === true &&
+    contract.analysis.correlation.requireMsta &&
+    mstaSummary.status !== "available"
+      ? "correlation_msta_required"
+      : undefined;
+  const runReasonCode =
+    transportBlockedReasonCode ?? strictLineBlockedReasonCode ?? correlationPolicyBlockedReasonCode;
 
-  const runStatus: "pass" | "fail" | "blocked" =
-    transportBlockedReasonCode || strictLineBlockedReasonCode
-      ? "blocked"
-      : thresholdResults.maxErrorRatePct.pass &&
-          thresholdResults.minThroughputPerSec.pass &&
-          thresholdResults.p95LatencyMs.pass &&
-          requiredLineHitsPass
-        ? "pass"
-        : "fail";
+  const runStatus: "pass" | "fail" | "blocked" = runReasonCode
+    ? "blocked"
+    : thresholdResults.maxErrorRatePct.pass &&
+        thresholdResults.minThroughputPerSec.pass &&
+        thresholdResults.p95LatencyMs.pass &&
+        requiredLineHitsPass
+      ? "pass"
+      : "fail";
 
   logPerformancePhase({
     runId,
@@ -617,10 +684,9 @@ export async function executePerformancePlanWorkflow(
         ...(workloadProviderArtifacts ? { workloadProviderArtifacts } : {}),
         ...(profilerStopResult ? { executionTiming: profilerStopResult } : {}),
         msta: mstaSummary,
-        ...(transportBlockedReasonCode
-          ? { reasonCode: transportBlockedReasonCode, errorMessage: transportBlockedMessage }
-          : {}),
-        ...(strictLineBlockedReasonCode ? { reasonCode: strictLineBlockedReasonCode } : {}),
+        ...(correlationSummary ? { correlation: correlationSummary } : {}),
+        ...(runReasonCode ? { reasonCode: runReasonCode } : {}),
+        ...(transportBlockedReasonCode ? { errorMessage: transportBlockedMessage } : {}),
       },
       null,
       2,
@@ -644,6 +710,7 @@ export async function executePerformancePlanWorkflow(
         ...(profilerStartResult ? { profilerStart: profilerStartResult } : {}),
         ...(profilerStopResult ? { profilerStop: profilerStopResult } : {}),
         msta: mstaSummary,
+        ...(correlationSummary ? { correlation: correlationSummary } : {}),
       },
       null,
       2,

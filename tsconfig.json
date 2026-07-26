@@ -25,7 +25,9 @@
       "@tools-feature-execution-orchestration": ["tools/features/execution-orchestration/index.ts"],
       "@tools-feature-regression-suite": ["tools/features/regression-suite/index.ts"],
       "@tools-feature-performance-suite": ["tools/features/performance-suite/index.ts"],
-      "@tools-feature-performance-workload-jmeter": ["tools/features/performance-workload-jmeter/index.ts"],
+      "@tools-feature-performance-workload-jmeter": [
+        "tools/features/performance-workload-jmeter/index.ts"
+      ],
       "@tools-feature-route-synthesis": ["tools/features/route-synthesis/index.ts"],
       "@tools-feature-transport-execution": ["tools/features/transport-execution/index.ts"],
       "@tools-spring-http/*": ["tools/synthesizers/tools-spring-http/src/*"],
@@ -34,7 +36,13 @@
         "tools/spec/regression-execution-plan-spec/src/*"
       ],
       "@tools-regression-suite": ["tools/features/regression-suite/index.ts"],
-      "@tools-project-artifact-spec/*": ["tools/spec/project-artifact-spec/src/*"]
+      "@tools-project-artifact-spec/*": ["tools/spec/project-artifact-spec/src/*"],
+      "@tools-execution-correlation-artifact-spec": [
+        "tools/spec/execution-correlation-artifact-spec/src/index.ts"
+      ],
+      "@tools-execution-correlation-artifact-spec/*": [
+        "tools/spec/execution-correlation-artifact-spec/src/*"
+      ]
     },
 
     // Environment Settings
@@ -85,7 +93,8 @@
     "tools/features/execution-profile-export/**/*.ts",
     "tools/features/performance-workload-jmeter/**/*.ts",
     "tools/spec/regression-execution-plan-spec/src/**/*.ts",
-    "tools/spec/project-artifact-spec/src/**/*.ts"
+    "tools/spec/project-artifact-spec/src/**/*.ts",
+    "tools/spec/execution-correlation-artifact-spec/src/**/*.ts"
   ],
   "exclude": ["dist", "test", "node_modules"]
 }

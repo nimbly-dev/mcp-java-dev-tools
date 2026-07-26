@@ -13,6 +13,7 @@ Optional:
 
 1. `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/context.resolved.json`
 2. `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/execution-timing.msta.json`
+3. `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/correlation/correlation.json`
 
 ## Template Contract
 
@@ -44,6 +45,10 @@ Required rows or fields:
 8. Missing required Artifact files MUST fail closed; rendering from transient logs or session memory is not allowed.
 9. Missing optional Artifact files MUST render stable placeholders or omit optional sections only when every required output field can still be deterministically mapped from persisted Artifacts.
 10. If a missing optional Artifact file prevents deterministic mapping of a required output field such as `MSTA`, the renderer MUST fail closed under the existing missing-required-fields rule and MUST NOT fall back to transient logs.
+11. Correlation is optional for legacy and correlation-disabled runs.
+12. When `execution.result.json` declares correlation enabled and available, `correlation/correlation.json` is required and MUST validate as `ExecutionCorrelationArtifactV1`.
+13. A valid correlation `status=unavailable` state MUST render a stable placeholder and empty attribution rows, not a blocked result.
+14. Correlation rows MUST use estimated sampled attribution language and MUST NOT contain root-cause claims.
 
 ## Blocked Output Contract
 

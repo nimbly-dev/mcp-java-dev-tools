@@ -38,13 +38,13 @@ export function parseStringRecord(value: unknown): Record<string, string> | unde
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-export function parsePerformanceContract(
-  input: unknown,
-): {
-  ok: true;
-  contract: PerformancePlanContract;
-  mstaConfigState: PerformanceMstaConfigState;
-} | { ok: false; reasonCode: string; requiredUserAction: string[] } {
+export function parsePerformanceContract(input: unknown):
+  | {
+      ok: true;
+      contract: PerformancePlanContract;
+      mstaConfigState: PerformanceMstaConfigState;
+    }
+  | { ok: false; reasonCode: string; requiredUserAction: string[] } {
   if (!isRecord(input)) {
     return {
       ok: false,
@@ -64,7 +64,9 @@ export function parsePerformanceContract(
     return {
       ok: false,
       reasonCode: "performance_entrypoint_unsupported",
-      requiredUserAction: ["Current performance executor supports exactly one contract.entrypoints[] entry."],
+      requiredUserAction: [
+        "Current performance executor supports exactly one contract.entrypoints[] entry.",
+      ],
     };
   }
   const parsedEntrypoints: PerformanceEntrypoint[] = [];
@@ -73,7 +75,9 @@ export function parsePerformanceContract(
       return {
         ok: false,
         reasonCode: "performance_plan_invalid",
-        requiredUserAction: ["Set each contract.entrypoints[] item with transport and request objects."],
+        requiredUserAction: [
+          "Set each contract.entrypoints[] item with transport and request objects.",
+        ],
       };
     }
     const protocol = asTrimmedString(raw.transport.protocol);
@@ -84,7 +88,9 @@ export function parsePerformanceContract(
       return {
         ok: false,
         reasonCode: "performance_plan_invalid",
-        requiredUserAction: ["Set entrypoint transport.protocol=http, transport.baseUrl, request.method, and request.path."],
+        requiredUserAction: [
+          "Set entrypoint transport.protocol=http, transport.baseUrl, request.method, and request.path.",
+        ],
       };
     }
     const defaultHeaders = parseStringRecord(raw.transport.defaultHeaders);
@@ -93,14 +99,20 @@ export function parsePerformanceContract(
       transport: {
         protocol: "http",
         baseUrl,
-        ...(typeof raw.transport.healthCheckPath === "string" ? { healthCheckPath: raw.transport.healthCheckPath } : {}),
-        ...(typeof raw.transport.wrappedOnly === "boolean" ? { wrappedOnly: raw.transport.wrappedOnly } : {}),
+        ...(typeof raw.transport.healthCheckPath === "string"
+          ? { healthCheckPath: raw.transport.healthCheckPath }
+          : {}),
+        ...(typeof raw.transport.wrappedOnly === "boolean"
+          ? { wrappedOnly: raw.transport.wrappedOnly }
+          : {}),
         ...(defaultHeaders ? { defaultHeaders } : {}),
       },
       request: {
         method,
         path: requestPath,
-        ...(isRecord(raw.request.queryTemplate) ? { queryTemplate: raw.request.queryTemplate } : {}),
+        ...(isRecord(raw.request.queryTemplate)
+          ? { queryTemplate: raw.request.queryTemplate }
+          : {}),
         ...(requestHeaders ? { headers: requestHeaders } : {}),
         ...("body" in raw.request ? { body: raw.request.body } : {}),
       },
@@ -123,7 +135,9 @@ export function parsePerformanceContract(
     return {
       ok: false,
       reasonCode: "performance_required_line_hit_missing",
-      requiredUserAction: ["Set observationTargets.requiredLineHits[] with at least one Strict Line Key."],
+      requiredUserAction: [
+        "Set observationTargets.requiredLineHits[] with at least one Strict Line Key.",
+      ],
     };
   }
 
@@ -143,14 +157,23 @@ export function parsePerformanceContract(
     return {
       ok: false,
       reasonCode: "performance_plan_invalid",
-      requiredUserAction: ["Set loadModel.concurrency, loadModel.rampUpSeconds, and loadModel.durationSeconds."],
+      requiredUserAction: [
+        "Set loadModel.concurrency, loadModel.rampUpSeconds, and loadModel.durationSeconds.",
+      ],
     };
   }
 
   const successCriteria = isRecord(input.successCriteria) ? input.successCriteria : null;
-  const maxErrorRatePct = typeof successCriteria?.maxErrorRatePct === "number" ? successCriteria.maxErrorRatePct : undefined;
-  const minThroughputPerSec = typeof successCriteria?.minThroughputPerSec === "number" ? successCriteria.minThroughputPerSec : undefined;
-  const p95LatencyMs = typeof successCriteria?.p95LatencyMs === "number" ? successCriteria.p95LatencyMs : undefined;
+  const maxErrorRatePct =
+    typeof successCriteria?.maxErrorRatePct === "number"
+      ? successCriteria.maxErrorRatePct
+      : undefined;
+  const minThroughputPerSec =
+    typeof successCriteria?.minThroughputPerSec === "number"
+      ? successCriteria.minThroughputPerSec
+      : undefined;
+  const p95LatencyMs =
+    typeof successCriteria?.p95LatencyMs === "number" ? successCriteria.p95LatencyMs : undefined;
   if (
     typeof maxErrorRatePct !== "number" ||
     typeof minThroughputPerSec !== "number" ||
@@ -162,13 +185,17 @@ export function parsePerformanceContract(
     return {
       ok: false,
       reasonCode: "performance_threshold_invalid",
-      requiredUserAction: ["Set deterministic successCriteria.maxErrorRatePct, minThroughputPerSec, and p95LatencyMs."],
+      requiredUserAction: [
+        "Set deterministic successCriteria.maxErrorRatePct, minThroughputPerSec, and p95LatencyMs.",
+      ],
     };
   }
 
   const executionTiming = resolveExecutionTiming(input);
   const mstaValidationError = validateMstaConfig(input);
   const msta = resolveMsta(input);
+  const correlationValidationError = validateCorrelationConfig(input);
+  const correlation = resolveCorrelation(input);
   const mstaConfigState = resolveMstaConfigState(input);
   const workloadProvider = resolvePerformanceWorkloadProvider(input);
   if (!workloadProvider.ok) {
@@ -179,6 +206,13 @@ export function parsePerformanceContract(
       ok: false,
       reasonCode: "performance_plan_invalid",
       requiredUserAction: mstaValidationError,
+    };
+  }
+  if (correlationValidationError) {
+    return {
+      ok: false,
+      reasonCode: "performance_plan_invalid",
+      requiredUserAction: correlationValidationError,
     };
   }
   if (msta && !executionTiming) {
@@ -210,11 +244,12 @@ export function parsePerformanceContract(
         minThroughputPerSec,
         p95LatencyMs,
       },
-      ...(executionTiming || msta
+      ...(executionTiming || msta || correlation
         ? {
             analysis: {
               ...(executionTiming ? { executionTiming } : {}),
               ...(msta ? { msta } : {}),
+              ...(correlation ? { correlation } : {}),
             },
           }
         : {}),
@@ -236,7 +271,9 @@ export function isProfilerDownloadNotReady(value: unknown): boolean {
   return response?.status === 404 && responseJson?.error === "profiler_output_not_found";
 }
 
-export function resolveProfilerStartFailure(value: unknown): { reasonCode: string; detail: string } | null {
+export function resolveProfilerStartFailure(
+  value: unknown,
+): { reasonCode: string; detail: string } | null {
   if (!isRecord(value)) {
     return {
       reasonCode: "performance_profiler_start_failed",
@@ -249,7 +286,8 @@ export function resolveProfilerStartFailure(value: unknown): { reasonCode: strin
   const responseJson = isRecord(response?.json) ? response.json : null;
   const responseError = asTrimmedString(responseJson?.error);
   const result = isRecord(value.result) ? value.result : null;
-  const supported = result?.supported === false ? false : result?.supported === true ? true : undefined;
+  const supported =
+    result?.supported === false ? false : result?.supported === true ? true : undefined;
   const status = asTrimmedString(result?.status);
   const detail = asTrimmedString(result?.detail) ?? responseError;
 
@@ -277,9 +315,12 @@ export function resolveProfilerStartFailure(value: unknown): { reasonCode: strin
 
 export function resolveExecutionTiming(
   input: Record<string, unknown>,
-): PerformancePlanContract["analysis"] extends { executionTiming?: infer T } ? T | undefined : never {
+): PerformancePlanContract["analysis"] extends { executionTiming?: infer T }
+  ? T | undefined
+  : never {
   const analysis = isRecord(input.analysis) ? input.analysis : null;
-  const executionTiming = analysis && isRecord(analysis.executionTiming) ? analysis.executionTiming : null;
+  const executionTiming =
+    analysis && isRecord(analysis.executionTiming) ? analysis.executionTiming : null;
   if (!executionTiming || executionTiming.enabled !== true) return undefined as never;
   const provider = asTrimmedString(executionTiming.provider);
   const event = asTrimmedString(executionTiming.event);
@@ -314,7 +355,13 @@ export function resolveMsta(
       return methodRef ? { methodRef } : null;
     })
     .filter((entry): entry is { methodRef: string } => entry !== null);
-  if (methodTargets.length === 0) return undefined as never;
+  const anchorSelection =
+    isRecord(msta.anchorSelection) &&
+    msta.anchorSelection.source === "verified_required_line_hits" &&
+    msta.anchorSelection.strategy === "all"
+      ? ({ source: "verified_required_line_hits", strategy: "all" } as const)
+      : undefined;
+  if (methodTargets.length === 0 && !anchorSelection) return undefined as never;
   const includePackages = Array.isArray(msta.includePackages)
     ? msta.includePackages
         .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
@@ -322,10 +369,13 @@ export function resolveMsta(
     : [];
   return {
     enabled: true,
-    ...((mode === "method_targets" || mode === "target_plus_path") ? { mode } : {}),
-    methodTargets,
+    ...(mode === "method_targets" || mode === "target_plus_path" ? { mode } : {}),
+    ...(methodTargets.length > 0 ? { methodTargets } : {}),
+    ...(anchorSelection ? { anchorSelection } : {}),
     ...(includePackages.length > 0 ? { includePackages } : {}),
-    ...(typeof msta.allowThirdPartyFrames === "boolean" ? { allowThirdPartyFrames: msta.allowThirdPartyFrames } : {}),
+    ...(typeof msta.allowThirdPartyFrames === "boolean"
+      ? { allowThirdPartyFrames: msta.allowThirdPartyFrames }
+      : {}),
   } as never;
 }
 
@@ -352,11 +402,69 @@ export function validateMstaConfig(input: Record<string, unknown>): string[] | u
     if (!isRecord(entry)) return false;
     return typeof entry.methodRef === "string" && entry.methodRef.trim().length > 0;
   });
-  if (!hasMethodRef) {
-    return ["Set analysis.msta.methodTargets[] with at least one methodRef when analysis.msta is enabled."];
+  const rawAnchorSelection = isRecord(rawMsta.anchorSelection)
+    ? rawMsta.anchorSelection
+    : undefined;
+  const hasDynamicAnchorSelection =
+    rawAnchorSelection?.source === "verified_required_line_hits" &&
+    rawAnchorSelection.strategy === "all";
+  if (!hasMethodRef && !hasDynamicAnchorSelection) {
+    return [
+      "Set analysis.msta.methodTargets[] with at least one methodRef, or set analysis.msta.anchorSelection.source=verified_required_line_hits and strategy=all.",
+    ];
   }
-  if ("mode" in rawMsta && typeof rawMsta.mode !== "undefined" && rawMsta.mode !== "method_targets" && rawMsta.mode !== "target_plus_path") {
+  if (
+    "mode" in rawMsta &&
+    typeof rawMsta.mode !== "undefined" &&
+    rawMsta.mode !== "method_targets" &&
+    rawMsta.mode !== "target_plus_path"
+  ) {
     return ["Set analysis.msta.mode to method_targets or target_plus_path when provided."];
+  }
+  return undefined;
+}
+
+export function resolveCorrelation(
+  input: Record<string, unknown>,
+): PerformancePlanContract["analysis"] extends { correlation?: infer T } ? T | undefined : never {
+  const analysis = isRecord(input.analysis) ? input.analysis : null;
+  const correlation = analysis && isRecord(analysis.correlation) ? analysis.correlation : null;
+  if (!correlation || correlation.enabled !== true) return undefined as never;
+  return {
+    enabled: true,
+    kind: "sampled_attribution",
+    anchorSource: "msta_resolved_anchors",
+    requireLineHit: correlation.requireLineHit === true,
+    requireMsta: correlation.requireMsta === true,
+  } as never;
+}
+
+export function validateCorrelationConfig(input: Record<string, unknown>): string[] | undefined {
+  const analysis = isRecord(input.analysis) ? input.analysis : null;
+  if (typeof analysis?.correlation === "undefined") return undefined;
+  if (!isRecord(analysis.correlation)) {
+    return ["Set analysis.correlation as an object when performance correlation is configured."];
+  }
+  const correlation = analysis.correlation;
+  if (correlation.enabled === false) return undefined;
+  if (correlation.enabled !== true) {
+    return [
+      "Set analysis.correlation.enabled=true or remove analysis.correlation when correlation is not configured.",
+    ];
+  }
+  if (correlation.kind !== "sampled_attribution") {
+    return ["Set analysis.correlation.kind=sampled_attribution."];
+  }
+  if (correlation.anchorSource !== "msta_resolved_anchors") {
+    return ["Set analysis.correlation.anchorSource=msta_resolved_anchors."];
+  }
+  if (
+    typeof correlation.requireLineHit !== "boolean" ||
+    typeof correlation.requireMsta !== "boolean"
+  ) {
+    return [
+      "Set analysis.correlation.requireLineHit and analysis.correlation.requireMsta to booleans.",
+    ];
   }
   return undefined;
 }

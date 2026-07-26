@@ -71,8 +71,15 @@ When present and enabled:
 - `mode`: optional; supported values:
   - `method_targets`
   - `target_plus_path`
-- `methodTargets[]`: required non-empty array
+- `methodTargets[]`: optional when dynamic anchors are configured
   - `methodRef`: required `fully.qualified.Class#method`
+- Or use dynamic anchors:
+  - `anchorSelection.source`: `verified_required_line_hits`
+  - `anchorSelection.strategy`: `all`
+
+When `analysis.correlation.enabled=true`, the runtime derives anchors from
+verified required `Strict Line Key` evidence and persists the correlation
+Artifact under `runs/<run_id>/correlation/correlation.json`.
 
 Do not author `analysis.msta.enabled=true` without a valid `analysis.executionTiming` block.
 
