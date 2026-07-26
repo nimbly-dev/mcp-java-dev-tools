@@ -1207,7 +1207,7 @@ test("executePerformanceRuntimeSuite blocks immediately when profiler start repo
                 response: {
                   status: 200,
                   json: {
-                    contractVersion: "0.1.7",
+                    contractVersion: "0.1.8",
                     ok: true,
                     action: "start",
                   },
