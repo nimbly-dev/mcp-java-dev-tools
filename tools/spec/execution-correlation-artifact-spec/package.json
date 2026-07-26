@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-execution-correlation-artifact-spec",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Artifact Spec models, validation, and path policy for execution correlation Artifacts",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

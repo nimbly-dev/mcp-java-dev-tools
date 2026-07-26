@@ -458,7 +458,10 @@ export async function buildPerformanceMstaSummary(args: {
     sourceEventTypes: streamed.sourceEventTypes,
     ...(args.provider ? { provider: args.provider } : {}),
     durationMs: args.durationMs,
-    mode: explicitMethodTargets.length > 0 ? (args.mode ?? "method_targets") : "required_line_hits",
+    mode:
+      explicitMethodTargets.length > 0
+        ? (args.mode ?? "method_targets")
+        : (args.mode ?? "required_line_hits"),
     methods,
     targets,
   };

@@ -7,6 +7,7 @@ import * as path from "node:path";
 import test from "node:test";
 
 import { startMcpClient } from "@test/integrations/support/spring/social_platform/shared.fixture";
+import { renderPerformanceResultFromArtifacts } from "@tools-feature-performance-suite";
 
 type ToolResult = {
   structuredContent?: Record<string, unknown>;
@@ -2485,7 +2486,10 @@ test("mcp IT: execution_orchestration classifies watcher outer poll exhaustion d
 
     const watcherChecksBeforeTerminalResume = watcherChecks;
     await new Promise((resolve) =>
-      setTimeout(resolve, Math.max(0, Number(persistedActivePlan.deadlineAtEpochMs) - Date.now() + 25)),
+      setTimeout(
+        resolve,
+        Math.max(0, Number(persistedActivePlan.deadlineAtEpochMs) - Date.now() + 25),
+      ),
     );
     await writeJson(path.join(workspaceRootAbs, ".mcpjvm", projectName, "projects.json"), {
       workspaces: [
@@ -3043,6 +3047,15 @@ test("mcp IT: execution_orchestration executes performance suite profiles throug
         minThroughputPerSec: 0.5,
         p95LatencyMs: 500,
       },
+      analysis: {
+        correlation: {
+          enabled: true,
+          kind: "sampled_attribution",
+          anchorSource: "msta_resolved_anchors",
+          requireLineHit: true,
+          requireMsta: false,
+        },
+      },
     },
   );
 
@@ -3072,6 +3085,23 @@ test("mcp IT: execution_orchestration executes performance suite profiles throug
     assert.equal(planRuns[0]?.status, "executed");
     assert.equal(planRuns[0]?.runStatus, "pass");
     assert.equal(lineHitCount > 0, true);
+    const runId = planRuns[0]?.runId;
+    assert.equal(typeof runId, "string");
+    if (typeof runId !== "string") throw new Error("MCP performance run did not persist runId");
+    const rendered = await renderPerformanceResultFromArtifacts({
+      runDirAbs: path.join(
+        workspaceRootAbs,
+        ".mcpjvm",
+        projectName,
+        "plans",
+        "performance",
+        "catalog-search-perf",
+        "runs",
+        runId,
+      ),
+    });
+    assert.equal(rendered.status, "rendered");
+    assert.match(rendered.text, /Correlation: n\/a \(msta_not_configured\)/);
   } finally {
     appServer.close();
     probeServer.close();

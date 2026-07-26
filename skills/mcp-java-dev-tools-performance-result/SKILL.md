@@ -39,6 +39,7 @@ Artifact semantics/reference paths:
 2. `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/evidence.json`
 3. optional `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/context.resolved.json`
 4. optional `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/execution-timing.msta.json`
+5. optional `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/correlation/correlation.json`
 
 ## Template Routing
 
@@ -84,6 +85,23 @@ Optional guidance for `not_configured` and `disabled`:
 - `To enable MSTA for a future run, set analysis.msta.enabled=true and provide a valid analysis.executionTiming block.`
 
 Do not infer MSTA availability from a missing Artifact file or from the presence of a raw JFR file alone.
+
+## Correlation Rendering
+
+Read `correlation/correlation.json` only when it is present. Legacy and
+correlation-disabled runs use a stable correlation placeholder. When
+`execution.result.json` declares correlation enabled and available, a missing
+or invalid correlation Artifact is blocked with `correlation_artifact_invalid`
+and one recovery action; do not reconstruct it from logs.
+
+For an available correlation Artifact, render the method table with exactly
+these columns:
+
+`Step | Anchor Method | Strict Line Key | Method | Role | Samples | Estimated Path Time (ms) | Path Share (%) | Correlation Evidence`
+
+Use `correlated_sampled_path` as the evidence value. Describe values as
+estimated sampled attribution and never render a root-cause claim. Nested
+sampled-stack estimates are not additive.
 
 ## Governance and Redaction
 
