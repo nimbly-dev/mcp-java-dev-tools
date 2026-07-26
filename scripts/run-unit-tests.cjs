@@ -3,16 +3,36 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 const repoRoot = path.resolve(__dirname, "..");
-const testRoots = [
-  path.join(repoRoot, "test", "config"),
-  path.join(repoRoot, "test", "models"),
-  path.join(repoRoot, "test", "skills"),
-  path.join(repoRoot, "test", "tools"),
-  path.join(repoRoot, "test", "utils"),
-];
+const testRoots = [path.join(repoRoot, "test", "unit")];
 
 const serialFiles = new Set([
-  path.join(repoRoot, "test", "tools", "spring", "performance-runtime-suite-executor.test.ts"),
+  path.join(
+    repoRoot,
+    "test",
+    "unit",
+    "features",
+    "performance-suite",
+    "actions",
+    "execute_performance_runtime_suite.test.ts",
+  ),
+  path.join(
+    repoRoot,
+    "test",
+    "unit",
+    "features",
+    "regression-suite",
+    "actions",
+    "execute_regression_plan.test.ts",
+  ),
+  path.join(
+    repoRoot,
+    "test",
+    "unit",
+    "features",
+    "regression-suite",
+    "actions",
+    "execute_regression_runtime_suite.test.ts",
+  ),
 ]);
 
 function collectTestFiles(root) {
@@ -72,6 +92,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exit(1);
 });
