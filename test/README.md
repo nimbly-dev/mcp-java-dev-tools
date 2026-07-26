@@ -1,30 +1,40 @@
 # Test Layout
 
-Centralized test assets live under the top-level `test` tree.
+Centralized test assets live under the top-level `test` tree. Unit tests are
+organized by the TypeScript owner they exercise; integration tests are
+organized by fixture application and cross-module behavior.
 
 ## Structure
 
 ```text
 test/
+|- unit/
+|  |- contracts/
+|  |- core/
+|  |- features/
+|  |- spec/
+|  |- synthesizers/
+|  |- transport/
+|  |- skills/
+|  \- docs/
 |- fixtures/
 |  \- spring-apps/
-|     \- social-platform/
-\- tools/
-|  \- spring/
-\- integration/
-   |- java-agent/
-   \- mcp/
+\- integrations/
+   |- spring/
+   \- others/
 ```
 
 ## Intent
 
 - `fixtures/spring-apps` contains real Spring fixture projects used only for integration testing.
-- `tools/spring` contains the current tool-test suite for Spring-oriented synthesis, probe contracts, fixture discovery, and related request/probe flows.
-- `integration/java-agent` contains direct Java-side integration tests for fixture apps running with the built agent attached.
-- `integration/mcp` contains cross-module MCP integration tests that exercise:
+- `unit` contains focused tests organized by Contract, Core, Feature Module,
+  Artifact Spec, Synthesizer, Transport, Skill, or documentation owner.
+- `fixtures/spring-apps` contains real Spring fixture projects used only for integration testing.
+- `integrations` contains cross-module tests that exercise:
   - TS orchestration
   - Java request-mapping synthesis
   - MCP tool execution against a live probe runtime
   - probe runtime behavior
 
-These tests are intentionally outside `/java-agent` and `/tools` because they validate the integrated toolchain rather than a single module in isolation.
+Integration tests are intentionally outside `unit` because they validate the
+integrated toolchain rather than a single module in isolation.
