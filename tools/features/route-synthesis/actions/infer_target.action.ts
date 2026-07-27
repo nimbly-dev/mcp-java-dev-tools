@@ -4,74 +4,15 @@ import type { RouteSynthesisTargetInferenceDeps } from "@tools-feature-route-syn
 import { clampInt } from "@tools-core/safety";
 import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
 import { validateProjectRootAbs } from "@tools-core/project_root_validate";
+import { resolveAdditionalSourceRoots } from "../support/source_roots_resolve";
+import { resolveProbeBaseUrl } from "../support/probe_base_url_resolve";
 import {
   RuntimeProbeUnreachableError,
-  selectRuntimeValidatedLine,
-} from "../support/inference/runtime_line_selection.util";
-import { resolveAdditionalSourceRoots } from "../support/source_roots_resolve";
+  runtimeUnavailableResponse,
+  selectTargetRuntimeLine,
+  TARGET_INFER_REASON_META_KEYS,
+} from "../support/target_infer_runtime";
 import { discoverClassMethods, inferTargets } from "../shared/target_inference";
-
-function resolveProbeBaseUrlForTargetInfer(args: {
-  config: RouteSynthesisTargetInferenceDeps["config"];
-  probeId?: string;
-  probeBaseUrl?: string;
-}): { ok: true; probeBaseUrl: string } | { ok: false; reasonCode: string; reason: string } {
-  if (typeof args.probeBaseUrl === "string" && args.probeBaseUrl.trim().length > 0) {
-    return { ok: true, probeBaseUrl: args.probeBaseUrl.trim() };
-  }
-  if (typeof args.probeId === "string" && args.probeId.trim().length > 0) {
-    const probe = args.config.probeRegistry?.probesById.get(args.probeId.trim());
-    if (!probe) {
-      return {
-        ok: false,
-        reasonCode: "probe_id_unknown",
-        reason: `probeId '${args.probeId.trim()}' is not configured in active probe registry profile.`,
-      };
-    }
-    return { ok: true, probeBaseUrl: probe.baseUrl };
-  }
-  return { ok: true, probeBaseUrl: args.config.probeBaseUrl };
-}
-
-const TARGET_INFER_REASON_META_KEYS = [
-  "failedStep",
-  "classHint",
-  "methodHint",
-  "lineHint",
-  "discoveryMode",
-  "candidateCount",
-  "resolvedCandidateCount",
-] as const;
-
-function runtimeUnavailableResponse(args: {
-  rootAbs: string;
-  hints: Record<string, unknown>;
-  reason: string;
-}) {
-  const reasonCode = "runtime_unreachable";
-  const structuredContent = {
-    resultType: "report",
-    status: reasonCode,
-    reasonCode,
-    nextActionCode: deriveNextActionCode(reasonCode),
-    failedStep: "line_validation",
-    projectRoot: args.rootAbs,
-    hints: args.hints,
-    reasonMeta: normalizeReasonMeta(
-      { failedStep: "line_validation", ...args.hints },
-      TARGET_INFER_REASON_META_KEYS,
-    ),
-    reason: args.reason,
-    nextAction:
-      "Verify probe runtime reachability (probe base URL/port) and rerun route_synthesis with action=infer_target or action=class_methods.",
-    evidence: [args.reason],
-    attemptedStrategies: ["runtime_line_validation"],
-  };
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(structuredContent, null, 2) }],
-    structuredContent,
-  };
-}
 
 export async function runTargetInfer(
   input: Record<string, unknown>,
@@ -80,37 +21,6 @@ export async function runTargetInfer(
   content: Array<{ type: "text"; text: string }>;
   structuredContent: Record<string, unknown>;
 }> {
-  const selectLine = async (args: {
-    probeKey?: string;
-    probeBaseUrl: string;
-    startLine: number;
-    endLine: number;
-  }): Promise<{
-    firstExecutableLine: number | null;
-    lineSelectionStatus: "validated" | "unresolved";
-    lineSelectionSource?: "runtime_probe_validation";
-  }> => {
-    if (!args.probeKey) {
-      return {
-        firstExecutableLine: null,
-        lineSelectionStatus: "unresolved",
-      };
-    }
-    if (!args.probeBaseUrl || !deps.config.probeStatusPath) {
-      throw new RuntimeProbeUnreachableError(
-        "Probe runtime config unavailable (missing probeBaseUrl/probeStatusPath).",
-      );
-    }
-    return await selectRuntimeValidatedLine({
-      probeBaseUrl: args.probeBaseUrl,
-      probeStatusPath: deps.config.probeStatusPath,
-      probeKey: args.probeKey,
-      startLine: args.startLine,
-      endLine: args.endLine,
-      maxScanLines: deps.config.probeLineSelectionMaxScanLines,
-    });
-  };
-
   const {
     projectRootAbs,
     discoveryMode,
@@ -132,8 +42,9 @@ export async function runTargetInfer(
     probeId?: string;
     probeBaseUrl?: string;
   };
-  const probeResolve = resolveProbeBaseUrlForTargetInfer({
-    config: deps.config,
+  const probeResolve = resolveProbeBaseUrl({
+    defaultProbeBaseUrl: deps.config.probeBaseUrl,
+    ...(deps.config.probeRegistry ? { probeRegistry: deps.config.probeRegistry } : {}),
     ...(typeof probeId === "string" ? { probeId } : {}),
     ...(typeof probeBaseUrl === "string" ? { probeBaseUrl } : {}),
   });
@@ -348,11 +259,12 @@ export async function runTargetInfer(
     const validatedMethods: typeof selected.methods = [];
     try {
       for (const method of selected.methods) {
-        const runtimeSelection = await selectLine({
+        const runtimeSelection = await selectTargetRuntimeLine({
           ...(method.probeKey ? { probeKey: method.probeKey } : {}),
           probeBaseUrl: activeProbeBaseUrl,
           startLine: method.startLine,
           endLine: method.endLine,
+          config: deps.config,
         });
         validatedMethods.push({
           ...method,
@@ -476,7 +388,7 @@ export async function runTargetInfer(
   const validatedCandidates = [] as typeof inferred.candidates;
   try {
     for (const candidate of inferred.candidates) {
-      const runtimeSelection = await selectLine({
+      const runtimeSelection = await selectTargetRuntimeLine({
         ...(candidate.key ? { probeKey: candidate.key } : {}),
         probeBaseUrl: activeProbeBaseUrl,
         startLine:
@@ -493,6 +405,7 @@ export async function runTargetInfer(
               : typeof candidate.line === "number"
                 ? candidate.line
                 : 1,
+        config: deps.config,
       });
       validatedCandidates.push({
         ...candidate,

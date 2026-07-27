@@ -6,103 +6,16 @@ import { buildRecipeTemplateModel } from "@tools-feature-route-synthesis";
 import { validateProjectRootAbs } from "@tools-core/project_root_validate";
 import { deriveNextActionCode, normalizeReasonMeta } from "@tools-core/failure_diagnostics";
 import { enrichRuntimeCapture } from "../support/recipe_generate/runtime_capture_enrich.util";
+import { resolveProbeBaseUrl } from "../support/probe_base_url_resolve";
+import { normalizeRecipeCreateInput } from "../support/recipe_create_input";
+import {
+  compactExecutionPlanForOutput,
+  compactExecutionPlanForText,
+  isFqcn,
+  RECIPE_REASON_META_KEYS,
+} from "../support/recipe_create_output";
 import { resolveAdditionalSourceRoots } from "../support/source_roots_resolve";
 import { generateRecipe } from "../shared/recipe_generation";
-
-function resolveProbeBaseUrlForRecipe(args: {
-  defaultProbeBaseUrl: RouteSynthesisRecipeGenerationDeps["probeBaseUrl"];
-  probeId?: string;
-  probeBaseUrl?: string;
-  probeRegistry?: ReturnType<NonNullable<RouteSynthesisRecipeGenerationDeps["getProbeRegistry"]>>;
-}): { ok: true; probeBaseUrl: string } | { ok: false; reasonCode: string; reason: string } {
-  if (typeof args.probeBaseUrl === "string" && args.probeBaseUrl.trim().length > 0) {
-    return { ok: true, probeBaseUrl: args.probeBaseUrl.trim() };
-  }
-  if (typeof args.probeId === "string" && args.probeId.trim().length > 0) {
-    const probe = args.probeRegistry?.probesById.get(args.probeId.trim());
-    if (!probe) {
-      return {
-        ok: false,
-        reasonCode: "probe_id_unknown",
-        reason: `probeId '${args.probeId.trim()}' is not configured in active probe registry profile.`,
-      };
-    }
-    return { ok: true, probeBaseUrl: probe.baseUrl };
-  }
-  return { ok: true, probeBaseUrl: args.defaultProbeBaseUrl };
-}
-
-const RECIPE_REASON_META_KEYS = ["failedStep", "classHint", "methodHint", "lineHint", "selectedMode"] as const;
-
-function isFqcn(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed.includes(".")) return false;
-  const segments = trimmed.split(".");
-  if (segments.some((segment) => segment.length === 0)) return false;
-  return segments.every((segment) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(segment));
-}
-
-function toActionCode(step: { title: string }): string {
-  const title = step.title.trim().toLowerCase();
-  if (title === "resolve authentication") return "resolve_auth";
-  if (title === "request candidate missing") return "request_candidate_missing";
-  if (title === "return report") return "return_report";
-  if (title === "line target unresolved") return "line_target_unresolved";
-  if (title === "reset probe baseline") return "probe_reset_baseline";
-  if (title === "execute regression api check") return "execute_api_check";
-  if (title === "verify api regression outcome") return "verify_api_regression";
-  if (title === "execute probe trigger request") return "execute_probe_trigger";
-  if (title === "verify single-line probe hit") return "verify_probe_hit";
-  if (title === "verify api and line probe outcomes") return "verify_api_and_probe";
-  if (title === "enable branch actuation") return "enable_actuation";
-  if (title === "disable branch actuation") return "disable_actuation";
-  return title.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-}
-
-function compactRoutingReason(selectedMode: string): string {
-  if (selectedMode === "regression") return "regression_no_probe";
-  if (selectedMode === "single_line_probe") return "single_line_probe";
-  if (selectedMode === "regression_plus_line_probe") return "regression_plus_line_probe";
-  return "mode_selected";
-}
-
-function compactExecutionPlanForOutput(args: {
-  resultType: "recipe" | "report";
-  executionPlan: {
-    selectedMode: string;
-    routingReason: string;
-    steps: Array<{ phase: string; title: string; instruction: string }>;
-    probeCallPlan: unknown;
-  };
-}) {
-  if (args.resultType !== "report") return args.executionPlan;
-  return {
-    selectedMode: args.executionPlan.selectedMode,
-    routingReason: compactRoutingReason(args.executionPlan.selectedMode),
-    steps: args.executionPlan.steps.map((step) => ({
-      phase: step.phase,
-      actionCode: toActionCode(step),
-    })),
-    probeCallPlan: args.executionPlan.probeCallPlan,
-  };
-}
-
-function compactExecutionPlanForText(executionPlan: {
-  selectedMode: string;
-  routingReason: string;
-  steps: Array<{ phase: string; title: string; instruction: string }>;
-  probeCallPlan: unknown;
-}) {
-  return {
-    selectedMode: executionPlan.selectedMode,
-    routingReason: compactRoutingReason(executionPlan.selectedMode),
-    steps: executionPlan.steps.map((step) => ({
-      phase: step.phase,
-      actionCode: toActionCode(step),
-    })),
-    probeCallPlan: executionPlan.probeCallPlan,
-  };
-}
 
 export async function runRecipeCreate(
   input: Record<string, unknown>,
@@ -111,59 +24,8 @@ export async function runRecipeCreate(
   content: Array<{ type: "text"; text: string }>;
   structuredContent: Record<string, unknown>;
 }> {
-  const inputRecord = input as {
-    projectRootAbs: string;
-    classHint: string;
-    methodHint: string;
-    lineHint?: number;
-    mappingsBaseUrl?: string;
-    discoveryPreference?: "static_only" | "runtime_first" | "runtime_only";
-    additionalSourceRoots?: string[];
-    apiBasePath?: string;
-    intentMode: "line_probe" | "regression";
-    authToken?: string;
-    authUsername?: string;
-    authPassword?: string;
-    actuationEnabled?: boolean;
-    actuationReturnBoolean?: boolean;
-    actuationActuatorId?: string;
-    outputTemplate?: string;
-    probeId?: string;
-    probeBaseUrl?: string;
-  };
-  const inputHints = {
-    classHint: typeof inputRecord.classHint === "string" ? inputRecord.classHint : undefined,
-    methodHint: typeof inputRecord.methodHint === "string" ? inputRecord.methodHint : undefined,
-    lineHint: typeof inputRecord.lineHint === "number" ? inputRecord.lineHint : undefined,
-    mappingsBaseUrl:
-      typeof inputRecord.mappingsBaseUrl === "string" ? inputRecord.mappingsBaseUrl : undefined,
-    discoveryPreference:
-      inputRecord.discoveryPreference === "static_only" ||
-      inputRecord.discoveryPreference === "runtime_first" ||
-      inputRecord.discoveryPreference === "runtime_only"
-        ? inputRecord.discoveryPreference
-        : undefined,
-    additionalSourceRoots:
-      Array.isArray(inputRecord.additionalSourceRoots) &&
-      inputRecord.additionalSourceRoots.every((value) => typeof value === "string")
-        ? inputRecord.additionalSourceRoots
-        : undefined,
-    apiBasePath: typeof inputRecord.apiBasePath === "string" ? inputRecord.apiBasePath : undefined,
-    actuationEnabled:
-      typeof inputRecord.actuationEnabled === "boolean" ? inputRecord.actuationEnabled : undefined,
-    actuationReturnBoolean:
-      typeof inputRecord.actuationReturnBoolean === "boolean"
-        ? inputRecord.actuationReturnBoolean
-        : undefined,
-    actuationActuatorId:
-      typeof inputRecord.actuationActuatorId === "string"
-        ? inputRecord.actuationActuatorId
-        : undefined,
-    probeId: typeof inputRecord.probeId === "string" ? inputRecord.probeId : undefined,
-    probeBaseUrl:
-      typeof inputRecord.probeBaseUrl === "string" ? inputRecord.probeBaseUrl : undefined,
-  };
-  const probeResolveInput: Parameters<typeof resolveProbeBaseUrlForRecipe>[0] = {
+  const { inputRecord, inputHints } = normalizeRecipeCreateInput(input);
+  const probeResolveInput: Parameters<typeof resolveProbeBaseUrl>[0] = {
     defaultProbeBaseUrl: deps.probeBaseUrl,
   };
   if (typeof inputRecord.probeId === "string") probeResolveInput.probeId = inputRecord.probeId;
@@ -174,7 +36,7 @@ export async function runRecipeCreate(
     const registry = deps.getProbeRegistry();
     if (registry) probeResolveInput.probeRegistry = registry;
   }
-  const probeResolve = resolveProbeBaseUrlForRecipe(probeResolveInput);
+  const probeResolve = resolveProbeBaseUrl(probeResolveInput);
   if (!probeResolve.ok) {
     const structuredContent = {
       projectRoot: inputRecord.projectRootAbs,
@@ -322,7 +184,8 @@ export async function runRecipeCreate(
   if (typeof inputRecord.discoveryPreference === "string") {
     generateArgs.discoveryPreference = inputRecord.discoveryPreference;
   }
-  if (typeof inputRecord.apiBasePath === "string") generateArgs.apiBasePath = inputRecord.apiBasePath;
+  if (typeof inputRecord.apiBasePath === "string")
+    generateArgs.apiBasePath = inputRecord.apiBasePath;
   if (inputRecord.authToken) generateArgs.authToken = inputRecord.authToken;
   if (inputRecord.authUsername) generateArgs.authUsername = inputRecord.authUsername;
   if (inputRecord.authPassword) generateArgs.authPassword = inputRecord.authPassword;
@@ -399,10 +262,7 @@ export async function runRecipeCreate(
           lineHint: inferredLine,
           selectedMode: generated.selectedMode,
         },
-        attemptedStrategies: [
-          ...generated.attemptedStrategies,
-          "runtime_line_validation_precheck",
-        ],
+        attemptedStrategies: [...generated.attemptedStrategies, "runtime_line_validation_precheck"],
         evidence: [
           ...generated.evidence,
           `probeKey=${inferredKey ?? "(missing)"}:${inferredLine}`,
@@ -427,13 +287,13 @@ export async function runRecipeCreate(
 
   const effectiveReasonCode =
     normalizedGenerated.resultType === "report"
-      ? normalizedGenerated.reasonCode ??
+      ? (normalizedGenerated.reasonCode ??
         normalizedGenerated.failureReasonCode ??
-        normalizedGenerated.status
+        normalizedGenerated.status)
       : undefined;
   const effectiveNextActionCode =
     normalizedGenerated.resultType === "report"
-      ? normalizedGenerated.nextActionCode ?? deriveNextActionCode(effectiveReasonCode)
+      ? (normalizedGenerated.nextActionCode ?? deriveNextActionCode(effectiveReasonCode))
       : undefined;
   const effectiveReasonMeta =
     normalizedGenerated.resultType === "report"
