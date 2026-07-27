@@ -26,7 +26,7 @@ async function writeBaseArtifacts(
   );
 }
 
-test("[UT][performance-suite][performance_result_renderer][blocked_invalid] result renderer blocks when an available correlation Artifact is missing", async () => {
+test("[UT][performance-suite][performance_result_renderer] result renderer blocks when an available correlation Artifact is missing", async () => {
   await withRunDir(async (runDir) => {
     await writeBaseArtifacts(runDir, {
       status: "pass",
@@ -47,7 +47,7 @@ test("[UT][performance-suite][performance_result_renderer][blocked_invalid] resu
   });
 });
 
-test("[UT][performance-suite][performance_result_renderer][ok] result renderer emits an unavailable correlation placeholder without a method table", async () => {
+test("[UT][performance-suite][performance_result_renderer] result renderer emits an unavailable correlation placeholder without a method table", async () => {
   await withRunDir(async (runDir) => {
     await writeBaseArtifacts(runDir, {
       status: "fail",
@@ -68,7 +68,7 @@ test("[UT][performance-suite][performance_result_renderer][ok] result renderer e
   });
 });
 
-test("[UT][performance-suite][performance_result_renderer][ok] result renderer renders the specified method table for valid correlation evidence", async () => {
+test("[UT][performance-suite][performance_result_renderer] result renderer renders the specified method table for valid correlation evidence", async () => {
   await withRunDir(async (runDir) => {
     await writeBaseArtifacts(runDir, {
       status: "pass",

@@ -30,7 +30,7 @@ function withEnv(overrides: Record<string, string | undefined>, run: () => void)
   }
 }
 
-test("[UT][transport][server_config][ok] loads from probe-config.json and applies fixed probe path defaults", () => {
+test("[UT][transport][server_config] loads from probe-config.json and applies fixed probe path defaults", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -43,11 +43,11 @@ test("[UT][transport][server_config][ok] loads from probe-config.json and applie
     assert.equal(cfg.probeResetPath, CONFIG_DEFAULTS.PROBE_RESET_PATH);
     assert.equal(cfg.probeCapturePath, CONFIG_DEFAULTS.PROBE_CAPTURE_PATH);
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][server_config][blocked_invalid] missing probe-config keeps the server startable without environment probe routing", () => {
+test("[UT][transport][server_config] missing probe-config keeps the server startable without environment probe routing", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-no-probe-"));
   try {
     withEnv(
@@ -65,11 +65,11 @@ test("[UT][transport][server_config][blocked_invalid] missing probe-config keeps
       },
     );
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][server_config][ok] preserves an absolute MCP_PROBE_CONFIG_FILE override outside the canonical location", () => {
+test("[UT][transport][server_config] preserves an absolute MCP_PROBE_CONFIG_FILE override outside the canonical location", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-file-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -90,11 +90,11 @@ test("[UT][transport][server_config][ok] preserves an absolute MCP_PROBE_CONFIG_
       },
     );
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][server_config][ok] derives workspace from an explicit canonical probe-config in another workspace", () => {
+test("[UT][transport][server_config] derives workspace from an explicit canonical probe-config in another workspace", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-stale-env-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -123,11 +123,11 @@ test("[UT][transport][server_config][ok] derives workspace from an explicit cano
       },
     );
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][server_config][ok] resolves workspace-relative MCP_PROBE_CONFIG_FILE to active workspace probe-config.json", () => {
+test("[UT][transport][server_config] resolves workspace-relative MCP_PROBE_CONFIG_FILE to active workspace probe-config.json", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-relative-env-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -147,11 +147,11 @@ test("[UT][transport][server_config][ok] resolves workspace-relative MCP_PROBE_C
       },
     );
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][server_config][ok] preserves an explicit noncanonical Probe-config override with an explicit workspace", () => {
+test("[UT][transport][server_config] preserves an explicit noncanonical Probe-config override with an explicit workspace", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-server-config-noncanonical-env-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -173,6 +173,6 @@ test("[UT][transport][server_config][ok] preserves an explicit noncanonical Prob
       },
     );
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

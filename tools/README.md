@@ -3,6 +3,7 @@
 This folder is the workspace-style scaffold for TS tool packages.
 
 ## Package groups
+
 - `contracts/tools-contracts`
 - `core/tools-core`
 - `core/tools-registry`
@@ -16,24 +17,28 @@ This folder is the workspace-style scaffold for TS tool packages.
 - `transport/tools-mcp-server`
 
 ## Integrated test location
+
 - Top-level fixture and integration scaffolding lives under:
   - `test/fixtures/spring-apps`
-  - `test/integrations/{fixture_app}/{feature}/{tool_name}`
+  - `test/integration/{owner}/{boundary}/{action}/{fixture}/{scenario}`
 
 Cross-module MCP integration coverage belongs in the centralized top-level `test` tree, not under `tools/tests`.
 
 ## Opt-in examples
+
 - `synthesizers/tools-synthesizer-example`
 
 Example packages are starter scaffolds for framework adoptors and are not included in default runtime registration or TS build include paths.
 
 ## Placeholder packages
+
 - `synthesizers/tools-jaxrs-http`
 - `synthesizers/tools-grpc-rpc`
 
 These are folder-level placeholders only. Spring HTTP is the only active synthesizer implementation today.
 
 ## Active runtime packages
+
 - MCP transport/server entrypoint code:
   - `transport/tools-mcp-server/src`
 - Shared recipe orchestration/runtime utilities:
@@ -67,6 +72,7 @@ These are folder-level placeholders only. Spring HTTP is the only active synthes
 Run `npm run boundaries:check` to enforce these structural rules.
 
 ## Runtime External Synthesizer Loading
+
 - Configure external plugin module specifiers with:
   - `MCP_SYNTHESIZER_PLUGIN_MODULES`
 - Supports path-delimited or comma-separated module specifiers.
@@ -75,4 +81,3 @@ Run `npm run boundaries:check` to enforce these structural rules.
   - module exports must provide valid synthesizer plugin contract objects
   - plugin API version must be compatible
   - any bootstrap failure returns deterministic synthesis `report` (`failedStep=plugin_bootstrap`)
-

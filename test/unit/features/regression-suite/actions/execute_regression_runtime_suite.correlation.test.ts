@@ -11,7 +11,7 @@ const {
   writeAuthenticatedStrictProbeCorrelatedPlan,
 } = require("@test/support/regression-runtime-suite-executor.fixture");
 
-test("[UT][regression-suite][execute_regression_runtime_suite_correlation][ok] executeRegressionRuntimeSuite annotates plan runs for shared correlation session", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_correlation] executeRegressionRuntimeSuite annotates plan runs for shared correlation session", async () => {
   const root = createTestTempDir("runtime-suite-correlation");
   try {
     const projectName = "petclinic-regression";
@@ -169,11 +169,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_correlation][ok] e
     assert.equal(consumerExecution.suiteRunId, out.suiteRunId);
     assert.equal(consumerCorrelation.status, "ok");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_correlation][blocked_invalid] executeRegressionRuntimeSuite reproduces ordered cross-service flow where trigger plan passes and second plan fails probe verification", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_correlation] executeRegressionRuntimeSuite reproduces ordered cross-service flow where trigger plan passes and second plan fails probe verification", async () => {
   const root = createTestTempDir("runtime-suite-auth-cross-service-ordered-fail");
   try {
     const projectName = "petclinic-regression";
@@ -407,11 +407,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_correlation][block
     assert.equal(consumerEvidence.correlationEvents[0].probeId, "consumer-service");
     assert.equal(typeof consumerEvidence.correlationEvents[0].keyValue, "undefined");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_correlation][ok] executeRegressionRuntimeSuite carries forward a resolved cross-plan correlation key into later plan context", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_correlation] executeRegressionRuntimeSuite carries forward a resolved cross-plan correlation key into later plan context", async () => {
   const root = createTestTempDir("runtime-suite-auth-cross-service-dynamic-correlation-key");
   try {
     const projectName = "petclinic-regression";
@@ -536,11 +536,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_correlation][ok] e
     assert.equal(typeof consumerEvidence.correlationPolicy.keyExtractionReasonCode, "undefined");
     assert.equal(consumerEvidence.correlationEvents[0].keyValue, "evt-123");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_correlation][ok] executeRegressionRuntimeSuite reproduces authenticated cross-service probe misses with empty correlation evidence", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_correlation] executeRegressionRuntimeSuite reproduces authenticated cross-service probe misses with empty correlation evidence", async () => {
   const root = createTestTempDir("runtime-suite-auth-cross-service-probe-miss");
   try {
     const projectName = "petclinic-regression";
@@ -800,6 +800,6 @@ test("[UT][regression-suite][execute_regression_runtime_suite_correlation][ok] e
     assert.equal(consumerEvidence.correlationEvents[0].probeId, "consumer-service");
     assert.equal(typeof consumerEvidence.correlationEvents[0].keyValue, "undefined");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

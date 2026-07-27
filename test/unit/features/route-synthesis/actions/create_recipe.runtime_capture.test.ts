@@ -3,7 +3,7 @@ const test = require("node:test");
 
 const { enrichRuntimeCapture } = require("@tools-feature-route-synthesis");
 
-test("[UT][route-synthesis][create_recipe_runtime_capture][blocked_invalid] enrichRuntimeCapture returns unavailable when key/line is missing", async () => {
+test("[UT][route-synthesis][create_recipe_runtime_capture] enrichRuntimeCapture returns unavailable when key/line is missing", async () => {
   const out = await enrichRuntimeCapture({
     inferredKey: undefined,
     inferredLine: undefined,
@@ -14,7 +14,7 @@ test("[UT][route-synthesis][create_recipe_runtime_capture][blocked_invalid] enri
   assert.equal(out.reason, "probe_key_or_line_missing");
 });
 
-test("[UT][route-synthesis][create_recipe_runtime_capture][ok] enrichRuntimeCapture returns available when capturePreview is present", async () => {
+test("[UT][route-synthesis][create_recipe_runtime_capture] enrichRuntimeCapture returns available when capturePreview is present", async () => {
   const out = await enrichRuntimeCapture({
     inferredKey: "com.example.Catalog#save",
     inferredLine: 88,
@@ -43,7 +43,7 @@ test("[UT][route-synthesis][create_recipe_runtime_capture][ok] enrichRuntimeCapt
   assert.equal(out.capturePreview.executionPaths, undefined);
 });
 
-test("[UT][route-synthesis][create_recipe_runtime_capture][ok] enrichRuntimeCapture includes executionPaths when env is enabled", async () => {
+test("[UT][route-synthesis][create_recipe_runtime_capture] enrichRuntimeCapture includes executionPaths when env is enabled", async () => {
   const previous = process.env.MCP_PROBE_INCLUDE_EXECUTION_PATHS;
   process.env.MCP_PROBE_INCLUDE_EXECUTION_PATHS = "true";
   try {
@@ -79,7 +79,7 @@ test("[UT][route-synthesis][create_recipe_runtime_capture][ok] enrichRuntimeCapt
   }
 });
 
-test("[UT][route-synthesis][create_recipe_runtime_capture][ok] enrichRuntimeCapture returns not_captured_yet when preview is absent", async () => {
+test("[UT][route-synthesis][create_recipe_runtime_capture] enrichRuntimeCapture returns not_captured_yet when preview is absent", async () => {
   const out = await enrichRuntimeCapture({
     inferredKey: "com.example.Catalog#save",
     inferredLine: 88,
@@ -105,7 +105,7 @@ test("[UT][route-synthesis][create_recipe_runtime_capture][ok] enrichRuntimeCapt
   assert.equal((out as any).capturePreview, undefined);
 });
 
-test("[UT][route-synthesis][create_recipe_runtime_capture][ok] enrichRuntimeCapture returns unavailable on probe status errors", async () => {
+test("[UT][route-synthesis][create_recipe_runtime_capture] enrichRuntimeCapture returns unavailable on probe status errors", async () => {
   const out = await enrichRuntimeCapture({
     inferredKey: "com.example.Catalog#save",
     inferredLine: 88,

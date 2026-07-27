@@ -3,7 +3,7 @@ const test = require("node:test");
 
 const { buildRecipeTemplateModel } = require("@tools-feature-route-synthesis");
 
-test("[UT][route-synthesis][recipe_output_model][ok] recipe template model always reports selected mode", () => {
+test("[UT][route-synthesis][recipe_output_model] recipe template model always reports selected mode", () => {
   const model = buildRecipeTemplateModel({
     classHint: "CatalogService",
     methodHint: "listItems",

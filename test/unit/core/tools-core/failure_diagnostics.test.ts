@@ -3,16 +3,16 @@ const test = require("node:test");
 
 const { deriveNextActionCode, normalizeReasonMeta } = require("@tools-core/failure_diagnostics");
 
-test("[UT][core][failure_diagnostics][ok] deriveNextActionCode resolves known stable mappings", () => {
+test("[UT][core][failure_diagnostics] deriveNextActionCode resolves known stable mappings", () => {
   assert.equal(deriveNextActionCode("runtime_unreachable"), "verify_probe_reachability");
   assert.equal(deriveNextActionCode("target_ambiguous"), "disambiguate_target");
 });
 
-test("[UT][core][failure_diagnostics][blocked_invalid] deriveNextActionCode sanitizes unknown reason codes", () => {
+test("[UT][core][failure_diagnostics] deriveNextActionCode sanitizes unknown reason codes", () => {
   assert.equal(deriveNextActionCode("Custom-Reason"), "custom_reason");
 });
 
-test("[UT][core][failure_diagnostics][blocked_invalid] normalizeReasonMeta ignores unknown keys when allow-list is provided", () => {
+test("[UT][core][failure_diagnostics] normalizeReasonMeta ignores unknown keys when allow-list is provided", () => {
   const out = normalizeReasonMeta(
     {
       failedStep: "line_validation",
@@ -27,7 +27,7 @@ test("[UT][core][failure_diagnostics][blocked_invalid] normalizeReasonMeta ignor
   });
 });
 
-test("[UT][core][failure_diagnostics][ok] normalizeReasonMeta returns undefined for non-objects or empty filtered objects", () => {
+test("[UT][core][failure_diagnostics] normalizeReasonMeta returns undefined for non-objects or empty filtered objects", () => {
   assert.equal(normalizeReasonMeta(undefined, ["failedStep"]), undefined);
   assert.equal(normalizeReasonMeta("x", ["failedStep"]), undefined);
   assert.equal(normalizeReasonMeta({ ignored: true }, ["failedStep"]), undefined);

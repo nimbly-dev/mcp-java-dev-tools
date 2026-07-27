@@ -41,7 +41,7 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(normalizedPayload, null, 2)}\n`, "utf8");
 }
 
-test("[UT][regression-suite][execute_regression_plan_external_verification_sql][ok] executeRegressionPlanWorkflow executes SQL external verification against runtime-owned connection config", async () => {
+test("[UT][regression-suite][execute_regression_plan_external_verification_sql] executeRegressionPlanWorkflow executes SQL external verification against runtime-owned connection config", async () => {
   const root = createTestTempDir("plan-executor-external-verification-sql-pass");
   try {
     const projectName = "petclinic-regression";
@@ -222,6 +222,6 @@ test("[UT][regression-suite][execute_regression_plan_external_verification_sql][
       }
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

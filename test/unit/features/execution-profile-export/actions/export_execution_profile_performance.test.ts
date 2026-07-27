@@ -66,7 +66,7 @@ function runNodeScript(
   };
 }
 
-test("[UT][execution-profile-export][export_execution_profile_performance][blocked_invalid] generated performance replay runner persists failedStep and reasonMeta on healthcheck transport failure", async () => {
+test("[UT][execution-profile-export][export_execution_profile_performance] generated performance replay runner persists failedStep and reasonMeta on healthcheck transport failure", async () => {
   const root = createTestTempDir("performance-export-runner-healthcheck-failure");
   try {
     const projectName = "test-performance-project";
@@ -189,6 +189,6 @@ test("[UT][execution-profile-export][export_execution_profile_performance][block
     assert.equal(summary.planRuns[0].failedStep, "healthcheck");
     assert.equal(summary.planRuns[0].reasonMeta.baseUrl, "http://127.0.0.1:1");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

@@ -19,7 +19,7 @@ function loadBundledSkill(skillName: string) {
   return { skillDir, skill, specRules, checklist, templatesIndex, template };
 }
 
-test("[UT][skills][execution_profile_export_skill][ok] Regression Export Skill Workflow is portable with bundled references and templates", () => {
+test("[UT][skills][execution_profile_export_skill] Regression Export Skill Workflow is portable with bundled references and templates", () => {
   const loaded = loadBundledSkill("mcp-java-dev-tools-regression-export");
   assert.match(loaded.skill, /Regression Export/);
   assert.match(loaded.skill, /suiteType=regression/);
@@ -33,7 +33,7 @@ test("[UT][skills][execution_profile_export_skill][ok] Regression Export Skill W
   );
 });
 
-test("[UT][skills][execution_profile_export_skill][ok] Regression Export Skill Workflow remains single-mode and deterministic", () => {
+test("[UT][skills][execution_profile_export_skill] Regression Export Skill Workflow remains single-mode and deterministic", () => {
   const loaded = loadBundledSkill("mcp-java-dev-tools-regression-export");
   assert.match(loaded.skill, /mode` \(`ps1` \| `sh` \| `postman`\)/);
   assert.match(loaded.skill, /do not default to `ps1`/i);
@@ -45,7 +45,7 @@ test("[UT][skills][execution_profile_export_skill][ok] Regression Export Skill W
   assert.match(loaded.template, /Replay Package Type/);
 });
 
-test("[UT][skills][execution_profile_export_skill][ok] Performance Export Skill Workflow is portable with bundled references and templates", () => {
+test("[UT][skills][execution_profile_export_skill] Performance Export Skill Workflow is portable with bundled references and templates", () => {
   const loaded = loadBundledSkill("mcp-java-dev-tools-performance-export");
   assert.match(loaded.skill, /Performance Export/);
   assert.match(loaded.skill, /suiteType=performance/);
@@ -59,7 +59,7 @@ test("[UT][skills][execution_profile_export_skill][ok] Performance Export Skill 
   );
 });
 
-test("[UT][skills][execution_profile_export_skill][ok] Performance Export Skill Workflow remains single-mode and deterministic", () => {
+test("[UT][skills][execution_profile_export_skill] Performance Export Skill Workflow remains single-mode and deterministic", () => {
   const loaded = loadBundledSkill("mcp-java-dev-tools-performance-export");
   assert.match(loaded.skill, /mode` \(`ps1` \| `sh`\)/);
   assert.match(loaded.skill, /do not default to `ps1`/i);

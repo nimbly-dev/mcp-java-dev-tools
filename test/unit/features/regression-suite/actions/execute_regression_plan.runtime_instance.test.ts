@@ -16,7 +16,7 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
-test("[UT][regression-suite][execute_regression_plan_runtime_instance][ok] strict line correlation uses Probe runtimeInstanceId in observe mode", async () => {
+test("[UT][regression-suite][execute_regression_plan_runtime_instance] strict line correlation uses Probe runtimeInstanceId in observe mode", async () => {
   const root = createTempDir();
   try {
     const projectName = "runtime-instance-regression";
@@ -167,6 +167,6 @@ test("[UT][regression-suite][execute_regression_plan_runtime_instance][ok] stric
       assert.equal(out.executionResult.steps[0].status, "pass");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

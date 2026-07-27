@@ -6,7 +6,7 @@ const test = require("node:test");
 
 const { isSpringProject } = require("@tools-spring-http/detect.util");
 
-test("[UT][spring-http][detect][ok] spring detection finds nested module markers under multi-module root", async () => {
+test("[UT][spring-http][detect] spring detection finds nested module markers under multi-module root", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "spring-detect-"));
   try {
     const moduleDir = path.join(tempRoot, "services", "catalog-service");
@@ -24,7 +24,7 @@ test("[UT][spring-http][detect][ok] spring detection finds nested module markers
   }
 });
 
-test("[UT][spring-http][detect][ok] spring detection uses inferred controller annotation when build marker is absent", async () => {
+test("[UT][spring-http][detect] spring detection uses inferred controller annotation when build marker is absent", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "spring-detect-"));
   try {
     const controllerFile = path.join(

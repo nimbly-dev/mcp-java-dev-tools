@@ -66,7 +66,7 @@ function baseContract() {
   };
 }
 
-test("[UT][regression-suite][regression_replay_invocation][ok] resolveReplayInvocation applies deterministic precedence run_id > plan_path > plan_name > latest", () => {
+test("[UT][regression-suite][regression_replay_invocation] resolveReplayInvocation applies deterministic precedence run_id > plan_path > plan_name > latest", () => {
   const result = resolveReplayInvocation({
     runId: "2026-04-17T09-42-11Z_01",
     planPath: ".mcpjvm/test-project/plans/regression/post-lifecycle-runtime-auto",
@@ -79,20 +79,20 @@ test("[UT][regression-suite][regression_replay_invocation][ok] resolveReplayInvo
   assert.deepEqual(result.ignored, ["plan_path", "plan_name", "latest"]);
 });
 
-test("[UT][regression-suite][regression_replay_invocation][blocked_invalid] resolveReplayInvocation fails closed when no replay reference is provided", () => {
+test("[UT][regression-suite][regression_replay_invocation] resolveReplayInvocation fails closed when no replay reference is provided", () => {
   const result = resolveReplayInvocation({});
   assert.equal(result.status, "blocked_invalid");
   assert.equal(result.reasonCode, "replay_reference_missing");
   assert.equal(result.selected, null);
 });
 
-test("[UT][regression-suite][regression_replay_invocation][blocked_invalid] resolveReplayInvocation fails closed when runId is malformed", () => {
+test("[UT][regression-suite][regression_replay_invocation] resolveReplayInvocation fails closed when runId is malformed", () => {
   const result = resolveReplayInvocation({ runId: "2026/04/17-01" });
   assert.equal(result.status, "blocked_invalid");
   assert.equal(result.reasonCode, "invalid_run_id");
 });
 
-test("[UT][regression-suite][regression_replay_invocation][ok] buildReplayUserMessage returns ready_to_execute for preflight ready", () => {
+test("[UT][regression-suite][regression_replay_invocation] buildReplayUserMessage returns ready_to_execute for preflight ready", () => {
   const preflight = buildReplayPreflight({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -112,7 +112,7 @@ test("[UT][regression-suite][regression_replay_invocation][ok] buildReplayUserMe
   assert.deepEqual(message.missing, []);
 });
 
-test("[UT][regression-suite][regression_replay_invocation][blocked_invalid] buildReplayUserMessage returns blocked with unresolved keys for needs_user_input", () => {
+test("[UT][regression-suite][regression_replay_invocation] buildReplayUserMessage returns blocked with unresolved keys for needs_user_input", () => {
   const preflight = buildReplayPreflight({
     metadata: baseMetadata(),
     contract: baseContract(),

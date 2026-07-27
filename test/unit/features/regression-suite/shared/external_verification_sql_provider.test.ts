@@ -48,7 +48,7 @@ function seedCatalogDb(dbPath: string): void {
   }
 }
 
-test("[UT][regression-suite][external_verification_sql_provider][ok] executeSqlExternalVerification executes context-bound SQL parameters and normalizes canonical result paths", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification executes context-bound SQL parameters and normalizes canonical result paths", async () => {
   const root = createTestTempDir("external-verification-sql-pass");
   const dbPath = path.join(root, "catalog.sqlite");
   try {
@@ -96,11 +96,11 @@ test("[UT][regression-suite][external_verification_sql_provider][ok] executeSqlE
     assert.equal(out.result.assertions[0].status, "pass");
     assert.equal(out.result.assertions[1].status, "pass");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification fails closed when connectionRef runtime config is missing", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification fails closed when connectionRef runtime config is missing", async () => {
   const out = await executeSqlExternalVerification({
     workspaceRootAbs: process.cwd(),
     resolvedContext: {},
@@ -124,7 +124,7 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
   assert.equal(out.result.reasonMeta.missingContextKey, "sql.connection.catalogDb.kind");
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification rejects JDBC keys even for SQLite connections", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification rejects JDBC keys even for SQLite connections", async () => {
   const tempDir = createTestTempDir("sql-provider-sqlite-jdbc");
   const dbPath = path.join(tempDir, "catalog.sqlite");
   seedCatalogDb(dbPath);
@@ -145,11 +145,11 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
     });
     assert.equal(out.result.reasonCode, "external_verification_connection_unsupported");
   } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.rmSync(tempDir, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification fails closed when context-derived SQL parameter is unresolved", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification fails closed when context-derived SQL parameter is unresolved", async () => {
   const root = createTestTempDir("external-verification-sql-parameter-missing");
   const dbPath = path.join(root, "catalog.sqlite");
   try {
@@ -181,11 +181,11 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
     assert.equal(out.result.reasonMeta.parameterName, "tenantId");
     assert.equal(out.result.reasonMeta.missingContextKey, "tenantId");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification fails closed when sql.firstRow.* is asserted without any returned row", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification fails closed when sql.firstRow.* is asserted without any returned row", async () => {
   const root = createTestTempDir("external-verification-sql-first-row-missing");
   const dbPath = path.join(root, "catalog.sqlite");
   try {
@@ -223,11 +223,11 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
     assert.equal(out.result.assertions[0].status, "blocked");
     assert.equal(out.result.assertions[0].reasonCode, "actual_path_missing");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification records an optional missing path without blocking", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification records an optional missing path without blocking", async () => {
   const root = createTestTempDir("external-verification-sql-optional-missing");
   const dbPath = path.join(root, "catalog.sqlite");
   try {
@@ -265,11 +265,11 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
     assert.equal(out.result.assertions[0].status, "skipped_optional");
     assert.equal(out.result.assertions[0].reasonCode, "optional_actual_path_missing");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification fails closed when SQL execution throws", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification fails closed when SQL execution throws", async () => {
   const root = createTestTempDir("external-verification-sql-execution-failure");
   const dbPath = path.join(root, "catalog.sqlite");
   try {
@@ -302,11 +302,11 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
     assert.equal(out.result.reasonMeta.nextActionCode, "retry_external_verification");
     assert.equal("connectionKind" in out.result.reasonMeta, false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification fails closed when SQL execution exceeds timeoutMs", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification fails closed when SQL execution exceeds timeoutMs", async () => {
   const out = await executeSqlExternalVerification({
     workspaceRootAbs: process.cwd(),
     resolvedContext: {
@@ -342,7 +342,7 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
   assert.equal(out.result.reasonMeta.timeoutMs, 10);
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][ok] executeSqlExternalVerification executes PostgreSQL verification with bound parameters", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification executes PostgreSQL verification with bound parameters", async () => {
   const out = await executeSqlExternalVerification({
     workspaceRootAbs: process.cwd(),
     resolvedContext: {
@@ -418,7 +418,7 @@ test("[UT][regression-suite][external_verification_sql_provider][ok] executeSqlE
   assert.equal(out.result.assertions[2].status, "pass");
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification fails closed when PostgreSQL runtime config is incomplete", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification fails closed when PostgreSQL runtime config is incomplete", async () => {
   const out = await executeSqlExternalVerification({
     workspaceRootAbs: process.cwd(),
     resolvedContext: {
@@ -444,7 +444,7 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
   assert.equal(out.result.reasonMeta.missingContextKey, "sql.connection.catalogDb.host");
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification rejects JDBC configuration explicitly", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification rejects JDBC configuration explicitly", async () => {
   const out = await executeSqlExternalVerification({
     workspaceRootAbs: process.cwd(),
     resolvedContext: {
@@ -471,7 +471,7 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
   assert.equal(out.result.reasonMeta.connectionKind, "jdbc");
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification preserves deterministic PostgreSQL timeout failures", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification preserves deterministic PostgreSQL timeout failures", async () => {
   const out = await executeSqlExternalVerification({
     workspaceRootAbs: process.cwd(),
     resolvedContext: {
@@ -517,7 +517,7 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
   assert.equal(out.result.reasonMeta.cause, "sql_execution_timeout");
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid] executeSqlExternalVerification classifies PostgreSQL failures without persisting driver details", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification classifies PostgreSQL failures without persisting driver details", async () => {
   const cases = [
     ["ECONNREFUSED", "postgres_connection_refused", "retry_postgresql_connection"],
     ["28P01", "postgres_authentication_failed", "refresh_postgresql_credentials"],
@@ -558,7 +558,7 @@ test("[UT][regression-suite][external_verification_sql_provider][blocked_invalid
   }
 });
 
-test("[UT][regression-suite][external_verification_sql_provider][ok] executeSqlExternalVerification redacts unexpected PostgreSQL exceptions and returns a fingerprint", async () => {
+test("[UT][regression-suite][external_verification_sql_provider] executeSqlExternalVerification redacts unexpected PostgreSQL exceptions and returns a fingerprint", async () => {
   const rawError =
     "password=secret-password host=db.internal SELECT token=:token certificate timeout syntax error permission denied";
   const out = await executeSqlExternalVerification({

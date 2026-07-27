@@ -70,8 +70,21 @@ function writePlan(root: string, projectName: string, planName: string, routePat
     },
   });
   writeJson(path.join(planRoot, "contract.json"), {
-    targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" } }],
-    prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+    targets: [
+      {
+        type: "class_method",
+        selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" },
+      },
+    ],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: "http://localhost:8082",
+      },
+    ],
     steps: [
       {
         order: 1,
@@ -79,7 +92,9 @@ function writePlan(root: string, projectName: string, planName: string, routePat
         targetRef: 0,
         protocol: "http",
         transport: { http: { method: "GET", pathTemplate: routePath } },
-        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        expect: [
+          { id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" },
+        ],
       },
     ],
   });
@@ -114,10 +129,21 @@ function writeCorrelatedPlan(
       {
         type: "class_method",
         selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" },
-        runtimeVerification: { strictProbeKey: "org.example.Controller#call:10", probeId: args.probeId },
+        runtimeVerification: {
+          strictProbeKey: "org.example.Controller#call:10",
+          probeId: args.probeId,
+        },
       },
     ],
-    prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: "http://localhost:8082",
+      },
+    ],
     steps: [
       {
         order: 1,
@@ -125,7 +151,9 @@ function writeCorrelatedPlan(
         targetRef: 0,
         protocol: "http",
         transport: { http: { method: "GET", pathTemplate: routePath } },
-        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        expect: [
+          { id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" },
+        ],
       },
     ],
     correlation: {
@@ -147,7 +175,12 @@ function writeCorrelatedPlan(
   });
 }
 
-function writeAuthPlan(root: string, projectName: string, planName: string, routePath: string): void {
+function writeAuthPlan(
+  root: string,
+  projectName: string,
+  planName: string,
+  routePath: string,
+): void {
   const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
   writeJson(path.join(planRoot, "metadata.json"), {
     specVersion: "1.0.0",
@@ -159,9 +192,20 @@ function writeAuthPlan(root: string, projectName: string, planName: string, rout
     },
   });
   writeJson(path.join(planRoot, "contract.json"), {
-    targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" } }],
+    targets: [
+      {
+        type: "class_method",
+        selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" },
+      },
+    ],
     prerequisites: [
-      { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" },
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: "http://localhost:8082",
+      },
       { key: "auth.bearer", required: true, secret: true, provisioning: "user_input" },
     ],
     steps: [
@@ -177,7 +221,9 @@ function writeAuthPlan(root: string, projectName: string, planName: string, rout
             headers: { Authorization: "Bearer ${auth.bearer}" },
           },
         },
-        expect: [{ id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" }],
+        expect: [
+          { id: "outcome_ok", actualPath: "status", operator: "outcome_status", expected: "pass" },
+        ],
       },
     ],
   });
@@ -224,7 +270,13 @@ function writeAuthenticatedStrictProbeCorrelatedPlan(
       },
     ],
     prerequisites: [
-      { key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" },
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: "http://localhost:8082",
+      },
       { key: "auth.bearer", required: true, secret: true, provisioning: "user_input" },
     ],
     steps: [
@@ -242,9 +294,21 @@ function writeAuthenticatedStrictProbeCorrelatedPlan(
           },
         },
         expect: [
-          { id: "http_ok", actualPath: "response.statusCode", operator: "field_equals", expected: 200 },
+          {
+            id: "http_ok",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 200,
+          },
           ...(verifyProbe
-            ? [{ id: "probe_hit", actualPath: "probe.hit", operator: "probe_line_hit", expected: true }]
+            ? [
+                {
+                  id: "probe_hit",
+                  actualPath: "probe.hit",
+                  operator: "probe_line_hit",
+                  expected: true,
+                },
+              ]
             : []),
         ],
       },
@@ -278,7 +342,12 @@ function writeAuthenticatedStrictProbeCorrelatedPlan(
   });
 }
 
-function writeSadPathPlan(root: string, projectName: string, planName: string, routePath: string): void {
+function writeSadPathPlan(
+  root: string,
+  projectName: string,
+  planName: string,
+  routePath: string,
+): void {
   const planRoot = path.join(root, ".mcpjvm", projectName, "plans", "regression", planName);
   writeJson(path.join(planRoot, "metadata.json"), {
     specVersion: "1.0.0",
@@ -290,8 +359,21 @@ function writeSadPathPlan(root: string, projectName: string, planName: string, r
     },
   });
   writeJson(path.join(planRoot, "contract.json"), {
-    targets: [{ type: "class_method", selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" } }],
-    prerequisites: [{ key: "apiBaseUrl", required: true, secret: false, provisioning: "user_input", default: "http://localhost:8082" }],
+    targets: [
+      {
+        type: "class_method",
+        selectors: { fqcn: "org.example.Controller", method: "call", sourceRoot: "src/main/java" },
+      },
+    ],
+    prerequisites: [
+      {
+        key: "apiBaseUrl",
+        required: true,
+        secret: false,
+        provisioning: "user_input",
+        default: "http://localhost:8082",
+      },
+    ],
     steps: [
       {
         order: 1,
@@ -300,8 +382,18 @@ function writeSadPathPlan(root: string, projectName: string, planName: string, r
         protocol: "http",
         transport: { http: { method: "GET", pathTemplate: routePath } },
         expect: [
-          { id: "http-not-found", actualPath: "response.statusCode", operator: "field_equals", expected: 404 },
-          { id: "body-reason", actualPath: "response.body", operator: "contains", expected: "missing" },
+          {
+            id: "http-not-found",
+            actualPath: "response.statusCode",
+            operator: "field_equals",
+            expected: 404,
+          },
+          {
+            id: "body-reason",
+            actualPath: "response.body",
+            operator: "contains",
+            expected: "missing",
+          },
         ],
       },
     ],

@@ -15,7 +15,7 @@ async function withTempDir(run: (dir: string) => Promise<void>) {
   }
 }
 
-test("[UT][route-synthesis][infer_target][ok] discoverClassMethods returns exact class methods with start/end line spans", async () => {
+test("[UT][route-synthesis][infer_target] discoverClassMethods returns exact class methods with start/end line spans", async () => {
   await withTempDir(async (dir: string) => {
     const javaFile = path.join(
       dir,
@@ -78,7 +78,7 @@ test("[UT][route-synthesis][infer_target][ok] discoverClassMethods returns exact
   });
 });
 
-test("[UT][route-synthesis][infer_target][blocked_invalid] discoverClassMethods fails closed when class hint is not an exact class name/FQCN", async () => {
+test("[UT][route-synthesis][infer_target] discoverClassMethods fails closed when class hint is not an exact class name/FQCN", async () => {
   await withTempDir(async (dir: string) => {
     const javaFile = path.join(dir, "src", "main", "java", "CatalogEventController.java");
     await fs.mkdir(path.dirname(javaFile), { recursive: true });
@@ -100,7 +100,7 @@ test("[UT][route-synthesis][infer_target][blocked_invalid] discoverClassMethods 
   });
 });
 
-test("[UT][route-synthesis][infer_target][ok] discoverClassMethods returns all exact class-name matches for disambiguation", async () => {
+test("[UT][route-synthesis][infer_target] discoverClassMethods returns all exact class-name matches for disambiguation", async () => {
   await withTempDir(async (dir: string) => {
     const classA = path.join(
       dir,
@@ -163,7 +163,7 @@ test("[UT][route-synthesis][infer_target][ok] discoverClassMethods returns all e
   });
 });
 
-test("[UT][route-synthesis][infer_target][ok] discoverClassMethods resolves a single exact FQCN when simple class name is duplicated", async () => {
+test("[UT][route-synthesis][infer_target] discoverClassMethods resolves a single exact FQCN when simple class name is duplicated", async () => {
   await withTempDir(async (dir: string) => {
     const classA = path.join(
       dir,
@@ -224,7 +224,7 @@ test("[UT][route-synthesis][infer_target][ok] discoverClassMethods resolves a si
   });
 });
 
-test("[UT][route-synthesis][infer_target][blocked_invalid] discoverClassMethods returns none when class is not found", async () => {
+test("[UT][route-synthesis][infer_target] discoverClassMethods returns none when class is not found", async () => {
   await withTempDir(async (dir: string) => {
     const javaFile = path.join(dir, "src", "main", "java", "InventoryController.java");
     await fs.mkdir(path.dirname(javaFile), { recursive: true });
@@ -244,7 +244,7 @@ test("[UT][route-synthesis][infer_target][blocked_invalid] discoverClassMethods 
   });
 });
 
-test("[UT][route-synthesis][infer_target][ok] discoverClassMethods keeps methods sorted by start line for controller-like classes", async () => {
+test("[UT][route-synthesis][infer_target] discoverClassMethods keeps methods sorted by start line for controller-like classes", async () => {
   await withTempDir(async (dir: string) => {
     const javaFile = path.join(
       dir,
@@ -311,7 +311,7 @@ test("[UT][route-synthesis][infer_target][ok] discoverClassMethods keeps methods
   });
 });
 
-test("[UT][route-synthesis][infer_target][blocked_invalid] query-style: broad class tokens fail closed in exact-only mode", async () => {
+test("[UT][route-synthesis][infer_target] query-style: broad class tokens fail closed in exact-only mode", async () => {
   await withTempDir(async (dir: string) => {
     const controllerFile = path.join(
       dir,
@@ -368,7 +368,7 @@ test("[UT][route-synthesis][infer_target][blocked_invalid] query-style: broad cl
   });
 });
 
-test("[UT][route-synthesis][infer_target][ok] query-style: full probe planning includes public and private methods in class inventory", async () => {
+test("[UT][route-synthesis][infer_target] query-style: full probe planning includes public and private methods in class inventory", async () => {
   await withTempDir(async (dir: string) => {
     const javaFile = path.join(
       dir,

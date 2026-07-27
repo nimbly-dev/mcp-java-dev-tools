@@ -61,7 +61,7 @@ function writePlanArtifact(
   );
 }
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok] exportExecutionProfilePs1 writes deterministic script and readme from export manifest", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_ps1] exportExecutionProfilePs1 writes deterministic script and readme from export manifest", async () => {
   const root = createTestTempDir("execution-profile-ps1-export");
   try {
     const projectName = "petclinic-regression";
@@ -177,11 +177,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok]
     assert.match(readme, /Optional: rerun export with `includeResolvedSecrets=true`/);
     assert.match(readme, /never auto-enabled at runtime/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok] exportExecutionProfilePs1 supports array-index bodyJson extract paths in replay helpers", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_ps1] exportExecutionProfilePs1 supports array-index bodyJson extract paths in replay helpers", async () => {
   const root = createTestTempDir("execution-profile-ps1-array-extract");
   try {
     const projectName = "petclinic-regression";
@@ -245,11 +245,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok]
     assert.match(script, /\$node -isnot \[System\.Collections\.IList\]/);
     assert.match(script, /\$node = \$node\[\$index\]/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok] exportExecutionProfilePs1 emits native PowerShell HTTP requests without curl JSON mangling", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_ps1] exportExecutionProfilePs1 emits native PowerShell HTTP requests without curl JSON mangling", async () => {
   const root = createTestTempDir("execution-profile-ps1-endpoint");
   try {
     const projectName = "petclinic-regression";
@@ -331,11 +331,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok]
     assert.match(script, /\$__step_headers\['Authorization'\] = "Bearer \$\{env:AUTH_BEARER\}"/);
     assert.doesNotMatch(script, /curl\.exe -fsS/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok] exportExecutionProfilePs1 includes sensitive warning when includeResolvedSecrets=true", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_ps1] exportExecutionProfilePs1 includes sensitive warning when includeResolvedSecrets=true", async () => {
   const root = createTestTempDir("execution-profile-ps1-export-sensitive");
   try {
     const projectName = "petclinic-regression";
@@ -389,11 +389,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok]
     assert.match(readme, /IncludeRuntimeStartup: `false`/);
     assert.match(readme, /IncludeHealthcheckGate: `false`/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok] exportExecutionProfilePs1 keeps secrets redacted when only sessionExport includeResolvedSecrets is set", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_ps1] exportExecutionProfilePs1 keeps secrets redacted when only sessionExport includeResolvedSecrets is set", async () => {
   const root = createTestTempDir("execution-profile-ps1-bundled-scripts");
   try {
     const projectName = "petclinic-regression";
@@ -483,6 +483,6 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_ps1][ok]
     assert.doesNotMatch(projectEnv, /secret-token/);
     assert.doesNotMatch(projectEnv, /password/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

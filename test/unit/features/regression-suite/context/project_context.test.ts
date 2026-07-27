@@ -50,7 +50,7 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(nextPayload, null, 2)}\n`, "utf8");
 }
 
-test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectContextForRegression fails closed when artifact is missing", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression fails closed when artifact is missing", async () => {
   const root = createTestTempDir("project-context-missing");
   try {
     const out = await resolveProjectContextForRegression({
@@ -61,11 +61,11 @@ test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectCon
     assert.equal(out.status, "blocked");
     if (out.status === "blocked") assert.equal(out.reasonCode, "project_artifact_missing");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression resolves auth.bearer from env key reference", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression resolves auth.bearer from env key reference", async () => {
   const root = createTestTempDir("project-context-auth");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -98,11 +98,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
       assert.equal(out.contextPatch["runtime.autoStopOnFinish"], true);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression resolves generic contextBindings from env key references", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression resolves generic contextBindings from env key references", async () => {
   const root = createTestTempDir("project-context-bindings");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -138,11 +138,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
       assert.deepEqual(out.secretContextKeys, ["apiBaseUrl", "tenantId"]);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression prefers terminal runtime context when no runtimeContextName is provided", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression prefers terminal runtime context when no runtimeContextName is provided", async () => {
   const root = createTestTempDir("project-context-runtime-default");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -170,11 +170,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
       assert.equal(out.contextPatch["runtime.autoStopOnFinish"], true);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression honors explicit autoStopOnFinish=false", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression honors explicit autoStopOnFinish=false", async () => {
   const root = createTestTempDir("project-context-runtime-cleanup-override");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -204,11 +204,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
       assert.equal(out.contextPatch["runtime.autoStopOnFinish"], false);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectContextForRegression fails closed when env key value is missing", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression fails closed when env key value is missing", async () => {
   const root = createTestTempDir("project-context-env-missing");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -232,11 +232,11 @@ test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectCon
     assert.equal(out.status, "blocked");
     if (out.status === "blocked") assert.equal(out.reasonCode, "env_key_missing");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression uses workspace defaults retryMax/requestTimeoutMs for health checks", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression uses workspace defaults retryMax/requestTimeoutMs for health checks", async () => {
   const root = createTestTempDir("project-context-health-retry");
   let attempts = 0;
   const server = http.createServer((_req: any, res: any) => {
@@ -297,11 +297,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
     assert.equal(attempts, 2);
   } finally {
     server.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectContextForRegression fails closed when projects.json omits orchestrator defaults", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression fails closed when projects.json omits orchestrator defaults", async () => {
   const root = createTestTempDir("project-context-orchestrator-required");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -324,11 +324,11 @@ test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectCon
       assert.match(out.requiredUserAction.join("\n"), /workspaces\[0\]\.defaults is required/);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectContextForRegression returns minimal checks payload when health is unreachable", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression returns minimal checks payload when health is unreachable", async () => {
   const root = createTestTempDir("project-context-health-fail");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -370,11 +370,11 @@ test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectCon
       assert.match(out.nextAction ?? "", /Ensure services are running/);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectContextForRegression does not auto-start when health checks are already ready", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression does not auto-start when health checks are already ready", async () => {
   const root = createTestTempDir("project-context-autostart-ready");
   const server = http.createServer((_req: any, res: any) => {
     res.statusCode = 200;
@@ -430,11 +430,11 @@ test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectCon
     assert.equal(starterCalled, 0);
   } finally {
     server.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectContextForRegression attempts auto-start when health checks fail and autoStart=true", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression attempts auto-start when health checks fail and autoStart=true", async () => {
   const root = createTestTempDir("project-context-autostart-attempt");
   let checks = 0;
   let starterCalled = 0;
@@ -487,11 +487,11 @@ test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectCon
     assert.equal(starterCalled, 1);
     assert.equal(checks, 1);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression waits for delayed health convergence after auto-start", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression waits for delayed health convergence after auto-start", async () => {
   const root = createTestTempDir("project-context-autostart-convergence");
   let startedAt = 0;
   const server = http.createServer((_req: any, res: any) => {
@@ -561,11 +561,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
     }
   } finally {
     server.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectContextForRegression attempts auto-start when strict probe is unreachable even if health checks are ready", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression attempts auto-start when strict probe is unreachable even if health checks are ready", async () => {
   const root = createTestTempDir("project-context-strict-probe-convergence");
   const apiServer = http.createServer((_req: any, res: any) => {
     res.statusCode = 200;
@@ -631,11 +631,11 @@ test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectCon
     }
   } finally {
     apiServer.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression derives strict probe targets from startup names when probeVerification is enabled", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression derives strict probe targets from startup names when probeVerification is enabled", async () => {
   const root = createTestTempDir("project-context-strict-probe-derived");
   const apiServer = http.createServer((_req: any, res: any) => {
     res.statusCode = 200;
@@ -718,11 +718,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
     }
   } finally {
     apiServer.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression prefers terminal-cli by name when multiple terminal contexts exist", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression prefers terminal-cli by name when multiple terminal contexts exist", async () => {
   const root = createTestTempDir("project-context-terminal-name");
   try {
     const projectName = "petclinic-regression";
@@ -750,11 +750,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
       assert.equal(out.runtimeContextName, "terminal-cli");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectContextForRegression fails closed when multiple non-terminal runtime contexts exist and none is selected", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression fails closed when multiple non-terminal runtime contexts exist and none is selected", async () => {
   const root = createTestTempDir("project-context-ambiguous-nonterminal");
   try {
     const projectName = "petclinic-regression";
@@ -793,11 +793,11 @@ test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectCon
       assert.match(out.nextAction ?? "", /Provide runtimeContextName explicitly/);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression executes ordered runPrerequisites before health checks", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression executes ordered runPrerequisites before health checks", async () => {
   const root = createTestTempDir("project-context-run-prereq-order");
   const marker = path.join(root, "marker.txt");
   try {
@@ -868,11 +868,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
       assert.equal(out.checks?.[1]?.startsWith("run_prereq:marker-exists=pass"), true);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression dedupes health checks covered by runPrerequisites", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression dedupes health checks covered by runPrerequisites", async () => {
   const root = createTestTempDir("project-context-run-prereq-dedupe");
   const server = http.createServer((_req: any, res: any) => {
     res.statusCode = 200;
@@ -919,11 +919,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
     assert.equal(out.status, "ok");
   } finally {
     server.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegression uses workspace requestTimeoutMs for run prerequisite scripts by default", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression uses workspace requestTimeoutMs for run prerequisite scripts by default", async () => {
   const root = createTestTempDir("project-context-run-prereq-timeout-default");
   try {
     const projectsFile = path.join(root, ".mcpjvm", "petclinic-regression", "projects.json");
@@ -972,11 +972,11 @@ test("[UT][regression-suite][project_context][ok] resolveProjectContextForRegres
     }
   } finally {
     await new Promise<void>((resolve) => setTimeout(resolve, 150));
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectContextForRegression surfaces script_execution_failed for profile script failures", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression surfaces script_execution_failed for profile script failures", async () => {
   const root = createTestTempDir("project-context-profile-script-failure");
   try {
     const projectName = "petclinic-regression";
@@ -1073,6 +1073,6 @@ test("[UT][regression-suite][project_context][blocked_invalid] resolveProjectCon
       assert.match(out.nextAction ?? "", /Fix profile script/);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

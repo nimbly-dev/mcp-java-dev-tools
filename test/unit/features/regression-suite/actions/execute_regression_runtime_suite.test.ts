@@ -17,7 +17,7 @@ const {
   writeSadPathPlan,
 } = require("@test/support/regression-runtime-suite-executor.fixture");
 
-test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegressionRuntimeSuite promotes only explicit non-secret suite extracts", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite promotes only explicit non-secret suite extracts", async () => {
   const root = createTestTempDir("runtime-suite-context-promotion");
   try {
     const projectName = "petclinic-regression";
@@ -182,11 +182,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegres
     });
     assert.equal(second.status, "pass");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] executeRegressionRuntimeSuite enforces stop_on_fail and skips remaining plans", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite enforces stop_on_fail and skips remaining plans", async () => {
   const root = createTestTempDir("runtime-suite-stop");
   try {
     const projectName = "petclinic-regression";
@@ -247,11 +247,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] 
     assert.equal(out.planRuns[1].status, "executed");
     assert.equal(out.planRuns[2].status, "skipped");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] executeRegressionRuntimeSuite continue_on_fail returns partial_fail and continues", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite continue_on_fail returns partial_fail and continues", async () => {
   const root = createTestTempDir("runtime-suite-continue");
   try {
     const projectName = "petclinic-regression";
@@ -309,11 +309,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] 
     assert.equal(out.planRuns[0].status, "executed");
     assert.equal(out.planRuns[1].status, "executed");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegressionRuntimeSuite passes plan with intentional non-2xx sad-path assertions", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite passes plan with intentional non-2xx sad-path assertions", async () => {
   const root = createTestTempDir("runtime-suite-sad-path-pass");
   try {
     const projectName = "petclinic-regression";
@@ -363,11 +363,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegres
     assert.equal(out.planRuns[0].status, "executed");
     assert.equal(out.planRuns[0].runStatus, "pass");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegressionRuntimeSuite returns in_progress and resumes from nextPlanOrder at plan boundary", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite returns in_progress and resumes from nextPlanOrder at plan boundary", async () => {
   const root = createTestTempDir("runtime-suite-resume");
   try {
     const projectName = "petclinic-regression";
@@ -431,11 +431,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegres
     assert.equal(second.planRuns[1].planName, "plan-b");
     assert.equal(second.suiteRunId, first.suiteRunId);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegressionRuntimeSuite resumes the same in_progress plan without duplicating planRuns", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite resumes the same in_progress plan without duplicating planRuns", async () => {
   const root = createTestTempDir("runtime-suite-same-plan-resume");
   try {
     const projectName = "petclinic-regression";
@@ -624,11 +624,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegres
     assert.equal(stepCalls, 1);
     assert.equal(watcherCalls, 2);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegressionRuntimeSuite builds bounded watcher progressSummary for in_progress plan waits", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite builds bounded watcher progressSummary for in_progress plan waits", async () => {
   const root = createTestTempDir("runtime-suite-progress-summary-watcher");
   try {
     const projectName = "petclinic-regression";
@@ -774,11 +774,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegres
     assert.equal(out.progressSummary?.activePlan?.waitingOn?.currentIndex, 1);
     assert.equal(out.progressSummary?.activePlan?.waitingOn?.totalCount, 1);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegressionRuntimeSuite builds bounded external verification progressSummary for in_progress plan waits", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite builds bounded external verification progressSummary for in_progress plan waits", async () => {
   const root = createTestTempDir("runtime-suite-progress-summary-external-verification");
   try {
     const projectName = "petclinic-regression";
@@ -906,11 +906,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegres
     assert.equal(out.progressSummary?.activePlan?.waitingOn?.currentIndex, 1);
     assert.equal(out.progressSummary?.activePlan?.waitingOn?.totalCount, 1);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][ok] writeExecutionOrchestrationSuiteResult persists and reloads bounded progressSummary", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] writeExecutionOrchestrationSuiteResult persists and reloads bounded progressSummary", async () => {
   const root = createTestTempDir("runtime-suite-progress-summary-persist");
   try {
     const projectName = "petclinic-regression";
@@ -970,11 +970,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][ok] writeExecutio
     assert.equal(persisted?.progressSummary?.activePlan?.waitingOn?.targetId, "search_indexed");
     assert.equal(persisted?.progressSummary?.activePlan?.waitingOn?.providerType, "http");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] executeRegressionRuntimeSuite continue_on_fail blocks whole suite on shared env/auth non-viability", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite continue_on_fail blocks whole suite on shared env/auth non-viability", async () => {
   const root = createTestTempDir("runtime-suite-continue-suite-level-block");
   try {
     const projectName = "petclinic-regression";
@@ -1013,11 +1013,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] 
     assert.equal(out.planRuns[0].blockedReasonCode, "env_key_missing");
     assert.equal(out.planRuns[1].status, "skipped");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] executeRegressionRuntimeSuite surfaces blockedReasonMeta when http payload is invalid from missing synthesized url", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite surfaces blockedReasonMeta when http payload is invalid from missing synthesized url", async () => {
   const root = createTestTempDir("runtime-suite-http-payload-diagnostics");
   try {
     const projectName = "petclinic-regression";
@@ -1098,11 +1098,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] 
     );
     assert.deepEqual(out.planRuns[0].blockedReasonMeta?.missingFields, ["url"]);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegressionRuntimeSuite applies runtimeConfig retryMax override", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite applies runtimeConfig retryMax override", async () => {
   const root = createTestTempDir("runtime-suite-runtime-config");
   let attempts = 0;
   const server = http.createServer((_req: any, res: any) => {
@@ -1170,11 +1170,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite][ok] executeRegres
     assert.equal(attempts, 2);
   } finally {
     server.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] executeRegressionRuntimeSuite surfaces watcher-only blocked reason details in planRuns", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite] executeRegressionRuntimeSuite surfaces watcher-only blocked reason details in planRuns", async () => {
   const root = createTestTempDir("runtime-suite-watcher-blocked-reason");
   try {
     const projectName = "petclinic-regression";
@@ -1306,6 +1306,6 @@ test("[UT][regression-suite][execute_regression_runtime_suite][blocked_invalid] 
     assert.equal(out.planRuns[0].blockedReasonCode, "watcher_target_unreachable");
     assert.equal(out.planRuns[0].blockedReasonMeta?.transportReasonCode, "connect_failed");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

@@ -24,7 +24,7 @@ function createTestTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(base, `${prefix}-`));
 }
 
-test("[UT][artifact-management][run_state_store][ok] run-state store bootstraps idempotently with portable Artifact linkage", async () => {
+test("[UT][artifact-management][run_state_store] run-state store bootstraps idempotently with portable Artifact linkage", async () => {
   const root = createTestTempDir("run-state-store");
   try {
     const first = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -72,11 +72,11 @@ test("[UT][artifact-management][run_state_store][ok] run-state store bootstraps 
     assert.equal(second.ok, true);
     if (second.ok) second.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] run-state query returns bounded suite and plan projections with deterministic cursor pagination", async () => {
+test("[UT][artifact-management][run_state_store] run-state query returns bounded suite and plan projections with deterministic cursor pagination", async () => {
   const root = createTestTempDir("run-state-query");
   try {
     const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -161,11 +161,11 @@ test("[UT][artifact-management][run_state_store][ok] run-state query returns bou
     if (!mismatchedCursor.ok)
       assert.equal(mismatchedCursor.reasonCode, "run_state_cursor_query_mismatch");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][blocked_invalid] run-state query fails closed before cutover and does not bootstrap a missing store", async () => {
+test("[UT][artifact-management][run_state_store] run-state query fails closed before cutover and does not bootstrap a missing store", async () => {
   const root = createTestTempDir("run-state-query-not-ready");
   try {
     const result = await queryRunState({ workspaceRootAbs: root, input: { projectName: "alpha" } });
@@ -173,11 +173,11 @@ test("[UT][artifact-management][run_state_store][blocked_invalid] run-state quer
     if (!result.ok) assert.equal(result.reasonCode, "run_state_store_not_ready");
     assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite")), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] state browse defaults are bounded and cursors do not duplicate seeded records", async () => {
+test("[UT][artifact-management][run_state_store] state browse defaults are bounded and cursors do not duplicate seeded records", async () => {
   const root = createTestTempDir("state-query-default-bounds");
   try {
     const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -264,11 +264,11 @@ test("[UT][artifact-management][run_state_store][ok] state browse defaults are b
       20,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] correlation_state query returns summary, exact hashed-key lookup, and bounded detail", async () => {
+test("[UT][artifact-management][run_state_store] correlation_state query returns summary, exact hashed-key lookup, and bounded detail", async () => {
   const root = createTestTempDir("correlation-state-query");
   try {
     const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -348,11 +348,11 @@ test("[UT][artifact-management][run_state_store][ok] correlation_state query ret
     if (!missingWindow.ok)
       assert.equal(missingWindow.reasonCode, "correlation_state_detail_window_required");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] watcher_state query returns active progress, bounded attempts, and artifact-link status", async () => {
+test("[UT][artifact-management][run_state_store] watcher_state query returns active progress, bounded attempts, and artifact-link status", async () => {
   const root = createTestTempDir("watcher-state-query");
   try {
     const cutover = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -435,11 +435,11 @@ test("[UT][artifact-management][run_state_store][ok] watcher_state query returns
     assert.equal(missingWatcher.ok, false);
     if (!missingWatcher.ok) assert.equal(missingWatcher.reasonCode, "watcher_state_not_found");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][blocked_invalid] run-state cutover is persisted, idempotent, and fails closed when SQLite is missing", async () => {
+test("[UT][artifact-management][run_state_store] run-state cutover is persisted, idempotent, and fails closed when SQLite is missing", async () => {
   const root = createTestTempDir("run-state-cutover");
   try {
     const first = await cutoverRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -471,11 +471,11 @@ test("[UT][artifact-management][run_state_store][blocked_invalid] run-state cuto
     assert.equal(reopened.ok, false);
     if (!reopened.ok) assert.equal(reopened.reasonCode, "state_store_required_after_cutover");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][blocked_invalid] run-state cutover rejects an active suite deterministically", async () => {
+test("[UT][artifact-management][run_state_store] run-state cutover rejects an active suite deterministically", async () => {
   const root = createTestTempDir("run-state-cutover-active-suite");
   try {
     const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -502,11 +502,11 @@ test("[UT][artifact-management][run_state_store][blocked_invalid] run-state cuto
     assert.equal(reopened.ok, true);
     if (reopened.ok) reopened.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][blocked_invalid] run-state store fails closed for invalid project and Artifact paths", async () => {
+test("[UT][artifact-management][run_state_store] run-state store fails closed for invalid project and Artifact paths", async () => {
   const root = createTestTempDir("run-state-store-invalid");
   try {
     const invalidProject = await openRunStateStore({
@@ -528,11 +528,11 @@ test("[UT][artifact-management][run_state_store][blocked_invalid] run-state stor
     if (!invalidPath.ok) assert.equal(invalidPath.reasonCode, "state_store_path_invalid");
     store.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][blocked_invalid] run-state store fails closed for a mismatched project or unsupported schema", async () => {
+test("[UT][artifact-management][run_state_store] run-state store fails closed for a mismatched project or unsupported schema", async () => {
   const root = createTestTempDir("run-state-store-schema");
   try {
     const first = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -567,11 +567,11 @@ test("[UT][artifact-management][run_state_store][blocked_invalid] run-state stor
     assert.equal(unsupported.ok, false);
     if (!unsupported.ok) assert.equal(unsupported.reasonCode, "state_store_schema_unsupported");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] run-state store preserves a corrupt database and returns rebuild guidance", async () => {
+test("[UT][artifact-management][run_state_store] run-state store preserves a corrupt database and returns rebuild guidance", async () => {
   const root = createTestTempDir("run-state-store-corrupt");
   try {
     const storeDir = path.join(root, ".mcpjvm", "alpha");
@@ -586,11 +586,11 @@ test("[UT][artifact-management][run_state_store][ok] run-state store preserves a
     }
     assert.equal(fs.readFileSync(databasePath, "utf8"), "not a SQLite database");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] run-state store persists suite and plan checkpoints with revision protection", async () => {
+test("[UT][artifact-management][run_state_store] run-state store persists suite and plan checkpoints with revision protection", async () => {
   const root = createTestTempDir("run-state-suite-checkpoint");
   try {
     const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -638,11 +638,11 @@ test("[UT][artifact-management][run_state_store][ok] run-state store persists su
     if (!stale.ok) assert.equal(stale.reasonCode, "suite_checkpoint_stale_revision");
     store.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] stale suite checkpoint writes preserve resumable Watcher state", async () => {
+test("[UT][artifact-management][run_state_store] stale suite checkpoint writes preserve resumable Watcher state", async () => {
   const root = createTestTempDir("run-state-stale-watcher-write");
   try {
     const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -726,11 +726,11 @@ test("[UT][artifact-management][run_state_store][ok] stale suite checkpoint writ
     );
     store.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] run-state store aggregates repeated Strict Line observations without per-hit rows", async () => {
+test("[UT][artifact-management][run_state_store] run-state store aggregates repeated Strict Line observations without per-hit rows", async () => {
   const root = createTestTempDir("correlation-aggregate");
   try {
     const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -782,11 +782,11 @@ test("[UT][artifact-management][run_state_store][ok] run-state store aggregates 
       assert.equal(nonMonotonic.reasonCode, "correlation_hit_count_non_monotonic");
     store.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][blocked_invalid] run-state store rejects stale revisions, excess counts, and changed runtime instances", async () => {
+test("[UT][artifact-management][run_state_store] run-state store rejects stale revisions, excess counts, and changed runtime instances", async () => {
   const root = createTestTempDir("correlation-fail-closed");
   try {
     const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -834,11 +834,11 @@ test("[UT][artifact-management][run_state_store][blocked_invalid] run-state stor
       assert.equal(runtimeChanged.reasonCode, "correlation_runtime_instance_changed");
     store.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] run-state store persists a correlation session and hashed key without retaining the raw key", async () => {
+test("[UT][artifact-management][run_state_store] run-state store persists a correlation session and hashed key without retaining the raw key", async () => {
   const root = createTestTempDir("correlation-session");
   try {
     const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -880,11 +880,11 @@ test("[UT][artifact-management][run_state_store][ok] run-state store persists a 
     );
     store.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] declared Strict Line expectations remain collecting until their observation is persisted", async () => {
+test("[UT][artifact-management][run_state_store] declared Strict Line expectations remain collecting until their observation is persisted", async () => {
   const root = createTestTempDir("correlation-declared-expectation");
   try {
     const store = await openRunStateStore({ workspaceRootAbs: root, projectName: "alpha" });
@@ -925,11 +925,11 @@ test("[UT][artifact-management][run_state_store][ok] declared Strict Line expect
     );
     store.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][blocked_invalid] run-state store persists bounded Watcher checkpoints and rejects unsafe resumes", async () => {
+test("[UT][artifact-management][run_state_store] run-state store persists bounded Watcher checkpoints and rejects unsafe resumes", async () => {
   const root = createTestTempDir("watcher-checkpoint");
   let openedStore: any;
   try {
@@ -1045,11 +1045,11 @@ test("[UT][artifact-management][run_state_store][blocked_invalid] run-state stor
     assert.deepEqual(trimmedIdentity, { ok: true, revision: 3 });
   } finally {
     if (openedStore?.ok) openedStore.close();
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_store][ok] run-state store persists bounded external-verification summaries and assertion rows", async () => {
+test("[UT][artifact-management][run_state_store] run-state store persists bounded external-verification summaries and assertion rows", async () => {
   const root = createTestTempDir("external-verification-checkpoint");
   let openedStore: any;
   try {
@@ -1144,6 +1144,6 @@ test("[UT][artifact-management][run_state_store][ok] run-state store persists bo
     if (!conflict.ok) assert.equal(conflict.reasonCode, "external_verification_state_conflict");
   } finally {
     if (openedStore?.ok) openedStore.close();
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

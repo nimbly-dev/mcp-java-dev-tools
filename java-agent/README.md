@@ -3,6 +3,7 @@
 Grouped module layout with non-breaking artifact names.
 
 ## Active module groups
+
 - `core/core-probe` (`mcp-java-dev-tools-agent`)
 - `core/core-probe-runtime` (`mcp-java-dev-tools-core-probe-runtime`)
 - `core/core-probe-instrumentation` (`mcp-java-dev-tools-core-probe-instrumentation`)
@@ -12,24 +13,28 @@ Grouped module layout with non-breaking artifact names.
 - `request-mapping-resolver` (legacy compatibility artifact, optional)
 
 ## Build entrypoint
+
 - Parent: `java-agent/pom.xml`
 - Aggregators:
   - `java-agent/core/pom.xml`
   - `java-agent/mappers-adapters/pom.xml`
 
 ## Integrated test location
+
 - Top-level fixture and integration scaffolding lives under:
   - `test/fixtures/spring-apps`
-  - `test/integrations/{fixture_app}/{feature}/{tool_name}`
+  - `test/integration/{owner}/{boundary}/{action}/{fixture}/{scenario}`
 
 Java-agent behavior that must be validated with the MCP server and a real Spring runtime belongs in the centralized top-level `test` tree, not under `java-agent/tests`.
 
 ## Opt-in examples
+
 - `mappers-adapters/adapter-request-mapper-example`
 
 Examples are starter scaffolds for framework adoptors and are not part of default parent module wiring.
 
 ## Placeholder adapters
+
 - `mappers-adapters/adapter-request-mapper-jaxrs-http`
 - `mappers-adapters/adapter-request-mapper-grpc-rpc`
 
@@ -58,4 +63,3 @@ When no profile is provided, built-in deterministic fallback samples are used.
 
 - Framework adapters (for example Spring HTTP) resolve framework annotations into normalized request parameters.
 - Core HTTP transport materializes templates from normalized parameters and does not parse framework-specific annotations.
-

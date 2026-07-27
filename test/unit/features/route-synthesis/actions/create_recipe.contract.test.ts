@@ -11,7 +11,7 @@ const okAuth = {
   notes: [],
 };
 
-test("[UT][route-synthesis][create_recipe_contract][blocked_invalid] recipe domain emits fail-closed synthesis diagnostics", async () => {
+test("[UT][route-synthesis][create_recipe_contract] recipe domain emits fail-closed synthesis diagnostics", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -58,7 +58,7 @@ test("[UT][route-synthesis][create_recipe_contract][blocked_invalid] recipe doma
   assert.deepEqual(result.attemptedStrategies, ["spring_annotation_mapping"]);
 });
 
-test("[UT][route-synthesis][create_recipe_contract][ok] recipe domain preserves resolver-specific synthesis reason codes", async () => {
+test("[UT][route-synthesis][create_recipe_contract] recipe domain preserves resolver-specific synthesis reason codes", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",

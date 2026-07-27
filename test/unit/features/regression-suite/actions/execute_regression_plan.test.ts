@@ -43,7 +43,7 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(normalizedPayload, null, 2)}\n`, "utf8");
 }
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow runs plan and writes artifacts without regression-specific MCP tool", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow runs plan and writes artifacts without regression-specific MCP tool", async () => {
   const root = createTestTempDir("plan-executor");
   try {
     const projectName = "petclinic-regression";
@@ -128,11 +128,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(fs.existsSync(out.artifacts.evidencePathAbs), true);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow serializes object HTTP body for wrapped transport", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow serializes object HTTP body for wrapped transport", async () => {
   const root = createTestTempDir("plan-executor-body");
   try {
     const projectName = "petclinic-regression";
@@ -230,11 +230,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       JSON.stringify({ date: "2026-01-01", description: "regression visit" }),
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow extracts response.bodyJson.id from full response body beyond preview length", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow extracts response.bodyJson.id from full response body beyond preview length", async () => {
   const root = createTestTempDir("plan-executor-full-body-extract");
   try {
     const projectName = "petclinic-regression";
@@ -372,11 +372,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       ]);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow records unresolved optional extract and continues", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow records unresolved optional extract and continues", async () => {
   const root = createTestTempDir("plan-executor-optional-extract-miss");
   try {
     const projectName = "petclinic-regression";
@@ -474,11 +474,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(typeof resolved.triggeredEventId, "undefined");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow blocks when required extract path is unresolved", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow blocks when required extract path is unresolved", async () => {
   const root = createTestTempDir("plan-executor-required-extract-miss");
   try {
     const projectName = "petclinic-regression";
@@ -596,11 +596,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       ]);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow preserves primary step failure when required extract is also unresolved", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow preserves primary step failure when required extract is also unresolved", async () => {
   const root = createTestTempDir("plan-executor-required-extract-with-failure");
   try {
     const projectName = "petclinic-regression";
@@ -720,11 +720,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       });
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow applies workspace requestTimeoutMs to wrapped transport when step timeout is absent", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow applies workspace requestTimeoutMs to wrapped transport when step timeout is absent", async () => {
   const root = createTestTempDir("plan-executor-timeout-default");
   try {
     const projectName = "petclinic-regression";
@@ -814,11 +814,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
     assert.equal(out.status, "executed");
     assert.equal(capturedTimeoutMs, 250000);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow stops step iteration on runtime block", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow stops step iteration on runtime block", async () => {
   const root = createTestTempDir("plan-executor-blocked");
   try {
     const projectName = "petclinic-regression";
@@ -920,11 +920,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       assert.equal(out.runStatus, "blocked");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow routes strict probe verification per target probeId", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow routes strict probe verification per target probeId", async () => {
   const root = createTestTempDir("plan-executor-probe-route");
   try {
     const projectName = "petclinic-regression";
@@ -1057,11 +1057,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
     assert.equal(probeWaitCalls[0]!.probeId, "course-service");
     assert.equal(probeWaitCalls[1]!.probeId, "review-service");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow propagates runtimeVerification.waitForHit overrides to probe wait_for_hit", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow propagates runtimeVerification.waitForHit overrides to probe wait_for_hit", async () => {
   const root = createTestTempDir("plan-executor-probe-wait-overrides");
   try {
     const projectName = "petclinic-regression";
@@ -1172,11 +1172,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
     assert.equal(waitInput?.pollIntervalMs, 750);
     assert.equal(waitInput?.maxRetries, 9);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow infers apiBaseUrl from probe-config runtime.port when plan context omits it", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow infers apiBaseUrl from probe-config runtime.port when plan context omits it", async () => {
   const root = createTestTempDir("plan-executor-probe-config-api-base");
   try {
     const projectName = "petclinic-regression";
@@ -1279,11 +1279,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
     assert.equal(out.status, "executed");
     assert.equal(capturedUrl, "http://127.0.0.1:9101/api/courses");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow composes url from baseUrl prerequisite and transport path", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow composes url from baseUrl prerequisite and transport path", async () => {
   const root = createTestTempDir("plan-executor-base-url-path");
   try {
     const projectName = "petclinic-regression";
@@ -1379,11 +1379,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
     assert.equal(out.status, "executed");
     assert.equal(capturedUrl, "http://127.0.0.1:8082/api/courses/42");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow passes transport-failure step when authored assertions match", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow passes transport-failure step when authored assertions match", async () => {
   const root = createTestTempDir("plan-executor-sad-path-http");
   try {
     const projectName = "petclinic-regression";
@@ -1476,11 +1476,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       assert.equal(out.executionResult.steps[0].reasonMeta, undefined);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow treats optional-only transport-failure step as non-required in run status", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow treats optional-only transport-failure step as non-required in run status", async () => {
   const root = createTestTempDir("plan-executor-sad-path-optional");
   try {
     const projectName = "petclinic-regression";
@@ -1578,11 +1578,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       );
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow does not fail overall run for optional-only transport-failure mismatch", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow does not fail overall run for optional-only transport-failure mismatch", async () => {
   const root = createTestTempDir("plan-executor-sad-path-optional-mismatch");
   try {
     const projectName = "petclinic-regression";
@@ -1680,11 +1680,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       );
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow fails overall run when a required step has any authored expectation mismatch", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow fails overall run when a required step has any authored expectation mismatch", async () => {
   const root = createTestTempDir("plan-executor-transport-failure-mixed-mismatch");
   try {
     const projectName = "petclinic-regression";
@@ -1777,11 +1777,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       assert.equal(out.executionResult.steps[0].assertions[1].status, "fail");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow supports array index notation in expectations and extracts", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow supports array index notation in expectations and extracts", async () => {
   const root = createTestTempDir("plan-executor-array-paths");
   try {
     const projectName = "petclinic-regression";
@@ -1897,11 +1897,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(out.executionResult.steps[1].status, "pass");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow does not promote extracted baseUrl into apiBaseUrl", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow does not promote extracted baseUrl into apiBaseUrl", async () => {
   const root = createTestTempDir("plan-executor-extracted-base-url-no-promotion");
   try {
     const projectName = "petclinic-regression";
@@ -2007,11 +2007,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(out.executionResult.steps[1].reasonMeta?.cause, "api_base_url_missing_for_path");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow resolves correlation key when json_path source uses response.body.id", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow resolves correlation key when json_path source uses response.body.id", async () => {
   const root = createTestTempDir("plan-executor-correlation-json-path");
   try {
     const projectName = "petclinic-regression";
@@ -2138,11 +2138,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(correlation.timeline.length, 1);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow skips step when condition evaluates false", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow skips step when condition evaluates false", async () => {
   const root = createTestTempDir("plan-executor-condition-skip");
   try {
     const projectName = "petclinic-regression";
@@ -2258,11 +2258,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(out.runStatus, "pass");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow blocks when condition path is invalid at runtime", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow blocks when condition path is invalid at runtime", async () => {
   const root = createTestTempDir("plan-executor-condition-block");
   try {
     const projectName = "petclinic-regression";
@@ -2338,11 +2338,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       assert.equal(out.preflight.reasonCode, "step_condition_forward_reference");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow executes watcher as bounded post-step verification and persists watcher success", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow executes watcher as bounded post-step verification and persists watcher success", async () => {
   const root = createTestTempDir("plan-executor-watcher-success");
   try {
     const projectName = "petclinic-regression";
@@ -2510,11 +2510,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(evidence.watcherExecutions[0].attemptCount, 3);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow reuses HTTP payload normalization for watcher requests", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow reuses HTTP payload normalization for watcher requests", async () => {
   const root = createTestTempDir("plan-executor-watcher-http-normalization");
   try {
     const projectName = "petclinic-regression";
@@ -2649,11 +2649,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(watcherRequest.timeoutMs, 20_000);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow fails closed when watcher response cannot be normalized", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow fails closed when watcher response cannot be normalized", async () => {
   const root = createTestTempDir("plan-executor-watcher-normalization-failure");
   try {
     const projectName = "petclinic-regression";
@@ -2795,11 +2795,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       assert.equal(out.executionResult.watchers?.[0]?.attemptCount, 1);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow fails closed when watcher timeout is exceeded before expectations converge", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow fails closed when watcher timeout is exceeded before expectations converge", async () => {
   const root = createTestTempDir("plan-executor-watcher-timeout");
   try {
     const projectName = "petclinic-regression";
@@ -2934,11 +2934,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       assert.equal(out.executionResult.watchers?.[0]?.attemptCount >= 1, true);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow returns in_progress during watcher polling and resumes the same runId without rerunning steps", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow returns in_progress during watcher polling and resumes the same runId without rerunning steps", async () => {
   const root = createTestTempDir("plan-executor-watcher-resume");
   try {
     const projectName = "petclinic-regression";
@@ -3181,11 +3181,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
     assert.equal(stepCalls, 1);
     assert.equal(watcherCalls, 2);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow marks watcher dependency blocked when dependent step does not pass", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow marks watcher dependency blocked when dependent step does not pass", async () => {
   const root = createTestTempDir("plan-executor-watcher-dependency");
   try {
     const projectName = "petclinic-regression";
@@ -3303,11 +3303,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       );
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow fails closed when watcher target is unreachable and when expectation stays unsatisfied", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow fails closed when watcher target is unreachable and when expectation stays unsatisfied", async () => {
   const root = createTestTempDir("plan-executor-watcher-terminal-failures");
   try {
     const projectName = "petclinic-regression";
@@ -3579,11 +3579,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       assert.equal(expectationOut.executionResult.watchers?.[0]?.attemptCount, 2);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow retries watcher polls when the expected field is temporarily absent", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow retries watcher polls when the expected field is temporarily absent", async () => {
   const root = createTestTempDir("plan-executor-watcher-missing-path-retry");
   try {
     const projectName = "petclinic-regression";
@@ -3725,11 +3725,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(out.executionResult.watchers?.[0]?.assertions[0]?.status, "pass");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow binds watcher placeholders to the dependency step context snapshot", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow binds watcher placeholders to the dependency step context snapshot", async () => {
   const root = createTestTempDir("plan-executor-watcher-dependency-context");
   try {
     const projectName = "petclinic-regression";
@@ -3891,11 +3891,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
       assert.equal(out.executionResult.watchers?.[0]?.status, "pass");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanWorkflow executes HTTP external verification against a concrete local target", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow executes HTTP external verification against a concrete local target", async () => {
   const root = createTestTempDir("plan-executor-external-verification-http-pass");
   const server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
     if (req.url === "/events" && req.method === "POST") {
@@ -4049,11 +4049,11 @@ test("[UT][regression-suite][execute_regression_plan][ok] executeRegressionPlanW
     }
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow fails external verification deterministically when expectations are unmet", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow fails external verification deterministically when expectations are unmet", async () => {
   const root = createTestTempDir("plan-executor-external-verification-fail");
   try {
     const projectName = "petclinic-regression";
@@ -4170,11 +4170,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       );
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow blocks external verification deterministically on unresolved placeholders", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow blocks external verification deterministically on unresolved placeholders", async () => {
   const root = createTestTempDir("plan-executor-external-verification-unresolved");
   try {
     const projectName = "petclinic-regression";
@@ -4283,11 +4283,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       );
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow blocks external verification deterministically when target is unreachable", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow blocks external verification deterministically when target is unreachable", async () => {
   const root = createTestTempDir("plan-executor-external-verification-unreachable");
   try {
     const projectName = "petclinic-regression";
@@ -4407,11 +4407,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       );
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow treats thrown external verification transport errors as runtime failures", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow treats thrown external verification transport errors as runtime failures", async () => {
   const root = createTestTempDir("plan-executor-external-verification-transport-throws");
   try {
     const projectName = "petclinic-regression";
@@ -4526,11 +4526,11 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       );
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRegressionPlanWorkflow still runs external verification when watcher phase fails", async () => {
+test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkflow still runs external verification when watcher phase fails", async () => {
   const root = createTestTempDir("plan-executor-external-verification-after-watcher-fail");
   try {
     const projectName = "petclinic-regression";
@@ -4697,6 +4697,6 @@ test("[UT][regression-suite][execute_regression_plan][blocked_invalid] executeRe
       assert.equal(out.executionResult.externalVerification?.[0]?.status, "pass");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

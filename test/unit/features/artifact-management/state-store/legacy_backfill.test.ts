@@ -38,7 +38,7 @@ const entry = {
   probeIds: ["probe-a"],
 };
 
-test("[UT][artifact-management][legacy_backfill][ok] legacy correlation backfill imports supported fields with checksum provenance", async () => {
+test("[UT][artifact-management][legacy_backfill] legacy correlation backfill imports supported fields with checksum provenance", async () => {
   const root = tempRoot("legacy-backfill");
   try {
     writeLegacyIndex(root, "alpha", [entry]);
@@ -82,11 +82,11 @@ test("[UT][artifact-management][legacy_backfill][ok] legacy correlation backfill
       db.close();
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correlation backfill rejects a changed source after completion", async () => {
+test("[UT][artifact-management][legacy_backfill] legacy correlation backfill rejects a changed source after completion", async () => {
   const root = tempRoot("legacy-backfill-checksum");
   try {
     writeLegacyIndex(root, "alpha", [entry]);
@@ -103,11 +103,11 @@ test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correla
     assert.equal(changed.ok, false);
     if (!changed.ok) assert.equal(changed.reasonCode, "legacy_backfill_checksum_changed");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correlation backfill rejects duplicate natural identities", async () => {
+test("[UT][artifact-management][legacy_backfill] legacy correlation backfill rejects duplicate natural identities", async () => {
   const root = tempRoot("legacy-backfill-conflict");
   try {
     writeLegacyIndex(root, "alpha", [entry, entry]);
@@ -118,11 +118,11 @@ test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correla
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.reasonCode, "legacy_backfill_conflict");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correlation backfill rejects malformed input before touching SQLite rows", async () => {
+test("[UT][artifact-management][legacy_backfill] legacy correlation backfill rejects malformed input before touching SQLite rows", async () => {
   const root = tempRoot("legacy-backfill-invalid");
   try {
     writeLegacyIndex(root, "alpha", [{ runId: "bad" }]);
@@ -136,11 +136,11 @@ test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correla
     const dbPath = path.join(root, ".mcpjvm", "alpha", "run-state.sqlite");
     assert.equal(fs.existsSync(dbPath), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][legacy_backfill][ok] legacy correlation backfill skips non-reconstructible terminal entries with persisted diagnostics", async () => {
+test("[UT][artifact-management][legacy_backfill] legacy correlation backfill skips non-reconstructible terminal entries with persisted diagnostics", async () => {
   const root = tempRoot("legacy-backfill-invalid-diagnostic");
   try {
     writeLegacyIndex(root, "alpha", [
@@ -179,11 +179,11 @@ test("[UT][artifact-management][legacy_backfill][ok] legacy correlation backfill
       db.close();
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][legacy_backfill][ok] legacy correlation backfill reconciles canonical rows and imports legacy-only rows", async () => {
+test("[UT][artifact-management][legacy_backfill] legacy correlation backfill reconciles canonical rows and imports legacy-only rows", async () => {
   const root = tempRoot("legacy-backfill-reconcile");
   try {
     writeLegacyIndex(root, "alpha", [entry]);
@@ -225,11 +225,11 @@ test("[UT][artifact-management][legacy_backfill][ok] legacy correlation backfill
       after.close();
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][legacy_backfill][ok] legacy correlation backfill reports canonical divergence with bounded fields", async () => {
+test("[UT][artifact-management][legacy_backfill] legacy correlation backfill reports canonical divergence with bounded fields", async () => {
   const root = tempRoot("legacy-backfill-divergence");
   try {
     writeLegacyIndex(root, "alpha", [entry]);
@@ -268,11 +268,11 @@ test("[UT][artifact-management][legacy_backfill][ok] legacy correlation backfill
     assert.equal(retried.ok, true);
     if (retried.ok) assert.equal(retried.summary.skippedEntries, 1);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correlation backfill rejects divergent persisted key identity", async () => {
+test("[UT][artifact-management][legacy_backfill] legacy correlation backfill rejects divergent persisted key identity", async () => {
   const root = tempRoot("legacy-backfill-key-divergence");
   try {
     writeLegacyIndex(root, "alpha", [entry]);
@@ -298,11 +298,11 @@ test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correla
       assert.deepEqual(divergent.reasonMeta?.conflictingFields, ["keyValue"]);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correlation backfill imports a reconstructible terminal failure", async () => {
+test("[UT][artifact-management][legacy_backfill] legacy correlation backfill imports a reconstructible terminal failure", async () => {
   const root = tempRoot("legacy-backfill-terminal");
   try {
     writeLegacyIndex(root, "alpha", [
@@ -328,6 +328,6 @@ test("[UT][artifact-management][legacy_backfill][blocked_invalid] legacy correla
       db.close();
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

@@ -2,7 +2,8 @@
 
 Centralized test assets live under the top-level `test` tree. Unit tests are
 organized by the TypeScript owner they exercise; integration tests are
-organized by fixture application and cross-module behavior.
+organized by product owner, externally exercised boundary, action, fixture,
+and scenario.
 
 ## Structure
 
@@ -19,9 +20,9 @@ test/
 |  \- docs/
 |- fixtures/
 |  \- spring-apps/
-\- integrations/
-   |- spring/
-   \- others/
+\- integration/
+   |- transport/
+   \- features/
 ```
 
 ## Intent
@@ -30,7 +31,7 @@ test/
 - `unit` contains focused tests organized by Contract, Core, Feature Module,
   Artifact Spec, Synthesizer, Transport, Skill, or documentation owner.
 - `fixtures/spring-apps` contains real Spring fixture projects used only for integration testing.
-- `integrations` contains cross-module tests that exercise:
+- `integration` contains cross-module tests that exercise:
   - TS orchestration
   - Java request-mapping synthesis
   - MCP tool execution against a live probe runtime

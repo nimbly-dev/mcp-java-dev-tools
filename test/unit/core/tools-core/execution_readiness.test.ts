@@ -19,7 +19,7 @@ const requestCandidate = {
   rationale: ["test candidate"],
 };
 
-test("[UT][core][execution_readiness][ok] execution readiness is ready when required inputs are present", () => {
+test("[UT][core][execution_readiness] execution readiness is ready when required inputs are present", () => {
   const readiness = buildExecutionReadiness({
     selectedMode: "single_line_probe",
     lineTargetProvided: true,
@@ -32,7 +32,7 @@ test("[UT][core][execution_readiness][ok] execution readiness is ready when requ
   assert.equal(readiness.missingInputs.length, 0);
 });
 
-test("[UT][core][execution_readiness][blocked_invalid] execution readiness requires user input when auth is unresolved", () => {
+test("[UT][core][execution_readiness] execution readiness requires user input when auth is unresolved", () => {
   const readiness = buildExecutionReadiness({
     selectedMode: "regression",
     lineTargetProvided: false,
@@ -55,7 +55,7 @@ test("[UT][core][execution_readiness][blocked_invalid] execution readiness requi
   );
 });
 
-test("[UT][core][execution_readiness][blocked_invalid] execution readiness requires user confirmation when candidate is uncertain", () => {
+test("[UT][core][execution_readiness] execution readiness requires user confirmation when candidate is uncertain", () => {
   const readiness = buildExecutionReadiness({
     selectedMode: "regression",
     lineTargetProvided: false,
@@ -74,7 +74,7 @@ test("[UT][core][execution_readiness][blocked_invalid] execution readiness requi
   );
 });
 
-test("[UT][core][execution_readiness][blocked_invalid] execution readiness does not block deterministic request candidates on informational confirmations", () => {
+test("[UT][core][execution_readiness] execution readiness does not block deterministic request candidates on informational confirmations", () => {
   const readiness = buildExecutionReadiness({
     selectedMode: "regression",
     lineTargetProvided: false,
@@ -96,7 +96,7 @@ test("[UT][core][execution_readiness][blocked_invalid] execution readiness does 
   );
 });
 
-test("[UT][core][execution_readiness][blocked_invalid] execution readiness requires explicit actuation decision when enabled", () => {
+test("[UT][core][execution_readiness] execution readiness requires explicit actuation decision when enabled", () => {
   const readiness = buildExecutionReadiness({
     selectedMode: "single_line_probe",
     lineTargetProvided: true,

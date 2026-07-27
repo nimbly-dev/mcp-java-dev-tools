@@ -16,7 +16,7 @@ async function withTempDir(run: (dir: string) => Promise<void>) {
   }
 }
 
-test("[UT][route-synthesis][target_infer_runtime_scope][ok] inferTargets excludes src/test/java from runtime candidate pool", async () => {
+test("[UT][route-synthesis][target_infer_runtime_scope] inferTargets excludes src/test/java from runtime candidate pool", async () => {
   await withTempDir(async (dir: string) => {
     const runtimeFile = path.join(
       dir,
@@ -78,7 +78,7 @@ test("[UT][route-synthesis][target_infer_runtime_scope][ok] inferTargets exclude
   });
 });
 
-test("[UT][route-synthesis][target_infer_runtime_scope][ok] inferTargets includes generated-main runtime roots", async () => {
+test("[UT][route-synthesis][target_infer_runtime_scope] inferTargets includes generated-main runtime roots", async () => {
   await withTempDir(async (dir: string) => {
     const generatedMainFile = path.join(
       dir,
@@ -120,7 +120,7 @@ test("[UT][route-synthesis][target_infer_runtime_scope][ok] inferTargets include
   });
 });
 
-test("[UT][route-synthesis][target_infer_runtime_scope][ok] discoverClassMethods captures multiline Spring controller signatures deterministically", async () => {
+test("[UT][route-synthesis][target_infer_runtime_scope] discoverClassMethods captures multiline Spring controller signatures deterministically", async () => {
   await withTempDir(async (dir: string) => {
     const controllerFile = path.join(
       dir,
@@ -165,7 +165,7 @@ test("[UT][route-synthesis][target_infer_runtime_scope][ok] discoverClassMethods
   });
 });
 
-test("[UT][route-synthesis][target_infer_runtime_scope][ok] inferTargets prefers executable line while preserving declaration line metadata", async () => {
+test("[UT][route-synthesis][target_infer_runtime_scope] inferTargets prefers executable line while preserving declaration line metadata", async () => {
   await withTempDir(async (dir: string) => {
     const controllerFile = path.join(
       dir,
@@ -207,7 +207,7 @@ test("[UT][route-synthesis][target_infer_runtime_scope][ok] inferTargets prefers
   });
 });
 
-test("[UT][route-synthesis][target_infer_runtime_scope][ok] inferTargets honors explicit lineHint for declaration line disambiguation", async () => {
+test("[UT][route-synthesis][target_infer_runtime_scope] inferTargets honors explicit lineHint for declaration line disambiguation", async () => {
   await withTempDir(async (dir: string) => {
     const controllerFile = path.join(
       dir,
@@ -249,7 +249,7 @@ test("[UT][route-synthesis][target_infer_runtime_scope][ok] inferTargets honors 
   });
 });
 
-test("[UT][route-synthesis][target_infer_runtime_scope][ok] inferTargets resolves inherited target method when sibling source root is provided", async () => {
+test("[UT][route-synthesis][target_infer_runtime_scope] inferTargets resolves inherited target method when sibling source root is provided", async () => {
   await withTempDir(async (dir: string) => {
     const childFile = path.join(
       dir,

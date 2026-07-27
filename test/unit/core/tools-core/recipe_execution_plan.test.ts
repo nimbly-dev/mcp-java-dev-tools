@@ -19,7 +19,7 @@ const requestCandidate = {
   rationale: ["test candidate"],
 };
 
-test("[UT][core][recipe_execution_plan][ok] regression plan does not include probe calls", () => {
+test("[UT][core][recipe_execution_plan] regression plan does not include probe calls", () => {
   const plan = buildRecipeExecutionPlan({
     decision: {
       requestedMode: "regression",
@@ -49,7 +49,7 @@ test("[UT][core][recipe_execution_plan][ok] regression plan does not include pro
   });
 });
 
-test("[UT][core][recipe_execution_plan][ok] single_line_probe enforces reset -> execute -> verify order", () => {
+test("[UT][core][recipe_execution_plan] single_line_probe enforces reset -> execute -> verify order", () => {
   const plan = buildRecipeExecutionPlan({
     decision: {
       requestedMode: "single_line_probe",
@@ -86,7 +86,7 @@ test("[UT][core][recipe_execution_plan][ok] single_line_probe enforces reset -> 
   });
 });
 
-test("[UT][core][recipe_execution_plan][ok] combined mode enforces reset -> API -> verify order", () => {
+test("[UT][core][recipe_execution_plan] combined mode enforces reset -> API -> verify order", () => {
   const plan = buildRecipeExecutionPlan({
     decision: {
       requestedMode: "regression_plus_line_probe",
@@ -124,7 +124,7 @@ test("[UT][core][recipe_execution_plan][ok] combined mode enforces reset -> API 
   });
 });
 
-test("[UT][core][recipe_execution_plan][ok] single_line_probe actuated mode adds enable and disable cleanup calls", () => {
+test("[UT][core][recipe_execution_plan] single_line_probe actuated mode adds enable and disable cleanup calls", () => {
   const plan = buildRecipeExecutionPlan({
     decision: {
       requestedMode: "single_line_probe",
@@ -164,7 +164,7 @@ test("[UT][core][recipe_execution_plan][ok] single_line_probe actuated mode adds
   });
 });
 
-test("[UT][core][recipe_execution_plan][ok] execution request step does not claim no-auth when auth is unresolved", () => {
+test("[UT][core][recipe_execution_plan] execution request step does not claim no-auth when auth is unresolved", () => {
   const unknownAuth = {
     required: "unknown",
     status: "unknown",

@@ -13,7 +13,7 @@ async function withMockedFetch(mockFetch: typeof globalThis.fetch, fn: () => Pro
   }
 }
 
-test("[UT][transport][request_mapping_runtime_resolver][ok] runtime mappings resolver extracts Spring handler mapping candidate", async () => {
+test("[UT][transport][request_mapping_runtime_resolver] runtime mappings resolver extracts Spring handler mapping candidate", async () => {
   await withMockedFetch(
     async () => {
       return new Response(
@@ -56,7 +56,7 @@ test("[UT][transport][request_mapping_runtime_resolver][ok] runtime mappings res
   );
 });
 
-test("[UT][transport][request_mapping_runtime_resolver][blocked_invalid] runtime mappings resolver fails closed for unauthorized endpoint", async () => {
+test("[UT][transport][request_mapping_runtime_resolver] runtime mappings resolver fails closed for unauthorized endpoint", async () => {
   await withMockedFetch(
     async () => {
       return new Response("forbidden", { status: 403 });
@@ -75,7 +75,7 @@ test("[UT][transport][request_mapping_runtime_resolver][blocked_invalid] runtime
   );
 });
 
-test("[UT][transport][request_mapping_runtime_resolver][blocked_invalid] runtime mappings resolver fails closed when multiple runtime routes match handler", async () => {
+test("[UT][transport][request_mapping_runtime_resolver] runtime mappings resolver fails closed when multiple runtime routes match handler", async () => {
   await withMockedFetch(
     async () => {
       return new Response(
@@ -126,7 +126,7 @@ test("[UT][transport][request_mapping_runtime_resolver][blocked_invalid] runtime
   );
 });
 
-test("[UT][transport][request_mapping_runtime_resolver][ok] runtime mappings resolver accepts actuator base URL and normalizes to /actuator/mappings", async () => {
+test("[UT][transport][request_mapping_runtime_resolver] runtime mappings resolver accepts actuator base URL and normalizes to /actuator/mappings", async () => {
   let seenUrl = "";
   await withMockedFetch(
     async (input) => {

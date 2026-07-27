@@ -12,7 +12,7 @@ const {
   writeAuthPlan,
 } = require("@test/support/regression-runtime-suite-executor.fixture");
 
-test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][ok] executeRegressionRuntimeSuite resolves project contextBindings into transport context and redacts env-sourced values from persisted context", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context] executeRegressionRuntimeSuite resolves project contextBindings into transport context and redacts env-sourced values from persisted context", async () => {
   const root = createTestTempDir("runtime-suite-context-bindings");
   try {
     const projectName = "petclinic-regression";
@@ -118,11 +118,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][o
     assert.equal(context.apiBaseUrl, undefined);
     assert.equal(context.tenantId, undefined);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][ok] executeRegressionRuntimeSuite does not redact explicit providedContext overrides for env-backed bindings", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context] executeRegressionRuntimeSuite does not redact explicit providedContext overrides for env-backed bindings", async () => {
   const root = createTestTempDir("runtime-suite-context-bindings-override");
   try {
     const projectName = "petclinic-regression";
@@ -227,11 +227,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][o
     );
     assert.equal(context.tenantId, "tenant-override");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][ok] executeRegressionRuntimeSuite records redaction metadata when secret prerequisites were resolved", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context] executeRegressionRuntimeSuite records redaction metadata when secret prerequisites were resolved", async () => {
   const root = createTestTempDir("runtime-suite-secret-redaction-meta");
   try {
     const projectName = "petclinic-regression";
@@ -289,11 +289,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][o
     });
     assert.equal(context["auth.bearer"], undefined);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][ok] executeRegressionRuntimeSuite runs shared scriptRefs and reloads env before plan execution", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context] executeRegressionRuntimeSuite runs shared scriptRefs and reloads env before plan execution", async () => {
   const root = createTestTempDir("runtime-suite-scriptrefs");
   try {
     const projectName = "petclinic-regression";
@@ -369,11 +369,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][o
     assert.equal(out.planRuns[0].status, "executed");
     assert.match(fs.readFileSync(envFile, "utf8"), /AUTH_BEARER_TOKEN=generated-token/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][ok] executeRegressionRuntimeSuite runs postRuntime scriptRefs when health checks are already ready", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context] executeRegressionRuntimeSuite runs postRuntime scriptRefs when health checks are already ready", async () => {
   const root = createTestTempDir("runtime-suite-postruntime-scriptrefs");
   const server = http.createServer((_req: any, res: any) => {
     res.statusCode = 200;
@@ -471,11 +471,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][o
     assert.match(fs.readFileSync(envFile, "utf8"), /AUTH_BEARER_TOKEN=generated-token/);
   } finally {
     server.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][blocked_invalid] executeRegressionRuntimeSuite reruns postHealthcheck scriptRefs on a fresh run after prior external_healthcheck_failed", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context] executeRegressionRuntimeSuite reruns postHealthcheck scriptRefs on a fresh run after prior external_healthcheck_failed", async () => {
   const root = createTestTempDir("runtime-suite-posthealthcheck-rerun");
   try {
     const projectName = "petclinic-regression";
@@ -642,11 +642,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][b
       server.close();
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][ok] executeRegressionRuntimeSuite applies profile runtimeContextName when plan override is absent", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context] executeRegressionRuntimeSuite applies profile runtimeContextName when plan override is absent", async () => {
   const root = createTestTempDir("runtime-suite-profile-runtime-context");
   try {
     const projectName = "petclinic-regression";
@@ -685,11 +685,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][o
       assert.equal(out.reasonCode, "runtime_context_unknown");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][blocked_invalid] executeRegressionRuntimeSuite blocks replay/export script paths in execution profile plans", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context] executeRegressionRuntimeSuite blocks replay/export script paths in execution profile plans", async () => {
   const root = createTestTempDir("runtime-suite-replay-script-guard");
   try {
     const projectName = "petclinic-regression";
@@ -728,11 +728,11 @@ test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][b
       assert.equal(out.reasonCode, "project_reference_invalid");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][blocked_invalid] executeRegressionRuntimeSuite fails closed when execution profile suiteType is performance", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context] executeRegressionRuntimeSuite fails closed when execution profile suiteType is performance", async () => {
   const root = createTestTempDir("runtime-suite-performance-profile");
   try {
     const projectName = "petclinic-performance";
@@ -784,6 +784,6 @@ test("[UT][regression-suite][execute_regression_runtime_suite_runtime_context][b
       assert.equal(out.reasonCode, "runtime_suite_invalid");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

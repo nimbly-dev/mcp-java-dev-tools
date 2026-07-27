@@ -43,7 +43,7 @@ const base = {
   "tools/features/artifact/actions/index.ts": "export {};",
 };
 
-test("[UT][core][feature_boundaries][blocked_invalid] boundaries reject wildcard Feature aliases", () => {
+test("[UT][core][feature_boundaries] boundaries reject wildcard Feature aliases", () => {
   const result = runFixture({
     ...base,
     "tsconfig.json":
@@ -53,7 +53,7 @@ test("[UT][core][feature_boundaries][blocked_invalid] boundaries reject wildcard
   assert.match(result.output, /wildcard Feature alias/);
 });
 
-test("[UT][core][feature_boundaries][blocked_invalid] boundaries reject foreign actions and shared imports", () => {
+test("[UT][core][feature_boundaries] boundaries reject foreign actions and shared imports", () => {
   for (const privatePath of ["actions/hidden", "shared/hidden"]) {
     const result = runFixture({
       ...base,
@@ -65,7 +65,7 @@ test("[UT][core][feature_boundaries][blocked_invalid] boundaries reject foreign 
   }
 });
 
-test("[UT][core][feature_boundaries][blocked_invalid] boundaries reject Feature to Transport Adapter imports", () => {
+test("[UT][core][feature_boundaries] boundaries reject Feature to Transport Adapter imports", () => {
   const result = runFixture({
     ...base,
     "tools/transport/tools-mcp-server/src/tools/adapter.ts": "export {};",
@@ -75,7 +75,7 @@ test("[UT][core][feature_boundaries][blocked_invalid] boundaries reject Feature 
   assert.match(result.output, /Transport Adapter code/);
 });
 
-test("[UT][core][feature_boundaries][blocked_invalid] boundaries reject Artifact Spec runtime imports", () => {
+test("[UT][core][feature_boundaries] boundaries reject Artifact Spec runtime imports", () => {
   const result = runFixture({
     ...base,
     "tools/spec/project-artifact-spec/src/runtime.ts":
@@ -85,7 +85,7 @@ test("[UT][core][feature_boundaries][blocked_invalid] boundaries reject Artifact
   assert.match(result.output, /runtime Feature Module code/);
 });
 
-test("[UT][core][feature_boundaries][ok] boundaries accept public Feature imports", () => {
+test("[UT][core][feature_boundaries] boundaries accept public Feature imports", () => {
   const result = runFixture({
     ...base,
     "tools/features/probe/check.ts": 'import "@tools-feature-artifact";',

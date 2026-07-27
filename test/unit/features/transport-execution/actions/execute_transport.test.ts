@@ -18,7 +18,7 @@ async function createServer(statusCode: number, body: string) {
   return { server, url: `http://127.0.0.1:${port}/test` };
 }
 
-test("[UT][transport-execution][execute_transport][blocked_invalid] transport_execute fails closed on wrapper policy violation", async () => {
+test("[UT][transport-execution][execute_transport] transport_execute fails closed on wrapper policy violation", async () => {
   const out = await transportExecuteDomain({
     protocol: "http",
     request: { method: "GET", url: "http://127.0.0.1:1" },
@@ -29,7 +29,7 @@ test("[UT][transport-execution][execute_transport][blocked_invalid] transport_ex
   assert.equal(out.structuredContent.reasonCode, "wrapper_policy_violation");
 });
 
-test("[UT][transport-execution][execute_transport][ok] transport_execute executes wrapped http request successfully", async () => {
+test("[UT][transport-execution][execute_transport] transport_execute executes wrapped http request successfully", async () => {
   const { server, url } = await createServer(200, '{"ok":true}');
   try {
     const out = await transportExecuteDomain({
@@ -46,7 +46,7 @@ test("[UT][transport-execution][execute_transport][ok] transport_execute execute
   }
 });
 
-test("[UT][transport-execution][execute_transport][blocked_invalid] transport_execute returns fail_http for non-2xx", async () => {
+test("[UT][transport-execution][execute_transport] transport_execute returns fail_http for non-2xx", async () => {
   const { server, url } = await createServer(401, '{"error":"unauthorized"}');
   try {
     const out = await transportExecuteDomain({
@@ -62,7 +62,7 @@ test("[UT][transport-execution][execute_transport][blocked_invalid] transport_ex
   }
 });
 
-test("[UT][transport-execution][execute_transport][ok] transport_execute serializes object body and sets json content-type when absent", async () => {
+test("[UT][transport-execution][execute_transport] transport_execute serializes object body and sets json content-type when absent", async () => {
   let capturedBody = "";
   let capturedContentType = "";
   const server = http.createServer((req: any, res: any) => {
@@ -100,7 +100,7 @@ test("[UT][transport-execution][execute_transport][ok] transport_execute seriali
   }
 });
 
-test("[UT][transport-execution][execute_transport][ok] transport_execute preserves explicit request timeout above 120s without truncation", async () => {
+test("[UT][transport-execution][execute_transport] transport_execute preserves explicit request timeout above 120s without truncation", async () => {
   const originalFetch = global.fetch;
   const originalSetTimeout = global.setTimeout;
   const originalClearTimeout = global.clearTimeout;

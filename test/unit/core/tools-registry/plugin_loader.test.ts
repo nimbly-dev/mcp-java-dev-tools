@@ -36,7 +36,7 @@ async function withExternalPluginEnv(moduleSpecs: string, run: () => Promise<voi
   }
 }
 
-test("[UT][core][plugin_loader][ok] registry selects the first plugin that can handle the input", async () => {
+test("[UT][core][plugin_loader] registry selects the first plugin that can handle the input", async () => {
   const plugin = {
     id: "spring",
     framework: "spring",
@@ -73,7 +73,7 @@ test("[UT][core][plugin_loader][ok] registry selects the first plugin that can h
   assert.equal(result.synthesizerUsed, "spring");
 });
 
-test("[UT][core][plugin_loader][blocked_invalid] registry fails closed when no plugin can handle input", async () => {
+test("[UT][core][plugin_loader] registry fails closed when no plugin can handle input", async () => {
   const registry = new SynthesizerRegistry([]);
   const result = await registry.synthesize(sampleInput());
 
@@ -82,7 +82,7 @@ test("[UT][core][plugin_loader][blocked_invalid] registry fails closed when no p
   assert.equal(result.failedStep, "plugin_selection");
 });
 
-test("[UT][core][plugin_loader][ok] registry enforces plugin API compatibility", async () => {
+test("[UT][core][plugin_loader] registry enforces plugin API compatibility", async () => {
   assert.throws(() => {
     new SynthesizerRegistry([
       {
@@ -103,7 +103,7 @@ test("[UT][core][plugin_loader][ok] registry enforces plugin API compatibility",
   }, /Incompatible synthesizer plugin/);
 });
 
-test("[UT][core][plugin_loader][ok] default registry loads external plugin modules from env", async () => {
+test("[UT][core][plugin_loader] default registry loads external plugin modules from env", async () => {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-synth-plugin-"));
   const pluginModuleAbs = path.join(tmpDir, "enterprise-synth-plugin.js");
   await fs.writeFile(
@@ -151,7 +151,7 @@ test("[UT][core][plugin_loader][ok] default registry loads external plugin modul
   });
 });
 
-test("[UT][core][plugin_loader][blocked_invalid] default registry fails closed when external plugin module path is invalid", async () => {
+test("[UT][core][plugin_loader] default registry fails closed when external plugin module path is invalid", async () => {
   await withExternalPluginEnv("C:\\missing\\enterprise-synth.js", async () => {
     const registry = createDefaultSynthesizerRegistry();
     const result = await registry.synthesize(sampleInput());
@@ -163,7 +163,7 @@ test("[UT][core][plugin_loader][blocked_invalid] default registry fails closed w
   });
 });
 
-test("[UT][core][plugin_loader][blocked_invalid] default registry fails closed when external plugin is API-incompatible", async () => {
+test("[UT][core][plugin_loader] default registry fails closed when external plugin is API-incompatible", async () => {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-synth-plugin-"));
   const pluginModuleAbs = path.join(tmpDir, "bad-enterprise-synth-plugin.js");
   await fs.writeFile(

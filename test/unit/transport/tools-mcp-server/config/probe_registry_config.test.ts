@@ -9,7 +9,7 @@ const { MCP_ENV } = require("@/config/env-vars");
 
 const FIXTURE = path.resolve(__dirname, "fixtures", "probe-config.sample.json");
 
-test("[UT][transport][probe_registry_config][ok] loads empty default probe base URL when active profile has multiple probes", () => {
+test("[UT][transport][probe_registry_config] loads empty default probe base URL when active profile has multiple probes", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-probe-registry-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -22,11 +22,11 @@ test("[UT][transport][probe_registry_config][ok] loads empty default probe base 
     assert.equal(cfg.probeRegistry?.profileSource, "default");
     assert.equal(cfg.probeRegistry?.implicitProbeId, undefined);
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][probe_registry_config][ok] loads implicit probe base URL when active profile has exactly one probe", () => {
+test("[UT][transport][probe_registry_config] loads implicit probe base URL when active profile has exactly one probe", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-probe-registry-single-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -51,11 +51,11 @@ test("[UT][transport][probe_registry_config][ok] loads implicit probe base URL w
     assert.equal(cfg.probeBaseUrl, "http://127.0.0.1:9190");
     assert.equal(cfg.probeRegistry?.implicitProbeId, "order-service");
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][probe_registry_config][ok] loads with empty default probe base URL when active profile has multiple probes", () => {
+test("[UT][transport][probe_registry_config] loads with empty default probe base URL when active profile has multiple probes", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-probe-registry-ambiguous-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -67,11 +67,11 @@ test("[UT][transport][probe_registry_config][ok] loads with empty default probe 
     assert.equal(cfg.probeRegistry?.activeProfile, "dev");
     assert.equal(cfg.probeRegistry?.implicitProbeId, undefined);
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][probe_registry_config][ok] keeps the server startable when no probe registry is discoverable", () => {
+test("[UT][transport][probe_registry_config] keeps the server startable when no probe registry is discoverable", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-probe-registry-missing-"));
   const originalProbeConfigFile = process.env[MCP_ENV.PROBE_CONFIG_FILE];
   try {
@@ -85,11 +85,11 @@ test("[UT][transport][probe_registry_config][ok] keeps the server startable when
     if (typeof originalProbeConfigFile === "string")
       process.env[MCP_ENV.PROBE_CONFIG_FILE] = originalProbeConfigFile;
     else delete process.env[MCP_ENV.PROBE_CONFIG_FILE];
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][probe_registry_config][blocked_invalid] fails closed when probe registry still declares defaultProbe", () => {
+test("[UT][transport][probe_registry_config] fails closed when probe registry still declares defaultProbe", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-probe-registry-defaultprobe-reject-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -116,7 +116,7 @@ test("[UT][transport][probe_registry_config][blocked_invalid] fails closed when 
       /profiles\.dev\.defaultProbe is not supported/i,
     );
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
@@ -125,7 +125,7 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
-test("[UT][transport][probe_registry_config][blocked_invalid] does not auto-discover probe-config.json from parent directories when workspace is nested", () => {
+test("[UT][transport][probe_registry_config] does not auto-discover probe-config.json from parent directories when workspace is nested", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-probe-registry-parent-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -137,11 +137,11 @@ test("[UT][transport][probe_registry_config][blocked_invalid] does not auto-disc
     const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", nestedRoot]);
     assert.equal(cfg.probeRegistry, undefined);
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][probe_registry_config][ok] loads BOM-prefixed probe registry JSON", () => {
+test("[UT][transport][probe_registry_config] loads BOM-prefixed probe registry JSON", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-probe-registry-bom-"));
   try {
     const workspaceRoot = path.join(tmpRoot, "workspace");
@@ -154,6 +154,6 @@ test("[UT][transport][probe_registry_config][ok] loads BOM-prefixed probe regist
     assert.equal(cfg.probeRegistry?.activeProfile, "dev");
     assert.equal(cfg.probeBaseUrl, "");
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

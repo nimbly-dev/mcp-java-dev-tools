@@ -3,7 +3,7 @@ const test = require("node:test");
 
 const { correlateEvents, validateCorrelationPolicy } = require("@tools-feature-regression-suite");
 
-test("[UT][regression-suite][regression_correlation][ok] correlateEvents returns deterministic ordered timeline when correlation is valid", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents returns deterministic ordered timeline when correlation is valid", () => {
   const result = correlateEvents(
     [
       {
@@ -33,7 +33,7 @@ test("[UT][regression-suite][regression_correlation][ok] correlateEvents returns
   assert.equal(result.timeline[1].eventId, "e2");
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents fails closed on ambiguous duplicate probe matches", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents fails closed on ambiguous duplicate probe matches", () => {
   const result = correlateEvents(
     [
       {
@@ -61,7 +61,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.reasonCode, "ambiguous_correlation");
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents fails closed when expected flow ordering is violated", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents fails closed when expected flow ordering is violated", () => {
   const result = correlateEvents(
     [
       {
@@ -90,7 +90,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.reasonCode, "flow_expectation_mismatch");
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents fails closed when a required expected flow stage is missing", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents fails closed when a required expected flow stage is missing", () => {
   const result = correlateEvents(
     [
       {
@@ -118,7 +118,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.firstUnsatisfiedFlowIndex, 1);
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents fails closed when only the downstream expected flow stage is observed", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents fails closed when only the downstream expected flow stage is observed", () => {
   const result = correlateEvents(
     [
       {
@@ -141,7 +141,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.firstUnsatisfiedFlowIndex, 0);
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents does not let repeated hits satisfy a missing distinct expected stage", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents does not let repeated hits satisfy a missing distinct expected stage", () => {
   const result = correlateEvents(
     [
       {
@@ -176,7 +176,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.deepEqual(result.missingProbeIds, ["consumer-service"]);
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents rejects repeated expected stages when their order is not an ordered subsequence", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents rejects repeated expected stages when their order is not an ordered subsequence", () => {
   const result = correlateEvents(
     [
       {
@@ -212,7 +212,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.firstUnsatisfiedFlowIndex, 2);
 });
 
-test("[UT][regression-suite][regression_correlation][ok] correlateEvents accepts a repeated expected stage when the ordered subsequence is observed", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents accepts a repeated expected stage when the ordered subsequence is observed", () => {
   const result = correlateEvents(
     [
       {
@@ -247,7 +247,7 @@ test("[UT][regression-suite][regression_correlation][ok] correlateEvents accepts
   assert.equal(result.status, "ok");
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] validateCorrelationPolicy fails closed for unknown expected flow Probe IDs", () => {
+test("[UT][regression-suite][regression_correlation] validateCorrelationPolicy fails closed for unknown expected flow Probe IDs", () => {
   const result = validateCorrelationPolicy(
     {
       enabled: true,
@@ -269,7 +269,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] validateCo
   assert.deepEqual(result.availableProbeIds, ["producer-service"]);
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] validateCorrelationPolicy rejects ambiguous consumer boundary selectors", () => {
+test("[UT][regression-suite][regression_correlation] validateCorrelationPolicy rejects ambiguous consumer boundary selectors", () => {
   const result = validateCorrelationPolicy({
     enabled: true,
     key: { type: "messageId" },
@@ -304,7 +304,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] validateCo
   assert.equal(result.reasonCode, "correlation_consumer_boundary_invalid");
 });
 
-test("[UT][regression-suite][regression_correlation][ok] validateCorrelationPolicy distinguishes an unavailable Probe registry", () => {
+test("[UT][regression-suite][regression_correlation] validateCorrelationPolicy distinguishes an unavailable Probe registry", () => {
   const result = validateCorrelationPolicy(
     {
       enabled: true,
@@ -325,7 +325,7 @@ test("[UT][regression-suite][regression_correlation][ok] validateCorrelationPoli
   assert.equal(result.reasonCode, "expected_flow_probe_registry_unavailable");
 });
 
-test("[UT][regression-suite][regression_correlation][ok] correlateEvents accepts repeated runtime line hits from one runtime identity", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents accepts repeated runtime line hits from one runtime identity", () => {
   const result = correlateEvents(
     [
       {
@@ -358,7 +358,7 @@ test("[UT][regression-suite][regression_correlation][ok] correlateEvents accepts
   assert.equal(result.status, "ok");
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents fails closed on competing runtime identities", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents fails closed on competing runtime identities", () => {
   const result = correlateEvents(
     [
       {
@@ -391,7 +391,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.reasonCode, "ambiguous_correlation");
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents rejects plan-step evidence when runtime evidence is required", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents rejects plan-step evidence when runtime evidence is required", () => {
   const result = correlateEvents(
     [
       {
@@ -414,7 +414,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.reasonCode, "correlation_key_not_observed");
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents rejects runtime evidence without runtime identity", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents rejects runtime evidence without runtime identity", () => {
   const result = correlateEvents(
     [
       {
@@ -437,7 +437,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.reasonCode, "correlation_runtime_identity_missing");
 });
 
-test("[UT][regression-suite][regression_correlation][ok] correlateEvents does not match a fingerprint with the wrong key type", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents does not match a fingerprint with the wrong key type", () => {
   const result = correlateEvents(
     [
       {
@@ -461,7 +461,7 @@ test("[UT][regression-suite][regression_correlation][ok] correlateEvents does no
   assert.equal(result.reasonCode, "correlation_key_not_observed");
 });
 
-test("[UT][regression-suite][regression_correlation][ok] correlateEvents preserves producer plan evidence when runtime scope is downstream", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents preserves producer plan evidence when runtime scope is downstream", () => {
   const result = correlateEvents(
     [
       {
@@ -501,7 +501,7 @@ test("[UT][regression-suite][regression_correlation][ok] correlateEvents preserv
   );
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents fails closed when a bound consumer key lacks async runtime propagation", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents fails closed when a bound consumer key lacks async runtime propagation", () => {
   const result = correlateEvents(
     [
       {
@@ -525,7 +525,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.reasonCode, "correlation_context_not_propagated");
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents does not infer propagation loss from missing runtime evidence", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents does not infer propagation loss from missing runtime evidence", () => {
   const result = correlateEvents([], {
     keyType: "messageId",
     keyValue: "evt-1",
@@ -538,7 +538,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.reasonCode, "correlation_key_not_observed");
 });
 
-test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateEvents reports propagation failure after bound runtime evidence", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents reports propagation failure after bound runtime evidence", () => {
   const result = correlateEvents(
     [
       {
@@ -565,7 +565,7 @@ test("[UT][regression-suite][regression_correlation][blocked_invalid] correlateE
   assert.equal(result.reasonCode, "correlation_context_not_propagated");
 });
 
-test("[UT][regression-suite][regression_correlation][ok] correlateEvents enforces configured runtime instance scope", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents enforces configured runtime instance scope", () => {
   const result = correlateEvents(
     [
       {
@@ -590,7 +590,7 @@ test("[UT][regression-suite][regression_correlation][ok] correlateEvents enforce
   assert.equal(result.reasonCode, "correlation_probe_scope_mismatch");
 });
 
-test("[UT][regression-suite][regression_correlation][ok] correlateEvents does not let fingerprint matching bypass line or execution scope", () => {
+test("[UT][regression-suite][regression_correlation] correlateEvents does not let fingerprint matching bypass line or execution scope", () => {
   const result = correlateEvents(
     [
       {

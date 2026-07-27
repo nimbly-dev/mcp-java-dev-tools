@@ -9,7 +9,7 @@ const {
   upsertRuntimeEvidenceCursor,
 } = require("@tools-feature-artifact-management");
 
-test("[UT][artifact-management][runtime_evidence_cursor][ok] runtime evidence cursor is durable, monotonic, and does not store raw keys", async () => {
+test("[UT][artifact-management][runtime_evidence_cursor] runtime evidence cursor is durable, monotonic, and does not store raw keys", async () => {
   const root = fs.mkdtempSync(path.join(process.cwd(), "test", ".tmp", "runtime-cursor-"));
   const opened = await openRunStateStore({ workspaceRootAbs: root, projectName: "cursor-project" });
   assert.equal(opened.ok, true);

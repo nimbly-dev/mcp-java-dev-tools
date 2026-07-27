@@ -131,7 +131,7 @@ function writePerformancePlan(
   });
 }
 
-test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerformanceRuntimeSuite executes a performance plan and persists run artifacts", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite executes a performance plan and persists run artifacts", async () => {
   const root = createTestTempDir("performance-runtime-suite-pass");
   try {
     const projectName = "petclinic-performance";
@@ -242,11 +242,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerf
     assert.equal(execution.metrics.failedRequests, 0);
     assert.equal(execution.requiredLineHits[0].hit, true);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerformanceRuntimeSuite persists MSTA status as not_configured when analysis.msta is absent", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite persists MSTA status as not_configured when analysis.msta is absent", async () => {
   const root = createTestTempDir("performance-runtime-suite-msta-not-configured");
   try {
     const projectName = "petclinic-performance";
@@ -332,11 +332,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerf
     assert.equal(executionResult.correlation.status, "unavailable");
     assert.equal(fs.existsSync(path.join(runDir, "execution-timing.msta.json")), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerformanceRuntimeSuite persists MSTA status as disabled when analysis.msta.enabled=false", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite persists MSTA status as disabled when analysis.msta.enabled=false", async () => {
   const root = createTestTempDir("performance-runtime-suite-msta-disabled");
   try {
     const projectName = "petclinic-performance";
@@ -416,11 +416,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerf
     assert.deepEqual(evidence.msta, { status: "disabled" });
     assert.equal(fs.existsSync(path.join(runDir, "execution-timing.msta.json")), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][blocked_invalid] executePerformanceRuntimeSuite blocks explicit enabled MSTA without methodTargets", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite blocks explicit enabled MSTA without methodTargets", async () => {
   const root = createTestTempDir("performance-runtime-suite-msta-invalid");
   try {
     const projectName = "petclinic-performance";
@@ -468,11 +468,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][blocked_invalid
     assert.equal(out.planRuns[0].status, "blocked");
     assert.equal(out.planRuns[0].blockedReasonCode, "performance_plan_invalid");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][blocked_invalid] executePerformanceRuntimeSuite blocks malformed present analysis.msta objects", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite blocks malformed present analysis.msta objects", async () => {
   const root = createTestTempDir("performance-runtime-suite-msta-malformed");
   try {
     const projectName = "petclinic-performance";
@@ -554,11 +554,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][blocked_invalid
       assert.equal(out.planRuns[0].blockedReasonCode, "performance_plan_invalid");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerformanceRuntimeSuite resolves compatibility placeholder aliases in performance entrypoints", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite resolves compatibility placeholder aliases in performance entrypoints", async () => {
   const root = createTestTempDir("performance-runtime-suite-placeholder-alias");
   try {
     const projectName = "petclinic-performance";
@@ -676,11 +676,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerf
     assert.equal(out.status, "pass");
     assert.equal(transportCalls > 0, true);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerformanceRuntimeSuite supports profile scriptRefs through shared project-context resolution", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite supports profile scriptRefs through shared project-context resolution", async () => {
   const root = createTestTempDir("performance-runtime-suite-script-refs");
   try {
     const projectName = "petclinic-performance";
@@ -754,11 +754,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerf
     assert.equal(out.planRuns.length, 1);
     assert.equal(out.planRuns[0].runStatus, "pass");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerformanceRuntimeSuite runs workloadProvider=jmeter generated_http and persists JMeter artifacts", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite runs workloadProvider=jmeter generated_http and persists JMeter artifacts", async () => {
   const root = createTestTempDir("performance-runtime-suite-jmeter");
   try {
     const projectName = "petclinic-performance";
@@ -892,11 +892,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerf
     assert.equal(fs.existsSync(path.join(runDir, "workload.jmeter.jtl")), true);
     assert.equal(fs.existsSync(path.join(runDir, "workload.jmeter.log")), true);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][blocked_invalid] executePerformanceRuntimeSuite blocks invalid workloadProvider for JMeter", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite blocks invalid workloadProvider for JMeter", async () => {
   const root = createTestTempDir("performance-runtime-suite-jmeter-invalid");
   try {
     const projectName = "petclinic-performance";
@@ -936,11 +936,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][blocked_invalid
     assert.equal(out.planRuns[0].status, "blocked");
     assert.equal(out.planRuns[0].blockedReasonCode, "performance_workload_provider_invalid");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerformanceRuntimeSuite redacts resolved secret context from persisted context artifact", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite redacts resolved secret context from persisted context artifact", async () => {
   const root = createTestTempDir("performance-runtime-suite-context-redaction");
   try {
     const projectName = "petclinic-performance";
@@ -1032,11 +1032,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerf
     assert.equal(context.providedContext.nested.authorization, undefined);
     assert.equal(context.providedContext.nested.token, undefined);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerformanceRuntimeSuite propagates observationTargets.probeId to strict-line and profiler Probe calls", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite propagates observationTargets.probeId to strict-line and profiler Probe calls", async () => {
   const root = createTestTempDir("performance-runtime-suite-probe-id");
   try {
     const projectName = "petclinic-performance";
@@ -1134,11 +1134,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerf
     assert.equal(profilerCalls[2]?.input.probeId, "catalog-service");
     assert.equal(profilerCalls[2]?.input.action, "download");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][blocked_invalid] executePerformanceRuntimeSuite blocks immediately when profiler start reports unsupported runtime", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite blocks immediately when profiler start reports unsupported runtime", async () => {
   const root = createTestTempDir("performance-runtime-suite-profiler-unsupported");
   try {
     const projectName = "petclinic-performance";
@@ -1250,11 +1250,11 @@ test("[UT][performance-suite][execute_performance_runtime_suite][blocked_invalid
     assert.equal(executionResult.reasonCode, "profiler_unsupported_platform");
     assert.equal(executionResult.executionTiming.result.supported, false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerformanceRuntimeSuite persists first MSTA-oriented output when execution-timing JFR is readable", async () => {
+test("[UT][performance-suite][execute_performance_runtime_suite] executePerformanceRuntimeSuite persists first MSTA-oriented output when execution-timing JFR is readable", async () => {
   const root = createTestTempDir("performance-runtime-suite-msta");
   const javaFixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "msta-jfr-"));
   try {
@@ -1472,13 +1472,12 @@ test("[UT][performance-suite][execute_performance_runtime_suite][ok] executePerf
     assert.equal(Array.isArray(msta.targets[0].steps), true);
     assert.equal(msta.targets[0].steps.length > 0, true);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-    fs.rmSync(javaFixtureDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+    fs.rmSync(javaFixtureDir, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test(
-  "[UT][performance-suite][execute_performance_runtime_suite][ok] buildPerformanceMstaSummary consumes profiler.WallClockSample events for MSTA anchoring",
+test("[UT][performance-suite][execute_performance_runtime_suite] buildPerformanceMstaSummary consumes profiler.WallClockSample events for MSTA anchoring",
   { concurrency: false },
   async () => {
     const root = createTestTempDir("performance-msta-wall-clock");
@@ -1547,7 +1546,7 @@ test(
       } else {
         delete process.env.MCP_JAVA_DEV_TOOLS_JFR_EXTRACTOR;
       }
-      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
     }
   },
 );

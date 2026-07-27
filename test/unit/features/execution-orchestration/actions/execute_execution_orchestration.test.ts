@@ -35,7 +35,7 @@ function listen(server: typeof http.Server.prototype): Promise<number> {
   });
 }
 
-test("[UT][execution-orchestration][execute_execution_orchestration][ok] executionOrchestrationDomain resumes persisted suite progress by suiteRunId without rerunning completed plans", async () => {
+test("[UT][execution-orchestration][execute_execution_orchestration] executionOrchestrationDomain resumes persisted suite progress by suiteRunId without rerunning completed plans", async () => {
   const root = createTestTempDir("execution-orchestration-domain-resume");
   const priorProbeConfigEnv = process.env.MCP_PROBE_CONFIG_FILE;
   const server = http.createServer(
@@ -250,11 +250,11 @@ test("[UT][execution-orchestration][execute_execution_orchestration][ok] executi
     await new Promise<void>((resolve, reject) =>
       server.close((error: Error | undefined) => (error ? reject(error) : resolve())),
     );
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-orchestration][execute_execution_orchestration][ok] executionOrchestrationDomain uses SQLite-only suite state after cutover", async () => {
+test("[UT][execution-orchestration][execute_execution_orchestration] executionOrchestrationDomain uses SQLite-only suite state after cutover", async () => {
   const root = createTestTempDir("execution-orchestration-domain-post-cutover");
   const priorProbeConfigEnv = process.env.MCP_PROBE_CONFIG_FILE;
   const server = http.createServer(
@@ -446,11 +446,11 @@ test("[UT][execution-orchestration][execute_execution_orchestration][ok] executi
     await new Promise<void>((resolve, reject) =>
       server.close((error: Error | undefined) => (error ? reject(error) : resolve())),
     );
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-orchestration][execute_execution_orchestration][ok] executionOrchestrationDomain auto-resumes fresh calls without explicit maxPlansPerCall", async () => {
+test("[UT][execution-orchestration][execute_execution_orchestration] executionOrchestrationDomain auto-resumes fresh calls without explicit maxPlansPerCall", async () => {
   const root = createTestTempDir("execution-orchestration-domain-fresh-auto");
   const priorProbeConfigEnv = process.env.MCP_PROBE_CONFIG_FILE;
   const server = http.createServer(
@@ -597,6 +597,6 @@ test("[UT][execution-orchestration][execute_execution_orchestration][ok] executi
     await new Promise<void>((resolve, reject) =>
       server.close((error: Error | undefined) => (error ? reject(error) : resolve())),
     );
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

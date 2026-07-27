@@ -11,7 +11,7 @@ const okAuth = {
   notes: [],
 };
 
-test("[UT][route-synthesis][create_recipe][blocked_invalid] fails closed when target is not inferred in regression mode", async () => {
+test("[UT][route-synthesis][create_recipe] fails closed when target is not inferred in regression mode", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -65,7 +65,7 @@ test("[UT][route-synthesis][create_recipe][blocked_invalid] fails closed when ta
   assert.equal(result.inferenceDiagnostics.request.matched, false);
 });
 
-test("[UT][route-synthesis][create_recipe][ok] promotes exact zero-method class match into synthesis fallback for inherited methods", async () => {
+test("[UT][route-synthesis][create_recipe] promotes exact zero-method class match into synthesis fallback for inherited methods", async () => {
   let seenInferredTargetFileAbs;
   const result = await generateRecipe(
     {
@@ -122,7 +122,7 @@ test("[UT][route-synthesis][create_recipe][ok] promotes exact zero-method class 
   assert.equal(result.inferenceDiagnostics.request.matched, false);
 });
 
-test("[UT][route-synthesis][create_recipe][ok] keeps generic target_not_inferred guidance when class inventory has no exact match", async () => {
+test("[UT][route-synthesis][create_recipe] keeps generic target_not_inferred guidance when class inventory has no exact match", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -162,7 +162,7 @@ test("[UT][route-synthesis][create_recipe][ok] keeps generic target_not_inferred
   assert.equal(result.inferenceDiagnostics.request.matched, false);
 });
 
-test("[UT][route-synthesis][create_recipe][ok] keeps generic target_not_inferred guidance when class inventory has multiple matches", async () => {
+test("[UT][route-synthesis][create_recipe] keeps generic target_not_inferred guidance when class inventory has multiple matches", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -215,7 +215,7 @@ test("[UT][route-synthesis][create_recipe][ok] keeps generic target_not_inferred
   assert.equal(result.inferenceDiagnostics.request.matched, false);
 });
 
-test("[UT][route-synthesis][create_recipe][blocked_invalid] fails closed when multiple module candidates remain target-ambiguous", async () => {
+test("[UT][route-synthesis][create_recipe] fails closed when multiple module candidates remain target-ambiguous", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\workspace",
@@ -279,7 +279,7 @@ test("[UT][route-synthesis][create_recipe][blocked_invalid] fails closed when mu
   ]);
 });
 
-test("[UT][route-synthesis][create_recipe][ok] keeps target_not_inferred for probe mode when strict line target is unavailable", async () => {
+test("[UT][route-synthesis][create_recipe] keeps target_not_inferred for probe mode when strict line target is unavailable", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -331,7 +331,7 @@ test("[UT][route-synthesis][create_recipe][ok] keeps target_not_inferred for pro
   assert.equal(result.executionPlan.probeCallPlan.total, 0);
 });
 
-test("[UT][route-synthesis][create_recipe][blocked_invalid] reports request_inference failure when target is inferred but request candidate is missing", async () => {
+test("[UT][route-synthesis][create_recipe] reports request_inference failure when target is inferred but request candidate is missing", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -378,7 +378,7 @@ test("[UT][route-synthesis][create_recipe][blocked_invalid] reports request_infe
   assert.equal(Array.isArray(result.auth.missing), false);
 });
 
-test("[UT][route-synthesis][create_recipe][blocked_invalid] does not claim missing authToken in report mode when caller already provided auth input", async () => {
+test("[UT][route-synthesis][create_recipe] does not claim missing authToken in report mode when caller already provided auth input", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -429,7 +429,7 @@ test("[UT][route-synthesis][create_recipe][blocked_invalid] does not claim missi
   );
 });
 
-test("[UT][route-synthesis][create_recipe][ok] reports auth_resolution when request exists but auth input is still required", async () => {
+test("[UT][route-synthesis][create_recipe] reports auth_resolution when request exists but auth input is still required", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -494,7 +494,7 @@ test("[UT][route-synthesis][create_recipe][ok] reports auth_resolution when requ
   assert.equal(result.failureReasonCode, "auth_input_required");
 });
 
-test("[UT][route-synthesis][create_recipe][blocked_invalid] reports request_confirmation_required when unresolved confirmation blocks execution", async () => {
+test("[UT][route-synthesis][create_recipe] reports request_confirmation_required when unresolved confirmation blocks execution", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -554,7 +554,7 @@ test("[UT][route-synthesis][create_recipe][blocked_invalid] reports request_conf
   assert.equal(result.failedStep, "request_confirmation");
 });
 
-test("[UT][route-synthesis][create_recipe][ok] keeps deterministic spring request ready even when informational confirmation note is present", async () => {
+test("[UT][route-synthesis][create_recipe] keeps deterministic spring request ready even when informational confirmation note is present", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -614,7 +614,7 @@ test("[UT][route-synthesis][create_recipe][ok] keeps deterministic spring reques
   assert.equal(result.executionReadiness, "ready");
 });
 
-test("[UT][route-synthesis][create_recipe][ok] applies apiBasePath prefix to synthesized request candidate and trigger", async () => {
+test("[UT][route-synthesis][create_recipe] applies apiBasePath prefix to synthesized request candidate and trigger", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -674,7 +674,7 @@ test("[UT][route-synthesis][create_recipe][ok] applies apiBasePath prefix to syn
   assert.equal(result.trigger.fullUrlHint, "/api/v1/catalog/shoes?page=1");
 });
 
-test("[UT][route-synthesis][create_recipe][ok] does not double-prefix apiBasePath when synthesized path already includes it", async () => {
+test("[UT][route-synthesis][create_recipe] does not double-prefix apiBasePath when synthesized path already includes it", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -732,7 +732,7 @@ test("[UT][route-synthesis][create_recipe][ok] does not double-prefix apiBasePat
   assert.equal(result.trigger.path, "/api/v1/catalog/shoes");
 });
 
-test("[UT][route-synthesis][create_recipe][blocked_invalid] emits non-blocking context path hint when apiBasePath is not provided", async () => {
+test("[UT][route-synthesis][create_recipe] emits non-blocking context path hint when apiBasePath is not provided", async () => {
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -792,7 +792,7 @@ test("[UT][route-synthesis][create_recipe][blocked_invalid] emits non-blocking c
   );
 });
 
-test("[UT][route-synthesis][create_recipe][ok] passes additionalSourceRootsAbs into target inference for deterministic cross-root scope", async () => {
+test("[UT][route-synthesis][create_recipe] passes additionalSourceRootsAbs into target inference for deterministic cross-root scope", async () => {
   let seenAdditionalRoots: string[] | undefined;
   const result = await generateRecipe(
     {
@@ -829,7 +829,7 @@ test("[UT][route-synthesis][create_recipe][ok] passes additionalSourceRootsAbs i
   assert.deepEqual(seenAdditionalRoots, ["C:\\repo\\core\\src\\main\\java"]);
 });
 
-test("[UT][route-synthesis][create_recipe][blocked_invalid] requests at least two target candidates so ambiguity can be fail-closed", async () => {
+test("[UT][route-synthesis][create_recipe] requests at least two target candidates so ambiguity can be fail-closed", async () => {
   let seenMaxCandidates;
   const result = await generateRecipe(
     {

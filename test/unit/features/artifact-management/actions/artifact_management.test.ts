@@ -76,7 +76,7 @@ function writeRegressionPlan(root: string, projectName: string, planName: string
   );
 }
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management blocks disallowed action by artifactType", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management blocks disallowed action by artifactType", async () => {
   const out = await artifactManagementDomain({
     workspaceRootAbs: process.cwd(),
     request: {
@@ -88,7 +88,7 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
   assert.equal(out.structuredContent.status, "artifact_action_not_allowed");
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management probe_config read returns summary and artifact payload", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management probe_config read returns summary and artifact payload", async () => {
   const root = createTestTempDir("artifact-management-probe-read");
   try {
     writeJson(path.join(root, ".mcpjvm", "probe-config.json"), {
@@ -119,11 +119,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management pro
     assert.equal(out.structuredContent.probeCount, 1);
     assert.equal(typeof out.structuredContent.artifact, "object");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management probe_config reload returns not_configured when artifact is missing", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management probe_config reload returns not_configured when artifact is missing", async () => {
   const root = createTestTempDir("artifact-management-probe-reload-missing");
   try {
     const out = await artifactManagementDomain({
@@ -137,11 +137,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.status, "not_configured");
     assert.equal(out.structuredContent.reasonCode, "probe_registry_not_configured");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management project_context list returns deterministic project names", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context list returns deterministic project names", async () => {
   const root = createTestTempDir("artifact-management-list");
   try {
     writeJson(path.join(root, ".mcpjvm", "zeta", "projects.json"), {
@@ -161,11 +161,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management pro
     assert.equal(out.structuredContent.status, "ok");
     assert.deepEqual(out.structuredContent.projectNames, ["alpha", "zeta"]);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management project_context read supports structured query projection", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context read supports structured query projection", async () => {
   const root = createTestTempDir("artifact-management-query");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -201,11 +201,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management pro
     assert.equal(out.structuredContent.executionProfiles.length, 1);
     assert.equal(out.structuredContent.executionProfiles[0].executionProfile, "smoke");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management project_context read returns summary by default", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context read returns summary by default", async () => {
   const root = createTestTempDir("artifact-management-default-summary");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -244,11 +244,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management pro
     assert.deepEqual(out.structuredContent.summary.executionProfileNames, ["smoke"]);
     assert.deepEqual(out.structuredContent.summary.runtimeContextNames, ["terminal-cli"]);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management project_context read exports a complete sanitized Artifact", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context read exports a complete sanitized Artifact", async () => {
   const root = createTestTempDir("artifact-management-complete-read");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -293,11 +293,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management pro
     );
     assert.equal((out.structuredContent.artifact as any).workspaces[0].scripts[0].name, "prepare");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management project_context upsert merges minimal payload without losing configuration", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context upsert merges minimal payload without losing configuration", async () => {
   const root = createTestTempDir("artifact-management-safe-upsert");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -362,11 +362,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management pro
     assert.equal(artifact.workspaces[0].runtimeContexts[0].name, "terminal-cli");
     assert.equal(artifact.workspaces[0].scripts[0].name, "prepare");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management project_context rejects concurrent upsert contention", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context rejects concurrent upsert contention", async () => {
   const root = createTestTempDir("artifact-management-upsert-conflict");
   try {
     const projectDir = path.join(root, ".mcpjvm", "alpha");
@@ -399,11 +399,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.status, "project_artifact_conflict");
     assert.equal(out.structuredContent.reasonCode, "project_artifact_conflict");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management project_context creation provisions an empty run-state store", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context creation provisions an empty run-state store", async () => {
   const root = createTestTempDir("artifact-management-project-provision");
   try {
     const request = {
@@ -459,11 +459,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management pro
       reopened.close();
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management project_context creation fails closed when state-store provisioning fails", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context creation fails closed when state-store provisioning fails", async () => {
   const root = createTestTempDir("artifact-management-project-provision-failure");
   try {
     const databasePathAbs = path.join(root, ".mcpjvm", "alpha", "run-state.sqlite");
@@ -497,11 +497,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.reasonCode, "state_store_corrupt");
     assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "projects.json")), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management project_context update does not recreate a missing existing store", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context update does not recreate a missing existing store", async () => {
   const root = createTestTempDir("artifact-management-existing-missing-store");
   try {
     const projectsFileAbs = path.join(root, ".mcpjvm", "alpha", "projects.json");
@@ -533,11 +533,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.status, "ok");
     assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite")), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management project_context creation cleans up only its new empty store after artifact write failure", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context creation cleans up only its new empty store after artifact write failure", async () => {
   const root = createTestTempDir("artifact-management-project-write-failure");
   try {
     const projectsFileAbs = path.join(root, ".mcpjvm", "alpha", "projects.json");
@@ -574,11 +574,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
       assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite")), false);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management project_context validate fails closed when execution profile references missing plan artifact", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context validate fails closed when execution profile references missing plan artifact", async () => {
   const root = createTestTempDir("artifact-management-project-missing-plan");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -606,11 +606,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.status, "project_reference_invalid");
     assert.equal(out.structuredContent.reasonCode, "project_reference_invalid");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management project_context upsert fails closed on unsupported workspace variable mappings and does not persist artifact", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context upsert fails closed on unsupported workspace variable mappings and does not persist artifact", async () => {
   const root = createTestTempDir("artifact-management-project-upsert-unsupported-vars");
   const projectsFileAbs = path.join(root, ".mcpjvm", "alpha", "projects.json");
   try {
@@ -644,11 +644,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     );
     assert.equal(fs.existsSync(projectsFileAbs), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management project_context rejects JDBC SQL connection bindings", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context rejects JDBC SQL connection bindings", async () => {
   const root = createTestTempDir("artifact-management-project-jdbc-binding");
   try {
     const out = await artifactManagementDomain({
@@ -676,11 +676,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.status, "project_artifact_invalid");
     assert.match(String(out.structuredContent.reason ?? ""), /unsupported JDBC/i);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management project_context validate returns root inspection for matching projectName and projectRootAbs", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context validate returns root inspection for matching projectName and projectRootAbs", async () => {
   const root = createTestTempDir("artifact-management-project-validate-root");
   try {
     fs.mkdirSync(path.join(root, "src", "main", "java"), { recursive: true });
@@ -706,11 +706,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management pro
     ]);
     assert.equal(out.structuredContent.hasJavaSourceRoot, true);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management project_context validate resolves unique project from projectRootAbs", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context validate resolves unique project from projectRootAbs", async () => {
   const root = createTestTempDir("artifact-management-project-validate-resolve-root");
   const appRoot = path.join(root, "apps", "post-app");
   try {
@@ -731,11 +731,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management pro
     assert.equal(out.structuredContent.projectName, "post-service");
     assert.equal(out.structuredContent.projectRootAbs, appRoot);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management project_context validate fails closed when projectName and projectRootAbs mismatch", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management project_context validate fails closed when projectName and projectRootAbs mismatch", async () => {
   const root = createTestTempDir("artifact-management-project-validate-mismatch");
   const alphaRoot = path.join(root, "apps", "alpha");
   const betaRoot = path.join(root, "apps", "beta");
@@ -759,11 +759,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.status, "project_scope_mismatch");
     assert.equal(out.structuredContent.reasonCode, "project_scope_mismatch");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management run_result rejects invalid action with deterministic fail-closed output", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management run_result rejects invalid action with deterministic fail-closed output", async () => {
   const out = await artifactManagementDomain({
     workspaceRootAbs: process.cwd(),
     request: {
@@ -775,7 +775,7 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
   assert.equal(out.structuredContent.status, "artifact_action_not_allowed");
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management run_result blocks generate action after orchestration extraction", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management run_result blocks generate action after orchestration extraction", async () => {
   const out = await artifactManagementDomain({
     workspaceRootAbs: process.cwd(),
     request: {
@@ -787,7 +787,7 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
   assert.equal(out.structuredContent.status, "artifact_action_not_allowed");
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management regression_plan validate fails closed when step protocol is unsupported by execution_orchestration", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management regression_plan validate fails closed when step protocol is unsupported by execution_orchestration", async () => {
   const root = createTestTempDir("artifact-management-regression-validate-protocol");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -828,11 +828,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.status, "transport_protocol_mismatch");
     assert.equal(out.structuredContent.reasonCode, "transport_protocol_mismatch");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management regression_plan validate fails closed when plan uses non-canonical env-style keys", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management regression_plan validate fails closed when plan uses non-canonical env-style keys", async () => {
   const root = createTestTempDir("artifact-management-regression-validate-noncanonical");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -881,11 +881,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.status, "plan_context_key_noncanonical");
     assert.equal(out.structuredContent.reasonCode, "plan_context_key_noncanonical");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management regression_plan upsert fails closed when payload uses non-canonical env-style keys", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management regression_plan upsert fails closed when payload uses non-canonical env-style keys", async () => {
   const root = createTestTempDir("artifact-management-regression-upsert-noncanonical");
   const contractAbs = path.join(
     root,
@@ -949,11 +949,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.reasonCode, "plan_context_key_noncanonical");
     assert.equal(fs.existsSync(contractAbs), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management regression_plan read supports windowable prerequisites and steps sections", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management regression_plan read supports windowable prerequisites and steps sections", async () => {
   const root = createTestTempDir("artifact-management-regression-windowed-read");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -1015,11 +1015,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management reg
     assert.equal(out.structuredContent.steps.total, 3);
     assert.equal(out.structuredContent.steps.items[0].id, "step-2");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management run_result read uses explicit projectName in multi-project workspace", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management run_result read uses explicit projectName in multi-project workspace", async () => {
   const root = createTestTempDir("artifact-management-run-read-project");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -1080,11 +1080,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management run
     );
     assert.notEqual(out.structuredContent.reasonCode, "project_artifact_ambiguous");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][ok] artifact_management run_result read returns bounded watcher queries with status separation", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management run_result read returns bounded watcher queries with status separation", async () => {
   const root = createTestTempDir("artifact-management-run-watchers");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -1186,11 +1186,11 @@ test("[UT][artifact-management][artifact_management][ok] artifact_management run
     assert.equal(out.structuredContent.watcherEvidence.total, 1);
     assert.equal(out.structuredContent.watcherEvidence.items[0].id, "feed-cache");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management run_result read fails closed when watcher state is unavailable", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management run_result read fails closed when watcher state is unavailable", async () => {
   const root = createTestTempDir("artifact-management-run-watchers-missing");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -1237,11 +1237,11 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.reasonCode, "watcher_state_unavailable");
     assert.equal(out.structuredContent.reasonMeta.section, "watchers");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_management run_result watcherEvidence filter fails closed when watcher status provenance is missing", async () => {
+test("[UT][artifact-management][artifact_management] artifact_management run_result watcherEvidence filter fails closed when watcher status provenance is missing", async () => {
   const root = createTestTempDir("artifact-management-run-watcher-evidence-status-missing");
   try {
     writeJson(path.join(root, ".mcpjvm", "alpha", "projects.json"), {
@@ -1316,6 +1316,6 @@ test("[UT][artifact-management][artifact_management][blocked_invalid] artifact_m
     assert.equal(out.structuredContent.reasonMeta.section, "watcherEvidence");
     assert.equal(out.structuredContent.reasonMeta.watcherId, "feed-cache");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

@@ -18,7 +18,7 @@ async function withTempDir(run: (dir: string) => Promise<void>) {
   }
 }
 
-test("[UT][route-synthesis][source_roots_resolve][ok] resolveAdditionalSourceRoots resolves workspace-relative roots and deduplicates normalized paths", async () => {
+test("[UT][route-synthesis][source_roots_resolve] resolveAdditionalSourceRoots resolves workspace-relative roots and deduplicates normalized paths", async () => {
   await withTempDir(async (workspaceRootAbs: string) => {
     const moduleSourceRoot = path.join(workspaceRootAbs, "core-module", "src", "main", "java");
     await fs.mkdir(moduleSourceRoot, { recursive: true });
@@ -37,7 +37,7 @@ test("[UT][route-synthesis][source_roots_resolve][ok] resolveAdditionalSourceRoo
   });
 });
 
-test("[UT][route-synthesis][source_roots_resolve][blocked_invalid] resolveAdditionalSourceRoots fails closed when a root path points to a file", async () => {
+test("[UT][route-synthesis][source_roots_resolve] resolveAdditionalSourceRoots fails closed when a root path points to a file", async () => {
   await withTempDir(async (workspaceRootAbs: string) => {
     const fileAbs = path.join(workspaceRootAbs, "not-a-directory.txt");
     await fs.writeFile(fileAbs, "fixture", "utf8");
@@ -54,7 +54,7 @@ test("[UT][route-synthesis][source_roots_resolve][blocked_invalid] resolveAdditi
   });
 });
 
-test("[UT][route-synthesis][source_roots_resolve][blocked_invalid] resolveAdditionalSourceRoots fails closed when additional root count exceeds max", async () => {
+test("[UT][route-synthesis][source_roots_resolve] resolveAdditionalSourceRoots fails closed when additional root count exceeds max", async () => {
   await withTempDir(async (workspaceRootAbs: string) => {
     const overLimit = Array.from(
       { length: MAX_ADDITIONAL_SOURCE_ROOTS + 1 },

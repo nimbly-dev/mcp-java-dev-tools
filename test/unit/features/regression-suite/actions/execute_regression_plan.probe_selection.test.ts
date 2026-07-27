@@ -40,7 +40,7 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(normalizedPayload, null, 2)}\n`, "utf8");
 }
 
-test("[UT][regression-suite][execute_regression_plan_probe_selection][blocked_invalid] executeRegressionPlanWorkflow fails closed when wait_for_hit returns probe_selection_failed", async () => {
+test("[UT][regression-suite][execute_regression_plan_probe_selection] executeRegressionPlanWorkflow fails closed when wait_for_hit returns probe_selection_failed", async () => {
   const root = createTestTempDir("plan-executor-probe-selection-fail-closed");
   try {
     const projectName = "petclinic-regression";
@@ -161,6 +161,6 @@ test("[UT][regression-suite][execute_regression_plan_probe_selection][blocked_in
       });
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

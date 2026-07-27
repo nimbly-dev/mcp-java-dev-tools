@@ -14,7 +14,7 @@ function createTestTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(base, `${prefix}-`));
 }
 
-test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunResultsTable renders deterministic endpoint table without memory column when undefined", () => {
+test("[UT][regression-suite][regression_results_report] renderRegressionRunResultsTable renders deterministic endpoint table without memory column when undefined", () => {
   const rendered = renderRegressionRunResultsTable({
     executionResult: {
       status: "pass",
@@ -62,7 +62,7 @@ test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunR
   assert.doesNotMatch(rendered.table, /Memory \(bytes\)/);
 });
 
-test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunResultsTable includes memory column only when contract defines memory metric", () => {
+test("[UT][regression-suite][regression_results_report] renderRegressionRunResultsTable includes memory column only when contract defines memory metric", () => {
   const rendered = renderRegressionRunResultsTable({
     executionResult: {
       status: "pass",
@@ -93,7 +93,7 @@ test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunR
   assert.match(rendered.table, /Memory \(bytes\)/);
 });
 
-test("[UT][regression-suite][regression_results_report][blocked_invalid] renderRegressionRunResultsTable emits deterministic blocked row when no endpoints executed", () => {
+test("[UT][regression-suite][regression_results_report] renderRegressionRunResultsTable emits deterministic blocked row when no endpoints executed", () => {
   const rendered = renderRegressionRunResultsTable({
     executionResult: {
       status: "blocked",
@@ -108,7 +108,7 @@ test("[UT][regression-suite][regression_results_report][blocked_invalid] renderR
   assert.equal(rendered.rows[0].status, "blocked");
 });
 
-test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunResultsTable supports object-map steps from persisted run artifacts", () => {
+test("[UT][regression-suite][regression_results_report] renderRegressionRunResultsTable supports object-map steps from persisted run artifacts", () => {
   const rendered = renderRegressionRunResultsTable({
     executionResult: {
       status: "pass",
@@ -144,7 +144,7 @@ test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunR
   assert.equal(rendered.rows[0].probeCoverage, "verified_line_hit");
 });
 
-test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunResultsTable maps explicit http_only step coverage to unverified-line enum", () => {
+test("[UT][regression-suite][regression_results_report] renderRegressionRunResultsTable maps explicit http_only step coverage to unverified-line enum", () => {
   const rendered = renderRegressionRunResultsTable({
     executionResult: {
       status: "pass",
@@ -168,7 +168,7 @@ test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunR
   assert.equal(rendered.rows[0].probeCoverage, "http_only_unverified_line");
 });
 
-test("[UT][regression-suite][regression_results_report][blocked_invalid] renderRegressionRunResultsTable treats non-canonical coverage token as unknown", () => {
+test("[UT][regression-suite][regression_results_report] renderRegressionRunResultsTable treats non-canonical coverage token as unknown", () => {
   const rendered = renderRegressionRunResultsTable({
     executionResult: {
       status: "pass",
@@ -192,7 +192,7 @@ test("[UT][regression-suite][regression_results_report][blocked_invalid] renderR
   assert.equal(rendered.rows[0].probeCoverage, "unknown");
 });
 
-test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunResultsTable includes correlation summary when provided", () => {
+test("[UT][regression-suite][regression_results_report] renderRegressionRunResultsTable includes correlation summary when provided", () => {
   const rendered = renderRegressionRunResultsTable({
     executionResult: {
       status: "pass",
@@ -218,7 +218,7 @@ test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunR
   assert.equal(rendered.correlation.matchedEvents, 2);
 });
 
-test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunResultsTable maps minimal correlation payload (matched + matchedEvents)", () => {
+test("[UT][regression-suite][regression_results_report] renderRegressionRunResultsTable maps minimal correlation payload (matched + matchedEvents)", () => {
   const rendered = renderRegressionRunResultsTable({
     executionResult: {
       status: "pass",
@@ -238,7 +238,7 @@ test("[UT][regression-suite][regression_results_report][ok] renderRegressionRunR
   assert.equal(rendered.correlation.matchedEvents, 1);
 });
 
-test("[UT][regression-suite][regression_results_report][ok] resolveRegressionRunDirAbs resolves only plan-local runs", async () => {
+test("[UT][regression-suite][regression_results_report] resolveRegressionRunDirAbs resolves only plan-local runs", async () => {
   const root = createTestTempDir("results-run-resolve");
   try {
     const projectRoot = path.join(root, ".mcpjvm", "test-project");
@@ -271,11 +271,11 @@ test("[UT][regression-suite][regression_results_report][ok] resolveRegressionRun
     });
     assert.equal(resolvedWithoutPlan, null);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_results_report][ok] resolveRegressionRunDirAbs resolves project-scoped regression runs when project artifact exists", async () => {
+test("[UT][regression-suite][regression_results_report] resolveRegressionRunDirAbs resolves project-scoped regression runs when project artifact exists", async () => {
   const root = createTestTempDir("results-run-resolve-project");
   try {
     const projectRoot = path.join(root, ".mcpjvm", "test-project");
@@ -303,6 +303,6 @@ test("[UT][regression-suite][regression_results_report][ok] resolveRegressionRun
     });
     assert.equal(resolvedByPlan, planLocalDir);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
