@@ -1,17 +1,12 @@
 import type { AuthResolution } from "@tools-core/auth_resolution";
-import type { SynthesisHttpTrigger } from "@tools-registry/models/synthesis/synthesizer_output.model";
 import { type RecipeStatus } from "@tools-core/recipe_constants.util";
 import { buildExecutionReadiness } from "@tools-core/execution_readiness.util";
 import { buildRecipeExecutionPlan } from "@tools-core/recipe_execution_plan.util";
 import { buildRoutingContext, resolveSelectedMode } from "@tools-core/recipe_intent_routing.util";
 import { buildSearchRootsWithAdditional } from "@tools-core/synthesis_search_roots.util";
 import type {
-  ExecutionReadiness,
   InferenceDiagnostics,
   InferenceFailurePhase,
-  MissingExecutionInput,
-  RecipeCandidate,
-  RecipeExecutionPlan,
 } from "@tools-core/recipe_types.util";
 import { resolveAuthForRecipe } from "../support/recipe_generate/auth_resolve.util";
 import {
@@ -21,18 +16,21 @@ import {
 import { normalizeRecipeGenerateInput } from "../support/recipe_generate/normalize_input.util";
 import { buildRunNotes } from "../support/recipe_generate/run_notes.util";
 import { selectAmbiguousCandidates } from "../support/recipe_generate/target_ambiguity.util";
+import {
+  applyApiBasePathToCandidate,
+  applyApiBasePathToTrigger,
+  buildMissingRouteAuth,
+  buildUnknownTargetAuth,
+  deriveApplicationTypeFromSynthesizer,
+  mapExecutionInputFailure,
+} from "../support/recipe_generate/generation_helpers";
 import type {
   GenerateRecipeDeps,
   GenerateRecipeResult,
   RecipeResultType,
 } from "@tools-feature-route-synthesis";
-import {
-  createDefaultSynthesizerRegistry,
-} from "@tools-registry/plugin.loader";
-import {
-  discoverClassMethods,
-  inferTargets,
-} from "./target_inference";
+import { createDefaultSynthesizerRegistry } from "@tools-registry/plugin.loader";
+import { discoverClassMethods, inferTargets } from "./target_inference";
 
 export type { RecipeCandidate, RecipeExecutionPlan } from "@tools-core/recipe_types.util";
 export type {
@@ -40,123 +38,6 @@ export type {
   GenerateRecipeResult,
   RecipeResultType,
 } from "@tools-feature-route-synthesis";
-
-function deriveApplicationTypeFromSynthesizer(synthesizerUsed?: string): string | undefined {
-  if (!synthesizerUsed) return undefined;
-  const normalized = synthesizerUsed.trim().toLowerCase();
-  if (!normalized) return undefined;
-  if (normalized === "spring") return "spring";
-  return normalized;
-}
-
-function buildUnknownTargetAuth(): AuthResolution {
-  return {
-    required: "unknown",
-    status: "unknown",
-    strategy: "unknown",
-    nextAction: "No target inferred; cannot resolve auth strategy yet.",
-    notes: ["No method candidate matched current hints."],
-  };
-}
-
-function buildMissingRouteAuth(args: { genericAuth: { provided: boolean } }): AuthResolution {
-  const hasProvidedAuthInput = args.genericAuth.provided;
-  return {
-    required: "unknown",
-    status: "unknown",
-    strategy: "unknown",
-    nextAction:
-      "Entrypoint/auth requirements could not be inferred because no executable request candidate was synthesized. Resolve route synthesis first; then provide required auth headers/credentials if execution still needs them.",
-    notes: [
-      "No controller->method mapping was inferred, so route-level auth inference is unavailable.",
-      ...(hasProvidedAuthInput
-        ? ["Caller provided auth inputs, but they cannot be validated until route synthesis succeeds."]
-        : ["Auth requirements are unresolved until route synthesis succeeds."]),
-    ],
-  };
-}
-
-function normalizePath(pathValue: string): string {
-  const trimmed = pathValue.trim();
-  if (!trimmed) return "/";
-  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-}
-
-function applyApiBasePathToPath(pathValue: string, apiBasePath?: string): string {
-  const normalizedPath = normalizePath(pathValue);
-  if (!apiBasePath || apiBasePath === "/") return normalizedPath;
-  if (normalizedPath === apiBasePath || normalizedPath.startsWith(`${apiBasePath}/`)) {
-    return normalizedPath;
-  }
-  return normalizedPath === "/" ? apiBasePath : `${apiBasePath}${normalizedPath}`;
-}
-
-function applyApiBasePathToCandidate(candidate: RecipeCandidate, apiBasePath?: string): RecipeCandidate {
-  const pathWithBase = applyApiBasePathToPath(candidate.path, apiBasePath);
-  const fullUrlHint = candidate.queryTemplate
-    ? `${pathWithBase}?${candidate.queryTemplate}`
-    : pathWithBase;
-  return {
-    ...candidate,
-    path: pathWithBase,
-    fullUrlHint,
-  };
-}
-
-function applyApiBasePathToTrigger(
-  trigger: SynthesisHttpTrigger,
-  apiBasePath?: string,
-): SynthesisHttpTrigger {
-  const pathWithBase = applyApiBasePathToPath(trigger.path, apiBasePath);
-  const fullUrlHint = trigger.queryTemplate ? `${pathWithBase}?${trigger.queryTemplate}` : pathWithBase;
-  return {
-    ...trigger,
-    path: pathWithBase,
-    fullUrlHint,
-  };
-}
-
-function mapExecutionInputFailure(missingInputs: MissingExecutionInput[]): {
-  failurePhase: InferenceFailurePhase;
-  failureReasonCode: string;
-  failedStep: string;
-} | undefined {
-  const first = missingInputs[0];
-  if (!first) return undefined;
-  switch (first.category) {
-    case "probe":
-      return {
-        failurePhase: "target_inference",
-        failureReasonCode: "line_target_required_for_probe_mode",
-        failedStep: "intent_routing",
-      };
-    case "request":
-      return {
-        failurePhase: "request_inference",
-        failureReasonCode: "request_candidate_missing",
-        failedStep: "request_synthesis",
-      };
-    case "confirmation":
-      return {
-        failurePhase: "request_inference",
-        failureReasonCode: "request_confirmation_required",
-        failedStep: "request_confirmation",
-      };
-    case "actuation":
-      return {
-        failurePhase: "auth_resolution",
-        failureReasonCode: "actuation_input_required",
-        failedStep: "actuation_resolution",
-      };
-    case "auth":
-    default:
-      return {
-        failurePhase: "auth_resolution",
-        failureReasonCode: "auth_input_required",
-        failedStep: "auth_resolution",
-      };
-  }
-}
 
 export async function generateRecipe(
   args: {
@@ -569,7 +450,9 @@ export async function generateRecipe(
     ...(typeof normalized.actuationReturnBoolean === "boolean"
       ? { actuationReturnBoolean: normalized.actuationReturnBoolean }
       : {}),
-    ...(normalized.actuationActuatorId ? { actuationActuatorId: normalized.actuationActuatorId } : {}),
+    ...(normalized.actuationActuatorId
+      ? { actuationActuatorId: normalized.actuationActuatorId }
+      : {}),
     ...(typeof normalized.lineHint === "number" ? { lineHint: normalized.lineHint } : {}),
     ...(inferredTarget.key ? { inferredTargetKey: inferredTarget.key } : {}),
     ...(bestRequest ? { requestCandidate: bestRequest } : {}),
@@ -604,7 +487,9 @@ export async function generateRecipe(
       ? { actuationReturnBoolean: normalized.actuationReturnBoolean }
       : {}),
     ...(bestRequest ? { requestCandidate: bestRequest } : {}),
-    deterministicRequestInferred: Boolean(inferenceDiagnostics.request.matched && inferenceDiagnostics.request.source),
+    deterministicRequestInferred: Boolean(
+      inferenceDiagnostics.request.matched && inferenceDiagnostics.request.source,
+    ),
   });
   if (readiness.executionReadiness === "needs_user_input") {
     resultType = "report";
