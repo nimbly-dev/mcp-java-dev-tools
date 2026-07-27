@@ -45,7 +45,7 @@ function watcherArgs(expectation: Record<string, unknown>, retryMax: number, now
   };
 }
 
-test("[UT][regression-suite][regression_watcher_runtime][blocked_invalid] executeWatchers reports required missing paths after all inclusive attempts", async () => {
+test("[UT][regression-suite][regression_watcher_runtime] executeWatchers reports required missing paths after all inclusive attempts", async () => {
   const out = await executeWatchers(
     watcherArgs(
       {
@@ -65,7 +65,7 @@ test("[UT][regression-suite][regression_watcher_runtime][blocked_invalid] execut
   assert.equal(out.watcherRows[0]?.attemptCount, 4);
 });
 
-test("[UT][regression-suite][regression_watcher_runtime][ok] executeWatchers reports watcher_timeout when its deadline expires before an attempt", async () => {
+test("[UT][regression-suite][regression_watcher_runtime] executeWatchers reports watcher_timeout when its deadline expires before an attempt", async () => {
   let clockReads = 0;
   const out = await executeWatchers(
     watcherArgs(
@@ -86,7 +86,7 @@ test("[UT][regression-suite][regression_watcher_runtime][ok] executeWatchers rep
   assert.equal(out.watcherRows[0]?.attemptCount, 0);
 });
 
-test("[UT][regression-suite][regression_watcher_runtime][blocked_invalid] executeWatchers keeps an optional missing path non-terminal", async () => {
+test("[UT][regression-suite][regression_watcher_runtime] executeWatchers keeps an optional missing path non-terminal", async () => {
   const out = await executeWatchers(
     watcherArgs(
       {
@@ -108,7 +108,7 @@ test("[UT][regression-suite][regression_watcher_runtime][blocked_invalid] execut
   assert.equal(out.watcherRows[0]?.assertions?.[0]?.reasonCode, "optional_actual_path_missing");
 });
 
-test("[UT][regression-suite][regression_watcher_runtime][ok] executeWatchers renews the active suite lease before each poll", async () => {
+test("[UT][regression-suite][regression_watcher_runtime] executeWatchers renews the active suite lease before each poll", async () => {
   let renewals = 0;
   const args = watcherArgs(
     {

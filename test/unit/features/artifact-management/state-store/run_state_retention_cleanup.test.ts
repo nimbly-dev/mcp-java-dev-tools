@@ -58,7 +58,7 @@ async function seedTerminalRuns(root: string): Promise<void> {
   });
 }
 
-test("[UT][artifact-management][run_state_retention_cleanup][ok] retention cleanup applies count, age, batch, audit, and idempotency rules", async () => {
+test("[UT][artifact-management][run_state_retention_cleanup] retention cleanup applies count, age, batch, audit, and idempotency rules", async () => {
   const root = tempRoot("retention-cleanup");
   try {
     await seedTerminalRuns(root);
@@ -120,11 +120,11 @@ test("[UT][artifact-management][run_state_retention_cleanup][ok] retention clean
     assert.equal(audits?.count, 3);
     reopened.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_retention_cleanup][ok] applied retention cleanup preserves canonical Artifacts and the legacy index", async () => {
+test("[UT][artifact-management][run_state_retention_cleanup] applied retention cleanup preserves canonical Artifacts and the legacy index", async () => {
   const root = tempRoot("retention-preserves-artifacts");
   try {
     await seedTerminalRuns(root);
@@ -162,11 +162,11 @@ test("[UT][artifact-management][run_state_retention_cleanup][ok] applied retenti
     assert.deepEqual(fs.readFileSync(canonicalPath), canonicalContent);
     assert.equal(fs.readFileSync(legacyPath, "utf8"), legacyContent);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_retention_cleanup][blocked_invalid] retention cleanup fails closed before cutover without creating state", async () => {
+test("[UT][artifact-management][run_state_retention_cleanup] retention cleanup fails closed before cutover without creating state", async () => {
   const root = tempRoot("retention-not-ready");
   try {
     const result = await cleanupRunStateRetention({ workspaceRootAbs: root, projectName: "alpha" });
@@ -174,11 +174,11 @@ test("[UT][artifact-management][run_state_retention_cleanup][blocked_invalid] re
     if (!result.ok) assert.equal(result.reasonCode, "state_store_retention_not_ready");
     assert.equal(fs.existsSync(path.join(root, ".mcpjvm", "alpha", "run-state.sqlite")), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_retention_cleanup][blocked_invalid] retention cleanup rejects non-canonical Artifact links as stale", async () => {
+test("[UT][artifact-management][run_state_retention_cleanup] retention cleanup rejects non-canonical Artifact links as stale", async () => {
   const root = tempRoot("retention-stale-link");
   try {
     await seedTerminalRuns(root);
@@ -220,11 +220,11 @@ test("[UT][artifact-management][run_state_retention_cleanup][blocked_invalid] re
       { reasonCode: "state_store_retention_artifact_link_stale", count: 1 },
     ]);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_retention_cleanup][blocked_invalid] retention cleanup excludes active suites, Watchers, leases, and missing links", async () => {
+test("[UT][artifact-management][run_state_retention_cleanup] retention cleanup excludes active suites, Watchers, leases, and missing links", async () => {
   const root = tempRoot("retention-safety");
   try {
     const opened = await createCutoverStore(root);
@@ -299,11 +299,11 @@ test("[UT][artifact-management][run_state_retention_cleanup][blocked_invalid] re
       { reasonCode: "state_store_retention_artifact_link_missing", count: 1 },
     ]);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_retention_cleanup][ok] retention cleanup skips an overdue active Watcher and audits expired_active_state", async () => {
+test("[UT][artifact-management][run_state_retention_cleanup] retention cleanup skips an overdue active Watcher and audits expired_active_state", async () => {
   const root = tempRoot("retention-overdue-active");
   try {
     const opened = await createCutoverStore(root);
@@ -361,11 +361,11 @@ test("[UT][artifact-management][run_state_retention_cleanup][ok] retention clean
     assert.equal(watcher?.status, "in_progress");
     reopened.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_retention_cleanup][ok] retention cleanup prunes audits to the newest 100 rows", async () => {
+test("[UT][artifact-management][run_state_retention_cleanup] retention cleanup prunes audits to the newest 100 rows", async () => {
   const root = tempRoot("retention-audit-pruning");
   try {
     const opened = await createCutoverStore(root);
@@ -397,11 +397,11 @@ test("[UT][artifact-management][run_state_retention_cleanup][ok] retention clean
     assert.equal(Number(auditRange?.oldest) >= 3, true);
     reopened.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_retention_cleanup][blocked_invalid] retention cleanup preserves locked, corrupt, and unsupported-store reasons", async () => {
+test("[UT][artifact-management][run_state_retention_cleanup] retention cleanup preserves locked, corrupt, and unsupported-store reasons", async () => {
   const corruptRoot = tempRoot("retention-corrupt");
   const unsupportedRoot = tempRoot("retention-unsupported");
   const lockedRoot = tempRoot("retention-locked");
@@ -442,13 +442,13 @@ test("[UT][artifact-management][run_state_retention_cleanup][blocked_invalid] re
     locked.database.exec("ROLLBACK;");
     locked.close();
   } finally {
-    fs.rmSync(corruptRoot, { recursive: true, force: true });
-    fs.rmSync(unsupportedRoot, { recursive: true, force: true });
-    fs.rmSync(lockedRoot, { recursive: true, force: true });
+    fs.rmSync(corruptRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+    fs.rmSync(unsupportedRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+    fs.rmSync(lockedRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][artifact-management][run_state_retention_cleanup][ok] concurrent retention cleanups return one deterministic retention conflict", async () => {
+test("[UT][artifact-management][run_state_retention_cleanup] concurrent retention cleanups return one deterministic retention conflict", async () => {
   const root = tempRoot("retention-concurrent");
   try {
     await seedTerminalRuns(root);
@@ -492,6 +492,6 @@ test("[UT][artifact-management][run_state_retention_cleanup][ok] concurrent rete
     assert.equal(remaining?.count, 3);
     reopened.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

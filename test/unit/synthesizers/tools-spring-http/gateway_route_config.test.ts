@@ -11,7 +11,7 @@ function createTestTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(base, `${prefix}-`));
 }
 
-test("[UT][spring-http][gateway_route_config][ok] resolveGatewayRouteConfig parses application.yml Path predicate", async () => {
+test("[UT][spring-http][gateway_route_config] resolveGatewayRouteConfig parses application.yml Path predicate", async () => {
   const root = createTestTempDir("gateway-route-yml");
   try {
     const appYml = path.join(root, "src", "main", "resources", "application.yml");
@@ -37,11 +37,11 @@ test("[UT][spring-http][gateway_route_config][ok] resolveGatewayRouteConfig pars
     assert.equal(out.requestCandidate.path, "/courses/**");
     assert.equal(out.evidence.includes("mapping_source=spring_gateway_route_config"), true);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][spring-http][gateway_route_config][ok] resolveGatewayRouteConfig parses application.properties Path predicate", async () => {
+test("[UT][spring-http][gateway_route_config] resolveGatewayRouteConfig parses application.properties Path predicate", async () => {
   const root = createTestTempDir("gateway-route-properties");
   try {
     const appProps = path.join(root, "src", "main", "resources", "application.properties");
@@ -56,11 +56,11 @@ test("[UT][spring-http][gateway_route_config][ok] resolveGatewayRouteConfig pars
     assert.equal(out.status, "ok");
     assert.equal(out.requestCandidate.path, "/reviews/**");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][spring-http][gateway_route_config][blocked_invalid] resolveGatewayRouteConfig fails closed when no gateway route config exists", async () => {
+test("[UT][spring-http][gateway_route_config] resolveGatewayRouteConfig fails closed when no gateway route config exists", async () => {
   const root = createTestTempDir("gateway-route-missing");
   try {
     const out = await resolveGatewayRouteConfig({ projectRootAbs: root });
@@ -68,6 +68,6 @@ test("[UT][spring-http][gateway_route_config][blocked_invalid] resolveGatewayRou
     assert.equal(out.reasonCode, "spring_gateway_route_not_found");
     assert.equal(out.failedStep, "gateway_route_config_resolution");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

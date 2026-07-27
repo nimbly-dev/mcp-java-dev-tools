@@ -42,7 +42,7 @@ function writeJson(filePath: string, payload: Record<string, unknown>): void {
   fs.writeFileSync(filePath, `${JSON.stringify(normalizedPayload, null, 2)}\n`, "utf8");
 }
 
-test("[UT][regression-suite][execute_regression_runtime_suite_probe_selection][blocked_invalid] executeRegressionRuntimeSuite preserves blocked plan detail when wait_for_hit returns probe_selection_failed", async () => {
+test("[UT][regression-suite][execute_regression_runtime_suite_probe_selection] executeRegressionRuntimeSuite preserves blocked plan detail when wait_for_hit returns probe_selection_failed", async () => {
   const root = createTestTempDir("runtime-suite-probe-selection-fail-closed");
   try {
     const projectName = "petclinic-regression";
@@ -172,6 +172,6 @@ test("[UT][regression-suite][execute_regression_runtime_suite_probe_selection][b
       nextAction: "Provide probeId or baseUrl. Multi-probe profiles require explicit selection.",
     });
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

@@ -7,7 +7,7 @@ function readUtf8(filePath: string): string {
   return fs.readFileSync(filePath, "utf8");
 }
 
-test("[UT][skills][project_artifact_manager_skill][ok] project artifact manager skill enforces separation, prompt, and secret rules", () => {
+test("[UT][skills][project_artifact_manager_skill] project artifact manager skill enforces separation, prompt, and secret rules", () => {
   const skillPath = path.join(
     process.cwd(),
     "skills",
@@ -32,7 +32,7 @@ test("[UT][skills][project_artifact_manager_skill][ok] project artifact manager 
   assert.match(text, /references\/keycloak\.md/);
 });
 
-test("[UT][skills][project_artifact_manager_skill][ok] project artifact manager references are present", () => {
+test("[UT][skills][project_artifact_manager_skill] project artifact manager references are present", () => {
   const base = path.join(process.cwd(), "skills", "mcp-java-dev-tools-project-artifact-manager");
   assert.ok(fs.existsSync(path.join(base, "README.md")));
   assert.ok(fs.existsSync(path.join(base, "references", "postgres.md")));

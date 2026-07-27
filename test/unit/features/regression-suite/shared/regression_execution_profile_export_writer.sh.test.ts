@@ -61,7 +61,7 @@ function writePlanArtifact(
   );
 }
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh writes deterministic script from export manifest", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh writes deterministic script from export manifest", async () => {
   const root = createTestTempDir("execution-profile-sh-export");
   try {
     const projectName = "petclinic-regression";
@@ -195,11 +195,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
 
     assert.equal(fs.existsSync(path.join(path.dirname(out.scriptPathAbs), "README.sh.md")), false);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh supports array-index bodyJson extract paths in replay helpers", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh supports array-index bodyJson extract paths in replay helpers", async () => {
   const root = createTestTempDir("execution-profile-sh-export-array-extract");
   try {
     const projectName = "petclinic-regression";
@@ -264,11 +264,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
     assert.match(script, /if command -v node >/);
     assert.match(script, /extract_json_field_requires_python3_or_node_for_complex_path/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh writes sh export as one-off artifact under exports date-uuid folder", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh writes sh export as one-off artifact under exports date-uuid folder", async () => {
   const root = createTestTempDir("execution-profile-sh-export-unique");
   try {
     const projectName = "petclinic-regression";
@@ -334,11 +334,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
       /exports[\\/]\d{4}-\d{2}-\d{2}-[0-9a-f-]+[\\/]run-execution-profile\.sh$/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh emits docker teardown trap when runtime context opts into autoStopOnFinish", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh emits docker teardown trap when runtime context opts into autoStopOnFinish", async () => {
   const root = createTestTempDir("execution-profile-sh-teardown");
   try {
     const projectName = "petclinic-regression";
@@ -401,11 +401,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
       /trap '__mcpjvm_runtime_teardown; rm -rf "\$\{__MCPJVM_EXPORT_TMP:-\}"' EXIT/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][blocked_invalid] exportExecutionProfileSh does not infer API base URL from Docker compose when explicit route context is missing", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh does not infer API base URL from Docker compose when explicit route context is missing", async () => {
   const root = createTestTempDir("execution-profile-sh-compose-base-url");
   try {
     const projectName = "petclinic-regression";
@@ -509,11 +509,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][bloc
     assert.doesNotMatch(script, /http:\/\/127\.0\.0\.1:9001\/api\/courses/);
     assert.doesNotMatch(script, /auto_input_defaulted: API_BASE_URL/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh resolves terminal service base URL from probe-config runtime.port", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh resolves terminal service base URL from probe-config runtime.port", async () => {
   const root = createTestTempDir("execution-profile-sh-probe-config-terminal");
   try {
     const projectName = "petclinic-regression";
@@ -624,11 +624,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
     assert.match(script, /curl -fsS -X "POST".*"http:\/\/127\.0\.0\.1:9101\/api\/courses"/);
     assert.doesNotMatch(script, /\$\{API_BASE_URL\}\/api\/courses/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh uses execution profile plan providedContext apiBaseUrl", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh uses execution profile plan providedContext apiBaseUrl", async () => {
   const root = createTestTempDir("execution-profile-sh-provided-context");
   try {
     const projectName = "petclinic-regression";
@@ -715,11 +715,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
     assert.match(script, /http:\/\/127\.0\.0\.1:9301\/api\/courses/);
     assert.doesNotMatch(script, /\$\{API_BASE_URL\}\/api\/courses/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh aligns TARGET_BASE_URL default with resolved plan base URL", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh aligns TARGET_BASE_URL default with resolved plan base URL", async () => {
   const root = createTestTempDir("execution-profile-sh-target-base-url-aligned");
   try {
     const projectName = "petclinic-regression";
@@ -821,11 +821,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
     assert.doesNotMatch(script, /TARGET_BASE_URL="http:\/\/127\.0\.0\.1:9000"/);
     assert.match(script, /curl -fsS -X "GET".*"\$\{TARGET_BASE_URL\}\/api\/metrics\/hello"/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh uses probe-config runtime.port even when Docker compose is present", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh uses probe-config runtime.port even when Docker compose is present", async () => {
   const root = createTestTempDir("execution-profile-sh-probe-config-precedence");
   try {
     const projectName = "petclinic-regression";
@@ -935,11 +935,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
     assert.match(script, /http:\/\/127\.0\.0\.1:9101\/api\/courses/);
     assert.doesNotMatch(script, /http:\/\/127\.0\.0\.1:9001\/api\/courses/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh emits endpoint-level HTTP commands for executed steps", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh emits endpoint-level HTTP commands for executed steps", async () => {
   const root = createTestTempDir("execution-profile-sh-endpoint");
   try {
     const projectName = "petclinic-regression";
@@ -1067,11 +1067,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
     assert.match(script, /replay_step/);
     assert.doesNotMatch(script, /\$\{REPLAY_COMMAND\} --plan-name 'plan-a'/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh does not inject AUTH_BEARER gate for non-auth HTTP profiles", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh does not inject AUTH_BEARER gate for non-auth HTTP profiles", async () => {
   const root = createTestTempDir("execution-profile-sh-no-auth-gate");
   try {
     const projectName = "event-driven-microservice-example";
@@ -1163,11 +1163,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
     assert.match(script, /API_BASE_URL="http:\/\/127\.0\.0\.1:8080"/);
     assert.match(script, /curl -fsS -X "POST".*"\$\{API_BASE_URL\}\/produce"/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh bundles shared profile scripts and export-local project env", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh bundles shared profile scripts and export-local project env", async () => {
   const root = createTestTempDir("execution-profile-sh-bundled-scripts");
   try {
     const projectName = "petclinic-regression";
@@ -1268,11 +1268,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
     assert.doesNotMatch(projectEnv, /nasruddin/);
     assert.doesNotMatch(projectEnv, /password/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] exportExecutionProfileSh keeps secrets redacted when only sessionExport includeResolvedSecrets is set", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh] exportExecutionProfileSh keeps secrets redacted when only sessionExport includeResolvedSecrets is set", async () => {
   const root = createTestTempDir("execution-profile-sh-execution-profile-export-secrets");
   try {
     const projectName = "petclinic-regression";
@@ -1335,6 +1335,6 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh][ok] 
     assert.doesNotMatch(projectEnv, /password/);
     assert.doesNotMatch(projectEnv, /secret-token/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

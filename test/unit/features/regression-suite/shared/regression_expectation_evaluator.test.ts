@@ -6,7 +6,7 @@ const {
   evaluateStepExpectations,
 } = require("@tools-feature-regression-suite");
 
-test("[UT][regression-suite][regression_expectation_evaluator][ok] evaluateStepExpectations returns pass when all required expectations pass", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations returns pass when all required expectations pass", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {
       status: "pass",
@@ -51,7 +51,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][ok] evaluateStepE
   );
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] evaluateStepExpectations returns fail_assertion when required predicate fails", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations returns fail_assertion when required predicate fails", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {
       status: "pass",
@@ -73,7 +73,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] 
   assert.equal(evaluated.assertions[0].reasonCode, "predicate_false");
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][ok] evaluateStepExpectations supports exact decimal strings for numeric comparisons", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations supports exact decimal strings for numeric comparisons", () => {
   const gte = evaluateStepExpectations({
     stepResult: {
       sql: {
@@ -107,7 +107,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][ok] evaluateStepE
   );
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] evaluateStepExpectations returns blocked_runtime on invalid expectation mapping", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations returns blocked_runtime on invalid expectation mapping", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {
       status: "pass",
@@ -127,7 +127,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] 
   assert.equal(evaluated.assertions[0].reasonCode, "actual_path_missing");
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] evaluateStepExpectations marks an optional missing path as skipped without blocking", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations marks an optional missing path as skipped without blocking", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: { status: "pass" },
     transportFailure: false,
@@ -148,7 +148,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] 
   assert.equal(evaluated.assertions[0]?.reasonCode, "optional_actual_path_missing");
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] evaluateStepExpectations preserves a predicate failure when another required path is missing", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations preserves a predicate failure when another required path is missing", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: { response: { statusCode: 500 } },
     transportFailure: false,
@@ -174,7 +174,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] 
   assert.equal(evaluated.assertions[1]?.reasonCode, "predicate_false");
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] evaluateStepExpectations prefers dependency or transport failures over assertion pass", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations prefers dependency or transport failures over assertion pass", () => {
   const dependencyBlocked = evaluateStepExpectations({
     stepResult: { status: "pass" },
     transportFailure: false,
@@ -207,7 +207,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] 
   assert.equal(httpFailed.status, "pass");
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] evaluateStepExpectations treats transport failures as pass when authored assertions succeed", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations treats transport failures as pass when authored assertions succeed", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {
       status: "fail",
@@ -238,7 +238,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] 
   );
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] evaluateStepExpectations fails step when any authored assertion fails on transport failure", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations fails step when any authored assertion fails on transport failure", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {
       status: "fail",
@@ -268,7 +268,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] 
   assert.equal(evaluated.assertions[1].status, "fail");
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][ok] evaluateStepExpectations supports array index notation in actualPath", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations supports array index notation in actualPath", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {
       response: {
@@ -297,7 +297,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][ok] evaluateStepE
   assert.equal(evaluated.assertions[0].actual, "Test");
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][ok] evaluateStepExpectations resolves documented and persisted aliases for step assertions", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] evaluateStepExpectations resolves documented and persisted aliases for step assertions", () => {
   const evaluated = evaluateStepExpectations({
     stepResult: {
       status: "pass",
@@ -345,7 +345,7 @@ test("[UT][regression-suite][regression_expectation_evaluator][ok] evaluateStepE
   );
 });
 
-test("[UT][regression-suite][regression_expectation_evaluator][blocked_invalid] deriveRunStatusFromStepOutcomes maps continue-on-fail policy deterministically", () => {
+test("[UT][regression-suite][regression_expectation_evaluator] deriveRunStatusFromStepOutcomes maps continue-on-fail policy deterministically", () => {
   assert.equal(
     deriveRunStatusFromStepOutcomes({
       hardRuntimeBlocker: true,

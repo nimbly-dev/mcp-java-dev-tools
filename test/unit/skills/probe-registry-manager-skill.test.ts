@@ -7,7 +7,7 @@ function readUtf8(filePath: string): string {
   return fs.readFileSync(filePath, "utf8");
 }
 
-test("[UT][skills][probe_registry_manager_skill][ok] probe registry manager skill enforces strict workspace key and probe baseUrl policy", () => {
+test("[UT][skills][probe_registry_manager_skill] probe registry manager skill enforces strict workspace key and probe baseUrl policy", () => {
   const skillPath = path.join(
     process.cwd(),
     "skills",

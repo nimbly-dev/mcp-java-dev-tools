@@ -5,36 +5,6 @@ const { spawn } = require("node:child_process");
 const repoRoot = path.resolve(__dirname, "..");
 const testRoots = [path.join(repoRoot, "test", "unit")];
 
-const serialFiles = new Set([
-  path.join(
-    repoRoot,
-    "test",
-    "unit",
-    "features",
-    "performance-suite",
-    "actions",
-    "execute_performance_runtime_suite.test.ts",
-  ),
-  path.join(
-    repoRoot,
-    "test",
-    "unit",
-    "features",
-    "regression-suite",
-    "actions",
-    "execute_regression_plan.test.ts",
-  ),
-  path.join(
-    repoRoot,
-    "test",
-    "unit",
-    "features",
-    "regression-suite",
-    "actions",
-    "execute_regression_runtime_suite.test.ts",
-  ),
-]);
-
 function collectTestFiles(root) {
   if (!fs.existsSync(root)) return [];
   const out = [];
@@ -80,13 +50,14 @@ function runNodeTests(files, concurrency) {
 
 async function main() {
   const allFiles = testRoots.flatMap(collectTestFiles).sort();
-  const concurrentFiles = allFiles.filter((file) => !serialFiles.has(file));
-  const serialList = allFiles.filter((file) => serialFiles.has(file));
 
-  const concurrentExit = await runNodeTests(concurrentFiles);
-  const serialExit = await runNodeTests(serialList, 1);
+  // SQLite-backed unit fixtures can still hold Windows file handles during
+  // teardown when independent test files run concurrently. Keep the unit
+  // phase deterministic; integration-test concurrency is configured separately
+  // by package.json and remains unchanged.
+  const unitExit = await runNodeTests(allFiles, 1);
 
-  if (concurrentExit !== 0 || serialExit !== 0) {
+  if (unitExit !== 0) {
     process.exit(1);
   }
 }

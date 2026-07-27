@@ -3,7 +3,7 @@ const test = require("node:test");
 
 const { renderWatcherResults } = require("@tools-feature-regression-suite");
 
-test("[UT][regression-suite][regression_watcher_results_report][ok] renderWatcherResults returns summary and detail rows for watcher outcomes", () => {
+test("[UT][regression-suite][regression_watcher_results_report] renderWatcherResults returns summary and detail rows for watcher outcomes", () => {
   const rendered = renderWatcherResults({
     executionResult: {
       status: "fail",
@@ -58,7 +58,7 @@ test("[UT][regression-suite][regression_watcher_results_report][ok] renderWatche
   );
 });
 
-test("[UT][regression-suite][regression_watcher_results_report][blocked_invalid] renderWatcherResults counts timed out and blocked watcher outcomes deterministically", () => {
+test("[UT][regression-suite][regression_watcher_results_report] renderWatcherResults counts timed out and blocked watcher outcomes deterministically", () => {
   const rendered = renderWatcherResults({
     executionResult: {
       status: "blocked",
@@ -105,7 +105,7 @@ test("[UT][regression-suite][regression_watcher_results_report][blocked_invalid]
   assert.equal(rendered.rows[1].reasonCode, "watcher_timeout");
 });
 
-test("[UT][regression-suite][regression_watcher_results_report][ok] renderWatcherResults returns undefined when no watchers were executed", () => {
+test("[UT][regression-suite][regression_watcher_results_report] renderWatcherResults returns undefined when no watchers were executed", () => {
   const rendered = renderWatcherResults({
     executionResult: {
       status: "pass",
@@ -118,7 +118,7 @@ test("[UT][regression-suite][regression_watcher_results_report][ok] renderWatche
   assert.equal(rendered, undefined);
 });
 
-test("[UT][regression-suite][regression_watcher_results_report][ok] renderWatcherResults derives watcherStatus from watcher rows when omitted", () => {
+test("[UT][regression-suite][regression_watcher_results_report] renderWatcherResults derives watcherStatus from watcher rows when omitted", () => {
   const rendered = renderWatcherResults({
     executionResult: {
       status: "blocked",
@@ -141,7 +141,7 @@ test("[UT][regression-suite][regression_watcher_results_report][ok] renderWatche
   assert.equal(rendered.summary.watcherStatus, "blocked");
 });
 
-test("[UT][regression-suite][regression_watcher_results_report][ok] renderWatcherResults derives triggerStatus from step rows when omitted", () => {
+test("[UT][regression-suite][regression_watcher_results_report] renderWatcherResults derives triggerStatus from step rows when omitted", () => {
   const rendered = renderWatcherResults({
     executionResult: {
       status: "blocked",

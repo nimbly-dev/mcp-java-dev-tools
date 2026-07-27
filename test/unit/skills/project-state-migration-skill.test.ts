@@ -7,7 +7,7 @@ function readUtf8(filePath: string): string {
   return fs.readFileSync(filePath, "utf8");
 }
 
-test("[UT][skills][project_state_migration_skill][ok] project state migration skill uses only maintained Artifact Management actions", () => {
+test("[UT][skills][project_state_migration_skill] project state migration skill uses only maintained Artifact Management actions", () => {
   const base = path.join(process.cwd(), "skills", "mcp-java-dev-tools-project-state-migration");
   const skill = readUtf8(path.join(base, "SKILL.md"));
   assert.ok(fs.existsSync(path.join(base, "agents", "openai.yaml")));
@@ -21,7 +21,7 @@ test("[UT][skills][project_state_migration_skill][ok] project state migration sk
   assert.doesNotMatch(skill, /DatabaseSync|INSERT INTO|SELECT .* FROM|sqlite3/i);
 });
 
-test("[UT][skills][project_state_migration_skill][ok] project artifact manager hands state migration to the dedicated workflow", () => {
+test("[UT][skills][project_state_migration_skill] project artifact manager hands state migration to the dedicated workflow", () => {
   const skill = readUtf8(
     path.join(process.cwd(), "skills", "mcp-java-dev-tools-project-artifact-manager", "SKILL.md"),
   );

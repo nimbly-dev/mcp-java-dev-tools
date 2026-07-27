@@ -7,7 +7,7 @@ const {
   resolveExecutionOrchestrationLoopPolicy,
 } = require("@tools-feature-execution-orchestration");
 
-test("[UT][execution-orchestration][resiliency][ok] resolveExecutionOrchestrationLoopPolicy caps effective timeout budget below raw tool timeout", () => {
+test("[UT][execution-orchestration][resiliency] resolveExecutionOrchestrationLoopPolicy caps effective timeout budget below raw tool timeout", () => {
   const policy = resolveExecutionOrchestrationLoopPolicy({
     resumePollMax: 30,
     resumePollIntervalMs: 10000,
@@ -18,7 +18,7 @@ test("[UT][execution-orchestration][resiliency][ok] resolveExecutionOrchestratio
   assert.equal(policy.effectiveTimeoutBudgetMs, EXECUTION_ORCHESTRATION_TIMEOUT_INTERCEPT_MS);
 });
 
-test("[UT][execution-orchestration][resiliency][ok] executeExecutionOrchestrationResiliencyLoop resumes persisted in_progress suiteRunId and nextPlanOrder", async () => {
+test("[UT][execution-orchestration][resiliency] executeExecutionOrchestrationResiliencyLoop resumes persisted in_progress suiteRunId and nextPlanOrder", async () => {
   const persistedSuites = new Map<string, Record<string, unknown>>();
   const sleeps: number[] = [];
   const passStates: Array<{ suiteRunId: string | undefined; nextPlanOrder: unknown }> = [];
@@ -80,7 +80,7 @@ test("[UT][execution-orchestration][resiliency][ok] executeExecutionOrchestratio
   assert.deepEqual(passStates[1], { suiteRunId: "suite-01", nextPlanOrder: 2 });
 });
 
-test("[UT][execution-orchestration][resiliency][ok] executeExecutionOrchestrationResiliencyLoop sleeps between passes when no new completed plan progress is available", async () => {
+test("[UT][execution-orchestration][resiliency] executeExecutionOrchestrationResiliencyLoop sleeps between passes when no new completed plan progress is available", async () => {
   const persistedSuites = new Map<string, Record<string, unknown>>();
   const sleeps: number[] = [];
 
@@ -139,7 +139,7 @@ test("[UT][execution-orchestration][resiliency][ok] executeExecutionOrchestratio
   assert.deepEqual(sleeps, [25]);
 });
 
-test("[UT][execution-orchestration][resiliency][blocked_invalid] executeExecutionOrchestrationResiliencyLoop returns blocked terminal timeout classification when timeout budget is exhausted before another pass", async () => {
+test("[UT][execution-orchestration][resiliency] executeExecutionOrchestrationResiliencyLoop returns blocked terminal timeout classification when timeout budget is exhausted before another pass", async () => {
   let nowMs = 0;
   let executeCalls = 0;
 
@@ -185,7 +185,7 @@ test("[UT][execution-orchestration][resiliency][blocked_invalid] executeExecutio
   assert.equal(executeCalls, 1);
 });
 
-test("[UT][execution-orchestration][resiliency][blocked_invalid] executeExecutionOrchestrationResiliencyLoop returns blocked poll exhaustion when the outer pass limit is reached", async () => {
+test("[UT][execution-orchestration][resiliency] executeExecutionOrchestrationResiliencyLoop returns blocked poll exhaustion when the outer pass limit is reached", async () => {
   const out = await executeExecutionOrchestrationResiliencyLoop({
     projectName: "test-project",
     executionProfile: "long-suite",
@@ -213,7 +213,7 @@ test("[UT][execution-orchestration][resiliency][blocked_invalid] executeExecutio
   assert.equal(out.reasonCode, "orchestrator_poll_limit_exhausted");
 });
 
-test("[UT][execution-orchestration][resiliency][blocked_invalid] executeExecutionOrchestrationResiliencyLoop returns blocked progress-stalled classification when only sub-second budget remains", async () => {
+test("[UT][execution-orchestration][resiliency] executeExecutionOrchestrationResiliencyLoop returns blocked progress-stalled classification when only sub-second budget remains", async () => {
   let nowMs = 0;
   const remainingBudgets: number[] = [];
 
@@ -278,7 +278,7 @@ test("[UT][execution-orchestration][resiliency][blocked_invalid] executeExecutio
   assert.deepEqual(remainingBudgets, [2_000]);
 });
 
-test("[UT][execution-orchestration][resiliency][blocked_invalid] executeExecutionOrchestrationResiliencyLoop fails closed when persisted suite progress is missing before resume", async () => {
+test("[UT][execution-orchestration][resiliency] executeExecutionOrchestrationResiliencyLoop fails closed when persisted suite progress is missing before resume", async () => {
   const out = await executeExecutionOrchestrationResiliencyLoop({
     projectName: "test-project",
     executionProfile: "watcher-suite",

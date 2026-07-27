@@ -52,7 +52,7 @@ function writePlanArtifact(root: string, projectName: string, planName: string):
   });
 }
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh_no_manifest][ok] exportExecutionProfileSh synthesizes export context from projects.json", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh_no_manifest] exportExecutionProfileSh synthesizes export context from projects.json", async () => {
   const root = createTestTempDir("execution-profile-sh-no-manifest");
   try {
     const projectName = "test-project";
@@ -103,11 +103,11 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh_no_ma
     assert.match(script, /# SourceRunStatus: pass/);
     assert.match(script, /\[E01\] course-service-regression-spec replay_plan source_status=pass/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_execution_profile_export_writer_sh_no_manifest][ok] exportExecutionProfileSh does not require a persisted export manifest", async () => {
+test("[UT][regression-suite][regression_execution_profile_export_writer_sh_no_manifest] exportExecutionProfileSh does not require a persisted export manifest", async () => {
   const root = createTestTempDir("execution-profile-sh-invalid-manifest");
   try {
     const projectName = "test-project";
@@ -153,6 +153,6 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh_no_ma
     assert.match(script, /# SourceRunStatus: pass/);
     assert.match(script, /\[E01\] course-service-regression-spec replay_plan source_status=pass/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

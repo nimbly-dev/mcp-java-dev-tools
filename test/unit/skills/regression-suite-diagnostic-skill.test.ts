@@ -16,7 +16,7 @@ function readSkillFile(...parts: string[]): string {
   return fs.readFileSync(skillPath(...parts), "utf8");
 }
 
-test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill has the required portable package", () => {
+test("[UT][skills][regression_suite_diagnostic_skill] diagnostic skill has the required portable package", () => {
   assert.ok(fs.existsSync(skillPath("SKILL.md")));
   assert.ok(fs.existsSync(skillPath("agents", "openai.yaml")));
   for (const reference of [
@@ -33,7 +33,7 @@ test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill has t
   assert.equal(fs.existsSync(skillPath("templates", "diagnosis.result.schema.json")), false);
 });
 
-test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill declares both routes and exact selector rules", () => {
+test("[UT][skills][regression_suite_diagnostic_skill] diagnostic skill declares both routes and exact selector rules", () => {
   const skill = readSkillFile("SKILL.md");
   const workflow = readSkillFile("references", "diagnostic-workflow.md");
   assert.match(skill, /plan_validation/);
@@ -48,7 +48,7 @@ test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill decla
   assert.match(workflow, /must resolve exactly one execution/);
 });
 
-test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill proves the read-only and bounded-read boundary", () => {
+test("[UT][skills][regression_suite_diagnostic_skill] diagnostic skill proves the read-only and bounded-read boundary", () => {
   const skill = readSkillFile("SKILL.md");
   const playbook = readSkillFile("references", "mcp-query-playbook.md");
   const evidence = readSkillFile("references", "evidence-model.md");
@@ -61,7 +61,7 @@ test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill prove
   assert.match(evidence, /Deprecated shared JSON indexes must never be used/);
 });
 
-test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill keeps historical and live evidence separate", () => {
+test("[UT][skills][regression_suite_diagnostic_skill] diagnostic skill keeps historical and live evidence separate", () => {
   const skill = readSkillFile("SKILL.md");
   const evidence = readSkillFile("references", "evidence-model.md");
   const playbook = readSkillFile("references", "mcp-query-playbook.md");
@@ -79,7 +79,7 @@ test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill keeps
   assert.match(contract, /## Next action/);
 });
 
-test("[UT][skills][regression_suite_diagnostic_skill][blocked_invalid] diagnostic skill requires concise Markdown output and forbids diagnostic JSON", () => {
+test("[UT][skills][regression_suite_diagnostic_skill] diagnostic skill requires concise Markdown output and forbids diagnostic JSON", () => {
   const skill = readSkillFile("SKILL.md");
   const contract = readSkillFile("references", "report-contract.md");
   for (const section of ["## Diagnosis", "## Evidence", "## Interpretation", "## Next action"]) {
@@ -91,7 +91,7 @@ test("[UT][skills][regression_suite_diagnostic_skill][blocked_invalid] diagnosti
   assert.match(contract, /MUST NOT generate, persist, or expose `diagnosis\.result\.json`/);
 });
 
-test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill documents representative diagnosis outcomes", () => {
+test("[UT][skills][regression_suite_diagnostic_skill] diagnostic skill documents representative diagnosis outcomes", () => {
   const cases = readSkillFile("references", "diagnostic-cases.md");
   for (const expected of [
     "Invalid plan/project compatibility",
@@ -108,7 +108,7 @@ test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill docum
   assert.match(cases, /one safe action under `## Next action`/);
 });
 
-test("[UT][skills][regression_suite_diagnostic_skill][ok] diagnostic skill covers all eight phases and base reason codes", () => {
+test("[UT][skills][regression_suite_diagnostic_skill] diagnostic skill covers all eight phases and base reason codes", () => {
   const classification = readSkillFile("references", "failure-classification.md");
   for (const phase of [
     "preflight",

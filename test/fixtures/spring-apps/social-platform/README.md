@@ -1,6 +1,7 @@
 # Social Platform Fixture
 
 This fixture is a real multi-module Spring workspace used for upcoming integration tests against:
+
 - Java agent instrumentation
 - Spring request mapping synthesis
 - MCP end-to-end tool execution
@@ -26,23 +27,27 @@ This fixture is a real multi-module Spring workspace used for upcoming integrati
 ## Endpoint Mapping
 
 ### Auth Service
+
 - `POST /api/v1/auth/register` public
 - `POST /api/v1/auth/login` public
 - `GET /api/v1/auth/me` bearer protected
 
 ### Event Service
+
 - `POST /api/v1/events/trigger` bearer protected and publishes an async in-process event
 - `GET /api/v1/events/{eventId}` bearer protected and returns accepted/processed status
 - `event-producer-app`: authenticated trigger service that forwards event work downstream
 - `event-consumer-app`: downstream internal consumer that dispatches to an async listener
 
 ### User Service
+
 - `GET /api/v1/users/{username}` public
 - `PUT /api/v1/users/{username}` owner-or-admin protected
 - `POST /api/v1/users/{username}/follow` bearer protected
 - `DELETE /api/v1/users/{username}/follow` bearer protected
 
 ### Post Service
+
 - `GET /api/v1/posts` public
 - `GET /api/v1/posts/{postId}` public
 - `POST /api/v1/posts` bearer protected and stacked with `@ApiRunAsHeaders`

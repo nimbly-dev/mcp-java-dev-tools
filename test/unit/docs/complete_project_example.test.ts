@@ -59,7 +59,7 @@ function validateRegressionContract(contract: any): void {
   assertOk(validateExternalVerificationContract(contract.externalVerification));
 }
 
-test("[UT][docs][complete_project_example][ok] complete project guide contains parseable, schema-validated examples", () => {
+test("[UT][docs][complete_project_example] complete project guide contains parseable, schema-validated examples", () => {
   const jsonFiles = collectJsonFiles(guideRoot);
   assert.equal(jsonFiles.length, 12);
   for (const filePath of jsonFiles) {
@@ -130,7 +130,7 @@ test("[UT][docs][complete_project_example][ok] complete project guide contains p
   assertOk(performance);
 });
 
-test("[UT][docs][complete_project_example][ok] complete project guide documents every required focused variant", () => {
+test("[UT][docs][complete_project_example] complete project guide documents every required focused variant", () => {
   const readme = fs.readFileSync(path.join(guideRoot, "README.md"), "utf8");
   for (const name of [
     "postgres-context-bindings.json",

@@ -7,7 +7,7 @@ const {
   summarizeWatcherObservation,
 } = require("@tools-feature-regression-suite");
 
-test("[UT][regression-suite][regression_watcher_provider][ok] resolveWatcherProviderExecution supports transport-neutral watcher contract with http as first concrete provider", () => {
+test("[UT][regression-suite][regression_watcher_provider] resolveWatcherProviderExecution supports transport-neutral watcher contract with http as first concrete provider", () => {
   const resolved = resolveWatcherProviderExecution({
     watcher: {
       id: "indexed_ready",
@@ -50,7 +50,7 @@ test("[UT][regression-suite][regression_watcher_provider][ok] resolveWatcherProv
   assert.deepEqual(resolved.execution.payload.headers, { "Content-Type": "application/json" });
 });
 
-test("[UT][regression-suite][regression_watcher_provider][blocked_invalid] resolveWatcherProviderExecution fails closed for unsupported watcher providers", () => {
+test("[UT][regression-suite][regression_watcher_provider] resolveWatcherProviderExecution fails closed for unsupported watcher providers", () => {
   const resolved = resolveWatcherProviderExecution({
     watcher: {
       id: "indexed_ready",
@@ -76,7 +76,7 @@ test("[UT][regression-suite][regression_watcher_provider][blocked_invalid] resol
   assert.equal(resolved.reasonMeta?.providerType, "postgres");
 });
 
-test("[UT][regression-suite][regression_watcher_provider][blocked_invalid] normalizeWatcherProviderResult fails closed when http watcher requires json normalization and body is invalid", () => {
+test("[UT][regression-suite][regression_watcher_provider] normalizeWatcherProviderResult fails closed when http watcher requires json normalization and body is invalid", () => {
   const normalized = normalizeWatcherProviderResult({
     execution: {
       providerType: "http",
@@ -101,7 +101,7 @@ test("[UT][regression-suite][regression_watcher_provider][blocked_invalid] norma
   assert.equal(normalized.reasonMeta?.cause, "response_body_json_invalid");
 });
 
-test("[UT][regression-suite][regression_watcher_provider][ok] normalizeWatcherProviderResult emits deterministic assertion-friendly envelope", () => {
+test("[UT][regression-suite][regression_watcher_provider] normalizeWatcherProviderResult emits deterministic assertion-friendly envelope", () => {
   const normalized = normalizeWatcherProviderResult({
     execution: {
       providerType: "http",
@@ -131,7 +131,7 @@ test("[UT][regression-suite][regression_watcher_provider][ok] normalizeWatcherPr
   assert.equal(normalized.envelope.transport.reasonCode, null);
 });
 
-test("[UT][regression-suite][regression_watcher_provider][ok] resolveWatcherProviderExecution accepts empty response config and defaults bodyFormat to auto", () => {
+test("[UT][regression-suite][regression_watcher_provider] resolveWatcherProviderExecution accepts empty response config and defaults bodyFormat to auto", () => {
   const resolved = resolveWatcherProviderExecution({
     watcher: {
       id: "indexed_ready",
@@ -160,7 +160,7 @@ test("[UT][regression-suite][regression_watcher_provider][ok] resolveWatcherProv
   assert.equal(resolved.execution.responseBodyFormat, "auto");
 });
 
-test("[UT][regression-suite][regression_watcher_provider][ok] summarizeWatcherObservation redacts response body and header values", () => {
+test("[UT][regression-suite][regression_watcher_provider] summarizeWatcherObservation redacts response body and header values", () => {
   const summary = summarizeWatcherObservation({
     status: "pass",
     provider: {

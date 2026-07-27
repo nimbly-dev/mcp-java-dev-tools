@@ -7,7 +7,7 @@ const {
   executeTransportWithRegistry,
 } = require("@tools-feature-regression-suite");
 
-test("[UT][regression-suite][regression_transport_executor][ok] mcp wrapped transport adapter returns pass for 2xx response", async () => {
+test("[UT][regression-suite][regression_transport_executor] mcp wrapped transport adapter returns pass for 2xx response", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({
     structuredContent: {
       status: "pass",
@@ -29,7 +29,7 @@ test("[UT][regression-suite][regression_transport_executor][ok] mcp wrapped tran
   assert.equal(result.durationMs >= 1, true);
 });
 
-test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp wrapped transport adapter returns fail_http for non-2xx response", async () => {
+test("[UT][regression-suite][regression_transport_executor] mcp wrapped transport adapter returns fail_http for non-2xx response", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({
     structuredContent: {
       status: "fail_http",
@@ -48,7 +48,7 @@ test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp
   assert.equal(result.statusCode, 401);
 });
 
-test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp wrapped transport adapter fails closed for invalid payload", async () => {
+test("[UT][regression-suite][regression_transport_executor] mcp wrapped transport adapter fails closed for invalid payload", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({ structuredContent: {} }));
   const result = await adapter.execute({
     protocol: "http",
@@ -60,7 +60,7 @@ test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp
   assert.equal(result.reasonMeta?.cause, "url_missing");
 });
 
-test("[UT][regression-suite][regression_transport_executor][ok] mcp wrapped transport adapter reports apiBaseUrl synthesis gap for relative pathTemplate without url", async () => {
+test("[UT][regression-suite][regression_transport_executor] mcp wrapped transport adapter reports apiBaseUrl synthesis gap for relative pathTemplate without url", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({ structuredContent: {} }));
   const result = await adapter.execute({
     protocol: "http",
@@ -73,7 +73,7 @@ test("[UT][regression-suite][regression_transport_executor][ok] mcp wrapped tran
   assert.equal(result.reasonMeta?.pathTemplate, "/api/v1/posts");
 });
 
-test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp wrapped transport adapter preserves both missing fields when method and url are absent", async () => {
+test("[UT][regression-suite][regression_transport_executor] mcp wrapped transport adapter preserves both missing fields when method and url are absent", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({ structuredContent: {} }));
   const result = await adapter.execute({
     protocol: "http",
@@ -86,7 +86,7 @@ test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp
   assert.equal(result.reasonMeta?.path, "/api/v1/posts");
 });
 
-test("[UT][regression-suite][regression_transport_executor][ok] mcp wrapped transport adapter composes baseUrl and path when url is absent", async () => {
+test("[UT][regression-suite][regression_transport_executor] mcp wrapped transport adapter composes baseUrl and path when url is absent", async () => {
   let capturedRequest: Record<string, unknown> | undefined;
   const adapter = createMcpWrappedTransportAdapter(
     async ({ input }: { toolName: string; input: Record<string, unknown> }) => {
@@ -118,7 +118,7 @@ test("[UT][regression-suite][regression_transport_executor][ok] mcp wrapped tran
   assert.equal(capturedRequest.url, "http://localhost:9001/api/courses/42");
 });
 
-test("[UT][regression-suite][regression_transport_executor][ok] mcp wrapped transport adapter reports baseUrl synthesis gap for relative path without url", async () => {
+test("[UT][regression-suite][regression_transport_executor] mcp wrapped transport adapter reports baseUrl synthesis gap for relative path without url", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({ structuredContent: {} }));
   const result = await adapter.execute({
     protocol: "http",
@@ -131,7 +131,7 @@ test("[UT][regression-suite][regression_transport_executor][ok] mcp wrapped tran
   assert.equal(result.reasonMeta?.path, "/api/v1/posts");
 });
 
-test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp wrapped transport adapter preserves fail-closed absolute pathTemplate without url", async () => {
+test("[UT][regression-suite][regression_transport_executor] mcp wrapped transport adapter preserves fail-closed absolute pathTemplate without url", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({ structuredContent: {} }));
   const result = await adapter.execute({
     protocol: "http",
@@ -144,7 +144,7 @@ test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp
   assert.equal(result.reasonMeta?.pathTemplate, "http://localhost:9001/api/v1/posts");
 });
 
-test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp wrapped transport adapter fails closed when wrapper response is missing", async () => {
+test("[UT][regression-suite][regression_transport_executor] mcp wrapped transport adapter fails closed when wrapper response is missing", async () => {
   const adapter = createMcpWrappedTransportAdapter(async () => ({}));
   const result = await adapter.execute({
     protocol: "http",
@@ -154,7 +154,7 @@ test("[UT][regression-suite][regression_transport_executor][blocked_invalid] mcp
   assert.equal(result.reasonCode, "transport_wrapper_missing_response");
 });
 
-test("[UT][regression-suite][regression_transport_executor][blocked_invalid] registry executor fails closed when protocol is unsupported", async () => {
+test("[UT][regression-suite][regression_transport_executor] registry executor fails closed when protocol is unsupported", async () => {
   const registry = createTransportRegistry([]);
   const result = await executeTransportWithRegistry({
     protocol: "grpc",

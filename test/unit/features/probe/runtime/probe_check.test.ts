@@ -38,7 +38,7 @@ function readHeader(headers: RequestInit["headers"] | undefined, name: string): 
   return undefined;
 }
 
-test("[UT][probe][probe_check][ok] probe action=check forwards http.headers to reset and status calls", async () => {
+test("[UT][probe][probe_check] probe action=check forwards http.headers to reset and status calls", async () => {
   const calls: Array<{ url: string; method: string | undefined; headers: RequestInit["headers"] }> =
     [];
 
@@ -99,7 +99,7 @@ test("[UT][probe][probe_check][ok] probe action=check forwards http.headers to r
   assert.equal(readHeader(statusCall.headers, "x-probe-client"), "mcp-it");
 });
 
-test("[UT][probe][probe_check][ok] probe action=check surfaces deterministic guidance for protected endpoints", async () => {
+test("[UT][probe][probe_check] probe action=check surfaces deterministic guidance for protected endpoints", async () => {
   await withMockedFetch(
     async (url) => {
       if (String(url).includes("/__probe/reset")) {

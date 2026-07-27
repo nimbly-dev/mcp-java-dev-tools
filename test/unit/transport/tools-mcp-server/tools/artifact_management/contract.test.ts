@@ -20,7 +20,7 @@ function captureRegisteredHandler(registerToolFn: (server: any) => void): Regist
   return captured;
 }
 
-test("[UT][transport][contract][blocked_invalid] artifact_management handler rejects legacy flat shape", async () => {
+test("[UT][transport][contract] artifact_management handler rejects legacy flat shape", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );
@@ -34,7 +34,7 @@ test("[UT][transport][contract][blocked_invalid] artifact_management handler rej
   assert.equal(out.structuredContent.reasonMeta.failedStep, "input_validation");
 });
 
-test("[UT][transport][contract][ok] artifact_management handler accepts typed envelope", async () => {
+test("[UT][transport][contract] artifact_management handler accepts typed envelope", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );
@@ -46,7 +46,7 @@ test("[UT][transport][contract][ok] artifact_management handler accepts typed en
   assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
 });
 
-test("[UT][transport][contract][ok] artifact_management handler accepts probe_config reload envelope", async () => {
+test("[UT][transport][contract] artifact_management handler accepts probe_config reload envelope", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );
@@ -58,7 +58,7 @@ test("[UT][transport][contract][ok] artifact_management handler accepts probe_co
   assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
 });
 
-test("[UT][transport][contract][ok] artifact_management handler accepts snake_case aliases inside typed input envelope", async () => {
+test("[UT][transport][contract] artifact_management handler accepts snake_case aliases inside typed input envelope", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );
@@ -75,7 +75,7 @@ test("[UT][transport][contract][ok] artifact_management handler accepts snake_ca
   assert.notEqual(out.structuredContent.reasonCode, "project_artifact_ambiguous");
 });
 
-test("[UT][transport][contract][ok] artifact_management handler accepts project_root_abs alias inside typed input envelope", async () => {
+test("[UT][transport][contract] artifact_management handler accepts project_root_abs alias inside typed input envelope", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );
@@ -89,7 +89,7 @@ test("[UT][transport][contract][ok] artifact_management handler accepts project_
   assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
 });
 
-test("[UT][transport][contract][blocked_invalid] artifact_management handler rejects regression_plan windowed read when pagination params are missing", async () => {
+test("[UT][transport][contract] artifact_management handler rejects regression_plan windowed read when pagination params are missing", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );
@@ -109,7 +109,7 @@ test("[UT][transport][contract][blocked_invalid] artifact_management handler rej
   assert.equal(out.structuredContent.reasonMeta.failedStep, "input_validation");
 });
 
-test("[UT][transport][contract][blocked_invalid] artifact_management handler rejects run_result watcher query when pagination params are missing", async () => {
+test("[UT][transport][contract] artifact_management handler rejects run_result watcher query when pagination params are missing", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );
@@ -130,7 +130,7 @@ test("[UT][transport][contract][blocked_invalid] artifact_management handler rej
   assert.equal(out.structuredContent.reasonMeta.failedStep, "input_validation");
 });
 
-test("[UT][transport][contract][blocked_invalid] artifact_management handler rejects flat watcher filters instead of broadening the query", async () => {
+test("[UT][transport][contract] artifact_management handler rejects flat watcher filters instead of broadening the query", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );
@@ -147,7 +147,7 @@ test("[UT][transport][contract][blocked_invalid] artifact_management handler rej
   assert.equal(out.structuredContent.reasonCode, "watcher_state_query_invalid");
 });
 
-test("[UT][transport][contract][blocked_invalid] artifact_management handler requires correlation_state for run_result backfill", async () => {
+test("[UT][transport][contract] artifact_management handler requires correlation_state for run_result backfill", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerArtifactManagementTool(server, { workspaceRootAbs: process.cwd() }),
   );

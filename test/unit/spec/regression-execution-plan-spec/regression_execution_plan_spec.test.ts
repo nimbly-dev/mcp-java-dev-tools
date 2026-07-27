@@ -80,7 +80,7 @@ function baseContract(overrides = {}) {
   };
 }
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight ready when prerequisites are satisfied by defaults and runtime inputs", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight ready when prerequisites are satisfied by defaults and runtime inputs", () => {
   const result = buildReplayPreflight({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -93,7 +93,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.deepEqual(result.discoverablePending, []);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight needs_user_input when required prerequisite has no value and no default", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight needs_user_input when required prerequisite has no value and no default", () => {
   const contract = baseContract({
     prerequisites: [
       { key: "tenantId", required: true, secret: false, provisioning: "user_input" },
@@ -111,7 +111,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.deepEqual(result.missing, ["tenantId", "auth.bearer"]);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks when secret prerequisite persists a default value", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks when secret prerequisite persists a default value", () => {
   const contract = baseContract({
     prerequisites: [
       {
@@ -141,7 +141,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "secret_default_forbidden");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks when discoverable prerequisites are unresolved and policy is disabled", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks when discoverable prerequisites are unresolved and policy is disabled", () => {
   const contract = baseContract({
     prerequisites: [
       {
@@ -165,7 +165,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "discoverable_prerequisite_policy_disabled");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight needs_discovery when discoverable prerequisites are unresolved and policy is enabled", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight needs_discovery when discoverable prerequisites are unresolved and policy is enabled", () => {
   const contract = baseContract({
     prerequisites: [
       {
@@ -191,7 +191,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.deepEqual(result.missing, []);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks when discoverable prerequisite omits discoverySource", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks when discoverable prerequisite omits discoverySource", () => {
   const contract = baseContract({
     prerequisites: [
       {
@@ -214,7 +214,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "invalid_discoverable_prerequisite");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight returns mixed reason code when user input and discovery are both unresolved", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight returns mixed reason code when user input and discovery are both unresolved", () => {
   const contract = baseContract({
     prerequisites: [
       {
@@ -240,7 +240,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.deepEqual(result.discoverablePending, ["tenantId"]);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocked_invalid when transport protocol key does not match step protocol", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocked_invalid when transport protocol key does not match step protocol", () => {
   const contract = baseContract({
     steps: [
       {
@@ -267,7 +267,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "transport_protocol_mismatch");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocked_invalid when step does not define expect[]", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocked_invalid when step does not define expect[]", () => {
   const contract = baseContract({
     steps: [
       {
@@ -294,7 +294,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "step_expectations_missing");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocked_invalid when legacy top-level expectations[] is provided", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocked_invalid when legacy top-level expectations[] is provided", () => {
   const contract = {
     ...baseContract(),
     expectations: [{ type: "outcome_status", equals: "pass" }],
@@ -309,7 +309,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "top_level_expectations_unsupported");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocked_ambiguous when multiple target candidates remain", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocked_ambiguous when multiple target candidates remain", () => {
   const result = buildReplayPreflight({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -320,7 +320,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "target_ambiguous");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight stale_plan when pinStrictProbeKey is enabled but strict key is invalid", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight stale_plan when pinStrictProbeKey is enabled but strict key is invalid", () => {
   const metadata = baseMetadata({ pinStrictProbeKey: true });
   const contract = baseContract({
     targets: [
@@ -341,7 +341,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "strict_probe_key_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight accepts correlation without session scope when correlationSessionId is omitted", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts correlation without session scope when correlationSessionId is omitted", () => {
   const contract = baseContract({
     correlation: {
       enabled: true,
@@ -366,7 +366,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks cross-plan correlation when correlationSessionId is omitted", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks cross-plan correlation when correlationSessionId is omitted", () => {
   const contract = baseContract({
     correlation: {
       enabled: true,
@@ -391,7 +391,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "correlation_session_missing");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks correlation when maxWindowMs is invalid", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks correlation when maxWindowMs is invalid", () => {
   const contract = baseContract({
     correlation: {
       enabled: true,
@@ -415,7 +415,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "correlation_window_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight accepts watchers with step dependency and generic provider shape", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts watchers with step dependency and generic provider shape", () => {
   const contract = baseContract({
     watchers: [
       {
@@ -451,7 +451,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight accepts externalVerification http contract with canonical placeholders", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts externalVerification http contract with canonical placeholders", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -489,7 +489,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight accepts externalVerification http secret-bearing header when value is placeholder-backed", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts externalVerification http secret-bearing header when value is placeholder-backed", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -525,7 +525,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight accepts externalVerification sql contract with connectionRef indirection", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts externalVerification sql contract with connectionRef indirection", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -560,7 +560,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks externalVerification when provider and request block do not match", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks externalVerification when provider and request block do not match", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -586,7 +586,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "external_verification_request_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks malformed externalVerification entry without throwing", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks malformed externalVerification entry without throwing", () => {
   const contract = baseContract({
     externalVerification: [{}],
   });
@@ -600,7 +600,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "external_verification_id_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks externalVerification with provider but missing request without throwing", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks externalVerification with provider but missing request without throwing", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -619,7 +619,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "external_verification_request_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks externalVerification when SQL parameter uses noncanonical context path syntax", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks externalVerification when SQL parameter uses noncanonical context path syntax", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -646,7 +646,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "external_verification_request_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks externalVerification sql request with inline connection details", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks externalVerification sql request with inline connection details", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -673,7 +673,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "external_verification_request_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks malformed placeholder syntax in externalVerification http request", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks malformed placeholder syntax in externalVerification http request", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -706,7 +706,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "external_verification_placeholder_syntax_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks inline secret-bearing header values in externalVerification http request", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks inline secret-bearing header values in externalVerification http request", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -742,7 +742,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "external_verification_request_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks raw env-style placeholder keys in externalVerification http request", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks raw env-style placeholder keys in externalVerification http request", () => {
   const contract = baseContract({
     externalVerification: [
       {
@@ -775,7 +775,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "plan_context_key_noncanonical");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] resolveWatcherWaitPolicy inherits project defaults when watcher overrides are absent", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] resolveWatcherWaitPolicy inherits project defaults when watcher overrides are absent", () => {
   const resolved = resolveWatcherWaitPolicy({
     watcher: {},
     providedContext: {
@@ -789,7 +789,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] r
   assert.equal(resolved.retrySource, "project_default");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] resolveWatcherWaitPolicy prefers explicit watcher waitPolicy overrides", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] resolveWatcherWaitPolicy prefers explicit watcher waitPolicy overrides", () => {
   const resolved = resolveWatcherWaitPolicy({
     watcher: {
       waitPolicy: {
@@ -808,7 +808,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] r
   assert.equal(resolved.retrySource, "watcher_override");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks watcher when id is missing", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks watcher when id is missing", () => {
   const contract = baseContract({
     watchers: [
       {
@@ -836,7 +836,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "watcher_id_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks watcher when dependency stepOrder does not exist", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks watcher when dependency stepOrder does not exist", () => {
   const contract = baseContract({
     watchers: [
       {
@@ -864,7 +864,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "watcher_dependency_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks watcher when provider shape is incomplete", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks watcher when provider shape is incomplete", () => {
   const contract = baseContract({
     watchers: [
       {
@@ -892,7 +892,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "watcher_provider_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks http watcher when provider transport is missing even if config exists", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks http watcher when provider transport is missing even if config exists", () => {
   const contract = baseContract({
     watchers: [
       {
@@ -929,7 +929,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "watcher_provider_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks watcher when response bodyFormat config is unsupported", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks watcher when response bodyFormat config is unsupported", () => {
   const contract = baseContract({
     watchers: [
       {
@@ -972,7 +972,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "watcher_provider_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks watcher when waitPolicy values are invalid", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks watcher when waitPolicy values are invalid", () => {
   const contract = baseContract({
     watchers: [
       {
@@ -1009,7 +1009,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "watcher_wait_policy_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks watcher when expect[] is missing", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks watcher when expect[] is missing", () => {
   const contract = baseContract({
     watchers: [
       {
@@ -1037,7 +1037,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "watcher_expectations_missing");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks watcher when expectation shape is invalid", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks watcher when expectation shape is invalid", () => {
   const contract = baseContract({
     watchers: [
       {
@@ -1066,7 +1066,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "watcher_expectation_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] validateNormalizedExternalVerificationResultShape accepts deterministic HTTP result shape", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] validateNormalizedExternalVerificationResultShape accepts deterministic HTTP result shape", () => {
   const validation = validateNormalizedExternalVerificationResultShape({
     id: "verify_reindex_task_status",
     providerType: "http",
@@ -1101,7 +1101,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] v
   assert.equal(validation.ok, true);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] validateNormalizedExternalVerificationResultShape blocks SQL result without deterministic row model", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] validateNormalizedExternalVerificationResultShape blocks SQL result without deterministic row model", () => {
   const validation = validateNormalizedExternalVerificationResultShape({
     id: "verify_reindex_row_count",
     providerType: "sql",
@@ -1115,7 +1115,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(validation.reasonCode, "external_verification_request_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] resolvePrerequisiteContext prefers provided values and falls back to defaults", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] resolvePrerequisiteContext prefers provided values and falls back to defaults", () => {
   const resolved = resolvePrerequisiteContext(
     [
       {
@@ -1142,7 +1142,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] r
   assert.equal(resolved["auth.bearer"], "runtime-token");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] resolvePrerequisiteContext normalizes legacy baseUrl to canonical apiBaseUrl", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] resolvePrerequisiteContext normalizes legacy baseUrl to canonical apiBaseUrl", () => {
   const resolved = resolvePrerequisiteContext(
     [
       {
@@ -1159,7 +1159,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] r
   assert.equal(resolved.apiBaseUrl, "http://127.0.0.1:8082");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] resolveStepTransport replaces context placeholders deterministically", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] resolveStepTransport replaces context placeholders deterministically", () => {
   const step = {
     order: 1,
     id: "create_post",
@@ -1180,7 +1180,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] r
   assert.equal(resolved.http.query.tenantId, "tenant-social-001");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] applyStepExtract writes extracted values into next-step context", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] applyStepExtract writes extracted values into next-step context", () => {
   const initial = { tenantId: "tenant-social-001" };
   const output = {
     response: {
@@ -1195,7 +1195,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] a
   assert.equal(next.postId, "post-998");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] applyStepExtract supports array index notation in extract paths", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] applyStepExtract supports array index notation in extract paths", () => {
   const initial = { tenantId: "tenant-social-001" };
   const output = {
     response: {
@@ -1216,7 +1216,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] a
   assert.equal(next.primaryName, "Test");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] applyStepExtractWithDiagnostics records unresolved extract without mutating context", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] applyStepExtractWithDiagnostics records unresolved extract without mutating context", () => {
   const initial = { tenantId: "tenant-social-001" };
   const output = {
     response: {
@@ -1244,7 +1244,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] a
   ]);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks when extract entry is malformed", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks when extract entry is malformed", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1280,7 +1280,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "step_extract_invalid");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight defers response-derived context and rejects forward references", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight defers response-derived context and rejects forward references", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1306,7 +1306,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "step_context_forward_reference");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight rejects secret suite-context promotion", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight rejects secret suite-context promotion", () => {
   const contract = baseContract({
     prerequisites: [
       { key: "auth.bearer", required: true, secret: true, provisioning: "user_input" },
@@ -1343,7 +1343,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "suite_context_secret_forbidden");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] suite context validation requires an earlier explicit promotion", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] suite context validation requires an earlier explicit promotion", () => {
   const producer = baseContract({
     steps: [
       {
@@ -1379,12 +1379,12 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   if (!result.ok) assert.equal(result.reasonCode, "suite_context_forward_reference");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] buildTimestampRunId produces sortable timestamp-based run id", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] buildTimestampRunId produces sortable timestamp-based run id", () => {
   const runId = buildTimestampRunId(new Date(2026, 3, 17, 21, 42, 11), 1);
   assert.equal(runId, "04-17-2026-09-42-11PM");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks when project context resolver reports missing env key", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks when project context resolver reports missing env key", () => {
   const result = buildReplayPreflight({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -1404,7 +1404,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.deepEqual(result.requiredUserAction, ["Set env key AUTH_BEARER_TOKEN before regression."]);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks when step condition uses forward step reference", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks when step condition uses forward step reference", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1437,7 +1437,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.equal(result.reasonCode, "step_condition_forward_reference");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight accepts compatible {{key}} transport placeholder syntax before execution", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts compatible {{key}} transport placeholder syntax before execution", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1470,7 +1470,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks raw env-style prerequisite keys and requires canonical context keys", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks raw env-style prerequisite keys and requires canonical context keys", () => {
   const contract = baseContract({
     prerequisites: [
       { key: "AUTH_BEARER_TOKEN", required: true, secret: true, provisioning: "user_input" },
@@ -1504,7 +1504,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.match(result.requiredUserAction[0], /AUTH_BEARER_TOKEN/);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks raw env-style transport placeholder keys and requires canonical context keys", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks raw env-style transport placeholder keys and requires canonical context keys", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1538,7 +1538,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.match(result.requiredUserAction[0], /AUTH_BEARER_TOKEN/);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight accepts compatible spaced {{ key }} transport placeholder syntax before execution", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts compatible spaced {{ key }} transport placeholder syntax before execution", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1568,7 +1568,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight accepts compatible nested {{key}} placeholder syntax inside transport body", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts compatible nested {{key}} placeholder syntax inside transport body", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1601,7 +1601,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight accepts compatible triple-brace {{{key}}} transport placeholder syntax before execution", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts compatible triple-brace {{{key}}} transport placeholder syntax before execution", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1634,7 +1634,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][blocked_invalid] preflight blocks malformed transport placeholder syntax with field diagnostics", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight blocks malformed transport placeholder syntax with field diagnostics", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1665,7 +1665,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][block
   assert.match(result.requiredUserAction[0], /transport\.http\.url/);
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] preflight still accepts canonical ${key} placeholder syntax in nested transport fields", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight still accepts canonical ${key} placeholder syntax in nested transport fields", () => {
   const contract = baseContract({
     steps: [
       {
@@ -1703,7 +1703,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] p
   assert.equal(result.reasonCode, "ok");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] resolveStepTransport resolves both ${key} and {{key}} placeholder forms deterministically", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] resolveStepTransport resolves both ${key} and {{key}} placeholder forms deterministically", () => {
   const step = {
     order: 1,
     id: "create_post",
@@ -1733,7 +1733,7 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] r
   assert.equal(resolved.http.query.tenantId, "tenant-social-001");
 });
 
-test("[UT][regression-execution-plan-spec][regression_execution_plan_spec][ok] resolveStepTransport resolves triple-brace {{{key}}} placeholder form deterministically", () => {
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] resolveStepTransport resolves triple-brace {{{key}}} placeholder form deterministically", () => {
   const step = {
     order: 1,
     id: "create_post",

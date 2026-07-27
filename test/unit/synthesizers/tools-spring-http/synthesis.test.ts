@@ -3,7 +3,7 @@ const test = require("node:test");
 
 const { synthesizeSpringRecipe } = require("@tools-spring-http/synthesis.util");
 
-test("[UT][spring-http][synthesis][ok] spring synthesizer maps AST resolver success into a request recipe", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer maps AST resolver success into a request recipe", async () => {
   const result = await synthesizeSpringRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -49,7 +49,7 @@ test("[UT][spring-http][synthesis][ok] spring synthesizer maps AST resolver succ
   );
 });
 
-test("[UT][spring-http][synthesis][ok] spring synthesizer consumes optional resolver extensions without changing contract", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer consumes optional resolver extensions without changing contract", async () => {
   const result = await synthesizeSpringRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -90,7 +90,7 @@ test("[UT][spring-http][synthesis][ok] spring synthesizer consumes optional reso
   assert.equal(result.evidence.includes("ast_context_path_hint=/api/v1"), true);
 });
 
-test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer surfaces AST resolver bootstrap failures distinctly", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer surfaces AST resolver bootstrap failures distinctly", async () => {
   const result = await synthesizeSpringRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -118,7 +118,7 @@ test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer surfaces 
   assert.equal(result.failedStep, "request_mapping_resolver_bootstrap");
 });
 
-test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer preserves resolver-specific target ambiguity failures", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer preserves resolver-specific target ambiguity failures", async () => {
   const result = await synthesizeSpringRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -148,7 +148,7 @@ test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer preserves
   assert.deepEqual(result.evidence, ["matched_types=2"]);
 });
 
-test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer maps generic AST mapping failures to spring entrypoint failures", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer maps generic AST mapping failures to spring entrypoint failures", async () => {
   const result = await synthesizeSpringRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -178,7 +178,7 @@ test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer maps gene
   assert.match(result.nextAction, /AST-backed request mapping resolution/);
 });
 
-test("[UT][spring-http][synthesis][ok] spring synthesizer passes computed search roots into AST resolver input", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer passes computed search roots into AST resolver input", async () => {
   let capturedInput;
   await synthesizeSpringRecipe(
     {
@@ -211,7 +211,7 @@ test("[UT][spring-http][synthesis][ok] spring synthesizer passes computed search
   assert.deepEqual(actualInput.searchRootsAbs, ["C:\\repo\\service", "C:\\repo\\workspace"]);
 });
 
-test("[UT][spring-http][synthesis][ok] spring synthesizer runtime_first uses actuator mappings before AST", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer runtime_first uses actuator mappings before AST", async () => {
   let astCalls = 0;
   const result = await synthesizeSpringRecipe(
     {
@@ -250,7 +250,7 @@ test("[UT][spring-http][synthesis][ok] spring synthesizer runtime_first uses act
   assert.equal(result.evidence.includes("mapping_source=runtime_actuator"), true);
 });
 
-test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer runtime_first falls back to AST when runtime mappings fail", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer runtime_first falls back to AST when runtime mappings fail", async () => {
   const result = await synthesizeSpringRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -300,7 +300,7 @@ test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer runtime_f
   assert.equal(result.attemptedStrategies.includes("spring_runtime_actuator_mappings"), true);
 });
 
-test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer runtime_only fails closed when runtime mappings are unreachable", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer runtime_only fails closed when runtime mappings are unreachable", async () => {
   const result = await synthesizeSpringRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -332,7 +332,7 @@ test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer runtime_o
   assert.equal(result.failedStep, "runtime_mapping_fetch");
 });
 
-test("[UT][spring-http][synthesis][ok] spring synthesizer resolves gateway entrypoint via gateway route config fallback", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer resolves gateway entrypoint via gateway route config fallback", async () => {
   const result = await synthesizeSpringRecipe(
     {
       rootAbs: "C:\\repo\\gateway-service",
@@ -373,7 +373,7 @@ test("[UT][spring-http][synthesis][ok] spring synthesizer resolves gateway entry
   assert.equal(result.attemptedStrategies.includes("spring_gateway_route_config"), true);
 });
 
-test("[UT][spring-http][synthesis][blocked_invalid] spring synthesizer returns gateway-specific fail-closed reason when entrypoint fallback has no route", async () => {
+test("[UT][spring-http][synthesis] spring synthesizer returns gateway-specific fail-closed reason when entrypoint fallback has no route", async () => {
   const result = await synthesizeSpringRecipe(
     {
       rootAbs: "C:\\repo\\gateway-service",

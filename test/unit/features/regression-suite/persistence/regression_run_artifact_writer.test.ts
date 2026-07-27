@@ -32,7 +32,7 @@ function initProjectArtifact(root: string, projectName = "test-project"): string
   return projectName;
 }
 
-test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] buildRunArtifactDirAbs fails closed for invalid run id", () => {
+test("[UT][regression-suite][regression_run_artifact_writer] buildRunArtifactDirAbs fails closed for invalid run id", () => {
   const root = createTestTempDir("run-artifacts-invalid");
   try {
     initProjectArtifact(root);
@@ -41,11 +41,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] bu
       /run_id_invalid/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][ok] rebuildRunStateStore reconstructs canonical terminal run state and replaces the live database atomically", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] rebuildRunStateStore reconstructs canonical terminal run state and replaces the live database atomically", async () => {
   const root = createTestTempDir("rebuild-run-state");
   let database;
   try {
@@ -86,11 +86,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][ok] rebuildRunState
     assert.equal(database.prepare("SELECT status FROM plan_runs").get().status, "executed");
   } finally {
     if (database) database.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm/<project>/plans/regression/<plan>/runs/<run_id>", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts persists context/result/evidence under .mcpjvm/<project>/plans/regression/<plan>/runs/<run_id>", async () => {
   const root = createTestTempDir("run-artifacts");
   try {
     const projectName = initProjectArtifact(root);
@@ -271,11 +271,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegression
     );
     database.close();
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] writeRegressionRunArtifacts fails closed when planRef.name is missing", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts fails closed when planRef.name is missing", async () => {
   const root = createTestTempDir("run-artifacts-missing-plan");
   try {
     initProjectArtifact(root);
@@ -306,11 +306,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] wr
       /plan_name_missing/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][ok] buildRunArtifactDirAbs accepts epoch-like numeric run id", () => {
+test("[UT][regression-suite][regression_run_artifact_writer] buildRunArtifactDirAbs accepts epoch-like numeric run id", () => {
   const root = createTestTempDir("run-artifacts-epoch");
   try {
     initProjectArtifact(root);
@@ -318,11 +318,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][ok] buildRunArtifac
     const out = buildRunArtifactDirAbs(root, "post-lifecycle", runId);
     assert.match(out, new RegExp(`${runId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegressionRunArtifacts auto-generates correlation artifact from evidence policy/events", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts auto-generates correlation artifact from evidence policy/events", async () => {
   const root = createTestTempDir("run-artifacts-auto-correlation");
   try {
     initProjectArtifact(root);
@@ -386,11 +386,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegression
     assert.equal(correlation.timeline[0].eventId, "ev-1");
     assert.equal(correlation.timeline[1].eventId, "ev-2");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegressionRunArtifacts does not generate correlation artifact without canonical correlation inputs", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts does not generate correlation artifact without canonical correlation inputs", async () => {
   const root = createTestTempDir("run-artifacts-no-correlation");
   try {
     initProjectArtifact(root);
@@ -426,11 +426,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegression
     assert.equal(typeof written.correlationPathAbs, "undefined");
     assert.equal(typeof written.correlationIndexPathAbs, "undefined");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] rebuildCorrelationIndex fails closed without writing the legacy index", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] rebuildCorrelationIndex fails closed without writing the legacy index", async () => {
   const root = createTestTempDir("rebuild-correlation-index");
   try {
     initProjectArtifact(root);
@@ -490,11 +490,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] re
     assert.equal(rebuilt.reasonCode, "legacy_write_disabled");
     assert.equal(fs.readFileSync(indexPath, "utf8").includes('"entries": []'), true);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegressionRunArtifacts uses project-scoped regression root when .mcpjvm/<project>/projects.json exists", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts uses project-scoped regression root when .mcpjvm/<project>/projects.json exists", async () => {
   const root = createTestTempDir("run-artifacts-project-scoped");
   try {
     const projectName = "test-project";
@@ -535,11 +535,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegression
       /\.mcpjvm\/test-project\/plans\/regression\/probe-registry-course-service-smoke\/runs\/1777699999999$/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegressionRunArtifacts preserves legacy watcher evidence by normalizing it to canonical values", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts preserves legacy watcher evidence by normalizing it to canonical values", async () => {
   const root = createTestTempDir("run-artifacts-legacy-watcher-evidence");
   try {
     initProjectArtifact(root);
@@ -659,11 +659,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegression
     assert.equal(result.watchers[0].reasonCode, "watcher_verified");
     assert.equal(result.watchers[1].reasonCode, "watcher_timeout");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] writeRegressionRunArtifacts fails closed for malformed watcher evidence rows", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts fails closed for malformed watcher evidence rows", async () => {
   const root = createTestTempDir("run-artifacts-invalid-watcher-evidence");
   try {
     initProjectArtifact(root);
@@ -728,11 +728,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] wr
       /watcher_execution_(?:result|evidence)_invalid/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] writeRegressionRunArtifacts fails closed when explicit watcher results are not an array", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts fails closed when explicit watcher results are not an array", async () => {
   const root = createTestTempDir("run-artifacts-invalid-watcher-results-shape");
   try {
     initProjectArtifact(root);
@@ -768,11 +768,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] wr
       /watcher_execution_result_invalid/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegressionRunArtifacts persists canonical external verification results and evidence", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts persists canonical external verification results and evidence", async () => {
   const root = createTestTempDir("run-artifacts-external-verification");
   try {
     initProjectArtifact(root);
@@ -872,11 +872,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegression
       "content-type",
     ]);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] writeRegressionRunArtifacts fails closed for malformed external verification rows", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts fails closed for malformed external verification rows", async () => {
   const root = createTestTempDir("run-artifacts-invalid-external-verification");
   try {
     initProjectArtifact(root);
@@ -916,11 +916,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] wr
       /external_verification_execution_result_invalid/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] writeRegressionRunArtifacts fails closed for invalid external verification phase status", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts fails closed for invalid external verification phase status", async () => {
   const root = createTestTempDir("run-artifacts-invalid-external-verification-phase-status");
   try {
     initProjectArtifact(root);
@@ -953,11 +953,11 @@ test("[UT][regression-suite][regression_run_artifact_writer][blocked_invalid] wr
       /external_verification_execution_result_invalid/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegressionRunArtifacts persists the active Watcher continuation", async () => {
+test("[UT][regression-suite][regression_run_artifact_writer] writeRegressionRunArtifacts persists the active Watcher continuation", async () => {
   const root = createTestTempDir("run-artifacts-active-watcher");
   let database: any;
   try {
@@ -1016,6 +1016,6 @@ test("[UT][regression-suite][regression_run_artifact_writer][ok] writeRegression
     assert.equal(database.prepare("SELECT status FROM plan_runs").get().status, "in_progress");
   } finally {
     if (database) database.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

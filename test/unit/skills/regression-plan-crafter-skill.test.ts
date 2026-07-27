@@ -27,7 +27,7 @@ function loadCrafterTemplates() {
   return { skillDir, metadataTemplate, contractTemplate, planTemplate };
 }
 
-test("[UT][skills][regression_plan_crafter_skill][ok] regression plan crafter skill is portable with bundled references and templates", () => {
+test("[UT][skills][regression_plan_crafter_skill] regression plan crafter skill is portable with bundled references and templates", () => {
   const { skillDir } = loadCrafterTemplates();
   const skill = readUtf8(path.join(skillDir, "SKILL.md"));
   assert.match(skill, /Portable Source of Truth/);
@@ -42,7 +42,7 @@ test("[UT][skills][regression_plan_crafter_skill][ok] regression plan crafter sk
   assert.ok(fs.existsSync(path.join(skillDir, "references", "templates", "plan.template.md")));
 });
 
-test("[UT][skills][regression_plan_crafter_skill][ok] bundled crafter templates can bootstrap a plan package inside test/.tmp workspace", () => {
+test("[UT][skills][regression_plan_crafter_skill] bundled crafter templates can bootstrap a plan package inside test/.tmp workspace", () => {
   const tmpRoot = createTestTempDir("regression-plan-crafter");
   try {
     const { metadataTemplate, contractTemplate, planTemplate } = loadCrafterTemplates();
@@ -91,11 +91,11 @@ test("[UT][skills][regression_plan_crafter_skill][ok] bundled crafter templates 
     assert.match(plan, /^# Purpose/m);
     assert.match(plan, /^# Steps/m);
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][skills][regression_plan_crafter_skill][ok] crafted template payload passes deterministic preflight schema checks", () => {
+test("[UT][skills][regression_plan_crafter_skill] crafted template payload passes deterministic preflight schema checks", () => {
   const { metadataTemplate, contractTemplate } = loadCrafterTemplates();
   const preflight = buildReplayPreflight({
     metadata: metadataTemplate,
@@ -107,7 +107,7 @@ test("[UT][skills][regression_plan_crafter_skill][ok] crafted template payload p
   assert.equal(preflight.reasonCode, "ok");
 });
 
-test("[UT][skills][regression_plan_crafter_skill][ok] crafted template marks secret prerequisites without persisted defaults", () => {
+test("[UT][skills][regression_plan_crafter_skill] crafted template marks secret prerequisites without persisted defaults", () => {
   const { contractTemplate } = loadCrafterTemplates();
   const secretKeysWithDefaults = contractTemplate.prerequisites
     .filter((entry: { key: string; secret: boolean; default?: unknown }) => entry.secret)
@@ -119,7 +119,7 @@ test("[UT][skills][regression_plan_crafter_skill][ok] crafted template marks sec
   assert.deepEqual(secretKeysWithDefaults, []);
 });
 
-test("[UT][skills][regression_plan_crafter_skill][ok] regression suite skill remains execution-focused and result skill is available separately", () => {
+test("[UT][skills][regression_plan_crafter_skill] regression suite skill remains execution-focused and result skill is available separately", () => {
   const suitePath = path.join(
     process.cwd(),
     "skills",

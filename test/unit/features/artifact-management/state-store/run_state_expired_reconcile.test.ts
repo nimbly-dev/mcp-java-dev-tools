@@ -81,7 +81,7 @@ async function seedExpiredState(root: string, withSuiteLink = true): Promise<voi
     );
 }
 
-test("[UT][artifact-management][run_state_expired_reconcile][ok] reconcileExpiredActiveState terminalizes one overdue Watcher without provider execution", async () => {
+test("[UT][artifact-management][run_state_expired_reconcile] reconcileExpiredActiveState terminalizes one overdue Watcher without provider execution", async () => {
   const root = tempRoot();
   try {
     await seedExpiredState(root);
@@ -133,7 +133,7 @@ test("[UT][artifact-management][run_state_expired_reconcile][ok] reconcileExpire
   }
 });
 
-test("[UT][artifact-management][run_state_expired_reconcile][blocked_invalid] reconcileExpiredActiveState fails closed when canonical run linkage is stale", async () => {
+test("[UT][artifact-management][run_state_expired_reconcile] reconcileExpiredActiveState fails closed when canonical run linkage is stale", async () => {
   const root = tempRoot();
   try {
     await seedExpiredState(root, false);
@@ -160,7 +160,7 @@ test("[UT][artifact-management][run_state_expired_reconcile][blocked_invalid] re
   }
 });
 
-test("[UT][artifact-management][run_state_expired_reconcile][blocked_invalid] reconcileExpiredActiveState fails closed when a canonical checksum mismatches", async () => {
+test("[UT][artifact-management][run_state_expired_reconcile] reconcileExpiredActiveState fails closed when a canonical checksum mismatches", async () => {
   const root = tempRoot();
   try {
     await seedExpiredState(root);

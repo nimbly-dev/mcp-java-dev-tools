@@ -14,7 +14,7 @@ function fileUri(root: string): string {
   return pathToFileURL(root).toString();
 }
 
-test("[UT][transport][workspace_context][ok] normalizes a root pointing at .mcpjvm", () => {
+test("[UT][transport][workspace_context] normalizes a root pointing at .mcpjvm", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcpjvm-root-"));
   try {
     fs.mkdirSync(path.join(root, ".mcpjvm"), { recursive: true });
@@ -22,11 +22,11 @@ test("[UT][transport][workspace_context][ok] normalizes a root pointing at .mcpj
     assert.equal(result.workspaceRootAbs, root);
     assert.equal(result.source, "roots");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][workspace_context][blocked_invalid] fails closed for multiple canonical workspace roots", () => {
+test("[UT][transport][workspace_context] fails closed for multiple canonical workspace roots", () => {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), "mcpjvm-roots-"));
   try {
     const first = path.join(parent, "first");
@@ -38,17 +38,17 @@ test("[UT][transport][workspace_context][blocked_invalid] fails closed for multi
     const result = resolveWorkspaceFromRoots([{ uri: fileUri(first) }, { uri: fileUri(second) }]);
     assert.equal(result.reasonCode, "workspace_context_ambiguous");
   } finally {
-    fs.rmSync(parent, { recursive: true, force: true });
+    fs.rmSync(parent, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][workspace_context][blocked_invalid] returns missing when Roots are removed", () => {
+test("[UT][transport][workspace_context] returns missing when Roots are removed", () => {
   const result = resolveWorkspaceFromRoots([]);
   assert.equal(result.workspaceRootAbs, undefined);
   assert.equal(result.reasonCode, "workspace_context_missing");
 });
 
-test("[UT][transport][workspace_context][ok] preserves explicit Probe-config overrides across workspace rebinding", () => {
+test("[UT][transport][workspace_context] preserves explicit Probe-config overrides across workspace rebinding", () => {
   const workspace = path.join(os.tmpdir(), "mcpjvm-rebound");
   assert.equal(
     resolveProbeConfigFileForWorkspace(workspace, ".mcpjvm/probe-config.json"),
@@ -61,7 +61,7 @@ test("[UT][transport][workspace_context][ok] preserves explicit Probe-config ove
   );
 });
 
-test("[UT][transport][workspace_context][ok] preserves UNC workspace Roots on Windows", () => {
+test("[UT][transport][workspace_context] preserves UNC workspace Roots on Windows", () => {
   if (process.platform !== "win32") return;
   const result = resolveWorkspaceFromRoots([{ uri: "file://server/share/workspace" }]);
   assert.equal(result.workspaceRootAbs, path.resolve("\\\\server\\share\\workspace"));

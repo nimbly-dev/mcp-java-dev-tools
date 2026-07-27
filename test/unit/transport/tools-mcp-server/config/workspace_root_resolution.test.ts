@@ -35,7 +35,7 @@ function writeProbeConfig(root: string): void {
   fs.copyFileSync(FIXTURE, path.join(dir, "probe-config.json"));
 }
 
-test("[UT][transport][workspace_root_resolution][ok] workspace root resolution prefers --workspace-root over session/cwd", () => {
+test("[UT][transport][workspace_root_resolution] workspace root resolution prefers --workspace-root over session/cwd", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-arg-"));
   try {
     const argRoot = path.join(tmp, "arg");
@@ -54,11 +54,11 @@ test("[UT][transport][workspace_root_resolution][ok] workspace root resolution p
       },
     );
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][workspace_root_resolution][ok] workspace root resolution uses INIT_CWD then PWD when CLI arg is absent", () => {
+test("[UT][transport][workspace_root_resolution] workspace root resolution uses INIT_CWD then PWD when CLI arg is absent", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-session-"));
   try {
     const sessionRoot = path.join(tmp, "session");
@@ -75,11 +75,11 @@ test("[UT][transport][workspace_root_resolution][ok] workspace root resolution u
       },
     );
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][workspace_root_resolution][ok] workspace root resolution prefers MCP_WORKSPACE_ROOT over session vars", () => {
+test("[UT][transport][workspace_root_resolution] workspace root resolution prefers MCP_WORKSPACE_ROOT over session vars", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-env-"));
   try {
     const envRoot = path.join(tmp, "env");
@@ -99,11 +99,11 @@ test("[UT][transport][workspace_root_resolution][ok] workspace root resolution p
       },
     );
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][workspace_root_resolution][ok] workspace root resolution falls back to cwd when session vars are absent", () => {
+test("[UT][transport][workspace_root_resolution] workspace root resolution falls back to cwd when session vars are absent", () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-cwd-"));
   const original = process.cwd();
   try {
@@ -124,11 +124,11 @@ test("[UT][transport][workspace_root_resolution][ok] workspace root resolution f
     );
   } finally {
     process.chdir(original);
-    fs.rmSync(tempRoot, { recursive: true, force: true });
+    fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][transport][workspace_root_resolution][ok] workspace root resolution derives from an absolute canonical probe-config path", () => {
+test("[UT][transport][workspace_root_resolution] workspace root resolution derives from an absolute canonical probe-config path", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-root-probe-config-"));
   const originalCwd = process.cwd();
   try {
@@ -156,6 +156,6 @@ test("[UT][transport][workspace_root_resolution][ok] workspace root resolution d
     );
   } finally {
     process.chdir(originalCwd);
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

@@ -10,13 +10,13 @@ const {
 } = require("@/models/inputs/execution_profile_export.input.model");
 const z = require("zod/v4");
 
-test("[UT][contracts][input_contracts][ok] route_synthesis schema includes action and typed input", () => {
+test("[UT][contracts][input_contracts] route_synthesis schema includes action and typed input", () => {
   const keys = Object.keys(RouteSynthesisInputSchema);
   assert.equal(keys.includes("action"), true);
   assert.equal(keys.includes("input"), true);
 });
 
-test("[UT][contracts][input_contracts][blocked_invalid] route_synthesis create_recipe input requires projectRootAbs", () => {
+test("[UT][contracts][input_contracts] route_synthesis create_recipe input requires projectRootAbs", () => {
   const createRecipeSchema = z.object(RouteSynthesisInputSchema);
   const createRecipeShape = RouteSynthesisRequestSchema.options.find(
     (option: any) => option.shape.action.value === "create_recipe",
@@ -41,7 +41,7 @@ test("[UT][contracts][input_contracts][blocked_invalid] route_synthesis create_r
   assert.equal(createRecipeSchema.safeParse(recipeRequest.data).success, true);
 });
 
-test("[UT][contracts][input_contracts][blocked_invalid] route_synthesis infer_target input requires projectRootAbs", () => {
+test("[UT][contracts][input_contracts] route_synthesis infer_target input requires projectRootAbs", () => {
   const inferTargetShape = RouteSynthesisRequestSchema.options.find(
     (option: any) => option.shape.action.value === "infer_target",
   );
@@ -61,7 +61,7 @@ test("[UT][contracts][input_contracts][blocked_invalid] route_synthesis infer_ta
   assert.equal(parsed.success, true);
 });
 
-test("[UT][contracts][input_contracts][blocked_invalid] route_synthesis create_recipe accepts line_probe/regression and rejects legacy internal modes", () => {
+test("[UT][contracts][input_contracts] route_synthesis create_recipe accepts line_probe/regression and rejects legacy internal modes", () => {
   const baseInput = {
     action: "create_recipe",
     input: {
@@ -97,7 +97,7 @@ test("[UT][contracts][input_contracts][blocked_invalid] route_synthesis create_r
   assert.equal(legacy.success, false);
 });
 
-test("[UT][contracts][input_contracts][ok] route_synthesis create_recipe accepts runtime discovery preference values", () => {
+test("[UT][contracts][input_contracts] route_synthesis create_recipe accepts runtime discovery preference values", () => {
   const parsed = RouteSynthesisRequestSchema.safeParse({
     action: "create_recipe",
     input: {
@@ -124,7 +124,7 @@ test("[UT][contracts][input_contracts][ok] route_synthesis create_recipe accepts
   assert.equal(invalid.success, false);
 });
 
-test("[UT][contracts][input_contracts][blocked_invalid] execution_profile_export schema accepts mode or type alias and rejects invalid values", () => {
+test("[UT][contracts][input_contracts] execution_profile_export schema accepts mode or type alias and rejects invalid values", () => {
   const exportSchema = z.object(ExecutionProfileExportInputSchema);
   const withMode = exportSchema.safeParse({ executionProfile: "regression-test-run", mode: "sh" });
   assert.equal(withMode.success, true);

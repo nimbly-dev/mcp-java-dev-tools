@@ -41,7 +41,7 @@ function parseProbeText(result: { content: Array<{ text: string }> }): Record<st
   return JSON.parse(first.text);
 }
 
-test("[UT][probe][probe][blocked_invalid] probe_get_status returns invalid_line_target for unresolved runtime line", async () => {
+test("[UT][probe][probe] probe_get_status returns invalid_line_target for unresolved runtime line", async () => {
   let calls = 0;
   await withMockedFetch(
     async () => {
@@ -79,7 +79,7 @@ test("[UT][probe][probe][blocked_invalid] probe_get_status returns invalid_line_
   assert.equal(calls, 1);
 });
 
-test("[UT][probe][probe][ok] probe_get_status supports 0.1.0 nested envelope", async () => {
+test("[UT][probe][probe] probe_get_status supports 0.1.0 nested envelope", async () => {
   await withMockedFetch(
     async () => {
       return jsonResponse(200, {
@@ -168,7 +168,7 @@ test("[UT][probe][probe][ok] probe_get_status supports 0.1.0 nested envelope", a
   );
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_reset returns invalid_line_target semantics when runtime line is unresolved", async () => {
+test("[UT][probe][probe] probe_reset returns invalid_line_target semantics when runtime line is unresolved", async () => {
   await withMockedFetch(
     async () => {
       return jsonResponse(200, {
@@ -201,7 +201,7 @@ test("[UT][probe][probe][blocked_invalid] probe_reset returns invalid_line_targe
   );
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_wait_for_hit exits immediately for invalid_line_target", async () => {
+test("[UT][probe][probe] probe_wait_for_hit exits immediately for invalid_line_target", async () => {
   let calls = 0;
   await withMockedFetch(
     async () => {
@@ -240,7 +240,7 @@ test("[UT][probe][probe][blocked_invalid] probe_wait_for_hit exits immediately f
   assert.equal(calls, 1);
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_wait_for_hit returns structured service_unreachable by default", async () => {
+test("[UT][probe][probe] probe_wait_for_hit returns structured service_unreachable by default", async () => {
   let calls = 0;
   await withMockedFetch(
     async () => {
@@ -272,7 +272,7 @@ test("[UT][probe][probe][blocked_invalid] probe_wait_for_hit returns structured 
   assert.equal(calls, 1);
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_wait_for_hit retries unreachable status checks when enabled and can recover", async () => {
+test("[UT][probe][probe] probe_wait_for_hit retries unreachable status checks when enabled and can recover", async () => {
   let calls = 0;
   await withMockedFetch(
     async () => {
@@ -305,7 +305,7 @@ test("[UT][probe][probe][blocked_invalid] probe_wait_for_hit retries unreachable
   assert.equal(calls, 2);
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_wait_for_hit returns structured service_unreachable after unreachable retries are exhausted", async () => {
+test("[UT][probe][probe] probe_wait_for_hit returns structured service_unreachable after unreachable retries are exhausted", async () => {
   let calls = 0;
   await withMockedFetch(
     async () => {
@@ -339,7 +339,7 @@ test("[UT][probe][probe][blocked_invalid] probe_wait_for_hit returns structured 
   assert.equal(calls, 2);
 });
 
-test("[UT][probe][probe][ok] probe_wait_for_hit timeout_no_inline_hit returns line-not-executed guidance", async () => {
+test("[UT][probe][probe] probe_wait_for_hit timeout_no_inline_hit returns line-not-executed guidance", async () => {
   let calls = 0;
   await withMockedFetch(
     async () => {
@@ -379,7 +379,7 @@ test("[UT][probe][probe][ok] probe_wait_for_hit timeout_no_inline_hit returns li
   assert.ok(calls >= 2);
 });
 
-test("[UT][probe][probe][ok] probe_wait_for_hit marks staleCandidate when hit count changes outside inline time window", async () => {
+test("[UT][probe][probe] probe_wait_for_hit marks staleCandidate when hit count changes outside inline time window", async () => {
   const key = "com.example.social.post.app.controller.PostController#updatePost:122";
   const originalNow = Date.now;
   let now = 2_000;
@@ -439,7 +439,7 @@ test("[UT][probe][probe][ok] probe_wait_for_hit marks staleCandidate when hit co
   }
 });
 
-test("[UT][probe][probe][ok] probe_wait_for_hit emits minimal non-duplicative epoch fields", async () => {
+test("[UT][probe][probe] probe_wait_for_hit emits minimal non-duplicative epoch fields", async () => {
   const key = "com.example.social.post.app.controller.PostController#updatePost:122";
   const originalNow = Date.now;
   let calls = 0;
@@ -485,7 +485,7 @@ test("[UT][probe][probe][ok] probe_wait_for_hit emits minimal non-duplicative ep
   }
 });
 
-test("[UT][probe][probe][ok] probe domain reuses reset window across probeIds when strict line keys are identical", async () => {
+test("[UT][probe][probe] probe domain reuses reset window across probeIds when strict line keys are identical", async () => {
   const key = "com.example.social.post.app.controller.PostController#updatePost:122";
   const originalNow = Date.now;
   let now = 1_000;
@@ -574,7 +574,7 @@ test("[UT][probe][probe][ok] probe domain reuses reset window across probeIds wh
   }
 });
 
-test("[UT][probe][probe][ok] probe_wait_for_hit preserves the original reset window across retry attempts", async () => {
+test("[UT][probe][probe] probe_wait_for_hit preserves the original reset window across retry attempts", async () => {
   const key = "com.example.social.post.app.controller.PostController#updatePost:122";
   const originalNow = Date.now;
   let now = 0;
@@ -630,7 +630,7 @@ test("[UT][probe][probe][ok] probe_wait_for_hit preserves the original reset win
   }
 });
 
-test("[UT][probe][probe][ok] probe_wait_for_hit line_key_required includes diagnostics contract", async () => {
+test("[UT][probe][probe] probe_wait_for_hit line_key_required includes diagnostics contract", async () => {
   const out = await probeWaitHit({
     key: "com.example.social.post.app.controller.PostController#updatePost",
     baseUrl: "http://127.0.0.1:9191",
@@ -645,7 +645,7 @@ test("[UT][probe][probe][ok] probe_wait_for_hit line_key_required includes diagn
   assert.equal(out.structuredContent.result.reasonMeta.failedStep, "input_validation");
 });
 
-test("[UT][probe][probe][ok] probe_get_status remains backward-compatible when line validation fields are absent", async () => {
+test("[UT][probe][probe] probe_get_status remains backward-compatible when line validation fields are absent", async () => {
   await withMockedFetch(
     async () => {
       return jsonResponse(200, {
@@ -669,7 +669,7 @@ test("[UT][probe][probe][ok] probe_get_status remains backward-compatible when l
   );
 });
 
-test("[UT][probe][probe][ok] probe_get_status supports keys[] batch with partial success semantics", async () => {
+test("[UT][probe][probe] probe_get_status supports keys[] batch with partial success semantics", async () => {
   let calls = 0;
   let postedBody: any = null;
   const lineKey = "com.example.social.post.app.controller.PostController#updatePost:122";
@@ -724,7 +724,7 @@ test("[UT][probe][probe][ok] probe_get_status supports keys[] batch with partial
   assert.deepEqual(postedBody, { keys: [lineKey] });
 });
 
-test("[UT][probe][probe][ok] probe_get_status supports 0.1.0 batch rows with nested probe payload", async () => {
+test("[UT][probe][probe] probe_get_status supports 0.1.0 batch rows with nested probe payload", async () => {
   const lineKey = "com.example.social.post.app.controller.PostController#updatePost:122";
   await withMockedFetch(
     async () => {
@@ -802,7 +802,7 @@ test("[UT][probe][probe][ok] probe_get_status supports 0.1.0 batch rows with nes
   );
 });
 
-test("[UT][probe][probe][ok] probe_get_capture returns capture payload when available", async () => {
+test("[UT][probe][probe] probe_get_capture returns capture payload when available", async () => {
   await withMockedFetch(
     async () => {
       return jsonResponse(200, {
@@ -869,7 +869,7 @@ test("[UT][probe][probe][ok] probe_get_capture returns capture payload when avai
   );
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_profiler surfaces deterministic reason code for fail-closed start response", async () => {
+test("[UT][probe][probe] probe_profiler surfaces deterministic reason code for fail-closed start response", async () => {
   await withMockedFetch(
     async () => {
       return jsonResponse(409, {
@@ -895,7 +895,7 @@ test("[UT][probe][probe][blocked_invalid] probe_profiler surfaces deterministic 
   );
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_get_capture returns not found state when capture is missing", async () => {
+test("[UT][probe][probe] probe_get_capture returns not found state when capture is missing", async () => {
   await withMockedFetch(
     async () => {
       return jsonResponse(404, {
@@ -922,7 +922,7 @@ test("[UT][probe][probe][blocked_invalid] probe_get_capture returns not found st
   );
 });
 
-test("[UT][probe][probe][ok] probe_get_capture includes timing fields for thrown captures", async () => {
+test("[UT][probe][probe] probe_get_capture includes timing fields for thrown captures", async () => {
   await withMockedFetch(
     async () => {
       return jsonResponse(200, {
@@ -966,7 +966,7 @@ test("[UT][probe][probe][ok] probe_get_capture includes timing fields for thrown
   );
 });
 
-test("[UT][probe][probe][ok] probe_reset supports keys[] batch with partial success semantics", async () => {
+test("[UT][probe][probe] probe_reset supports keys[] batch with partial success semantics", async () => {
   let calls = 0;
   let postedBody: any = null;
   const validLineKey = "com.example.social.post.app.controller.PostController#updatePost:122";
@@ -1024,7 +1024,7 @@ test("[UT][probe][probe][ok] probe_reset supports keys[] batch with partial succ
   assert.deepEqual(postedBody, { keys: [validLineKey, invalidLineKey] });
 });
 
-test("[UT][probe][probe][ok] probe_reset supports className selector and class_not_found no-op response", async () => {
+test("[UT][probe][probe] probe_reset supports className selector and class_not_found no-op response", async () => {
   let calls = 0;
   await withMockedFetch(
     async () => {
@@ -1057,7 +1057,7 @@ test("[UT][probe][probe][ok] probe_reset supports className selector and class_n
   assert.equal(calls, 1);
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_get_status rejects conflicting or missing selectors", async () => {
+test("[UT][probe][probe] probe_get_status rejects conflicting or missing selectors", async () => {
   await assert.rejects(
     probeStatus({
       key: "com.example.social.post.app.controller.PostController#updatePost:122",
@@ -1087,7 +1087,7 @@ test("[UT][probe][probe][blocked_invalid] probe_get_status rejects conflicting o
   );
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_enable arm requires strict line target key", async () => {
+test("[UT][probe][probe] probe_enable arm requires strict line target key", async () => {
   const out = await probeActuate({
     action: "arm",
     sessionId: "test-session",
@@ -1102,7 +1102,7 @@ test("[UT][probe][probe][blocked_invalid] probe_enable arm requires strict line 
   assert.equal(out.structuredContent.result.nextActionCode, "provide_strict_line_key");
 });
 
-test("[UT][probe][probe][blocked_invalid] probe_reset rejects conflicting or missing selectors", async () => {
+test("[UT][probe][probe] probe_reset rejects conflicting or missing selectors", async () => {
   await assert.rejects(
     probeReset({
       key: "com.example.social.post.app.controller.PostController#updatePost:122",
@@ -1132,7 +1132,7 @@ test("[UT][probe][probe][blocked_invalid] probe_reset rejects conflicting or mis
   );
 });
 
-test("[UT][probe][probe][blocked_invalid] probe domain fails closed for unknown probeId", async () => {
+test("[UT][probe][probe] probe domain fails closed for unknown probeId", async () => {
   const domain = createProbeDomain({
     probeBaseUrl: "http://127.0.0.1:9190",
     probeStatusPath: "/__probe/status",
@@ -1164,7 +1164,7 @@ test("[UT][probe][probe][blocked_invalid] probe domain fails closed for unknown 
   assert.equal(out.structuredContent.nextActionCode, "select_registered_probe_id");
 });
 
-test("[UT][probe][probe][blocked_invalid] probe domain fails closed when registry is multi-probe and selection is omitted", async () => {
+test("[UT][probe][probe] probe domain fails closed when registry is multi-probe and selection is omitted", async () => {
   const domain = createProbeDomain({
     probeBaseUrl: "",
     probeStatusPath: "/__probe/status",

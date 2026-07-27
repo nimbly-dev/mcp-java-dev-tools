@@ -446,7 +446,7 @@ function writeFakeJmeterInstallation(root: string): string {
   return fakeJmeterHome;
 }
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain resolves executionProfile and creates a fresh sh export", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves executionProfile and creates a fresh sh export", async () => {
   const root = createTestTempDir("execution-profile-export-domain-sh");
   try {
     writeProject(root);
@@ -475,11 +475,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
       /exports[\\/]\d{4}-\d{2}-\d{2}-[0-9a-f-]+[\\/]run-execution-profile\.sh$/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain derives blocked source run status from latest canonical suite when no export summary exists", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain derives blocked source run status from latest canonical suite when no export summary exists", async () => {
   const root = createTestTempDir("execution-profile-export-domain-suite-source");
   try {
     writeProject(root);
@@ -523,11 +523,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.match(readme, /SourceRunStatus: `blocked`/);
     assert.match(script, /# SourceRunStatus: blocked/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain uses real suite artifact time for when-based source selection", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain uses real suite artifact time for when-based source selection", async () => {
   const root = createTestTempDir("execution-profile-export-domain-when-source");
   try {
     writeProject(root);
@@ -616,11 +616,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     const readme = fs.readFileSync(readmePathAbs, "utf8");
     assert.match(readme, /SourceRunStatus: `blocked`/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed when mode/type is missing", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed when mode/type is missing", async () => {
   const root = createTestTempDir("execution-profile-export-domain-mode-required");
   try {
     writeProject(root);
@@ -633,11 +633,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.reasonCode, "execution_export_mode_required");
     assert.equal(out.structuredContent.reasonMeta.nextAction, "provide mode=ps1|sh|postman");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed when mode/type conflict", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed when mode/type conflict", async () => {
   const root = createTestTempDir("execution-profile-export-domain-mode-conflict");
   try {
     writeProject(root);
@@ -651,11 +651,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.status, "execution_export_mode_conflict");
     assert.equal(out.structuredContent.reasonCode, "execution_export_mode_conflict");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed when executionProfile is ambiguous and no selector is provided", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed when executionProfile is ambiguous and no selector is provided", async () => {
   const root = createTestTempDir("execution-profile-export-domain-default");
   try {
     writeProject(root);
@@ -675,11 +675,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.status, "execution_profile_ambiguous");
     assert.equal(out.structuredContent.reasonCode, "execution_profile_ambiguous");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain resolves project ambiguity when projectName is explicitly provided", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves project ambiguity when projectName is explicitly provided", async () => {
   const root = createTestTempDir("execution-profile-export-domain-project-selector");
   try {
     writeProjectWithName(root, "test-project", "regression-test-run", "gateway-route-smoke-spec");
@@ -704,11 +704,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
       /^20\d{6}-\d{6}-test-performance-contract-run$/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain exports performance replay package for sh mode", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain exports performance replay package for sh mode", async () => {
   const root = createTestTempDir("execution-profile-export-domain-performance-sh");
   try {
     writePerformanceProject(root);
@@ -747,11 +747,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.equal(bundle.plans[0].probeBaseUrl, "http://127.0.0.1:9195");
     assert.equal(bundle.plans[0].contract.loadModel.mode, "concurrency");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain preserves explicit performance probe baseUrl when probe registry is unavailable", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain preserves explicit performance probe baseUrl when probe registry is unavailable", async () => {
   const root = createTestTempDir(
     "execution-profile-export-domain-performance-explicit-probe-base-url",
   );
@@ -772,11 +772,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.equal(bundle.plans[0].probeBaseUrl, "http://127.0.0.1:9194");
     assert.equal(bundle.plans[0].contract.observationTargets.baseUrl, "http://127.0.0.1:9194");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain exports performance replay package for ps1 mode", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain exports performance replay package for ps1 mode", async () => {
   const root = createTestTempDir("execution-profile-export-domain-performance-ps1");
   try {
     writePerformanceProject(root);
@@ -807,11 +807,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.match(readme, /SuiteType: `performance`/);
     assert.match(readme, /ReplayPackageType: `workload_replay_only`/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed for performance postman export", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed for performance postman export", async () => {
   const root = createTestTempDir("execution-profile-export-domain-performance-postman");
   try {
     writePerformanceProject(root);
@@ -828,11 +828,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.reasonCode, "performance_export_mode_unsupported");
     assert.equal(out.structuredContent.reasonMeta.suiteType, "performance");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain exports JMeter-compatible performance replay package for sh mode", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain exports JMeter-compatible performance replay package for sh mode", async () => {
   const root = createTestTempDir("execution-profile-export-domain-performance-jmeter-sh");
   try {
     const projectName = "test-performance-project";
@@ -883,11 +883,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.match(jmxText, /<jmeterTestPlan/);
     assert.match(jmxText, /GET http:\/\/127\.0\.0\.1:8080\/api\/metrics\/hello/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed when performance export probe binding cannot be resolved", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed when performance export probe binding cannot be resolved", async () => {
   const root = createTestTempDir(
     "execution-profile-export-domain-performance-probe-binding-missing",
   );
@@ -939,11 +939,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.status, "performance_export_probe_binding_missing");
     assert.equal(out.structuredContent.reasonCode, "performance_export_probe_binding_missing");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain resolves performance probe baseUrl from selected project workspace root", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves performance probe baseUrl from selected project workspace root", async () => {
   const root = createTestTempDir(
     "execution-profile-export-domain-performance-probe-workspace-root",
   );
@@ -997,11 +997,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     const bundle = readJson(path.join(exportDirAbs, "performance-export.bundle.json"));
     assert.equal(bundle.plans[0].probeBaseUrl, "http://127.0.0.1:9195");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain resolves performance probe baseUrl when probe-config.json has utf8 bom", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves performance probe baseUrl when probe-config.json has utf8 bom", async () => {
   const root = createTestTempDir("execution-profile-export-domain-performance-probe-bom");
   try {
     const appRoot = path.join(root, "app-workspace");
@@ -1053,11 +1053,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     const bundle = readJson(path.join(exportDirAbs, "performance-export.bundle.json"));
     assert.equal(bundle.plans[0].probeBaseUrl, "http://127.0.0.1:9195");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain exports JMeter-compatible performance replay package for ps1 mode", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain exports JMeter-compatible performance replay package for ps1 mode", async () => {
   const root = createTestTempDir("execution-profile-export-domain-performance-jmeter-ps1");
   try {
     const projectName = "test-performance-project";
@@ -1107,11 +1107,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.match(readme, /## JMeter Artifacts/);
     assert.match(readme, /artifacts\/jmeter\/type-performance-jmeter\.workload\.jmeter\.jmx/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] exported performance replay runner executes JMeter-backed package end-to-end", async () => {
+test("[UT][execution-profile-export][export_execution_profile] exported performance replay runner executes JMeter-backed package end-to-end", async () => {
   const root = createTestTempDir("execution-profile-export-domain-performance-jmeter-runner");
   const http = require("node:http");
   const startServer = async (handler: (req: any, res: any) => void) => {
@@ -1310,11 +1310,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] exported perf
     if (probeServer) {
       await probeServer.close();
     }
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain resolves containing execution profile by planName selector", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves containing execution profile by planName selector", async () => {
   const root = createTestTempDir("execution-profile-export-domain-plan-selector");
   try {
     writeProject(root);
@@ -1335,11 +1335,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.equal(out.structuredContent.status, "ok");
     assert.match(String(out.structuredContent.exportId ?? ""), /^20\d{6}-\d{6}-alternate-run$/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain exports postman collection when scripts are JS-compatible", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain exports postman collection when scripts are JS-compatible", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman");
   try {
     writeProject(root);
@@ -1399,11 +1399,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     );
     assert.deepEqual(environment2, environment);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain exports postman collection with plan folders for multi-plan profiles", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain exports postman collection with plan folders for multi-plan profiles", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-plan-folders");
   try {
     const projectName = "test-project";
@@ -1488,11 +1488,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.equal(collection.item[0].item[0].request.url, "http://127.0.0.1:8080/a");
     assert.equal(collection.item[1].item[0].request.url, "http://127.0.0.1:8080/b");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain normalizes ${var} syntax and emits referenced environment variables", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain normalizes ${var} syntax and emits referenced environment variables", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-vars");
   try {
     writeProject(root);
@@ -1541,11 +1541,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     const envKeys = environment.values.map((entry: any) => entry.key).sort();
     assert.deepEqual(envKeys, ["auth.bearer", "courseTitle"]);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed for postman when url authority variable has no default", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed for postman when url authority variable has no default", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-url-default-missing");
   try {
     writeProject(root);
@@ -1582,11 +1582,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.reasonCode, "postman_export_blocked");
     assert.equal(out.structuredContent.reasonMeta.cause, "url_variable_default_missing");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain applies prerequisite defaults and uses gatewayBaseUrl variable as URL authority", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain applies prerequisite defaults and uses gatewayBaseUrl variable as URL authority", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-gateway-default");
   try {
     writeProject(root);
@@ -1638,11 +1638,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
       assert.equal(authorVar.type, "default");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain resolves auth.bearer from workspace env when includeResolvedSecrets=true", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves auth.bearer from workspace env when includeResolvedSecrets=true", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-auth-resolved");
   try {
     const projectName = "test-project";
@@ -1715,11 +1715,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.equal(authVar.value, "secret-token");
     assert.equal(authVar.type, "secret");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain does not resolve auth.bearer from sessionExport includeResolvedSecrets without explicit request opt-in", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain does not resolve auth.bearer from sessionExport includeResolvedSecrets without explicit request opt-in", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-auth-session-default");
   try {
     const projectName = "test-project";
@@ -1790,11 +1790,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.equal(out.structuredContent.reasonMeta.cause, "required_prerequisite_unresolved");
     assert.equal(out.structuredContent.reasonMeta.prerequisiteKey, "auth.bearer");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain resolves required auth.bearer via contextBindings env key mapping", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves required auth.bearer via contextBindings env key mapping", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-binding-map");
   try {
     const projectName = "test-project";
@@ -1865,11 +1865,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     const authVar = environment.values.find((entry: any) => entry.key === "auth.bearer");
     assert.equal(authVar.value, "bind-token");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed when required prerequisite remains unresolved", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed when required prerequisite remains unresolved", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-required-unresolved");
   try {
     writeProject(root);
@@ -1914,11 +1914,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.reasonMeta.cause, "required_prerequisite_unresolved");
     assert.equal(out.structuredContent.reasonMeta.prerequisiteKey, "auth.bearer");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain resolves required prerequisite from contextValues without env", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves required prerequisite from contextValues without env", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-context-values");
   try {
     writeProject(root);
@@ -1965,11 +1965,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     const authVar = environment.values.find((entry: any) => entry.key === "auth.bearer");
     assert.equal(authVar.value, "ctx-token");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain supports derived required prerequisite via postman extract before downstream use", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain supports derived required prerequisite via postman extract before downstream use", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-derived-context");
   try {
     writeProject(root);
@@ -2030,11 +2030,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     const execLines = collection.item[0].event?.[0]?.script?.exec ?? [];
     assert.ok(execLines.some((line: string) => line.includes('pm.environment.set("courseId"')));
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][ok] executionProfileExportDomain executes non-JS prerequisite script before postman export", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain executes non-JS prerequisite script before postman export", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-blocked");
   try {
     const projectName = "test-project";
@@ -2078,11 +2078,11 @@ test("[UT][execution-profile-export][export_execution_profile][ok] executionProf
     assert.equal(out.structuredContent.status, "ok");
     assert.equal(out.structuredContent.mode, "postman");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed for postman when JS script is not Postman-compatible", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed for postman when JS script is not Postman-compatible", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-js-format");
   try {
     writeProject(root);
@@ -2105,11 +2105,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.reasonMeta.failedStep, "postman_script_validation");
     assert.equal(out.structuredContent.reasonMeta.scriptName, "setup-js");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed for postman when script implies provisioning", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed for postman when script implies provisioning", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-provisioning");
   try {
     const projectName = "test-project";
@@ -2148,11 +2148,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.reasonMeta.failedStep, "postman_scope_guard");
     assert.equal(out.structuredContent.reasonMeta.scriptName, "setup-provision");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed for postman when plan step transport is non-http", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed for postman when plan step transport is non-http", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-transport");
   try {
     writeProject(root);
@@ -2182,11 +2182,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.reasonMeta.planName, "gateway-route-smoke-spec");
     assert.equal(out.structuredContent.reasonMeta.stepId, "s1");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed for postman when url is unresolved", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed for postman when url is unresolved", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-url");
   try {
     writeProject(root);
@@ -2227,11 +2227,11 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.reasonMeta.planName, "gateway-route-smoke-spec");
     assert.equal(out.structuredContent.reasonMeta.stepId, "s1");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] executionProfileExportDomain fails closed for postman when url is not runner-runnable", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain fails closed for postman when url is not runner-runnable", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-unrunnable-url");
   try {
     writeProject(root);
@@ -2270,6 +2270,6 @@ test("[UT][execution-profile-export][export_execution_profile][blocked_invalid] 
     assert.equal(out.structuredContent.reasonMeta.failedStep, "postman_export_render");
     assert.equal(out.structuredContent.reasonMeta.cause, "url_unrunnable");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

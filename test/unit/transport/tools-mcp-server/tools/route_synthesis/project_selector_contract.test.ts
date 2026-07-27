@@ -59,7 +59,7 @@ async function withTempDir(run: (dir: string) => Promise<void>) {
   }
 }
 
-test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesis create_recipe fails closed when additionalSourceRoots contains an invalid path", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis create_recipe fails closed when additionalSourceRoots contains an invalid path", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerRouteSynthesisTool(server, {
       config: TARGET_INFER_CONFIG,
@@ -87,7 +87,7 @@ test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesi
   assert.equal((out.structuredContent.reasonMeta as any).failedStep, "input_validation");
 });
 
-test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesis infer_target fails closed when additionalSourceRoots exceeds max count", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis infer_target fails closed when additionalSourceRoots exceeds max count", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerRouteSynthesisTool(server, {
       config: TARGET_INFER_CONFIG,
@@ -115,7 +115,7 @@ test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesi
   assert.equal((out.structuredContent.reasonMeta as any).failedStep, "input_validation");
 });
 
-test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesis create_recipe requires explicit projectRootAbs", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis create_recipe requires explicit projectRootAbs", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerRouteSynthesisTool(server, {
       config: TARGET_INFER_CONFIG,
@@ -141,7 +141,7 @@ test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesi
   assert.equal(out.structuredContent.resultType, "report");
 });
 
-test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesis infer_target requires explicit projectRootAbs", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis infer_target requires explicit projectRootAbs", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerRouteSynthesisTool(server, {
       config: TARGET_INFER_CONFIG,
@@ -164,7 +164,7 @@ test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesi
   assert.equal(out.structuredContent.nextActionCode, "provide_project_root");
 });
 
-test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesis create_recipe fails closed when classHint is not an FQCN", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis create_recipe fails closed when classHint is not an FQCN", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerRouteSynthesisTool(server, {
       config: TARGET_INFER_CONFIG,
@@ -199,7 +199,7 @@ test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesi
   assert.match(out.structuredContent.nextAction, /Provide exact FQCN/i);
 });
 
-test("[UT][transport][project_selector_contract][ok] route_synthesis create_recipe passes configured workspace root into generateRecipe", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis create_recipe passes configured workspace root into generateRecipe", async () => {
   await withTempDir(async (dir: string) => {
     const workspaceRootAbs = path.join(dir, "..", "workspace-root");
     let capturedArgs: Record<string, unknown> | undefined;
@@ -276,7 +276,7 @@ test("[UT][transport][project_selector_contract][ok] route_synthesis create_reci
   });
 });
 
-test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesis create_recipe fails closed when strict runtime line is unresolved", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis create_recipe fails closed when strict runtime line is unresolved", async () => {
   await withTempDir(async (dir: string) => {
     const originalGenerateRecipe = recipeGenerateDomain.generateRecipe;
     recipeGenerateDomain.generateRecipe = async () => ({
@@ -383,7 +383,7 @@ test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesi
   });
 });
 
-test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesis infer_target requires exact classHint", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis infer_target requires exact classHint", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerRouteSynthesisTool(server, {
       config: TARGET_INFER_CONFIG,
@@ -408,7 +408,7 @@ test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesi
   assert.equal(out.structuredContent.failedStep, "input_validation");
 });
 
-test("[UT][transport][project_selector_contract][ok] route_synthesis infer_target emits explicit resultType and status", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis infer_target emits explicit resultType and status", async () => {
   await withTempDir(async (dir: string) => {
     const handler = captureRegisteredHandler((server: any) =>
       registerRouteSynthesisTool(server, {
@@ -472,7 +472,7 @@ test("[UT][transport][project_selector_contract][ok] route_synthesis infer_targe
   });
 });
 
-test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesis infer_target fails closed when runtime probe is unreachable", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis infer_target fails closed when runtime probe is unreachable", async () => {
   await withTempDir(async (dir: string) => {
     const handler = captureRegisteredHandler((server: any) =>
       registerRouteSynthesisTool(server, {
@@ -523,7 +523,7 @@ test("[UT][transport][project_selector_contract][blocked_invalid] route_synthesi
   });
 });
 
-test("[UT][transport][project_selector_contract][ok] route_synthesis class_methods returns unresolved line selection when no line is resolvable", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis class_methods returns unresolved line selection when no line is resolvable", async () => {
   await withTempDir(async (dir: string) => {
     const handler = captureRegisteredHandler((server: any) =>
       registerRouteSynthesisTool(server, {
@@ -584,7 +584,7 @@ test("[UT][transport][project_selector_contract][ok] route_synthesis class_metho
   });
 });
 
-test("[UT][transport][project_selector_contract][ok] route_synthesis infer_target uses probeId-specific baseUrl for runtime validation", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis infer_target uses probeId-specific baseUrl for runtime validation", async () => {
   await withTempDir(async (dir: string) => {
     const handler = captureRegisteredHandler((server: any) =>
       registerRouteSynthesisTool(server, {
@@ -670,7 +670,7 @@ test("[UT][transport][project_selector_contract][ok] route_synthesis infer_targe
   });
 });
 
-test("[UT][transport][project_selector_contract][ok] route_synthesis create_recipe uses probeId-specific baseUrl for runtime capture enrichment", async () => {
+test("[UT][transport][project_selector_contract] route_synthesis create_recipe uses probeId-specific baseUrl for runtime capture enrichment", async () => {
   await withTempDir(async (dir: string) => {
     const originalGenerateRecipe = recipeGenerateDomain.generateRecipe;
     recipeGenerateDomain.generateRecipe = async () => ({

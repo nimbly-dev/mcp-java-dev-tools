@@ -34,7 +34,7 @@ function createTestTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(base, `${prefix}-`));
 }
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when workspace defaults are absent", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when workspace defaults are absent", () => {
   const result = validateProjectArtifact({
     workspaces: [{ projectRoot: "C:\\workspace\\spring" }],
   });
@@ -45,7 +45,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when legacy auth field is present", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when legacy auth field is present", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -64,7 +64,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when workspace variables contain unsupported env mappings", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when workspace variables contain unsupported env mappings", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -85,7 +85,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact accepts workspace variables.contextBindings env mappings", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact accepts workspace variables.contextBindings env mappings", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -107,7 +107,7 @@ test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact 
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when workspace variables.contextBindings uses reserved runtime keys", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when workspace variables.contextBindings uses reserved runtime keys", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -132,7 +132,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when runtime context mode is invalid", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when runtime context mode is invalid", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -145,7 +145,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   if (!result.ok) assert.equal(result.reasonCode, "runtime_context_unknown");
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when startups entry is provided without command", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when startups entry is provided without command", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -164,7 +164,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   if (!result.ok) assert.equal(result.reasonCode, "runtime_context_unknown");
 });
 
-test("[UT][project-artifact-spec][project_artifact][ok] write/read project artifact preserves deterministic shape", async () => {
+test("[UT][project-artifact-spec][project_artifact] write/read project artifact preserves deterministic shape", async () => {
   const root = createTestTempDir("project-artifact");
   try {
     const out = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -187,11 +187,11 @@ test("[UT][project-artifact-spec][project_artifact][ok] write/read project artif
       assert.equal(read.artifact.workspaces[0].runtimeContexts?.[0].mode, "terminal");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][ok] readProjectArtifact accepts UTF-8 BOM prefixed JSON", async () => {
+test("[UT][project-artifact-spec][project_artifact] readProjectArtifact accepts UTF-8 BOM prefixed JSON", async () => {
   const root = createTestTempDir("project-artifact-bom");
   try {
     const out = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -208,11 +208,11 @@ test("[UT][project-artifact-spec][project_artifact][ok] readProjectArtifact acce
       assert.equal(read.artifact.workspaces[0].projectRoot, root);
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact accepts runPrerequisites with enum-constrained script/assert", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact accepts runPrerequisites with enum-constrained script/assert", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -247,7 +247,7 @@ test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact 
   assert.equal(result.ok, true);
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed for non-sequential runPrerequisites order", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed for non-sequential runPrerequisites order", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -274,7 +274,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   assert.equal(result.ok, false);
 });
 
-test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact accepts executionProfile runtimeContext alias and normalizes to runtimeContextName", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact accepts executionProfile runtimeContext alias and normalizes to runtimeContextName", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -300,7 +300,7 @@ test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact 
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact accepts shared scripts and execution profile scriptRefs", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact accepts shared scripts and execution profile scriptRefs", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -357,7 +357,7 @@ test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact 
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when execution profile scriptRef is unknown", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when execution profile scriptRef is unknown", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -381,7 +381,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when execution profile scriptRef is provided without any shared scripts", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when execution profile scriptRef is provided without any shared scripts", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -404,7 +404,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when execution profile runtimeContextName is unknown", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when execution profile runtimeContextName is unknown", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -427,7 +427,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] readProjectArtifact fails closed when execution profile planName does not exist on disk", async () => {
+test("[UT][project-artifact-spec][project_artifact] readProjectArtifact fails closed when execution profile planName does not exist on disk", async () => {
   const root = createTestTempDir("project-artifact-missing-plan-ref");
   try {
     const out = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -465,11 +465,11 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] readProject
       );
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][ok] readProjectArtifact validates performance execution profile plan refs against performance plan root", async () => {
+test("[UT][project-artifact-spec][project_artifact] readProjectArtifact validates performance execution profile plan refs against performance plan root", async () => {
   const root = createTestTempDir("project-artifact-performance-plan-ref");
   try {
     const projectRoot = path.join(root, "workspace");
@@ -524,11 +524,11 @@ test("[UT][project-artifact-spec][project_artifact][ok] readProjectArtifact vali
       assert.equal(read.artifact.workspaces[0].executionProfiles?.[0].suiteType, "performance");
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact accepts sessionExport runtime defaults", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact accepts sessionExport runtime defaults", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -547,7 +547,7 @@ test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact 
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when shared script uses absolute path args", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when shared script uses absolute path args", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -571,7 +571,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when runPrerequisite scriptPath is absolute", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when runPrerequisite scriptPath is absolute", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -601,7 +601,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when workspace envFile is absolute", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when workspace envFile is absolute", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -617,7 +617,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when runPrerequisite script args contain absolute path", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when runPrerequisite script args contain absolute path", () => {
   const result = validateProjectArtifact({
     workspaces: [
       withRequiredDefaults({
@@ -648,7 +648,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when orchestrator defaults are absent", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when orchestrator defaults are absent", () => {
   const result = validateProjectArtifact({
     workspaces: [
       {
@@ -666,7 +666,7 @@ test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validatePro
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact normalizes the required orchestrator defaults shape", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact normalizes the required orchestrator defaults shape", () => {
   const result = validateProjectArtifact({
     workspaces: [
       {
@@ -697,7 +697,7 @@ test("[UT][project-artifact-spec][project_artifact][ok] validateProjectArtifact 
   }
 });
 
-test("[UT][project-artifact-spec][project_artifact][blocked_invalid] validateProjectArtifact fails closed when orchestrator defaults are invalid", () => {
+test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fails closed when orchestrator defaults are invalid", () => {
   const result = validateProjectArtifact({
     workspaces: [
       {

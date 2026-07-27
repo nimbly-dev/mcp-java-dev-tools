@@ -147,7 +147,7 @@ function baseContract(overrides = {}) {
   };
 }
 
-test("[UT][regression-suite][regression_discovery_resolver][ok] resolveDiscoverablePrerequisites resolves discoverable context with datasource adapter", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] resolveDiscoverablePrerequisites resolves discoverable context with datasource adapter", async () => {
   const result = await resolveDiscoverablePrerequisites({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -166,7 +166,7 @@ test("[UT][regression-suite][regression_discovery_resolver][ok] resolveDiscovera
   assert.equal(result.discoveredContext.tenantId, "tenant-social-001");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] resolveDiscoverablePrerequisites blocks with policy-disabled reason", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] resolveDiscoverablePrerequisites blocks with policy-disabled reason", async () => {
   const result = await resolveDiscoverablePrerequisites({
     metadata: baseMetadata({ discoveryPolicy: "disabled" }),
     contract: baseContract(),
@@ -183,7 +183,7 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] res
   assert.equal(result.reasonCode, "discoverable_prerequisite_policy_disabled");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] resolveDiscoverablePrerequisites blocks on ambiguous datasource result", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] resolveDiscoverablePrerequisites blocks on ambiguous datasource result", async () => {
   const result = await resolveDiscoverablePrerequisites({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -200,7 +200,7 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] res
   assert.equal(result.reasonCode, "discovery_ambiguous_result");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] resolveDiscoverablePrerequisites blocks on empty datasource result", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] resolveDiscoverablePrerequisites blocks on empty datasource result", async () => {
   const result = await resolveDiscoverablePrerequisites({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -217,7 +217,7 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] res
   assert.equal(result.reasonCode, "discovery_empty_result");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] resolveDiscoverablePrerequisites blocks on unsupported discovery source adapter", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] resolveDiscoverablePrerequisites blocks on unsupported discovery source adapter", async () => {
   const contract = baseContract({
     prerequisites: [
       {
@@ -240,7 +240,7 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] res
   assert.equal(result.reasonCode, "discovery_source_unsupported");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] resolveDiscoverablePrerequisites blocks on timeout", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] resolveDiscoverablePrerequisites blocks on timeout", async () => {
   const result = await resolveDiscoverablePrerequisites({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -257,7 +257,7 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] res
   assert.equal(result.reasonCode, "discovery_timeout");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] resolveDiscoverablePrerequisites blocks on adapter runtime failure", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] resolveDiscoverablePrerequisites blocks on adapter runtime failure", async () => {
   const result = await resolveDiscoverablePrerequisites({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -272,7 +272,7 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] res
   assert.equal(result.reasonCode, "discovery_adapter_failure");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPreflightWithDiscovery merges discovered context and becomes ready", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflightWithDiscovery merges discovered context and becomes ready", async () => {
   const result = await buildReplayPreflightWithDiscovery({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -290,7 +290,7 @@ test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPrefl
   assert.equal(result.resolvedContext.tenantId, "tenant-social-001");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPreflightWithDiscovery enforces precedence user > discovered > default", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflightWithDiscovery enforces precedence user > discovered > default", async () => {
   const result = await buildReplayPreflightWithDiscovery({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -308,7 +308,7 @@ test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPrefl
   assert.equal(result.resolvedContext.tenantId, "tenant-manual-007");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] buildReplayPreflightWithDiscovery returns blocked_ambiguous preflight on ambiguous discovery", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflightWithDiscovery returns blocked_ambiguous preflight on ambiguous discovery", async () => {
   const result = await buildReplayPreflightWithDiscovery({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -326,7 +326,7 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] bui
   assert.equal(result.preflight.reasonCode, "discovery_ambiguous_result");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] resolveDiscoverablePrerequisites blocks when adapter attempts write/mutation mode", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] resolveDiscoverablePrerequisites blocks when adapter attempts write/mutation mode", async () => {
   const result = await resolveDiscoverablePrerequisites({
     metadata: baseMetadata(),
     contract: baseContract(),
@@ -343,7 +343,7 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] res
   assert.equal(result.reasonCode, "discovery_mutation_blocked");
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPreflightWithDiscovery applies project context env auth before discovery", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflightWithDiscovery applies project context env auth before discovery", async () => {
   const root = createTestTempDir("project-context-discovery");
   try {
     const projectsFileAbs = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -396,11 +396,11 @@ test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPrefl
     assert.equal(result.resolvedContext["auth.bearer"], "runtime-token-from-env");
     assert.equal(result.resolvedContext.tenantId, "tenant-social-001");
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] buildReplayPreflightWithDiscovery fails closed when project context env key is missing", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflightWithDiscovery fails closed when project context env key is missing", async () => {
   const root = createTestTempDir("project-context-discovery-env-missing");
   try {
     const projectsFileAbs = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -434,11 +434,11 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] bui
       "Set AUTH_BEARER_TOKEN in .env or environment and retry.",
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] buildReplayPreflightWithDiscovery fails closed when probeVerification=true and probeBaseUrl is unreachable", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflightWithDiscovery fails closed when probeVerification=true and probeBaseUrl is unreachable", async () => {
   const closedPort = await reservePortAndRelease();
   const contract = baseContract({
     prerequisites: [
@@ -472,7 +472,7 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] bui
   );
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPreflightWithDiscovery remains ready when probeVerification=true and probeBaseUrl is reachable", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflightWithDiscovery remains ready when probeVerification=true and probeBaseUrl is reachable", async () => {
   const { server, baseUrl } = await createHttpServer();
   try {
     const contract = baseContract({
@@ -506,7 +506,7 @@ test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPrefl
   }
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] buildReplayPreflightWithDiscovery fails closed when first HTTP target is not reachable after project-context health gate", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflightWithDiscovery fails closed when first HTTP target is not reachable after project-context health gate", async () => {
   const root = createTestTempDir("project-context-http-target-unreachable");
   const closedPort = await reservePortAndRelease();
   try {
@@ -564,11 +564,11 @@ test("[UT][regression-suite][regression_discovery_resolver][blocked_invalid] bui
       new RegExp(`^http_target:http://127\\.0\\.0\\.1:${closedPort}=unreachable$`),
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
 
-test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPreflightWithDiscovery waits for first HTTP target to become reachable before returning ready", async () => {
+test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflightWithDiscovery waits for first HTTP target to become reachable before returning ready", async () => {
   const root = createTestTempDir("project-context-http-target-converges");
   const delayedPort = await reservePortAndRelease();
   const server = http.createServer((_req: any, res: any) => {
@@ -633,6 +633,6 @@ test("[UT][regression-suite][regression_discovery_resolver][ok] buildReplayPrefl
   } finally {
     if (listenTimer) clearTimeout(listenTimer);
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });

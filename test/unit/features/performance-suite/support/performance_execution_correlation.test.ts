@@ -35,7 +35,7 @@ function buildContract() {
   };
 }
 
-test("[UT][performance-suite][performance_execution_correlation][ok] performance correlation derives a dynamic anchor and workload identity", () => {
+test("[UT][performance-suite][performance_execution_correlation] performance correlation derives a dynamic anchor and workload identity", () => {
   const artifact = buildPerformanceExecutionCorrelation({
     planId: "events-performance",
     runId: "run-1",
@@ -101,7 +101,7 @@ test("[UT][performance-suite][performance_execution_correlation][ok] performance
   assert.equal(validateExecutionCorrelationArtifactV1(artifact).ok, true);
 });
 
-test("[UT][performance-suite][performance_execution_correlation][ok] performance correlation persists a valid unavailable state for a missed Line Hit", () => {
+test("[UT][performance-suite][performance_execution_correlation] performance correlation persists a valid unavailable state for a missed Line Hit", () => {
   const artifact = buildPerformanceExecutionCorrelation({
     planId: "events-performance",
     runId: "run-2",
@@ -123,7 +123,7 @@ test("[UT][performance-suite][performance_execution_correlation][ok] performance
   assert.equal(validateExecutionCorrelationArtifactV1(artifact).ok, true);
 });
 
-test("[UT][performance-suite][performance_execution_correlation][ok] performance correlation preserves the persisted no-MSTA state with empty attributions", () => {
+test("[UT][performance-suite][performance_execution_correlation] performance correlation preserves the persisted no-MSTA state with empty attributions", () => {
   const artifact = buildPerformanceExecutionCorrelation({
     planId: "events-performance",
     runId: "run-3",
@@ -140,7 +140,7 @@ test("[UT][performance-suite][performance_execution_correlation][ok] performance
   assert.equal(validateExecutionCorrelationArtifactV1(artifact).ok, true);
 });
 
-test("[UT][performance-suite][performance_execution_correlation][blocked_invalid] execution correlation validator fails closed on missing required collections", () => {
+test("[UT][performance-suite][performance_execution_correlation] execution correlation validator fails closed on missing required collections", () => {
   const result = validateExecutionCorrelationArtifactV1({
     schemaVersion: 1,
     suite: "performance",
@@ -157,7 +157,7 @@ test("[UT][performance-suite][performance_execution_correlation][blocked_invalid
   });
 });
 
-test("[UT][performance-suite][performance_execution_correlation][blocked_invalid] execution correlation validator rejects contradictory status, reason, and evidence", () => {
+test("[UT][performance-suite][performance_execution_correlation] execution correlation validator rejects contradictory status, reason, and evidence", () => {
   const result = validateExecutionCorrelationArtifactV1({
     schemaVersion: 1,
     suite: "performance",
@@ -182,7 +182,7 @@ test("[UT][performance-suite][performance_execution_correlation][blocked_invalid
   assert.equal(result.reasonCode, "correlation_artifact_invalid");
 });
 
-test("[UT][performance-suite][performance_execution_correlation][ok] requireLineHit=false accepts a verified-subset correlation Artifact", () => {
+test("[UT][performance-suite][performance_execution_correlation] requireLineHit=false accepts a verified-subset correlation Artifact", () => {
   const contract = buildContract();
   contract.observationTargets.requiredLineHits = [
     "com.example.EventsController#publish:42",
