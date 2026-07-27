@@ -2,7 +2,7 @@ import { deriveNextActionCode } from "@tools-core/failure_diagnostics";
 import type {
   RuntimeSuiteBlockedResult,
   RuntimeSuiteRunResult,
-} from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+} from "@tools-execution-plan-spec/models/runtime_suite.model";
 import type { ExecutionOrchestrationActionResult } from "../models/execution_orchestration.model";
 
 export function blockedExecutionOrchestrationResponse(args: {

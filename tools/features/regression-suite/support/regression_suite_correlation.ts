@@ -4,7 +4,7 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
-import type { RuntimeSuiteCorrelationResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+import type { RuntimeSuiteCorrelationResult } from "@tools-execution-plan-spec/models/runtime_suite.model";
 import type { CorrelationArtifact } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 import { correlateEvents } from "../shared/regression_correlation";
 import type {

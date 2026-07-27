@@ -6,7 +6,7 @@ import {
 } from "@tools-feature-artifact-management";
 import type { readRegressionSuiteState } from "@tools-feature-artifact-management";
 import { buildSuiteStatusArtifactRelPath } from "@tools-regression-suite";
-import type { RuntimeSuiteRunResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+import type { RuntimeSuiteRunResult } from "@tools-execution-plan-spec/models/runtime_suite.model";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

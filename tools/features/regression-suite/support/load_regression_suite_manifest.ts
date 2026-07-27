@@ -10,7 +10,7 @@ import type {
   RuntimeSuitePlanEntry,
   RuntimeSuiteScriptPhase,
   RuntimeSuiteScriptRef,
-} from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+} from "@tools-execution-plan-spec/models/runtime_suite.model";
 import { readProjectArtifact } from "@tools-feature-artifact-management";
 import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 

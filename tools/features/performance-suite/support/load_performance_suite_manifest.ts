@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 
-import type { RuntimeSuiteManifest } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+import type { RuntimeSuiteManifest } from "@tools-execution-plan-spec/models/runtime_suite.model";
 import { readProjectArtifact } from "@tools-feature-artifact-management";
 
 export async function readPerformanceSuiteManifest(args: {

@@ -12,7 +12,7 @@ import type {
   RuntimeSuiteCompletedPlanSummary,
   RuntimeSuiteProgressSummary,
   RuntimeSuiteRunResult,
-} from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+} from "@tools-execution-plan-spec/models/runtime_suite.model";
 import type { RegressionRunExecutionResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 

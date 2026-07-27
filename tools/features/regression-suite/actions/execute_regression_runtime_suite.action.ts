@@ -1,6 +1,6 @@
 import type { ExecuteRegressionRuntimeSuiteArgs } from "../models/regression_suite.model";
 import path from "node:path";
-import type { RuntimeSuiteRunResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+import type { RuntimeSuiteRunResult } from "@tools-execution-plan-spec/models/runtime_suite.model";
 import type { RegressionRunExecutionResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import { executeRegressionPlanWorkflow } from "./execute_regression_plan.action";

@@ -8,6 +8,8 @@ This folder is the workspace-style scaffold for TS tool packages.
 - `core/tools-core`
 - `core/tools-registry`
 - `features/execution-profile-export`
+- `spec/execution-plan-spec`
+- `spec/performance-execution-plan-spec`
 - `spec/project-artifact-spec`
 - `spec/regression-execution-plan-spec`
 - `synthesizers/tools-synthesizer-api`
@@ -48,8 +50,10 @@ These are folder-level placeholders only. Spring HTTP is the only active synthes
 - Execution Profile export feature implementation:
   - `features/execution-profile-export`
 - `.mcpjvm/**` Artifact Spec implementations:
+  - `spec/execution-plan-spec/src` (suite-neutral execution-plan models and path policy)
+  - `spec/performance-execution-plan-spec/src` (performance execution-plan models)
   - `spec/project-artifact-spec/src`
-  - `spec/regression-execution-plan-spec/src` (models, validation contracts, and path policy only)
+  - `spec/regression-execution-plan-spec/src` (regression models and validation contracts only)
   - `spec/execution-correlation-artifact-spec/src` (suite-neutral execution correlation models, validation, and path policy)
 - Regression Suite runtime implementation:
   - `features/regression-suite`

@@ -1,3 +1,7 @@
+import type { ExecutionProfileSuiteType } from "@tools-execution-plan-spec/models/execution_profile_export.model";
+
+export type { ExecutionProfileSuiteType } from "@tools-execution-plan-spec/models/execution_profile_export.model";
+
 export type ProjectRuntimeMode = "terminal" | "docker";
 export type RunPrerequisiteType = "assert" | "script";
 export type RunPrerequisiteOnFail = "block" | "skip_remaining";
@@ -40,7 +44,6 @@ export type RunPrerequisite = {
 
 export type ExecutionProfilePolicy = "stop_on_fail" | "continue_on_fail";
 export type ExecutionProfilePlanOnFail = "inherit" | "stop" | "continue";
-export type ExecutionProfileSuiteType = "regression" | "performance";
 export type ProjectScriptPhase = "preRuntime" | "postRuntime" | "postHealthcheck" | "prePlan";
 export type ExecutionProfileRuntimeConfig = {
   requestTimeoutMs?: number;
@@ -171,4 +174,3 @@ export type ProjectArtifactValidationResult =
         | "external_system_invalid";
       errors: string[];
     };
-

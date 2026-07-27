@@ -1,5 +1,5 @@
-import type { PerformancePlanMetadata } from "../models/performance_suite.model";
-export type { PerformancePlanMetadata } from "../models/performance_suite.model";
+import type { PerformancePlanMetadata } from "@tools-performance-execution-plan-spec/models/performance_execution_plan.model";
+export type { PerformancePlanMetadata } from "@tools-performance-execution-plan-spec/models/performance_execution_plan.model";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -11,7 +11,9 @@ function asTrimmedString(value: unknown): string | undefined {
 
 export function parsePerformancePlanMetadata(
   input: unknown,
-): { ok: true; metadata: PerformancePlanMetadata } | { ok: false; reasonCode: string; requiredUserAction: string[] } {
+):
+  | { ok: true; metadata: PerformancePlanMetadata }
+  | { ok: false; reasonCode: string; requiredUserAction: string[] } {
   if (!isRecord(input)) {
     return {
       ok: false,
@@ -26,7 +28,9 @@ export function parsePerformancePlanMetadata(
     return {
       ok: false,
       reasonCode: "performance_plan_invalid",
-      requiredUserAction: ["Set metadata.suiteType=performance and metadata.execution.intent=performance."],
+      requiredUserAction: [
+        "Set metadata.suiteType=performance and metadata.execution.intent=performance.",
+      ],
     };
   }
   return {

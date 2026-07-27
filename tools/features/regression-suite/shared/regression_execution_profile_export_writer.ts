@@ -5,7 +5,7 @@ import type {
   ExecutionProfileExportManifest,
   WriteExecutionProfileExportInput,
   WriteExecutionProfileExportResult,
-} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_profile_export.model";
+} from "@tools-execution-plan-spec/models/execution_profile_export.model";
 import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 
 function sanitizeExportId(exportId: string): string {

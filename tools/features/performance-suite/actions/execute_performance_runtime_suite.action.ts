@@ -1,4 +1,4 @@
-import type { RuntimeSuiteRunResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+import type { RuntimeSuiteRunResult } from "@tools-execution-plan-spec/models/runtime_suite.model";
 import { buildTimestampRunId } from "@tools-feature-regression-suite";
 import type { ExecutePerformanceRuntimeSuiteArgs } from "../models/performance_suite.model";
 

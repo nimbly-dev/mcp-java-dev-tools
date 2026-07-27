@@ -15,7 +15,7 @@ import type {
   ExecutionOrchestrationActionResult,
   ExecutionOrchestrationPassResult,
 } from "../models/execution_orchestration.model";
-import type { RuntimeSuiteRunResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+import type { RuntimeSuiteRunResult } from "@tools-execution-plan-spec/models/runtime_suite.model";
 import {
   CheckpointPersistenceError,
   persistSQLiteSuiteCheckpoint,

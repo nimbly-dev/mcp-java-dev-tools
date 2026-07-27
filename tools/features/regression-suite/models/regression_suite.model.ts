@@ -2,7 +2,7 @@ import type {
   RegressionRunExecutionResult,
   RegressionRunArtifactsWriteResult,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
-import type { RuntimeSuiteRunResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+import type { RuntimeSuiteRunResult } from "@tools-execution-plan-spec/models/runtime_suite.model";
 
 export type RuntimeSuiteCorrelationEvent = {
   sequence?: number;

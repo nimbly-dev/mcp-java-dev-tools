@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-performance-execution-plan-spec",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Artifact Spec models for performance execution-plan Artifacts",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

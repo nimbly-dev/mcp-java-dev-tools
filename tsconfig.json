@@ -30,6 +30,14 @@
       ],
       "@tools-feature-route-synthesis": ["tools/features/route-synthesis/index.ts"],
       "@tools-feature-transport-execution": ["tools/features/transport-execution/index.ts"],
+      "@tools-execution-plan-spec": ["tools/spec/execution-plan-spec/src/index.ts"],
+      "@tools-execution-plan-spec/*": ["tools/spec/execution-plan-spec/src/*"],
+      "@tools-performance-execution-plan-spec": [
+        "tools/spec/performance-execution-plan-spec/src/index.ts"
+      ],
+      "@tools-performance-execution-plan-spec/*": [
+        "tools/spec/performance-execution-plan-spec/src/*"
+      ],
       "@tools-spring-http/*": ["tools/synthesizers/tools-spring-http/src/*"],
       "@tools-export-execution-profile": ["tools/features/execution-profile-export/index.ts"],
       "@tools-regression-execution-plan-spec/*": [
@@ -92,6 +100,8 @@
     "tools/synthesizers/tools-spring-http/src/**/*.ts",
     "tools/features/execution-profile-export/**/*.ts",
     "tools/features/performance-workload-jmeter/**/*.ts",
+    "tools/spec/execution-plan-spec/src/**/*.ts",
+    "tools/spec/performance-execution-plan-spec/src/**/*.ts",
     "tools/spec/regression-execution-plan-spec/src/**/*.ts",
     "tools/spec/project-artifact-spec/src/**/*.ts",
     "tools/spec/execution-correlation-artifact-spec/src/**/*.ts"
