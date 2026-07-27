@@ -6,8 +6,8 @@ import type {
   PerformanceMstaMethodSummary as MstaMethodSummary,
   PerformanceMstaSummary,
   PerformanceMstaTargetSummary as MstaTargetSummary,
-} from "./models/performance_suite.model";
-export type { PerformanceMstaSummary } from "./models/performance_suite.model";
+} from "@tools-performance-execution-plan-spec/models/performance_execution_plan.model";
+export type { PerformanceMstaSummary } from "@tools-performance-execution-plan-spec/models/performance_execution_plan.model";
 
 const MAX_REDUCED_EVENT_LINE_LENGTH = 128 * 1024;
 const MAX_PATH_VARIANTS_PER_ANCHOR = 20_000;

@@ -2,7 +2,7 @@ import type { ProbeDomainConfig } from "@tools-feature-probe";
 import type {
   RuntimeSuiteBlockedResult,
   RuntimeSuiteRunResult,
-} from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+} from "@tools-execution-plan-spec/models/runtime_suite.model";
 
 export type ExecutionOrchestrationLoopDefaults = {
   resumePollMax: number;

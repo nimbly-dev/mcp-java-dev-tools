@@ -1,17 +1,32 @@
 import type {
-  ExportExecutionProfilePs1Input,
-  ExportExecutionProfilePs1Result,
   ExecutionProfileExportManifest,
   ExecutionProfileExportPlanRun,
   ExecutionProfileSuiteType,
-} from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_profile_export.model";
+} from "@tools-execution-plan-spec/models/execution_profile_export.model";
 
 export type {
-  ExportExecutionProfilePs1Input,
-  ExportExecutionProfilePs1Result,
   ExecutionProfileExportManifest,
   ExecutionProfileExportPlanRun,
   ExecutionProfileSuiteType,
+};
+
+export type ExportExecutionProfilePs1Input = {
+  workspaceRootAbs: string;
+  projectName?: string;
+  exportId: string;
+  includeResolvedSecrets?: boolean;
+  includeRuntimeStartup?: boolean;
+  includeHealthcheckGate?: boolean;
+  contextBindings?: Record<string, string>;
+  contextValues?: Record<string, string>;
+};
+
+export type ExportExecutionProfilePs1Result = {
+  exportId: string;
+  exportDirAbs: string;
+  scriptPathAbs: string;
+  readmePathAbs?: string;
+  jmeterArtifactPathsAbs?: string[];
 };
 
 export type RuntimeStartup = {

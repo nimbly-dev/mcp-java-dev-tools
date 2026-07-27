@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-execution-plan-spec",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Suite-neutral Artifact Spec models and path policy for execution-plan Artifacts",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

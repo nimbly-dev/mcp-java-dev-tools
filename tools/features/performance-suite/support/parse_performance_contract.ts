@@ -18,14 +18,14 @@ import type {
   PerformanceMstaConfigState,
   PerformancePlanContract,
   PersistedPerformanceMstaSummary,
-} from "../models/performance_suite.model";
+} from "@tools-performance-execution-plan-spec/models/performance_execution_plan.model";
 import type { PerformanceMstaSummary } from "../performance_msta_summary";
 export type {
   PerformanceEntrypoint,
   PerformanceMstaConfigState,
   PerformancePlanContract,
   PersistedPerformanceMstaSummary,
-} from "../models/performance_suite.model";
+} from "@tools-performance-execution-plan-spec/models/performance_execution_plan.model";
 import { resolvePerformanceWorkloadProvider } from "./resolve_performance_workload_provider";
 
 export function parseStringRecord(value: unknown): Record<string, string> | undefined {

@@ -7,7 +7,7 @@ import {
   reconcileExpiredActiveState,
 } from "@tools-feature-artifact-management";
 import { readExecutionOrchestrationSuiteResult } from "@tools-regression-suite";
-import type { RuntimeSuiteRunResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_runtime_suite.model";
+import type { RuntimeSuiteRunResult } from "@tools-execution-plan-spec/models/runtime_suite.model";
 import type { ExecutionOrchestrationActionResult } from "../models/execution_orchestration.model";
 import {
   inProgressResumeConflictResponse,

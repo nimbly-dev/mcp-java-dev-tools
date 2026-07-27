@@ -7,7 +7,7 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 
 import { buildTimestampRunId } from "@tools-feature-regression-suite";
-import { resolvePlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
+import { resolvePlansRootAbs } from "@tools-execution-plan-spec/artifact_paths.util";
 import { resolveProjectContextForRegression } from "@tools-feature-regression-suite";
 import { buildPerformanceMstaSummary } from "../performance_msta_summary";
 import {

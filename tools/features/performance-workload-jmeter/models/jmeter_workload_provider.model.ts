@@ -1,19 +1,10 @@
-export type JmeterWorkloadProvider = {
-  type: "jmeter";
-  mode: "generated_http";
-  options?: {
-    installationPath?: string;
-    emitJmx?: boolean;
-    emitJtl?: boolean;
-    emitLog?: boolean;
-  };
-};
+import type { JmeterWorkloadProvider } from "@tools-performance-execution-plan-spec/models/performance_execution_plan.model";
 
-export type BuiltinWorkloadProvider = {
-  type: "builtin";
-};
-
-export type PerformanceWorkloadProvider = BuiltinWorkloadProvider | JmeterWorkloadProvider;
+export type {
+  BuiltinWorkloadProvider,
+  JmeterWorkloadProvider,
+  PerformanceWorkloadProvider,
+} from "@tools-performance-execution-plan-spec/models/performance_execution_plan.model";
 
 export type JmeterGeneratedHttpRequest = {
   method: string;
@@ -37,7 +28,7 @@ export type JmeterWorkloadRunResult =
         failedRequests: number;
         latenciesMs: number[];
       };
-    artifacts: {
+      artifacts: {
         jmxPathAbs?: string;
         jtlPathAbs?: string;
         logPathAbs?: string;
@@ -51,8 +42,8 @@ export type JmeterWorkloadRunResult =
         jmxPathAbs?: string;
         jtlPathAbs?: string;
         logPathAbs?: string;
+      };
     };
-  };
 
 export type RunJmeterGeneratedHttpWorkloadArgs = {
   provider: JmeterWorkloadProvider;
@@ -61,4 +52,3 @@ export type RunJmeterGeneratedHttpWorkloadArgs = {
   runDirAbs: string;
   planName: string;
 };
-
