@@ -16,7 +16,7 @@
   <name>mcp-java-dev-tools-agent</name>
 
   <properties>
-    <maven.compiler.release>17</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <agent.bundle.classifier>minimal</agent.bundle.classifier>
   </properties>

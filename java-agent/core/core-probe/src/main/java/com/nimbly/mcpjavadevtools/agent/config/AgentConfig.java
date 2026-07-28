@@ -26,7 +26,6 @@ public final class AgentConfig {
   public final int capturePreviewMaxChars;
   public final int captureStoredMaxChars;
   public final String captureRedactionMode;
-  public final boolean byteBuddyExperimentalCompatibility;
   public final List<String> includePatterns;
   public final List<String> excludePatterns;
   public final String includeSource;
@@ -49,7 +48,6 @@ public final class AgentConfig {
       int capturePreviewMaxChars,
       int captureStoredMaxChars,
       String captureRedactionMode,
-      boolean byteBuddyExperimentalCompatibility,
       List<String> includePatterns,
       List<String> excludePatterns,
       String includeSource,
@@ -69,7 +67,6 @@ public final class AgentConfig {
     this.capturePreviewMaxChars = capturePreviewMaxChars;
     this.captureStoredMaxChars = captureStoredMaxChars;
     this.captureRedactionMode = captureRedactionMode;
-    this.byteBuddyExperimentalCompatibility = byteBuddyExperimentalCompatibility;
     this.includePatterns = includePatterns;
     this.excludePatterns = excludePatterns;
     this.includeSource = includeSource;
@@ -95,7 +92,6 @@ public final class AgentConfig {
     int capturePreviewMaxChars = readDefaultCapturePreviewMaxChars();
     int captureStoredMaxChars = readDefaultCaptureStoredMaxChars();
     String captureRedactionMode = readDefaultCaptureRedactionMode();
-    boolean byteBuddyExperimentalCompatibility = readDefaultByteBuddyExperimentalCompatibility();
     PatternSetting includeSetting = readDefaultInclude();
     PatternSetting excludeSetting = readDefaultExclude();
     List<String> includePatterns = parseCsv(includeSetting.value);
@@ -155,14 +151,6 @@ public final class AgentConfig {
         } else if ("captureRedactionMode".equalsIgnoreCase(k) || "captureRedaction".equalsIgnoreCase(k)) {
           captureRedactionMode = normalizeCaptureRedactionMode(v);
         } else if (
-            "byteBuddyExperimental".equalsIgnoreCase(k)
-                || "bytebuddyExperimental".equalsIgnoreCase(k)
-                || "java21Compatibility".equalsIgnoreCase(k)
-                || "java21Compat".equalsIgnoreCase(k)
-                || "allowJava21".equalsIgnoreCase(k)
-        ) {
-          byteBuddyExperimentalCompatibility = parseBoolean(v, false);
-        } else if (
             "include".equalsIgnoreCase(k)
                 || "includes".equalsIgnoreCase(k)
                 || "includePackages".equalsIgnoreCase(k)
@@ -216,7 +204,6 @@ public final class AgentConfig {
         capturePreviewMaxChars,
         captureStoredMaxChars,
         captureRedactionMode,
-        byteBuddyExperimentalCompatibility,
         includePatterns,
         excludePatterns,
         includeSource,
@@ -344,22 +331,6 @@ public final class AgentConfig {
     if (fromEnv != null && !fromEnv.trim().isEmpty()) return normalizeCaptureRedactionMode(fromEnv);
 
     return "basic";
-  }
-
-  private static boolean readDefaultByteBuddyExperimentalCompatibility() {
-    String fromProp = System.getProperty("mcp.probe.bytebuddy.experimental");
-    if (fromProp != null && !fromProp.trim().isEmpty()) return parseBoolean(fromProp, false);
-
-    String fromEnv = System.getenv("MCP_PROBE_BYTEBUDDY_EXPERIMENTAL");
-    if (fromEnv != null && !fromEnv.trim().isEmpty()) return parseBoolean(fromEnv, false);
-
-    String fromLegacyProp = System.getProperty("mcp.probe.allow.java21");
-    if (fromLegacyProp != null && !fromLegacyProp.trim().isEmpty()) return parseBoolean(fromLegacyProp, false);
-
-    String fromLegacyEnv = System.getenv("MCP_PROBE_ALLOW_JAVA21");
-    if (fromLegacyEnv != null && !fromLegacyEnv.trim().isEmpty()) return parseBoolean(fromLegacyEnv, false);
-
-    return false;
   }
 
   private static String normalizeMode(String raw) {

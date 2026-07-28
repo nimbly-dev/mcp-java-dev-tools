@@ -2,8 +2,8 @@
 
 [![node](https://img.shields.io/badge/node-v24.13.0-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![npm](https://img.shields.io/badge/npm-11.6.2-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/)
-[![JDK](https://img.shields.io/badge/JDK-17%2B-007396?logo=openjdk&logoColor=white)](https://openjdk.org/)
-[![Java Agent Target](https://img.shields.io/badge/Java%20Agent%20Target-17-ED8B00?logo=openjdk&logoColor=white)](https://maven.apache.org/)
+[![JDK](https://img.shields.io/badge/JDK-21%2B-007396?logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![Java Agent Target](https://img.shields.io/badge/Java%20Agent%20Target-21-ED8B00?logo=openjdk&logoColor=white)](https://maven.apache.org/)
 [![package](https://img.shields.io/badge/package-mcp--java--dev--tools%400.1.8-0A66C2)](https://github.com/nimbly-dev/mcp-java-dev-tools)
 [![MCP Badge](https://lobehub.com/badge/mcp/nimbly-dev-mcp-java-dev-tools?style=flat)](https://lobehub.com/mcp/nimbly-dev-mcp-java-dev-tools)
 
@@ -25,8 +25,8 @@ For operator workflows and end-to-end execution flows, see [docs/how-it-works/RE
 |---|---|
 | Node.js | `v24.13.0` (tested) |
 | npm | `11.6.2` (tested) |
-| JDK | `17+` |
-| Maven | any recent |
+| JDK | `21+` |
+| Maven | `3.8.6+` |
 
 ---
 
@@ -100,7 +100,7 @@ Use the helper launcher to run a Spring app with auto-inferred Java agent includ
 ```
 
 Behavior:
-- prompts for Spring project absolute path, app port (default `8080`), optional JDWP port, and Java 21 compatibility
+- prompts for Spring project absolute path, app port (default `8080`), and optional JDWP port
 - infers include package from `src/main/java`
 - assigns probe port starting at `9173` and increments if occupied
 - opens a new Git Bash window and starts the Spring app with `JAVA_TOOL_OPTIONS` including `-javaagent`
@@ -109,7 +109,7 @@ Behavior:
 
 #### Java Agent Setup
 
-The target JVM must run on **Java 17 or newer**. If you're on Java 21, see [Java 21 compatibility mode](#java-21-compatibility-mode) before continuing.
+The target JVM must run on **Java 21 or newer**.
 
 Add the following as a JVM argument when launching your application, replacing `{desktopName}`:
 
@@ -184,19 +184,6 @@ Controls how many method captures the agent retains per probe point.
 | Environment variable | `MCP_PROBE_CAPTURE_METHOD_BUFFER_SIZE=<1..32>` |
 
 Default is `3`. Increase this if you need deeper capture history for a single probe point.
-
-#### Java 21 Compatibility Mode
-
-Required if your target JVM runs on Java 21. Enables ByteBuddy's experimental support for newer JVM internals.
-
-| Method | Value |
-|---|---|
-| Agent arg | `allowJava21=true` (aliases: `java21Compat=true`, `byteBuddyExperimental=true`) |
-| JVM property | `-Dmcp.probe.bytebuddy.experimental=true` (legacy alias: `-Dmcp.probe.allow.java21=true`) |
-| Environment variable | `MCP_PROBE_BYTEBUDDY_EXPERIMENTAL=true` (legacy alias: `MCP_PROBE_ALLOW_JAVA21=true`) |
-
-Default is `false`.
-
 
 ### MCP Server Environment Variables
 

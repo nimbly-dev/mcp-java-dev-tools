@@ -532,7 +532,6 @@ async function startSpringBootAppWithAgent(args: {
   agentOptions.push(`probeId=${args.appLabel}`);
   if (agentInclude.length > 0) agentOptions.push(`include=${agentInclude}`);
   if (agentExclude.length > 0) agentOptions.push(`exclude=${agentExclude}`);
-  agentOptions.push("allowJava21=true");
   const javaAgentArg = `-javaagent:${agentJarAbs}=` + agentOptions.join(";");
 
   const javaArgs = [javaAgentArg];

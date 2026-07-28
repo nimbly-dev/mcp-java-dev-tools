@@ -29,7 +29,7 @@ async function waitFor<T>(read: () => Promise<T | undefined>, timeoutMs: number)
   throw new Error("Timed out waiting for async correlation evidence");
 }
 
-test("[IT][execution_orchestration][execute] generic JDK executor handoff preserves event correlation after consumer entry", async () => {
+test("[IT][java-agent][JDK 21] JDK executor handoff preserves event correlation without compatibility injection", async () => {
   const correlationSessionId = "agent-async-correlation-session";
   const correlationExecutionId = "agent-async-correlation-execution";
   const runtime = await startEventAppWithAgent({
@@ -41,6 +41,8 @@ test("[IT][execution_orchestration][execute] generic JDK executor handoff preser
   });
 
   try {
+    assert.match(runtime.logs(), /\[probe-agent\] net\.bytebuddy\.experimental: false/);
+    assert.doesNotMatch(runtime.logs(), /allowJava21=true|byteBuddyExperimentalCompatibility/);
     const processorSourceFile = eventListenerSourceFileAbs.replace(
       "listener\\ExampleQueueListener.java",
       "service\\AsyncPropagationProcessor.java",
