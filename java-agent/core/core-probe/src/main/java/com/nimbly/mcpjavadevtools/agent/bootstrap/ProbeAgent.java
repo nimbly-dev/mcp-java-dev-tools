@@ -42,7 +42,6 @@ public final class ProbeAgent {
   public static void premain(String agentArgs, Instrumentation inst) {
     boolean jdkCorrelationReady = appendCorrelationContextToBootstrap(inst);
     AgentConfig cfg = AgentConfig.fromAgentArgs(agentArgs);
-    configureByteBuddyCompatibility(cfg);
     ProbeRuntime.configure(
         cfg.mode,
         cfg.actuatorId,
@@ -79,7 +78,6 @@ public final class ProbeAgent {
       System.err.println("[probe-agent] capturePreviewMaxChars: " + cfg.capturePreviewMaxChars);
       System.err.println("[probe-agent] captureStoredMaxChars: " + cfg.captureStoredMaxChars);
       System.err.println("[probe-agent] captureRedactionMode: " + cfg.captureRedactionMode);
-      System.err.println("[probe-agent] byteBuddyExperimentalCompatibility: " + cfg.byteBuddyExperimentalCompatibility);
       System.err.println("[probe-agent] net.bytebuddy.experimental: " + System.getProperty(BYTE_BUDDY_EXPERIMENTAL_PROPERTY, "false"));
       System.err.println(
           "[probe-agent] include: "
@@ -118,13 +116,6 @@ public final class ProbeAgent {
     }
 
     installInstrumentation(inst, cfg, jdkCorrelationReady);
-  }
-
-  private static void configureByteBuddyCompatibility(AgentConfig cfg) {
-    if (!cfg.byteBuddyExperimentalCompatibility) {
-      return;
-    }
-    System.setProperty(BYTE_BUDDY_EXPERIMENTAL_PROPERTY, "true");
   }
 
   private static void installInstrumentation(

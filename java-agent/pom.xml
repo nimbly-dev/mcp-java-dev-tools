@@ -13,7 +13,7 @@
   <properties>
     <mcp.contract.version>${project.version}</mcp.contract.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>17</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
     <maven.enforcer.plugin.version>3.5.0</maven.enforcer.plugin.version>
     <maven.checkstyle.plugin.version>3.6.0</maven.checkstyle.plugin.version>
@@ -100,7 +100,7 @@
             <configuration>
               <rules>
                 <requireJavaVersion>
-                  <version>[17,)</version>
+                  <version>[21,)</version>
                 </requireJavaVersion>
                 <requireMavenVersion>
                   <version>[3.8.6,)</version>

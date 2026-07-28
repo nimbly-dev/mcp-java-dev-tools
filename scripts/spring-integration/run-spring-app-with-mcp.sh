@@ -14,7 +14,6 @@ Options:
   --agent-port <port>       Exact probe agent port (no auto-scan)
   --probe-id <id>           Probe id from .mcpjvm/probe-config.json to resolve probe port
   --probe-config <path>     Probe config file path (default: <project>/.mcpjvm/probe-config.json)
-  --jdk21-compat            Add allowJava21=true in javaagent options
   --jdwp-port <port>        Optional JDWP debug port
   --agent-port-start <port> Start scanning probe agent port from this value (default: 9173)
   --help                    Show help
@@ -26,8 +25,6 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PROJECT_PATH=""
 APP_PORT="8080"
-JDK21_COMPAT=0
-JDK21_COMPAT_EXPLICIT=0
 JDWP_PORT=""
 AGENT_PORT_EXACT=""
 PROBE_ID=""
@@ -42,7 +39,6 @@ while [[ $# -gt 0 ]]; do
     --agent-port) AGENT_PORT_EXACT="${2:-}"; shift 2 ;;
     --probe-id) PROBE_ID="${2:-}"; shift 2 ;;
     --probe-config) PROBE_CONFIG_PATH="${2:-}"; shift 2 ;;
-    --jdk21-compat) JDK21_COMPAT=1; JDK21_COMPAT_EXPLICIT=1; shift ;;
     --jdwp-port) JDWP_PORT="${2:-}"; shift 2 ;;
     --agent-port-start) AGENT_PORT_START="${2:-}"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
@@ -77,12 +73,6 @@ if [[ -z "$PROJECT_PATH" ]]; then
   PROJECT_PATH="$(prompt_optional "Spring project absolute path")"
 fi
 APP_PORT="$(prompt_default "Spring app port" "$APP_PORT")"
-if [[ "$JDK21_COMPAT_EXPLICIT" -eq 0 ]]; then
-  read -r -p "Enable Java 21 compatibility mode? [y/N]: " compat_input
-  if [[ "$compat_input" =~ ^[Yy]$ ]]; then
-    JDK21_COMPAT=1
-  fi
-fi
 if [[ -z "$JDWP_PORT" ]]; then
   JDWP_PORT="$(prompt_optional "JDWP port (optional, leave empty to skip)")"
 fi
@@ -291,9 +281,6 @@ if [[ -z "$RUN_COMMAND" ]]; then
 fi
 
 AGENT_OPTS="host=127.0.0.1;port=$AGENT_PORT;include=$BASE_PACKAGE.**;exclude=$AGENT_EXCLUDE"
-if [[ "$JDK21_COMPAT" -eq 1 ]]; then
-  AGENT_OPTS="$AGENT_OPTS;allowJava21=true"
-fi
 
 JAVA_AGENT_ARG="-javaagent:$AGENT_JAR=$AGENT_OPTS"
 JDWP_ARG=""
