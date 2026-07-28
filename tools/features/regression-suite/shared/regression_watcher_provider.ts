@@ -1,8 +1,5 @@
 import type { PlanWatcher } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
-import type {
-  TransportExecutionResult,
-  TransportProtocol,
-} from "../../../spec/regression-execution-plan-spec/src/models/regression_transport.model";
+import type { TransportExecutionResult } from "../../../spec/regression-execution-plan-spec/src/models/regression_transport.model";
 import { deepResolvePlaceholderValue } from "@tools-core/placeholder_resolution";
 import { buildHttpPayload } from "../shared/regression_http_payload";
 import type {

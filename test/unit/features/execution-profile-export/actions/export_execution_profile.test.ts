@@ -1496,7 +1496,6 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   const root = createTestTempDir("execution-profile-export-domain-postman-vars");
   try {
     writeProject(root);
-    const projectName = "test-project";
     writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
@@ -1549,7 +1548,6 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   const root = createTestTempDir("execution-profile-export-domain-postman-url-default-missing");
   try {
     writeProject(root);
-    const projectName = "test-project";
     writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
@@ -1590,7 +1588,6 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   const root = createTestTempDir("execution-profile-export-domain-postman-gateway-default");
   try {
     writeProject(root);
-    const projectName = "test-project";
     writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [
@@ -1873,7 +1870,6 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   const root = createTestTempDir("execution-profile-export-domain-postman-required-unresolved");
   try {
     writeProject(root);
-    const projectName = "test-project";
     writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [
@@ -1922,7 +1918,6 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   const root = createTestTempDir("execution-profile-export-domain-postman-context-values");
   try {
     writeProject(root);
-    const projectName = "test-project";
     writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [
@@ -1973,7 +1968,6 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   const root = createTestTempDir("execution-profile-export-domain-postman-derived-context");
   try {
     writeProject(root);
-    const projectName = "test-project";
     writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [
@@ -2156,7 +2150,6 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   const root = createTestTempDir("execution-profile-export-domain-postman-transport");
   try {
     writeProject(root);
-    const projectName = "test-project";
     writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
@@ -2190,7 +2183,6 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   const root = createTestTempDir("execution-profile-export-domain-postman-url");
   try {
     writeProject(root);
-    const projectName = "test-project";
     writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],
@@ -2235,7 +2227,6 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   const root = createTestTempDir("execution-profile-export-domain-postman-unrunnable-url");
   try {
     writeProject(root);
-    const projectName = "test-project";
     writePlanArtifact(root, "gateway-route-smoke-spec", {
       targets: [{ type: "class_method", selectors: { fqcn: "x.A", method: "m" } }],
       prerequisites: [],

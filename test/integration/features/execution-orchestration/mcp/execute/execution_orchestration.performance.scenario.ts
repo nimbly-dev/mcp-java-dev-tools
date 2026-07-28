@@ -9,7 +9,6 @@ import {
   callTool,
   writeJson,
   listen,
-  renderPerformanceResultFromArtifacts,
   startMcpClient,
 } from "./execution_orchestration.shared";
 

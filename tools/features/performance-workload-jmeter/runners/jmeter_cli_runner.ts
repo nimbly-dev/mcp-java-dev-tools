@@ -5,9 +5,6 @@ import { promises as fs } from "node:fs";
 import { collectJmeterJtlMetrics } from "../collectors/jmeter_jtl_result.collector";
 import { resolveJmeterExecutable } from "../loaders/jmeter_installation.loader";
 import type {
-  JmeterGeneratedHttpLoadModel,
-  JmeterGeneratedHttpRequest,
-  JmeterWorkloadProvider,
   JmeterWorkloadRunResult,
   RunJmeterGeneratedHttpWorkloadArgs,
 } from "../models/jmeter_workload_provider.model";

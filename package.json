@@ -21,7 +21,6 @@
     "lint:perf:check": "node scripts/lint-perf-check.cjs",
     "format": "prettier --write \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\" \"docs/**/*.md\" \"README.md\"",
     "format:check": "prettier --check \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\" \"docs/**/*.md\" \"README.md\"",
-    "deadcode:check": "ts-prune -p tsconfig.json",
     "boundaries:check": "node scripts/check-feature-boundaries.cjs",
     "install:integrations:sh": "bash ./scripts/install.sh",
     "update:integrations:sh": "bash ./scripts/update.sh"
@@ -39,26 +38,25 @@
   },
   "homepage": "https://github.com/nimbly-dev/mcp-java-dev-tools#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "eta": "^4.6.0",
     "pg": "^8.22.0",
     "pg-query-stream": "^4.16.0",
     "zod": "^4.3.6"
   },
   "overrides": {
-    "@hono/node-server": "^1.19.11",
+    "@hono/node-server": "^2.0.5",
     "hono": "^4.12.5"
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
     "@types/pg": "^8.20.0",
-    "@typescript-eslint/eslint-plugin": "^8.46.0",
-    "@typescript-eslint/parser": "^8.46.0",
-    "eslint": "^9.38.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
+    "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
-    "ts-prune": "^0.10.3",
     "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"

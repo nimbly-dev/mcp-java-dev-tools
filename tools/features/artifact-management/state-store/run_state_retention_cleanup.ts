@@ -6,7 +6,6 @@ import { openRunStateStore } from "./run_state_store";
 import type {
   OpenRunStateStore,
   RunStateDatabase,
-  RunStateStoreFailure,
 } from "./model/run_state_store.model";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

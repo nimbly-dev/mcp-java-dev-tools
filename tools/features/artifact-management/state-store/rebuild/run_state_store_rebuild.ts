@@ -1,11 +1,11 @@
 const node_fs_1 = require("node:fs");
 const node_path_1 = { default: require("node:path") };
 const run_state_store_schema_1 = require("../run_state_store_schema");
-const suite_state_store_1 = require("../suite_state_store");
-const correlation_state_store_1 = require("../correlation_state_store");
-const external_verification_state_store_1 = require("../external_verification_state_store");
-const artifact_state_store_1 = require("../artifact_state_store");
-const watcher_state_store_1 = require("../watcher_state_store");
+require("../suite_state_store");
+require("../correlation_state_store");
+require("../external_verification_state_store");
+require("../artifact_state_store");
+require("../watcher_state_store");
 const run_state_store_rebuild_scan_1 = require("./run_state_store_rebuild_scan");
 const run_state_store_rebuild_projection_1 = require("./run_state_store_rebuild_projection");
 const { DatabaseSync } = require("node:sqlite");
@@ -15,28 +15,6 @@ function isRecord(value: unknown): value is Record<string, any> {
 }
 function asRecord(value: unknown): any {
   return isRecord(value) ? value : undefined;
-}
-function asRecordArray(value: unknown): any[] {
-  return Array.isArray(value) ? value.filter(isRecord) : [];
-}
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-function asEpoch(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isInteger(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Date.parse(value);
-    if (Number.isInteger(parsed) && parsed > 0) return parsed;
-  }
-  return undefined;
-}
-function safeRelativePath(pathRel: string): boolean {
-  return (
-    pathRel.length > 0 &&
-    !node_path_1.default.isAbsolute(pathRel) &&
-    !node_path_1.default.win32.isAbsolute(pathRel) &&
-    !pathRel.split(/[\\/]/).includes("..")
-  );
 }
 function failure(reasonCode: any, reason: string, nextAction: any, reasonMeta?: any): any {
   return { ok: false, reasonCode, reason, nextAction, ...(reasonMeta ? { reasonMeta } : {}) };

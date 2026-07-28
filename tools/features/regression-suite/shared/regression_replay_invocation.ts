@@ -3,7 +3,6 @@ import type {
   ReplayInvocationInput,
   ReplayInvocationResolution,
   ReplayReference,
-  ReplayReferenceKind,
   ReplayUserMessage,
 } from "../../../spec/regression-execution-plan-spec/src/models/regression_replay_invocation.model";
 
