@@ -9,7 +9,6 @@ import {
   buildLineKey,
   eventConsumerListenerFqcn,
   eventConsumerListenerSourceFileAbs,
-  eventProducerControllerFqcn,
   findLineNumberBySnippet,
   startEventConsumerAppWithAgent,
   startEventProducerAppWithAgent,

@@ -1,9 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type {
-  CorrelationFailureReason,
   CorrelationInputEvent,
-  CorrelationKeyType,
   CorrelationMatchResult,
   CorrelationPolicy,
 } from "../models/regression_suite.model";

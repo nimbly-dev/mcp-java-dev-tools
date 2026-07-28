@@ -7,12 +7,9 @@ import type {
 import type { RegressionRunStatus } from "../../../spec/regression-execution-plan-spec/src/models/regression_run_artifact.model";
 import { readValueByPath } from "@tools-core/object_path_read";
 import type {
-  AssertionEvaluationReasonCode,
-  AssertionEvaluationStatus,
   DeriveRunStatusArgs,
   EvaluateStepExpectationsResult,
   StepAssertionEvaluation,
-  StepExecutionOutcomeStatus,
 } from "../models/regression_expectation.model";
 export type {
   AssertionEvaluationReasonCode,

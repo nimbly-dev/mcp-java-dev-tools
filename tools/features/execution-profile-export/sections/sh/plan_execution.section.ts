@@ -1,6 +1,3 @@
-import path from "node:path";
-import { promises as fs } from "node:fs";
-
 import { resolveRegressionPlansRootAbs } from "../../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import {
   inferPlanApiBaseUrlFromProbeConfig,

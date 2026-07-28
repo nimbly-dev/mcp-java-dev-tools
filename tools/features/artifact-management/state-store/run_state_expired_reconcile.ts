@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { openRunStateStore } from "./run_state_store";
 import { readRunStateCutoverStatus } from "./state_store_cutover";
-import type { RunStateStoreFailure } from "./model/run_state_store.model";
 
 type ReconcileFailure = {
   ok: false;

@@ -6,7 +6,7 @@
  * behavior behind one Feature-local persistence boundary.
  */
 import { promises as fs } from "node:fs";
-import { readdirSync, statSync, type Dirent } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import {
@@ -262,15 +262,7 @@ export function toCorrelationArtifactFromEvidence(args: {
   };
 }
 
-function asCorrelationVerdict(value: unknown): "ok" | "fail_closed" {
-  return value === "ok" || value === "matched" ? "ok" : "fail_closed";
-}
-
-function asCorrelationReasonCode(value: unknown): string {
-  return typeof value === "string" && value.trim().length > 0 ? value : "insufficient_evidence";
-}
-
-export async function rebuildCorrelationIndex(args: {
+export async function rebuildCorrelationIndex(_args: {
   workspaceRootAbs: string;
   projectName?: string;
   now?: Date;

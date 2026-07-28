@@ -10,15 +10,7 @@ module.exports = [
       parserOptions: {
         ecmaVersion: 2022,
         sourceType: "module",
-        projectService: {
-          allowDefaultProject: [
-            "test/*.ts",
-            "test/*/*.ts",
-            "test/*/*/*.ts",
-            "test/*/*/*/*.ts",
-          ],
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 200,
-        },
+        projectService: true,
         tsconfigRootDir: __dirname,
       },
     },

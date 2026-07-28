@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import type { Dirent } from "node:fs";
 
 import type { LoadedPlanRunArtifacts } from "../models/transport_export.model";
 import type { PlanContract } from "../../../spec/regression-execution-plan-spec/src/models/regression_execution_plan_spec.model";
@@ -26,7 +27,7 @@ async function resolveRunId(planRunsRootAbs: string, preferredRunId?: string): P
       // fall through to latest-run scan
     }
   }
-  let entries: import("node:fs").Dirent[] = [];
+  let entries: Dirent[] = [];
   try {
     entries = await fs.readdir(planRunsRootAbs, { withFileTypes: true });
   } catch {

@@ -17,8 +17,11 @@ buildNumber.properties
 .classpath
 .ai_notes/
 .dev/
+.codegraph/
+.gemini/
+.kiro/
+GEMINI.md
 node_modules
-package-lock.json
 dist/
 java-agent/target/
 java-agent/probe-rules.txt

@@ -10,8 +10,6 @@ import type {
   ReportColumn,
   ResolveRunDirArgs,
   StepRow,
-  WatcherReportDetailRow,
-  WatcherReportSummary,
 } from "../models/regression_report.model";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
