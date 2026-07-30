@@ -39,6 +39,19 @@ Make sure these preconditions are met before running any workflow:
 
 If you don't see your classes listed, the agent isn't covering them yet.
 
+### Dynamic Sidecar Agent Lifecycle
+
+For a local Java 21+ JVM, the `core-jvm-attach` helper can discover PIDs, attach the
+repository-owned Sidecar Agent, and request agent-owned deactivation without restarting the
+application. Discovery returns only bounded, unverified PID descriptors. Attach and deactivate
+require an explicit PID and `--confirm true`; use the canonical `probe` MCP Tool to verify the
+attached Probe after a successful attach result.
+
+Java 17 is unsupported. Java 21 emits the JEP 451 dynamic-agent warning by default;
+`-XX:+EnableDynamicAgentLoading` suppresses it when intentionally configured. Disabled dynamic
+loading and disabled Attach mechanisms return Fail-Closed reason codes. Helper detachment closes
+only the Attach API session; it never unloads agent classes from the target JVM.
+
 ---
 
 ## Use Case 1: Single Line Probe with Bearer Auth

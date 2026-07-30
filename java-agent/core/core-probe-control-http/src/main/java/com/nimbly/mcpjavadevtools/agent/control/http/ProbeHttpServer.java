@@ -60,7 +60,7 @@ public final class ProbeHttpServer {
     return server.getAddress().getPort();
   }
 
-  void stop() {
+  public void stop() {
     server.stop(0);
   }
 
