@@ -44,6 +44,9 @@ This produces two artifacts:
 
 ---
 
+The Java 21 lifecycle helper is packaged separately at
+`java-agent/core/core-jvm-attach/target/mcp-java-dev-tools-core-jvm-attach-0.1.8.jar`.
+
 ## Installation
 
 ### Installer
@@ -109,7 +112,8 @@ Behavior:
 
 #### Java Agent Setup
 
-The target JVM must run on **Java 21 or newer**.
+The target JVM must run on **Java 21 or newer**. Java 17 is unsupported because the Java reactor
+and dynamic lifecycle helper compile for Java 21.
 
 Add the following as a JVM argument when launching your application, replacing `{desktopName}`:
 
@@ -131,6 +135,24 @@ To confirm the agent is instrumenting your classes, check the startup logs for l
 ```
 
 If you don't see your classes listed, check your `include` filter.
+
+#### Dynamic Attach (Java 21+)
+
+The separate lifecycle helper discovers local JVM PIDs and dynamically loads only an agent JAR
+with the expected Sidecar Agent manifest. It requires an exact PID and explicit confirmation;
+discovery is intentionally unverified and does not expose target command lines or properties.
+
+```powershell
+java -jar java-agent\core\core-jvm-attach\target\mcp-java-dev-tools-core-jvm-attach-0.1.8.jar discover
+java -jar java-agent\core\core-jvm-attach\target\mcp-java-dev-tools-core-jvm-attach-0.1.8.jar attach --pid {pid} --agent-jar {absolute-agent-jar-path} --confirm true
+java -jar java-agent\core\core-jvm-attach\target\mcp-java-dev-tools-core-jvm-attach-0.1.8.jar deactivate --pid {pid} --agent-jar {absolute-agent-jar-path} --confirm true
+```
+
+On Java 21, dynamic agent loading succeeds by default but emits the JEP 451 warning.
+`-XX:+EnableDynamicAgentLoading` suppresses that warning only when operators explicitly choose it.
+`-XX:-EnableDynamicAgentLoading` and `-XX:+DisableAttachMechanism` return Fail-Closed lifecycle
+results. `VirtualMachine.detach()` closes the helper session; it does not unload agent classes.
+Deactivation disables Sidecar Agent-owned instrumentation and reports non-restorable classes.
 
 ---
 

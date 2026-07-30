@@ -78,6 +78,13 @@ export const agentTargetDirAbs = path.join(
   "core-probe",
   "target",
 );
+export const jvmAttachHelperTargetDirAbs = path.join(
+  repoRootAbs,
+  "java-agent",
+  "core",
+  "core-jvm-attach",
+  "target",
+);
 export const coreEntrypointMapperTargetDirAbs = path.join(
   repoRootAbs,
   "java-agent",
@@ -228,6 +235,7 @@ const LOG_TAIL_LIMIT = 200;
 type RunningApp = {
   apiBaseUrl: string;
   probeBaseUrl: string;
+  pid: number;
   stop: () => Promise<void>;
   logs: () => string;
 };
@@ -577,6 +585,74 @@ async function startSpringBootAppWithAgent(args: {
   return {
     apiBaseUrl,
     probeBaseUrl,
+    pid: child.pid ?? 0,
+    stop: async () => {
+      await forceStop(child);
+    },
+    logs: () => logBuffer.join(""),
+  };
+}
+
+export async function resolveJavaAgentJar(): Promise<string> {
+  return await resolveJarByPattern({
+    dirAbs: agentTargetDirAbs,
+    include: /^mcp-java-dev-tools-agent-.*-all\.jar$/,
+    label: "java agent jar",
+    preferredVersion: repoVersion,
+  });
+}
+
+export async function resolveJvmAttachHelperJar(): Promise<string> {
+  return await resolveJarByPattern({
+    dirAbs: jvmAttachHelperTargetDirAbs,
+    include: /^mcp-java-dev-tools-core-jvm-attach-.*\.jar$/,
+    label: "JVM attach helper jar",
+    preferredVersion: repoVersion,
+  });
+}
+
+export async function startPostAppWithoutAgent(args?: {
+  appPort?: number;
+  probePort?: number;
+}): Promise<RunningApp> {
+  const appJarAbs = await resolveJarByPattern({
+    dirAbs: postAppTargetDirAbs,
+    include: /^post-app-.*\.jar$/,
+    exclude: /\.jar\.original$/,
+    label: "post-app jar",
+  });
+  const appPort = args?.appPort ?? (await allocateFreePort());
+  const probePort = args?.probePort ?? (await allocateFreePort());
+  const apiBaseUrl = `http://127.0.0.1:${appPort}`;
+  const probeBaseUrl = `http://127.0.0.1:${probePort}`;
+  const logBuffer: string[] = [];
+  const child = spawn("java", ["-jar", appJarAbs, `--server.port=${appPort}`], {
+    cwd: postAppProjectRootAbs,
+    env: { ...process.env },
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+
+  child.stdout?.on("data", (chunk) => appendLog(logBuffer, chunk));
+  child.stderr?.on("data", (chunk) => appendLog(logBuffer, chunk));
+  try {
+    await waitFor(() => isHttpOk(`${apiBaseUrl}/actuator/health`), {
+      timeoutMs: 60_000,
+      intervalMs: 750,
+      failureMessage: `post-app failed to become ready.\n${logBuffer.join("")}`,
+    });
+  } catch (error) {
+    await forceStop(child);
+    throw error;
+  }
+  if (!child.pid) {
+    await forceStop(child);
+    throw new Error("post-app did not expose a process ID.");
+  }
+  return {
+    apiBaseUrl,
+    probeBaseUrl,
+    pid: child.pid,
     stop: async () => {
       await forceStop(child);
     },
