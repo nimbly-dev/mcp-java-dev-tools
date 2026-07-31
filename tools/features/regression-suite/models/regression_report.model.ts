@@ -1,7 +1,15 @@
 export type ReportColumn =
-  "endpoint" | "status" | "http_code" | "duration_ms" | "probe_coverage" | "memory_bytes";
+  | "endpoint"
+  | "status"
+  | "http_code"
+  | "duration_ms"
+  | "probe_coverage"
+  | "memory_bytes";
 export type ProbeCoverageState =
-  "verified_line_hit" | "http_only_unverified_line" | "unknown" | "n/a";
+  | "verified_line_hit"
+  | "http_only_unverified_line"
+  | "unknown"
+  | "n/a";
 export type StepRow = {
   order: number;
   endpoint: string;
@@ -21,6 +29,7 @@ export type RenderResult = {
   columns: ReportColumn[];
   rows: StepRow[];
   table: string;
+  failedAssertions?: FailedAssertionReport;
   watchers?: { summary: WatcherReportSummary; rows: WatcherReportDetailRow[]; table: string };
   correlation?: {
     status: "ok" | "fail_closed";
@@ -31,7 +40,36 @@ export type RenderResult = {
     correlationSessionId?: string;
   };
 };
+export type FailedAssertionRow = {
+  stepOrder: number;
+  endpoint: string;
+  assertionId: string;
+  actualPath: string;
+  operator: string;
+  status: "fail" | "blocked_invalid";
+  expected: string;
+  actual: "[not persisted]";
+  reasonCode: string;
+};
+export type FailedAssertionReport = { rows: FailedAssertionRow[]; table: string };
 export type RenderFromArtifactsArgs = { runDirAbs: string; memoryMetricDefined: boolean };
+export type RenderBlockedResult = {
+  status: "blocked";
+  reasonCode:
+    | "run_result_artifact_missing"
+    | "run_result_artifact_invalid_json"
+    | "run_result_execution_result_invalid"
+    | "run_result_evidence_invalid"
+    | "run_result_execution_status_missing"
+    | "run_result_preflight_missing"
+    | "run_result_steps_missing"
+    | "run_result_step_invalid"
+    | "run_result_assertions_invalid"
+    | "run_result_assertion_field_missing";
+  reason: string;
+  nextAction: string;
+};
+export type RenderFromArtifactsResult = RenderResult | RenderBlockedResult;
 export type ResolveRunDirArgs = {
   workspaceRootAbs: string;
   projectName?: string;
@@ -40,7 +78,10 @@ export type ResolveRunDirArgs = {
 };
 export type WatcherSummaryStatus = "not_configured" | "pass" | "fail" | "blocked";
 export type WatcherDetailStatus =
-  "pass" | "fail_assertion" | "blocked_dependency" | "blocked_runtime";
+  | "pass"
+  | "fail_assertion"
+  | "blocked_dependency"
+  | "blocked_runtime";
 export type WatcherOutcome = "verified" | "failed_expectation" | "timed_out" | "blocked";
 export type WatcherReportSummary = {
   triggerStatus: string;

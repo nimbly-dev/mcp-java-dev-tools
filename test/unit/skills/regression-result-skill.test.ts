@@ -49,7 +49,7 @@ test("[UT][skills][regression_result_skill] endpoint table template defines requ
   const { endpointTemplate, specRules } = loadResultSkill();
   assert.match(
     endpointTemplate,
-    /\| Endpoint \| Status \| HTTP Code \| Duration \(ms\) \| Probe Coverage \|/,
+    /\|\s*Endpoint\s*\|\s*Status\s*\|\s*HTTP Code\s*\|\s*Duration \(ms\)\s*\|\s*Probe Coverage\s*\|/,
   );
   assert.match(endpointTemplate, /verified_line_hit/);
   assert.match(endpointTemplate, /http_only_unverified_line/);
@@ -57,4 +57,14 @@ test("[UT][skills][regression_result_skill] endpoint table template defines requ
   assert.match(specRules, /contract-defined/);
   assert.match(specRules, /verified_line_hit/);
   assert.match(specRules, /http_only_unverified_line/);
+});
+
+test("[UT][skills][regression_result_skill] failed assertion diagnostics are documented as persisted and redacted", () => {
+  const { skill, specRules, endpointTemplate, templatesIndex } = loadResultSkill();
+  assert.match(skill, /Failed-Assertion Diagnostics/);
+  assert.match(skill, /\[not persisted\]/);
+  assert.match(specRules, /skipped_optional/);
+  assert.match(specRules, /256 characters/);
+  assert.match(endpointTemplate, /\|\s*Step\s*\|\s*Endpoint\s*\|\s*Assertion\s*\|/);
+  assert.match(templatesIndex, /failed_assertions/);
 });

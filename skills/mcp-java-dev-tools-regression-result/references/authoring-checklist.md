@@ -20,6 +20,9 @@ Use this checklist before finalizing a rendered result.
 1. Secret values are not rendered.
 2. Existing redactions remain redacted.
 3. No additional sensitive reconstruction from surrounding fields.
+4. Failed-assertion Actual values render only as `[not persisted]`.
+5. Failed-assertion Expected values preserve `[REDACTED]`, escape table
+   delimiters, normalize newlines, and obey the configured length bound.
 
 ## Memory Gate
 

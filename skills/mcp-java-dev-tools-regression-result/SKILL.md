@@ -64,6 +64,20 @@ For cutover, render the persisted transition state and deterministic readiness/c
 2. when user asks to "tablize", "show as table", or equivalent, route to `endpoint_table_result`
 3. future template IDs must be documented in `references/templates/index.md`
 
+## Failed-Assertion Diagnostics
+
+When persisted trigger-step assertions contain a status other than `pass` or
+`skipped_optional`, append the registered failed-assertion section after the
+endpoint table. Render only canonical `execution.result.json.steps[].assertions[]`
+fields. Never read transient logs, SQLite projections, response bodies, raw
+headers, extracted context, or assertion `actual` values to enrich this section.
+
+The section is limited to trigger-step assertions. Watcher and external
+verification assertions use different identities and are outside this template.
+For every rendered row, use `[not persisted]` for Actual. Preserve `[REDACTED]`
+exactly, escape Markdown delimiters, normalize embedded newlines, and truncate
+Expected using the template's documented bound.
+
 ## Extensible Presentation Modes
 
 Support user-driven display formats while preserving deterministic field mapping:
@@ -97,6 +111,8 @@ Return deterministic blocked guidance when:
 2. artifact JSON is invalid
 3. required result fields are absent and cannot be deterministically mapped
 4. requested template is not registered
+5. a persisted trigger-step assertion is missing `id`, `actualPath`, `operator`,
+   `status`, or `reasonCode`
 
 Blocked response must include:
 

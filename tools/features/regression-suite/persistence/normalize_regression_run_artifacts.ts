@@ -8,6 +8,7 @@ import type {
   CorrelationArtifact,
   RegressionExecutionContinuation,
   RegressionExternalVerificationPhaseStatus,
+  RegressionRunAssertionResult,
   RegressionRunExecutionResult,
   RegressionRunWatcherOutcome,
   RegressionRunWatcherResult,
@@ -102,18 +103,19 @@ export function normalizeEvidencePayload(
 export function normalizeExecutionResultPayload(
   executionResult: RegressionRunExecutionResult,
 ): RegressionRunExecutionResult {
-  if (
-    typeof executionResult.watchers === "undefined" &&
-    typeof executionResult.externalVerification === "undefined" &&
-    typeof executionResult.externalVerificationStatus === "undefined"
-  ) {
-    return executionResult;
-  }
   if (typeof executionResult.watchers !== "undefined" && !Array.isArray(executionResult.watchers)) {
     throw new Error("watcher_execution_result_invalid");
   }
   return {
     ...executionResult,
+    steps: executionResult.steps.map((step) => ({
+      ...step,
+      ...(typeof step.assertions === "undefined"
+        ? {}
+        : {
+            assertions: compactAssertionResults(step.assertions),
+          }),
+    })),
     ...(typeof executionResult.continuation === "undefined"
       ? {}
       : {
@@ -148,6 +150,21 @@ export function normalizeExecutionResultPayload(
           ),
         }),
   };
+}
+
+function compactAssertionResults(
+  assertions: RegressionRunAssertionResult[],
+): RegressionRunAssertionResult[] {
+  return assertions.map((assertion) => ({
+    id: assertion.id,
+    actualPath: assertion.actualPath,
+    operator: assertion.operator,
+    required: assertion.required,
+    status: assertion.status,
+    reasonCode: assertion.reasonCode,
+    ...(typeof assertion.expected === "undefined" ? {} : { expected: assertion.expected }),
+    ...(typeof assertion.message === "undefined" ? {} : { message: assertion.message }),
+  }));
 }
 
 function normalizeExternalVerificationPhaseStatus(
@@ -202,7 +219,8 @@ function normalizeExecutionContinuation(
 function normalizeExternalVerificationResults(
   results: unknown,
   invalidErrorCode:
-    "external_verification_evidence_invalid" | "external_verification_execution_result_invalid",
+    | "external_verification_evidence_invalid"
+    | "external_verification_execution_result_invalid",
 ) {
   if (typeof results === "undefined") {
     return [];
@@ -317,7 +335,9 @@ function normalizeExecutionWatcherResult(
     waitPolicy,
     reasonCode,
     ...(isRecord(watcher.lastObservation) ? { lastObservation: watcher.lastObservation } : {}),
-    ...(Array.isArray(watcher.assertions) ? { assertions: watcher.assertions } : {}),
+    ...(Array.isArray(watcher.assertions)
+      ? { assertions: compactAssertionResults(watcher.assertions) }
+      : {}),
     ...(Array.isArray(watcher.attempts) ? { attempts: watcher.attempts } : {}),
     ...(isRecord(watcher.reasonMeta) ? { reasonMeta: watcher.reasonMeta } : {}),
   };
@@ -405,7 +425,9 @@ function normalizeWatcherExecutionEvidenceEntry(entry: unknown): WatcherExecutio
     waitPolicy,
     ...(isRecord(entry.lastObservation) ? { lastObservation: entry.lastObservation } : {}),
     ...(Array.isArray(entry.attempts) ? { attempts: entry.attempts } : {}),
-    ...(Array.isArray(entry.assertions) ? { assertions: entry.assertions } : {}),
+    ...(Array.isArray(entry.assertions)
+      ? { assertions: compactAssertionResults(entry.assertions) }
+      : {}),
     ...(isRecord(entry.reasonMeta) ? { reasonMeta: entry.reasonMeta } : {}),
   };
 }
@@ -415,7 +437,8 @@ function normalizeWatcherReasonCode(value: unknown): RegressionWatcherReasonCode
   if (value === "watcher_timeout") return "watcher_timeout";
   if (value === "watcher_target_unreachable") return "watcher_target_unreachable";
   if (value === "watcher_expectation_failed") return "watcher_expectation_failed";
-  if (value === "watcher_actual_path_missing_retry_exhausted") return "watcher_actual_path_missing_retry_exhausted";
+  if (value === "watcher_actual_path_missing_retry_exhausted")
+    return "watcher_actual_path_missing_retry_exhausted";
   if (value === "optional_actual_path_missing") return "optional_actual_path_missing";
   if (value === "watcher_configuration_invalid") return "watcher_configuration_invalid";
   if (value === "watcher_dependency_invalid") return "watcher_dependency_invalid";
@@ -568,14 +591,16 @@ function normalizeWatcherExecutionEvidenceOutcome(args: {
   if (args.outcome === "blocked") {
     if (args.reasonCode === "watcher_target_unreachable") return "target_unreachable";
     if (args.reasonCode === "watcher_dependency_invalid") return "dependency_invalid";
-    if (args.reasonCode === "watcher_actual_path_missing_retry_exhausted") return "expectation_failed";
+    if (args.reasonCode === "watcher_actual_path_missing_retry_exhausted")
+      return "expectation_failed";
     return "configuration_invalid";
   }
   if (args.reasonCode === "watcher_verified") return "verified";
   if (args.reasonCode === "watcher_timeout") return "timeout";
   if (args.reasonCode === "watcher_target_unreachable") return "target_unreachable";
   if (args.reasonCode === "watcher_expectation_failed") return "expectation_failed";
-  if (args.reasonCode === "watcher_actual_path_missing_retry_exhausted") return "expectation_failed";
+  if (args.reasonCode === "watcher_actual_path_missing_retry_exhausted")
+    return "expectation_failed";
   if (args.reasonCode === "watcher_configuration_invalid") return "configuration_invalid";
   if (args.reasonCode === "watcher_dependency_invalid") return "dependency_invalid";
   return undefined;

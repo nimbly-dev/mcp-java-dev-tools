@@ -288,7 +288,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration honors exte
       assert.equal(execution.steps[0]?.assertions[1]?.status, "pass");
       assert.equal(execution.steps[0]?.assertions[2]?.actualPath, "probe.hit");
       assert.equal(execution.steps[0]?.assertions[2]?.status, "pass");
-      assert.equal(execution.steps[0]?.assertions[2]?.actual, true);
+      assert.equal(typeof execution.steps[0]?.assertions[2]?.actual, "undefined");
 
       assert.equal(out.structuredContent?.resultType, "execution_orchestration");
       assert.equal(

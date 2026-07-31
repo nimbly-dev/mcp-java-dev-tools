@@ -249,7 +249,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration preserves p
     assert.equal(executionResult.steps[0]?.statusCode, 201);
     assert.equal(executionResult.steps[0]?.assertions[1]?.actualPath, "probe.hit");
     assert.equal(executionResult.steps[0]?.assertions[1]?.status, "pass");
-    assert.equal(executionResult.steps[0]?.assertions[1]?.actual, true);
+    assert.equal(typeof executionResult.steps[0]?.assertions[1]?.actual, "undefined");
     assert.equal(executionResult.steps[0]?.assertions[1]?.expected, true);
   } finally {
     await mcp?.close();

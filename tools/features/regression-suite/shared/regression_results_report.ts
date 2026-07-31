@@ -3,14 +3,21 @@ import path from "node:path";
 import { resolveRegressionPlansRootAbs } from "../../../spec/regression-execution-plan-spec/src/regression_artifact_paths.util";
 import { renderWatcherResults } from "./regression_watcher_results_report";
 import type {
+  FailedAssertionReport,
+  FailedAssertionRow,
   ProbeCoverageState,
   RenderArgs,
+  RenderBlockedResult,
   RenderFromArtifactsArgs,
+  RenderFromArtifactsResult,
   RenderResult,
   ReportColumn,
   ResolveRunDirArgs,
   StepRow,
 } from "../models/regression_report.model";
+
+const MAX_RENDERED_EXPECTED_LENGTH = 256;
+const NOT_PERSISTED = "[not persisted]" as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -25,6 +32,10 @@ function asString(value: unknown, fallback = "n/a"): string {
 function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   return null;
+}
+
+function hasText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function asCorrelationStatus(value: unknown): "ok" | "fail_closed" {
@@ -137,6 +148,103 @@ function formatTable(columns: ReportColumn[], rows: StepRow[]): string {
   return [lineFrom(headers), separator, ...body].join("\n");
 }
 
+function stableJson(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(",")}]`;
+  if (isRecord(value)) {
+    return `{${Object.keys(value)
+      .sort((left, right) => left.localeCompare(right))
+      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+      .join(",")}}`;
+  }
+  return "[unrenderable]";
+}
+
+function formatExpected(value: unknown): string {
+  if (value === "[REDACTED]") return "[REDACTED]";
+  const normalized = escapeMarkdownTableCell(stableJson(value));
+  return normalized.length > MAX_RENDERED_EXPECTED_LENGTH
+    ? `${normalized.slice(0, MAX_RENDERED_EXPECTED_LENGTH - 3)}...`
+    : normalized;
+}
+
+function escapeMarkdownTableCell(value: string): string {
+  return value.replace(/\r\n|\r|\n/g, " ").replaceAll("|", "\\|");
+}
+
+function failedAssertionRows(steps: Record<string, unknown>[]): FailedAssertionRow[] {
+  const rows: FailedAssertionRow[] = [];
+  for (const [index, step] of steps.entries()) {
+    const assertions = step.assertions;
+    if (!Array.isArray(assertions)) continue;
+    const order = asNumber(step.order) ?? index + 1;
+    const endpoint = resolveEndpoint(step);
+    for (const assertion of assertions) {
+      if (!isRecord(assertion)) continue;
+      const status = assertion.status;
+      if (status !== "fail" && status !== "blocked_invalid") continue;
+      rows.push({
+        stepOrder: order,
+        endpoint,
+        assertionId: asString(assertion.id, "unknown_assertion"),
+        actualPath: asString(assertion.actualPath, "n/a"),
+        operator: asString(assertion.operator, "n/a"),
+        status,
+        expected:
+          typeof assertion.expected === "undefined" ? "n/a" : formatExpected(assertion.expected),
+        actual: NOT_PERSISTED,
+        reasonCode: asString(assertion.reasonCode, "unknown"),
+      });
+    }
+  }
+  return rows.sort((left, right) => {
+    if (left.stepOrder !== right.stepOrder) return left.stepOrder - right.stepOrder;
+    const endpointOrder = left.endpoint.localeCompare(right.endpoint);
+    return endpointOrder !== 0 ? endpointOrder : left.assertionId.localeCompare(right.assertionId);
+  });
+}
+
+function formatFailedAssertionsTable(rows: FailedAssertionRow[]): string {
+  const headers = [
+    "Step",
+    "Endpoint",
+    "Assertion",
+    "Actual Path",
+    "Operator",
+    "Status",
+    "Expected",
+    "Actual",
+    "Reason",
+  ];
+  const line = (values: string[]) => `| ${values.join(" | ")} |`;
+  return [
+    line(headers),
+    line(headers.map(() => "---")),
+    ...rows.map((row) =>
+      line([
+        String(row.stepOrder),
+        escapeMarkdownTableCell(row.endpoint),
+        escapeMarkdownTableCell(row.assertionId),
+        escapeMarkdownTableCell(row.actualPath),
+        escapeMarkdownTableCell(row.operator),
+        row.status,
+        row.expected,
+        row.actual,
+        escapeMarkdownTableCell(row.reasonCode),
+      ]),
+    ),
+  ].join("\n");
+}
+
+function renderFailedAssertions(
+  steps: Record<string, unknown>[],
+): FailedAssertionReport | undefined {
+  const rows = failedAssertionRows(steps);
+  return rows.length === 0 ? undefined : { rows, table: formatFailedAssertionsTable(rows) };
+}
+
 export function renderRegressionRunResultsTable(args: RenderArgs): RenderResult {
   const steps = toStepRecords(args.executionResult);
   const evidence = isRecord(args.evidence) ? args.evidence : {};
@@ -210,10 +318,12 @@ export function renderRegressionRunResultsTable(args: RenderArgs): RenderResult 
       }
     : undefined;
 
+  const failedAssertions = renderFailedAssertions(steps);
   return {
     columns,
     rows,
     table: formatTable(columns, rows),
+    ...(failedAssertions ? { failedAssertions } : {}),
     ...(watcherReport
       ? {
           watchers: {
@@ -227,18 +337,187 @@ export function renderRegressionRunResultsTable(args: RenderArgs): RenderResult 
   };
 }
 
+function blocked(
+  reasonCode: RenderBlockedResult["reasonCode"],
+  reason: string,
+): RenderBlockedResult {
+  return {
+    status: "blocked",
+    reasonCode,
+    reason,
+    nextAction: "Regenerate the regression run Artifact, then render the result again.",
+  };
+}
+
+function validateExecutionResultForReport(
+  value: unknown,
+):
+  | { ok: true; executionResult: Record<string, unknown> }
+  | { ok: false; result: RenderBlockedResult } {
+  if (!isRecord(value)) {
+    return {
+      ok: false,
+      result: blocked(
+        "run_result_execution_result_invalid",
+        "execution.result.json must contain an object",
+      ),
+    };
+  }
+  if (!hasText(value.status)) {
+    return {
+      ok: false,
+      result: blocked(
+        "run_result_execution_status_missing",
+        "execution.result.json is missing required field: status",
+      ),
+    };
+  }
+  if (!isRecord(value.preflight)) {
+    return {
+      ok: false,
+      result: blocked(
+        "run_result_preflight_missing",
+        "execution.result.json is missing required object: preflight",
+      ),
+    };
+  }
+  const rawSteps = value.steps;
+  if (!Array.isArray(rawSteps) && !isRecord(rawSteps)) {
+    return {
+      ok: false,
+      result: blocked(
+        "run_result_steps_missing",
+        "execution.result.json is missing required steps array or object map",
+      ),
+    };
+  }
+  const expectedStepCount = Array.isArray(rawSteps)
+    ? rawSteps.length
+    : Object.keys(rawSteps).length;
+  const steps = toStepRecords(value);
+  if (steps.length !== expectedStepCount) {
+    return {
+      ok: false,
+      result: blocked(
+        "run_result_step_invalid",
+        "execution.result.json has a non-object entry in steps",
+      ),
+    };
+  }
+  for (const [stepIndex, step] of steps.entries()) {
+    if (!isRecord(step)) {
+      return {
+        ok: false,
+        result: blocked(
+          "run_result_step_invalid",
+          `execution.result.json has invalid step: steps[${stepIndex}]`,
+        ),
+      };
+    }
+    if (!Number.isInteger(step.order) || !hasText(step.id) || !hasText(step.status)) {
+      return {
+        ok: false,
+        result: blocked(
+          "run_result_step_invalid",
+          `execution.result.json has incomplete step: steps[${stepIndex}]`,
+        ),
+      };
+    }
+    if (typeof step.assertions === "undefined") continue;
+    if (!Array.isArray(step.assertions)) {
+      return {
+        ok: false,
+        result: blocked(
+          "run_result_assertions_invalid",
+          `execution.result.json has invalid assertions: steps[${stepIndex}].assertions`,
+        ),
+      };
+    }
+    for (const [assertionIndex, assertion] of step.assertions.entries()) {
+      if (!isRecord(assertion)) {
+        return {
+          ok: false,
+          result: blocked(
+            "run_result_assertions_invalid",
+            `execution.result.json has invalid assertion: steps[${stepIndex}].assertions[${assertionIndex}]`,
+          ),
+        };
+      }
+      for (const field of ["id", "actualPath", "operator", "status", "reasonCode"] as const) {
+        if (!hasText(assertion[field])) {
+          return {
+            ok: false,
+            result: blocked(
+              "run_result_assertion_field_missing",
+              `execution.result.json is missing required field: steps[${stepIndex}].assertions[${assertionIndex}].${field}`,
+            ),
+          };
+        }
+      }
+      if (
+        assertion.status !== "pass" &&
+        assertion.status !== "fail" &&
+        assertion.status !== "blocked_invalid" &&
+        assertion.status !== "skipped_optional"
+      ) {
+        return {
+          ok: false,
+          result: blocked(
+            "run_result_assertions_invalid",
+            `execution.result.json has unsupported assertion status: steps[${stepIndex}].assertions[${assertionIndex}].status`,
+          ),
+        };
+      }
+    }
+  }
+  return { ok: true, executionResult: value };
+}
+
+async function readArtifactJson(
+  filePath: string,
+): Promise<{ ok: true; value: unknown } | { ok: false; result: RenderBlockedResult }> {
+  let text: string;
+  try {
+    text = await fs.readFile(filePath, "utf8");
+  } catch {
+    return {
+      ok: false,
+      result: blocked(
+        "run_result_artifact_missing",
+        `required Artifact is missing: ${path.basename(filePath)}`,
+      ),
+    };
+  }
+  try {
+    return { ok: true, value: JSON.parse(text) as unknown };
+  } catch {
+    return {
+      ok: false,
+      result: blocked(
+        "run_result_artifact_invalid_json",
+        `required Artifact contains invalid JSON: ${path.basename(filePath)}`,
+      ),
+    };
+  }
+}
+
 export async function renderRegressionRunResultsTableFromArtifacts(
   args: RenderFromArtifactsArgs,
-): Promise<RenderResult> {
+): Promise<RenderFromArtifactsResult> {
   const executionPath = path.join(args.runDirAbs, "execution.result.json");
   const evidencePath = path.join(args.runDirAbs, "evidence.json");
   const correlationPath = path.join(args.runDirAbs, "correlation", "correlation.json");
-  const [executionText, evidenceText] = await Promise.all([
-    fs.readFile(executionPath, "utf8"),
-    fs.readFile(evidencePath, "utf8"),
-  ]);
-  const executionResult = JSON.parse(executionText) as Record<string, unknown>;
-  const evidence = JSON.parse(evidenceText) as Record<string, unknown>;
+  const executionRead = await readArtifactJson(executionPath);
+  if (!executionRead.ok) return executionRead.result;
+  const executionValidation = validateExecutionResultForReport(executionRead.value);
+  if (!executionValidation.ok) return executionValidation.result;
+  const evidenceRead = await readArtifactJson(evidencePath);
+  if (!evidenceRead.ok) return evidenceRead.result;
+  if (!isRecord(evidenceRead.value)) {
+    return blocked("run_result_evidence_invalid", "evidence.json must contain an object");
+  }
+  const executionResult = executionValidation.executionResult;
+  const evidence = evidenceRead.value;
   let correlation: Record<string, unknown> | undefined;
   try {
     const correlationText = await fs.readFile(correlationPath, "utf8");

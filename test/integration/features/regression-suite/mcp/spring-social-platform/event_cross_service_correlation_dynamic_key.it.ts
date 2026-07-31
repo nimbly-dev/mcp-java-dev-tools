@@ -58,8 +58,8 @@ test("[IT][execution_orchestration][execute] execution_orchestration reuses a pr
 
     assert.equal(producerExecution.status, "pass");
     assert.equal(consumerExecution.status, "pass");
-    assert.equal(producerExecution.steps[0]?.assertions?.[2]?.actual, true);
-    assert.equal(consumerExecution.steps[0]?.assertions?.[2]?.actual, true);
+    assert.equal(typeof producerExecution.steps[0]?.assertions?.[2]?.actual, "undefined");
+    assert.equal(typeof consumerExecution.steps[0]?.assertions?.[2]?.actual, "undefined");
 
     const producerCorrelationPolicy = (producerEvidence.correlationPolicy ?? {}) as Record<
       string,
