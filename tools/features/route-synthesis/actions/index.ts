@@ -2,6 +2,7 @@ import type { RouteSynthesisAction } from "@tools-contracts/route-synthesis";
 import type { RouteSynthesisHandlerDeps } from "../models/route_synthesis.model";
 import { runClassMethods } from "./class_methods.action";
 import { runRecipeCreate } from "./create_recipe.action";
+import { runDiscoverHandlers } from "./discover_handlers.action";
 import { runTargetInfer } from "./infer_target.action";
 
 export type RouteSynthesisActionMap = Readonly<Record<RouteSynthesisAction, unknown>>;
@@ -16,6 +17,8 @@ export function dispatchRouteSynthesisAction(args: {
       return runTargetInfer({ ...args.input, discoveryMode: "ranked_candidates" }, args.deps);
     case "class_methods":
       return runClassMethods(args.input, args.deps);
+    case "discover_handlers":
+      return runDiscoverHandlers(args.input, args.deps);
     case "create_recipe":
       return runRecipeCreate(args.input, args.deps);
   }

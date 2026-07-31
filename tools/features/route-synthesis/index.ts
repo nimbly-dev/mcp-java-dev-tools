@@ -1,7 +1,12 @@
 export { dispatchRouteSynthesisAction } from "./actions";
+export { runDiscoverHandlers } from "./actions/discover_handlers.action";
 export { discoverClassMethods, inferTargets } from "./shared/target_inference";
 export { generateRecipe } from "./shared/recipe_generation";
-export type { ClassDiscoveryCandidate, ClassMethodSpan, InferredTarget } from "./models/target_inference.model";
+export type {
+  ClassDiscoveryCandidate,
+  ClassMethodSpan,
+  InferredTarget,
+} from "./models/target_inference.model";
 export { buildJavaIndex } from "./support/inference/java_index.util";
 export { enrichRuntimeCapture } from "./support/recipe_generate/runtime_capture_enrich.util";
 export {
