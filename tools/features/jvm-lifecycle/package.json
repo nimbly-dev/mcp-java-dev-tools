@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-feature-jvm-lifecycle",
+  "private": true,
+  "version": "0.1.0",
+  "description": "JVM lifecycle Feature Module",
+  "main": "index.ts",
+  "types": "index.ts"
+}
