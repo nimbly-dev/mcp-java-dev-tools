@@ -21,6 +21,7 @@
       "@tools-registry/*": ["tools/core/tools-registry/src/*"],
       "@tools-contracts/*": ["tools/contracts/tools-contracts/src/*"],
       "@tools-feature-probe": ["tools/features/probe/index.ts"],
+      "@tools-feature-jvm-lifecycle": ["tools/features/jvm-lifecycle/index.ts"],
       "@tools-feature-artifact-management": ["tools/features/artifact-management/index.ts"],
       "@tools-feature-execution-orchestration": ["tools/features/execution-orchestration/index.ts"],
       "@tools-feature-regression-suite": ["tools/features/regression-suite/index.ts"],

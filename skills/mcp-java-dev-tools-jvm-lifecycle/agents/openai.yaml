@@ -1,0 +1,4 @@
+interface:
+  display_name: "MCP Java Dev Tools Attach Sidecar to JVM"
+  short_description: "Attach and verify the Java Sidecar Agent."
+  default_prompt: "Use $mcp-java-dev-tools-jvm-lifecycle to attach the Sidecar Agent to a local JVM and verify the Probe."

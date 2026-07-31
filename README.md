@@ -222,6 +222,8 @@ Default is `3`. Increase this if you need deeper capture history for a single pr
 | `MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR` | â€” | |
 | `MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH` | â€” | |
 | `MCP_JAVA_BIN` | â€” | |
+| `MCP_JAVA_ATTACH_HELPER_JAR` | â€” | Optional absolute path to the packaged Java 21 lifecycle helper; the MCP Tool otherwise resolves the repository-built helper artifact. |
+| `MCP_JVM_LIFECYCLE_ALLOWED_PROBE_HOSTS` | â€” | Comma-separated non-loopback Probe hosts allowed for dynamic attach. Loopback is always allowed. |
 | `MCP_PROBE_LINE_SELECTION_MAX_SCAN_LINES` | `120` | Range: 10â€“2000 |
 | `MCP_PROBE_WAIT_MAX_RETRIES` | `1` | Max: 10 |
 | `MCP_PROBE_WAIT_UNREACHABLE_RETRY_ENABLED` | `false` | |
@@ -259,6 +261,7 @@ These paths are fixed and cannot be overridden.
 | `mcp-java-dev-tools-issue-report` | Sanitized issue reporting from session, runtime, and probe evidence |
 | `mcp-java-dev-tools-bug-drill` | Bounded method-level diagnosis using Route Synthesis and live Probe evidence |
 | `mcp-java-dev-tools-bug-fix` | Proposal-only issue localization and Probe-evidenced Java fix planning |
+| `mcp-java-dev-tools-jvm-lifecycle` | Safe local Java 21+ Sidecar Agent discovery, attachment, Probe verification, and deactivation |
 
 ---
 
@@ -282,6 +285,7 @@ Start there before opening a large pull request or changing public tool contract
 | `route_synthesis` | |
 | `execution_profile_export` | |
 | `execution_orchestration` | |
+| `jvm_lifecycle` | Local JVM discovery and Sidecar Agent lifecycle operations |
 
 Probe config Artifact runtime behavior:
 - Registry config is loaded from discovered workspace `.mcpjvm/probe-config.json`.

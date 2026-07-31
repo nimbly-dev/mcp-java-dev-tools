@@ -97,6 +97,19 @@ examples:
 }
 ```
 
+## jvm_lifecycle
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `resultType` | Deterministic output kind (`jvm_list`, `jvm_lifecycle`, or `report`). | `jvm_lifecycle` | true | `"jvm_lifecycle"` |
+| `status` | `ok` only for the helper's structured active/deactivation result; otherwise `blocked`. | `jvm_lifecycle` | true | `"ok"` |
+| `reasonCode` | Stable lifecycle/helper failure or reported reason code. | `jvm_lifecycle` | true | `"active"` |
+| `jvms[]` | Bounded discovery descriptors. Every descriptor is unverified. | `jvm_lifecycle action=list_jvms` | false | `[{"pid":"1234","attachmentState":"unverified","probeState":"unverified"}]` |
+| `selectedJvm.pid` | Exact target PID for a lifecycle mutation. | `jvm_lifecycle` | false | `"1234"` |
+| `lifecycle` | Structured result returned by the Java lifecycle helper. | `jvm_lifecycle` | false | `{"operation":"attach","outcome":"active"}` |
+| `probe.baseUrl` | Selected Probe control URL. Its `verification` remains `pending` until canonical `probe` evidence succeeds. | `jvm_lifecycle action=attach` | false | `"http://127.0.0.1:9191"` |
+| `nonRestorableClasses` | Bounded class list returned when agent-owned deactivation is partial. | `jvm_lifecycle action=deactivate` | false | `[]` |
+
 ## debug_check
 
 | fieldName    | fieldDesc                                        | toolUsedBy    | required | exampleValue                 |
