@@ -69,9 +69,9 @@ test("[IT][execution_orchestration][execute] cross-service event suite preserves
     assert.equal(producerExecution.status, "pass");
     assert.equal(consumerExecution.status, "pass");
     assert.equal(producerExecution.steps[0]?.assertions?.[2]?.actualPath, "probe.hit");
-    assert.equal(producerExecution.steps[0]?.assertions?.[2]?.actual, true);
+    assert.equal(typeof producerExecution.steps[0]?.assertions?.[2]?.actual, "undefined");
     assert.equal(consumerExecution.steps[0]?.assertions?.[2]?.actualPath, "probe.hit");
-    assert.equal(consumerExecution.steps[0]?.assertions?.[2]?.actual, true);
+    assert.equal(typeof consumerExecution.steps[0]?.assertions?.[2]?.actual, "undefined");
 
     const producerEvents = (producerEvidence.correlationEvents ?? []) as Array<
       Record<string, unknown>

@@ -16,3 +16,5 @@ Default template id: `endpoint_table_result`
      - `Probe Coverage`
    - optional columns:
      - `Memory (bytes)` (contract-defined only)
+   - optional section:
+     - `failed_assertions` (rendered only for failed or blocked trigger-step assertions)

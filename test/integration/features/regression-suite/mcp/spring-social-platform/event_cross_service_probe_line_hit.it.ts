@@ -352,7 +352,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration preserves p
     assert.equal(producerExecution.steps[0]?.status, "pass");
     assert.equal(producerExecution.steps[0]?.assertions[2]?.actualPath, "probe.hit");
     assert.equal(producerExecution.steps[0]?.assertions[2]?.status, "pass");
-    assert.equal(producerExecution.steps[0]?.assertions[2]?.actual, true);
+    assert.equal(typeof producerExecution.steps[0]?.assertions[2]?.actual, "undefined");
 
     const runRootAbs = path.join(
       workspaceRootAbs,
@@ -406,7 +406,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration preserves p
     assert.equal(consumerExecution.steps[0]?.status, "pass");
     assert.equal(consumerExecution.steps[0]?.assertions[2]?.actualPath, "probe.hit");
     assert.equal(consumerExecution.steps[0]?.assertions[2]?.status, "pass");
-    assert.equal(consumerExecution.steps[0]?.assertions[2]?.actual, true);
+    assert.equal(typeof consumerExecution.steps[0]?.assertions[2]?.actual, "undefined");
   } finally {
     await mcp?.close();
     await producerRuntime?.stop();

@@ -257,14 +257,14 @@ test("[IT][execution_orchestration][execute] execution_orchestration accepts can
     assert.equal(canonicalExecution.steps[0]?.assertions[0]?.actualPath, "probe.hit");
     assert.equal(canonicalExecution.steps[0]?.assertions[0]?.status, "pass");
     assert.equal(canonicalExecution.steps[0]?.assertions[0]?.reasonCode, "ok");
-    assert.equal(canonicalExecution.steps[0]?.assertions[0]?.actual, true);
+    assert.equal(typeof canonicalExecution.steps[0]?.assertions[0]?.actual, "undefined");
 
     assert.equal(compatibilityExecution.status, "pass");
     assert.equal(compatibilityExecution.steps[0]?.status, "pass");
     assert.equal(compatibilityExecution.steps[0]?.assertions[0]?.actualPath, "runtime.probe.hit");
     assert.equal(compatibilityExecution.steps[0]?.assertions[0]?.status, "pass");
     assert.equal(compatibilityExecution.steps[0]?.assertions[0]?.reasonCode, "ok");
-    assert.equal(compatibilityExecution.steps[0]?.assertions[0]?.actual, true);
+    assert.equal(typeof compatibilityExecution.steps[0]?.assertions[0]?.actual, "undefined");
   } finally {
     await mcp?.close();
     await runtime?.stop();

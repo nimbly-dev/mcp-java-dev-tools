@@ -164,6 +164,11 @@ External-verification-heavy workflow:
 ## Artifact-Derived Results Summary
 
 Regression results summaries SHOULD be rendered from persisted artifacts, not transient logs.
+For failed trigger-step assertions, reports MAY render the persisted assertion
+identity, path, operator, status, reason code, and safely available expected
+value. They MUST NOT render or reconstruct raw assertion actual values,
+response bodies, header values, or extracted context; omitted actual values
+render as `[not persisted]`.
 
 Required tabular columns:
 

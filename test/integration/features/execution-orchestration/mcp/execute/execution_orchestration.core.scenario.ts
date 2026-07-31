@@ -946,7 +946,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration supports ar
       ? (executionResult.steps?.[0]?.assertions as Array<Record<string, unknown>>)
       : [];
     assert.equal(assertions[0]?.status, "pass");
-    assert.equal(assertions[0]?.actual, "Test");
+    assert.equal(typeof assertions[0]?.actual, "undefined");
   } finally {
     appServer.close();
     await mcp?.close();

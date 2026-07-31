@@ -387,7 +387,7 @@ test("[IT][execution_orchestration][execute] local cross-service regression veri
       assert.equal(execution.watcherStatus, "pass");
       assert.equal(execution.externalVerificationStatus, "pass");
       assert.equal(stepAssertions[1]?.actualPath, "probe.hit");
-      assert.equal(stepAssertions[1]?.actual, true);
+      assert.equal(typeof stepAssertions[1]?.actual, "undefined");
       assert.equal(watcherRows[0]?.status, "pass");
       assert.equal(externalVerification[0]?.status, "pass");
       assert.equal(

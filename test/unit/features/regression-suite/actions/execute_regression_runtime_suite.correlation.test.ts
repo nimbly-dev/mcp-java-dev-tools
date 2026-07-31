@@ -396,7 +396,7 @@ test("[UT][regression-suite][execute_regression_runtime_suite_correlation] execu
     assert.equal(consumerExecution.steps[0].statusCode, 200);
     assert.equal(consumerExecution.steps[0].assertions[1].actualPath, "probe.hit");
     assert.equal(consumerExecution.steps[0].assertions[1].status, "fail");
-    assert.equal(consumerExecution.steps[0].assertions[1].actual, false);
+    assert.equal(typeof consumerExecution.steps[0].assertions[1].actual, "undefined");
     assert.equal(typeof consumerEvidence.correlationPolicy.keyValue, "undefined");
     assert.equal(
       consumerEvidence.correlationPolicy.keyExtractionReasonCode,
@@ -773,12 +773,12 @@ test("[UT][regression-suite][execute_regression_runtime_suite_correlation] execu
     assert.equal(producerExecution.steps[0].statusCode, 200);
     assert.equal(producerExecution.steps[0].assertions[1].actualPath, "probe.hit");
     assert.equal(producerExecution.steps[0].assertions[1].status, "fail");
-    assert.equal(producerExecution.steps[0].assertions[1].actual, false);
+    assert.equal(typeof producerExecution.steps[0].assertions[1].actual, "undefined");
     assert.equal(consumerExecution.steps[0].status, "fail_assertion");
     assert.equal(consumerExecution.steps[0].statusCode, 200);
     assert.equal(consumerExecution.steps[0].assertions[1].actualPath, "probe.hit");
     assert.equal(consumerExecution.steps[0].assertions[1].status, "fail");
-    assert.equal(consumerExecution.steps[0].assertions[1].actual, false);
+    assert.equal(typeof consumerExecution.steps[0].assertions[1].actual, "undefined");
 
     assert.equal(producerEvidence.correlationPolicy.correlationSessionId, correlationSessionId);
     assert.equal(producerEvidence.correlationPolicy.keySourceType, "json_path");
