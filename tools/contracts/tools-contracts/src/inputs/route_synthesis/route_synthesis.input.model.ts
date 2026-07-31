@@ -13,7 +13,9 @@ const TargetDiscoveryPayloadSchema = z
 
 const CreateRecipePayloadSchema = z.object(RecipeGenerateInputSchema).strict();
 
-function routeSynthesisActionSchema(action: "infer_target" | "class_methods") {
+function targetDiscoveryActionSchema(
+  action: "infer_target" | "class_methods" | "discover_handlers",
+) {
   return z.object({
     action: z.literal(action),
     input: TargetDiscoveryPayloadSchema,
@@ -21,8 +23,9 @@ function routeSynthesisActionSchema(action: "infer_target" | "class_methods") {
 }
 
 export const RouteSynthesisRequestSchema = z.discriminatedUnion("action", [
-  routeSynthesisActionSchema("infer_target"),
-  routeSynthesisActionSchema("class_methods"),
+  targetDiscoveryActionSchema("infer_target"),
+  targetDiscoveryActionSchema("class_methods"),
+  targetDiscoveryActionSchema("discover_handlers"),
   z.object({
     action: z.literal("create_recipe"),
     input: CreateRecipePayloadSchema,

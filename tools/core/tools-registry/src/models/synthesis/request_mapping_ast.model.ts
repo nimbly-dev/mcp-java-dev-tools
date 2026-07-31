@@ -46,6 +46,36 @@ export type JvmAstRequestMappingFailure = {
   extensions?: Record<string, unknown>;
 };
 
-export type JvmAstRequestMappingResult =
-  | JvmAstRequestMappingSuccess
+export type JvmAstRequestMappingResult = JvmAstRequestMappingSuccess | JvmAstRequestMappingFailure;
+
+export type JvmAstHandlerInventoryInput = {
+  projectRootAbs: string;
+  searchRootsAbs?: string[];
+  classHint: string;
+};
+
+export type JvmAstHandlerInventoryEntry = {
+  httpMethod: string;
+  path: string;
+  methodName: string;
+  signature: string;
+  runtimeClassFqcn: string;
+  declarationLine: number;
+  endLine: number;
+};
+
+export type JvmAstHandlerInventorySuccess = {
+  status: "ok";
+  contractVersion: string;
+  framework: "spring_http";
+  controllerFqcn: string;
+  matchedTypeFile: string;
+  matchedRootAbs: string;
+  handlers: JvmAstHandlerInventoryEntry[];
+  evidence: string[];
+  attemptedStrategies: string[];
+};
+
+export type JvmAstHandlerInventoryResult =
+  | JvmAstHandlerInventorySuccess
   | JvmAstRequestMappingFailure;

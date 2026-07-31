@@ -10,6 +10,7 @@ import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
 import com.nimbly.mcpjavadevtools.requestmapping.ast.TypeDescriptor;
 import com.nimbly.mcpjavadevtools.requestmapping.core.BytecodeSpringMappingFallback;
 import com.nimbly.mcpjavadevtools.requestmapping.core.BytecodeResolvedEndpoint;
+import com.nimbly.mcpjavadevtools.requestmapping.core.HandlerInventoryResolver;
 import com.nimbly.mcpjavadevtools.requestmapping.core.MethodSelector;
 import com.nimbly.mcpjavadevtools.requestmapping.core.TypeIndex;
 import com.nimbly.mcpjavadevtools.requestmapping.core.TypeIndexBuilder;
@@ -89,6 +90,11 @@ public final class RequestMappingResolver {
                     List.of("indexedJavaFiles=0", "projectRootAbs=" + projectRoot),
                     BOOTSTRAP_STRATEGIES
             );
+        }
+
+        if ("discover_handlers".equals(request.action)) {
+            return HandlerInventoryResolver.resolve(
+                    request, projectRoot, index, extractorRegistry, CONTRACT_VERSION);
         }
 
         TypeDescriptor primaryType = MethodSelector.selectPrimaryType(index, request);

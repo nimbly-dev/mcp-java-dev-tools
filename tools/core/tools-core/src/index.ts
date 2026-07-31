@@ -7,3 +7,4 @@ export * from "./recipe_types.util";
 export * from "./synthesis_search_roots.util";
 export * from "./object_path_read";
 export * from "./placeholder_resolution";
+export * from "./spring_handler_inventory_resolver";

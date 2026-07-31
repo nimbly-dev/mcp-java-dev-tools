@@ -182,10 +182,7 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
       ...(await collectVersionedJarCandidates(
         repoRoot,
         ["java-agent", "core", "core-entrypoint-mapper", "target"],
-        [
-          "mcp-java-dev-tools-core-entrypoint-mapper",
-          "mcp-java-dev-tools-core-request-mapper",
-        ],
+        ["mcp-java-dev-tools-core-entrypoint-mapper", "mcp-java-dev-tools-core-request-mapper"],
       )),
     );
     scannedSpringPluginCandidates.push(
@@ -320,7 +317,8 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
   if (selectedCoreMapperJar) {
     const classpathEntries = [selectedCoreMapperJar.jarAbs];
     let springPluginJar: string | undefined;
-    const sortedScannedSpringPluginCandidates = scannedSpringPluginCandidates.sort(compareCandidates);
+    const sortedScannedSpringPluginCandidates =
+      scannedSpringPluginCandidates.sort(compareCandidates);
     for (const pluginCandidate of sortedScannedSpringPluginCandidates) {
       if (pluginCandidate.repoRoot !== selectedCoreMapperJar.repoRoot) {
         continue;
@@ -372,10 +370,7 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
   return undefined;
 }
 
-function buildUnavailableFailure(
-  reason: string,
-  evidence: string[],
-): JvmAstRequestMappingResult {
+function buildUnavailableFailure(reason: string, evidence: string[]): JvmAstRequestMappingResult {
   return {
     status: "report",
     contractVersion: getContractVersion(),
@@ -388,9 +383,7 @@ function buildUnavailableFailure(
   };
 }
 
-export async function resolveRequestMappingAst(
-  input: JvmAstRequestMappingInput,
-): Promise<JvmAstRequestMappingResult> {
+async function runRequestMappingResolver(input: object): Promise<unknown> {
   const launch = await resolveLaunch();
   if (!launch) {
     const repoRoots = await findRepoRoots();
@@ -405,7 +398,7 @@ export async function resolveRequestMappingAst(
 
   const javaBin = process.env[JAVA_BIN_ENV]?.trim() || "java";
 
-  return await new Promise<JvmAstRequestMappingResult>((resolve) => {
+  return await new Promise<unknown>((resolve) => {
     const child = spawn(javaBin, launch.args, {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
@@ -468,7 +461,7 @@ export async function resolveRequestMappingAst(
       }
 
       try {
-        const parsed = JSON.parse(stdout.trim()) as JvmAstRequestMappingResult;
+        const parsed = JSON.parse(stdout.trim()) as unknown;
         resolve(parsed);
       } catch (err) {
         resolve(
@@ -487,3 +480,8 @@ export async function resolveRequestMappingAst(
   });
 }
 
+export async function resolveRequestMappingAst(
+  input: JvmAstRequestMappingInput,
+): Promise<JvmAstRequestMappingResult> {
+  return (await runRequestMappingResolver(input)) as JvmAstRequestMappingResult;
+}

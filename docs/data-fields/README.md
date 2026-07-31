@@ -99,16 +99,16 @@ examples:
 
 ## jvm_lifecycle
 
-| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
-| --- | --- | --- | --- | --- |
-| `resultType` | Deterministic output kind (`jvm_list`, `jvm_lifecycle`, or `report`). | `jvm_lifecycle` | true | `"jvm_lifecycle"` |
-| `status` | `ok` only for the helper's structured active/deactivation result; otherwise `blocked`. | `jvm_lifecycle` | true | `"ok"` |
-| `reasonCode` | Stable lifecycle/helper failure or reported reason code. | `jvm_lifecycle` | true | `"active"` |
-| `jvms[]` | Bounded discovery descriptors. Every descriptor is unverified. | `jvm_lifecycle action=list_jvms` | false | `[{"pid":"1234","attachmentState":"unverified","probeState":"unverified"}]` |
-| `selectedJvm.pid` | Exact target PID for a lifecycle mutation. | `jvm_lifecycle` | false | `"1234"` |
-| `lifecycle` | Structured result returned by the Java lifecycle helper. | `jvm_lifecycle` | false | `{"operation":"attach","outcome":"active"}` |
-| `probe.baseUrl` | Selected Probe control URL. Its `verification` remains `pending` until canonical `probe` evidence succeeds. | `jvm_lifecycle action=attach` | false | `"http://127.0.0.1:9191"` |
-| `nonRestorableClasses` | Bounded class list returned when agent-owned deactivation is partial. | `jvm_lifecycle action=deactivate` | false | `[]` |
+| fieldName              | fieldDesc                                                                                                   | toolUsedBy                        | required | exampleValue                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------- | -------- | --------------------------------------------------------------------------- |
+| `resultType`           | Deterministic output kind (`jvm_list`, `jvm_lifecycle`, or `report`).                                       | `jvm_lifecycle`                   | true     | `"jvm_lifecycle"`                                                           |
+| `status`               | `ok` only for the helper's structured active/deactivation result; otherwise `blocked`.                      | `jvm_lifecycle`                   | true     | `"ok"`                                                                      |
+| `reasonCode`           | Stable lifecycle/helper failure or reported reason code.                                                    | `jvm_lifecycle`                   | true     | `"active"`                                                                  |
+| `jvms[]`               | Bounded discovery descriptors. Every descriptor is unverified.                                              | `jvm_lifecycle action=list_jvms`  | false    | `[{"pid":"1234","attachmentState":"unverified","probeState":"unverified"}]` |
+| `selectedJvm.pid`      | Exact target PID for a lifecycle mutation.                                                                  | `jvm_lifecycle`                   | false    | `"1234"`                                                                    |
+| `lifecycle`            | Structured result returned by the Java lifecycle helper.                                                    | `jvm_lifecycle`                   | false    | `{"operation":"attach","outcome":"active"}`                                 |
+| `probe.baseUrl`        | Selected Probe control URL. Its `verification` remains `pending` until canonical `probe` evidence succeeds. | `jvm_lifecycle action=attach`     | false    | `"http://127.0.0.1:9191"`                                                   |
+| `nonRestorableClasses` | Bounded class list returned when agent-owned deactivation is partial.                                       | `jvm_lifecycle action=deactivate` | false    | `[]`                                                                        |
 
 ## debug_check
 
@@ -163,6 +163,24 @@ examples:
 | `status=runtime_unreachable`                        | Fail-closed status when runtime line validation cannot reach probe endpoint.                            | `route_synthesis` | false    | `"runtime_unreachable"`                                                                   |
 | `reasonCode=additional_source_roots_invalid`        | Input validation failed because one or more `additionalSourceRoots` paths are missing or non-directory. | `route_synthesis` | false    | `"additional_source_roots_invalid"`                                                       |
 | `reasonCode=additional_source_roots_limit_exceeded` | Input validation failed because `additionalSourceRoots` exceeded max entry count (`10`).                | `route_synthesis` | false    | `"additional_source_roots_limit_exceeded"`                                                |
+
+## route_synthesis action=discover_handlers
+
+| Field                                | Description                                                                                   | Tool              | Required | Example                                           |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- | ----------------- | -------- | ------------------------------------------------- |
+| `resultType`                         | Handler discovery result category.                                                            | `route_synthesis` | true     | `"handler_inventory"`                             |
+| `status`                             | `ready` only when every handler has a runtime-validated Strict Line Key; otherwise `partial`. | `route_synthesis` | true     | `"ready"`                                         |
+| `controllerFqcn`                     | Exact Spring controller FQCN resolved in the class-scoped mapper pass.                        | `route_synthesis` | true     | `"com.example.catalog.UserController"`            |
+| `handlers[]`                         | Deterministic supported Spring HTTP handler inventory; helper methods are excluded.           | `route_synthesis` | true     | `[{"httpMethod":"GET","path":"/users/{id}"}]`     |
+| `handlers[].signature`               | Java method declaration used to preserve overloaded handler identity.                         | `route_synthesis` | true     | `"getUser(String id)"`                            |
+| `handlers[].runtimeClassFqcn`         | Class that owns the executable method used to construct a Strict Line Key; may differ for inherited handlers. | `route_synthesis` | true | `"com.example.catalog.BaseUserController"` |
+| `handlers[].declarationLine`         | Source declaration line for the handler method.                                               | `route_synthesis` | true     | `41`                                              |
+| `handlers[].firstExecutableLine`     | Runtime-resolvable executable line, or `null` when unresolved.                                | `route_synthesis` | true     | `43`                                              |
+| `handlers[].strictLineKey`           | Strict Line Key emitted only after runtime validation.                                        | `route_synthesis` | false    | `"com.example.catalog.UserController#getUser:43"` |
+| `handlers[].lineSelectionReasonCode` | Deterministic reason when no Strict Line Key is emitted.                                      | `route_synthesis` | false    | `"runtime_unreachable"`                           |
+| `handlers[].nextActionCode`          | Follow-up action for an unresolved handler line.                                              | `route_synthesis` | false    | `"verify_probe_reachability"`                     |
+
+`discover_handlers` requires `projectRootAbs` and an exact controller FQCN in `classHint`. It uses the Spring Request Mapper's existing annotation and path-merging semantics. Supply `probeId` or `probeBaseUrl` to attempt runtime validation; without a selector, static handler metadata is returned with explicit unresolved-line guidance.
 
 ## route_synthesis action=create_recipe
 
@@ -222,28 +240,28 @@ examples:
 
 ## probe action=actuate
 
-| fieldName                      | fieldDesc                                             | toolUsedBy | required | exampleValue                                                  |
-| ------------------------------ | ----------------------------------------------------- | ---------- | -------- | ------------------------------------------------------------- |
-| `request`                      | Actuation request envelope sent to probe endpoint.    | `probe`    | true     | `{"url":"http://127.0.0.1:9191/__probe/actuate"}`             |
-| `request.body.action`          | Session actuation action (`arm` or `disarm`).         | `probe`    | true     | `"arm"`                                                       |
-| `request.body.sessionId`       | Required actuation session identifier.                | `probe`    | true     | `"regression-run-42"`                                         |
-| `request.body.targetKey`       | Required strict line key for `action=arm`.            | `probe`    | false    | `"com.example.Catalog#save:88"`                               |
-| `request.body.returnBoolean`   | Required branch decision for `action=arm`.            | `probe`    | false    | `true`                                                        |
-| `request.body.ttlMs`           | Required session TTL for `action=arm`.                | `probe`    | false    | `15000`                                                       |
-| `response`                     | Raw endpoint response payload.                        | `probe`    | true     | `{"status":200,"json":{"action":"arm","scopeState":"armed"}}` |
-| `response.json.scopeState`     | Session scope state (`armed`, `expired`, `disarmed`). | `probe`    | false    | `"armed"`                                                     |
-| `response.json.expiresAtEpoch` | Expiry timestamp for armed sessions.                  | `probe`    | false    | `1773318672847`                                               |
-| `response.json.error`           | Deterministic error code for a rejected arm request (`invalid_target_key`, `invalid_line_target`, or `target_line_not_actuatable`). | `probe` | false | `"target_line_not_actuatable"` |
-| `response.json.scope`           | Error scope for actuation target validation (`"actuate"` when returned). | `probe` | false | `"actuate"` |
+| fieldName                      | fieldDesc                                                                                                                           | toolUsedBy | required | exampleValue                                                  |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------- | ------------------------------------------------------------- |
+| `request`                      | Actuation request envelope sent to probe endpoint.                                                                                  | `probe`    | true     | `{"url":"http://127.0.0.1:9191/__probe/actuate"}`             |
+| `request.body.action`          | Session actuation action (`arm` or `disarm`).                                                                                       | `probe`    | true     | `"arm"`                                                       |
+| `request.body.sessionId`       | Required actuation session identifier.                                                                                              | `probe`    | true     | `"regression-run-42"`                                         |
+| `request.body.targetKey`       | Required strict line key for `action=arm`.                                                                                          | `probe`    | false    | `"com.example.Catalog#save:88"`                               |
+| `request.body.returnBoolean`   | Required branch decision for `action=arm`.                                                                                          | `probe`    | false    | `true`                                                        |
+| `request.body.ttlMs`           | Required session TTL for `action=arm`.                                                                                              | `probe`    | false    | `15000`                                                       |
+| `response`                     | Raw endpoint response payload.                                                                                                      | `probe`    | true     | `{"status":200,"json":{"action":"arm","scopeState":"armed"}}` |
+| `response.json.scopeState`     | Session scope state (`armed`, `expired`, `disarmed`).                                                                               | `probe`    | false    | `"armed"`                                                     |
+| `response.json.expiresAtEpoch` | Expiry timestamp for armed sessions.                                                                                                | `probe`    | false    | `1773318672847`                                               |
+| `response.json.error`          | Deterministic error code for a rejected arm request (`invalid_target_key`, `invalid_line_target`, or `target_line_not_actuatable`). | `probe`    | false    | `"target_line_not_actuatable"`                                |
+| `response.json.scope`          | Error scope for actuation target validation (`"actuate"` when returned).                                                            | `probe`    | false    | `"actuate"`                                                   |
 
 Arm target validation is fail-closed and occurs before session creation or replacement:
 
-| target state                              | HTTP | `response.json.error`          |
-| ----------------------------------------- | ---- | ------------------------------ |
-| Invalid Strict Line Key syntax            | 400  | `invalid_target_key`            |
-| Valid syntax but unresolved                | 400  | `invalid_line_target`           |
-| Resolvable but no conditional jump        | 400  | `target_line_not_actuatable`    |
-| Resolvable conditional target              | 200  | `scopeState=armed`              |
+| target state                       | HTTP | `response.json.error`        |
+| ---------------------------------- | ---- | ---------------------------- |
+| Invalid Strict Line Key syntax     | 400  | `invalid_target_key`         |
+| Valid syntax but unresolved        | 400  | `invalid_line_target`        |
+| Resolvable but no conditional jump | 400  | `target_line_not_actuatable` |
+| Resolvable conditional target      | 200  | `scopeState=armed`           |
 
 ## probe action=status
 

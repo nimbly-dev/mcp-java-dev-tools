@@ -1,6 +1,6 @@
 # Synthesis Plugin Contract
 
-`route_synthesis` with `action=create_recipe` is the canonical public recipe entrypoint. Framework-specific request synthesis is internal and routed through synthesizer plugins.
+`route_synthesis` with `action=create_recipe` is the canonical public recipe entrypoint. `action=discover_handlers` is the canonical controller-scoped Spring HTTP inventory operation; it does not generate or execute recipes. Framework-specific request synthesis is internal and routed through synthesizer plugins.
 
 ## Core Rules
 
