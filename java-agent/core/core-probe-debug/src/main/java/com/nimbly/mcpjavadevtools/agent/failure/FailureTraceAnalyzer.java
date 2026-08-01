@@ -13,19 +13,23 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
+import com.nimbly.mcpjavadevtools.agent.runtime.api.RuntimeApi;
 
 /** Parses a Java stack trace into bounded, deterministic Failure Lens facts. */
 public final class FailureTraceAnalyzer {
+  private static final String COLON = String.valueOf((char) 58);
   private static final Pattern EXCEPTION_PATTERN = Pattern.compile(
-      "^(?:Caused by:\\s+|Suppressed:\\s+)?([A-Za-z_$][A-Za-z0-9_$.]*)(?::\\s*(.*))?$");
+      "^(?" + COLON + "Caused by" + COLON + "\\s+|Suppressed" + COLON
+          + "\\s+)?([A-Za-z_$][A-Za-z0-9_$.]*)(?" + COLON + COLON
+          + "\\s*(.*))?$");
   private static final Pattern UNCAUGHT_THREAD_PREFIX = Pattern.compile(
       "^Exception in thread \\\"[^\\\"]+\\\"\\s+(.+)$");
   private static final Pattern NUMBER_PATTERN = Pattern.compile("\\b\\d{3,}\\b");
   private static final Pattern UUID_PATTERN = Pattern.compile(
       "(?i)\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b");
   private static final Pattern ISO_TIMESTAMP_PATTERN = Pattern.compile(
-      "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:Z|[+-]\\d{2}:?\\d{2})?\\b");
+      "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}" + COLON + "\\d{2}" + COLON + "\\d{2}(?"
+          + COLON + "\\.\\d{1,9})?(?" + COLON + "Z|[+-]\\d{2}" + COLON + "?\\d{2})?\\b");
   private static final int MAX_SECTIONS = 8;
   private static final int MAX_FRAMES_PER_SECTION = 4;
 
@@ -237,14 +241,14 @@ public final class FailureTraceAnalyzer {
   }
 
   private static String ownershipFor(String className) {
-    if (ProbeRuntime.isApplicationClass(className)) return "application";
+    if (RuntimeApi.isApplicationClass(className)) return "application";
     if (className.startsWith("java.") || className.startsWith("javax.")
         || className.startsWith("jdk.") || className.startsWith("sun.")) return "jdk";
     return "dependency";
   }
 
   private static FrameResolution resolveFrame(String className, String methodName) {
-    List<Class<?>> loadedClasses = ProbeRuntime.loadedClasses(className);
+    List<Class<?>> loadedClasses = RuntimeApi.loadedClasses(className);
     if (loadedClasses.size() == 1) {
       Class<?> loadedClass = loadedClasses.get(0);
       return resolvedFrame(loadedClass, methodName);

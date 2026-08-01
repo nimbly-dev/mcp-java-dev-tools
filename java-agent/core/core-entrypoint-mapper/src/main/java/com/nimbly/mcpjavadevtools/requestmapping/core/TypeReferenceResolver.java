@@ -1,6 +1,6 @@
 package com.nimbly.mcpjavadevtools.requestmapping.core;
 
-import com.nimbly.mcpjavadevtools.requestmapping.ast.TypeDescriptor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeDescriptor;
 
 import java.util.List;
 import java.util.Map;
@@ -66,5 +66,4 @@ public final class TypeReferenceResolver {
         return wildcardMatches.get(0);
     }
 }
-
 

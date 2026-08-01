@@ -1,5 +1,6 @@
-package com.nimbly.mcpjavadevtools.agent.runtime;
+package com.nimbly.mcpjavadevtools.agent.instrumentation.adapter.bytebuddy;
 
+import com.nimbly.mcpjavadevtools.agent.runtime.api.BootstrapCorrelationApi;
 import java.util.concurrent.Callable;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.implementation.bytecode.assign.Assigner;
@@ -11,15 +12,15 @@ public final class JdkExecutorCorrelationAdvice {
   @Advice.OnMethodEnter
   public static void enter(
       @Advice.Argument(value = 0, readOnly = false, typing = Assigner.Typing.DYNAMIC) Object task) {
-    if (CorrelationContext.current() == null || task == null) {
+    if (!BootstrapCorrelationApi.hasCorrelation() || task == null) {
       return;
     }
     if (task instanceof Runnable runnable) {
-      task = CorrelationContext.wrap(runnable);
+      task = BootstrapCorrelationApi.wrap(runnable);
       return;
     }
     if (task instanceof Callable<?> callable) {
-      task = CorrelationContext.wrap(callable);
+      task = BootstrapCorrelationApi.wrap(callable);
     }
   }
 }

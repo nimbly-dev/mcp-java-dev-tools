@@ -1,10 +1,10 @@
 package com.nimbly.mcpjavadevtools.examples.requestmapping;
 
-import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
-import com.nimbly.mcpjavadevtools.requestmapping.core.TypeIndex;
-import com.nimbly.mcpjavadevtools.requestmapping.extractor.MappingExtractor;
-import com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping;
-import com.nimbly.mcpjavadevtools.requestmapping.transport.http.PathMaterializer;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MethodContext;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeIndex;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MappingExtractor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.ResolvedMapping;
+import com.nimbly.mcpjavadevtools.requestmapping.api.PathMaterializer;
 
 import java.util.Optional;
 

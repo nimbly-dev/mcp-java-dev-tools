@@ -10,7 +10,7 @@ final class LifecycleReportWriter {
   private LifecycleReportWriter() {
   }
 
-  static void write(Path reportFile, ProbeAgent.LifecycleResult result) {
+  static void write(Path reportFile, ProbeLifecycle.LifecycleResult result) {
     if (reportFile == null) {
       return;
     }
@@ -21,7 +21,7 @@ final class LifecycleReportWriter {
     }
   }
 
-  private static String serialize(ProbeAgent.LifecycleResult result) {
+  private static String serialize(ProbeLifecycle.LifecycleResult result) {
     List<String> classes = result.nonRestorableClasses();
     return "outcome=" + result.outcome() + "\n"
         + "reasonCode=" + result.reasonCode() + "\n"

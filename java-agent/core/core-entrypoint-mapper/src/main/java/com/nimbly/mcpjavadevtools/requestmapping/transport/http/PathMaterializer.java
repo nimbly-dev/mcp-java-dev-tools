@@ -1,86 +1,61 @@
 package com.nimbly.mcpjavadevtools.requestmapping.transport.http;
 
-import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.ResolvedParameter;
-import com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MethodContext;
+import com.nimbly.mcpjavadevtools.requestmapping.api.ResolvedParameter;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeDescriptor;
 import com.nimbly.mcpjavadevtools.requestmapping.transport.TransportMaterializer;
-
-import java.util.ArrayList;
 import java.util.List;
 
+/** Compatibility adapter delegating to the canonical API materializer. */
+@Deprecated(forRemoval = false)
 public final class PathMaterializer implements TransportMaterializer {
-    public ResolvedMapping materialize(
-            String framework,
-            String httpMethod,
-            String classPath,
-            String methodPath,
-            MethodContext context
-    ) {
+    private final com.nimbly.mcpjavadevtools.requestmapping.api.PathMaterializer delegate =
+            new com.nimbly.mcpjavadevtools.requestmapping.api.PathMaterializer();
+
+    public com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping materialize(
+            String framework, String httpMethod, String classPath, String methodPath,
+            com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext context) {
         return materialize(framework, httpMethod, classPath, methodPath, context, List.of());
     }
 
     @Override
-    public ResolvedMapping materialize(
-            String framework,
-            String httpMethod,
-            String classPath,
-            String methodPath,
-            MethodContext context,
-            List<ResolvedParameter> parameters
-    ) {
-        String resolvedPath = joinPaths(classPath, methodPath);
-        List<String> queryParts = new ArrayList<>();
-        List<String> pathParameters = new ArrayList<>();
-        String bodyTemplate = null;
-
-        for (ResolvedParameter param : parameters) {
-            if (param.getKind().equals("query")) {
-                queryParts.add(param.getName() + "="
-                        + ParameterTemplateBuilder.sampleValueForParameter(param.getName(), param.getType()));
-            } else if (param.getKind().equals("path")) {
-                String value = ParameterTemplateBuilder.samplePathValueForParameter(
-                        param.getName(),
-                        param.getType()
-                );
-                resolvedPath = resolvedPath
-                        .replace("{" + param.getName() + "}", value)
-                        .replace(":" + param.getName(), value);
-                pathParameters.add(param.getName() + "=" + value);
-            } else if (param.getKind().equals("body")) {
-                bodyTemplate = ParameterTemplateBuilder.sampleBodyForParameter(param.getName(), param.getType());
-            }
-        }
-
-        ResolvedMapping mapping = new ResolvedMapping();
-        mapping.setFramework(framework);
-        mapping.setRequestSource(framework);
-        mapping.setHttpMethod(httpMethod);
-        mapping.setMaterializedPath(resolvedPath);
-        mapping.setQueryTemplate(String.join("&", queryParts));
-        mapping.setBodyTemplate(bodyTemplate);
-        mapping.setMappingOwnerFile(context.owner().getFileAbs());
-        mapping.setPathParameters(pathParameters);
-        return mapping;
+    public com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping materialize(
+            String framework, String httpMethod, String classPath, String methodPath,
+            com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext context,
+            List<com.nimbly.mcpjavadevtools.requestmapping.ast.ResolvedParameter> parameters) {
+        var mapping = delegate.materialize(framework, httpMethod, classPath, methodPath,
+                new MethodContext(
+                        toApiDescriptor(context.owner()), context.method(), toApiDescriptor(context.originOwner())),
+                parameters.stream()
+                        .map(parameter -> new ResolvedParameter(
+                                parameter.getKind(), parameter.getName(), parameter.getType()))
+                        .toList());
+        com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping legacy =
+                new com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping();
+        legacy.setFramework(mapping.getFramework());
+        legacy.setRequestSource(mapping.getRequestSource());
+        legacy.setHttpMethod(mapping.getHttpMethod());
+        legacy.setMaterializedPath(mapping.getMaterializedPath());
+        legacy.setQueryTemplate(mapping.getQueryTemplate());
+        legacy.setBodyTemplate(mapping.getBodyTemplate());
+        legacy.setMappingOwnerFile(mapping.getMappingOwnerFile());
+        legacy.setPathParameters(mapping.getPathParameters());
+        legacy.setExtensions(mapping.getExtensions());
+        return legacy;
     }
 
     public static String joinPaths(String classPath, String methodPath) {
-        String base = normalizePath(classPath);
-        String sub = methodPath == null ? "" : methodPath.trim();
-        if (sub.isBlank()) {
-            return base;
-        }
-        String normalizedSub = sub.startsWith("/") ? sub : "/" + sub;
-        String joined = (base.equals("/") ? "" : base) + normalizedSub;
-        return joined.isBlank() ? "/" : joined;
+        return com.nimbly.mcpjavadevtools.requestmapping.api.PathMaterializer.joinPaths(classPath, methodPath);
     }
 
     public static String normalizePath(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "/";
-        }
-        String trimmed = raw.trim();
-        return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
+        return com.nimbly.mcpjavadevtools.requestmapping.api.PathMaterializer.normalizePath(raw);
+    }
+
+    private static TypeDescriptor toApiDescriptor(
+            com.nimbly.mcpjavadevtools.requestmapping.ast.TypeDescriptor descriptor) {
+        return new TypeDescriptor(
+                descriptor.getFileAbs(), descriptor.getTypeDeclaration(), descriptor.getPackageName(),
+                descriptor.getSimpleName(), descriptor.getFqcn(), descriptor.getImports());
     }
 }
-
-

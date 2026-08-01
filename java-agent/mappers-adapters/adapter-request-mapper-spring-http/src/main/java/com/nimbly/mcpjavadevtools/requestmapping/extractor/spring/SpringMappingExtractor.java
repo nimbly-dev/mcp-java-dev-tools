@@ -1,11 +1,11 @@
 package com.nimbly.mcpjavadevtools.requestmapping.extractor.spring;
 
-import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.ResolvedParameter;
-import com.nimbly.mcpjavadevtools.requestmapping.core.TypeIndex;
-import com.nimbly.mcpjavadevtools.requestmapping.extractor.MappingExtractor;
-import com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping;
-import com.nimbly.mcpjavadevtools.requestmapping.transport.http.PathMaterializer;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MethodContext;
+import com.nimbly.mcpjavadevtools.requestmapping.api.ResolvedParameter;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeIndex;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MappingExtractor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.ResolvedMapping;
+import com.nimbly.mcpjavadevtools.requestmapping.api.PathMaterializer;
 
 import java.util.List;
 import java.util.Optional;
@@ -39,5 +39,4 @@ public final class SpringMappingExtractor implements MappingExtractor {
         ));
     }
 }
-
 

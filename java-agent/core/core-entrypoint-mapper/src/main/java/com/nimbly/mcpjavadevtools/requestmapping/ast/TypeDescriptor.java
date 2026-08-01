@@ -10,6 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/** Binary-compatible type descriptor retained for the pre-api SPI. */
+@Deprecated(forRemoval = false)
 public final class TypeDescriptor {
     private final Path fileAbs;
     private final TypeDeclaration<?> typeDeclaration;
@@ -19,14 +21,8 @@ public final class TypeDescriptor {
     private final List<String> imports;
     private final Map<String, String> stringConstants;
 
-    public TypeDescriptor(
-            Path fileAbs,
-            TypeDeclaration<?> typeDeclaration,
-            String packageName,
-            String simpleName,
-            String fqcn,
-            List<String> imports
-    ) {
+    public TypeDescriptor(Path fileAbs, TypeDeclaration<?> typeDeclaration, String packageName,
+                          String simpleName, String fqcn, List<String> imports) {
         this.fileAbs = fileAbs;
         this.typeDeclaration = typeDeclaration;
         this.packageName = packageName;
@@ -36,40 +32,18 @@ public final class TypeDescriptor {
         this.stringConstants = collectStringConstants(typeDeclaration);
     }
 
-    public Path getFileAbs() {
-        return fileAbs;
-    }
-
-    public TypeDeclaration<?> getTypeDeclaration() {
-        return typeDeclaration;
-    }
-
-    public String getPackageName() {
-        return packageName;
-    }
-
-    public String getSimpleName() {
-        return simpleName;
-    }
-
-    public String getFqcn() {
-        return fqcn;
-    }
-
-    public List<String> getImports() {
-        return imports;
-    }
-
-    public Map<String, String> getStringConstants() {
-        return stringConstants;
-    }
+    public Path getFileAbs() { return fileAbs; }
+    public TypeDeclaration<?> getTypeDeclaration() { return typeDeclaration; }
+    public String getPackageName() { return packageName; }
+    public String getSimpleName() { return simpleName; }
+    public String getFqcn() { return fqcn; }
+    public List<String> getImports() { return imports; }
+    public Map<String, String> getStringConstants() { return stringConstants; }
 
     private static Map<String, String> collectStringConstants(TypeDeclaration<?> declaration) {
         Map<String, String> out = new LinkedHashMap<>();
         for (BodyDeclaration<?> member : declaration.getMembers()) {
-            if (!(member instanceof FieldDeclaration fieldDeclaration) || !fieldDeclaration.isStatic()) {
-                continue;
-            }
+            if (!(member instanceof FieldDeclaration fieldDeclaration) || !fieldDeclaration.isStatic()) continue;
             fieldDeclaration.getVariables().forEach(variable -> variable.getInitializer()
                     .filter(StringLiteralExpr.class::isInstance)
                     .map(StringLiteralExpr.class::cast)
@@ -78,5 +52,3 @@ public final class TypeDescriptor {
         return out;
     }
 }
-
-

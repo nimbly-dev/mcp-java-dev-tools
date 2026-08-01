@@ -1,50 +1,36 @@
 package com.nimbly.mcpjavadevtools.agent.control.http;
 
-import com.nimbly.mcpjavadevtools.agent.capture.CapturePreviewView;
-import com.nimbly.mcpjavadevtools.agent.capture.CaptureRecordView;
-import com.nimbly.mcpjavadevtools.agent.capture.CaptureValueView;
-import com.nimbly.mcpjavadevtools.agent.capture.ProbeCaptureStore;
-import com.nimbly.mcpjavadevtools.agent.failure.FailureComparison;
-import com.nimbly.mcpjavadevtools.agent.failure.FailureExceptionSection;
-import com.nimbly.mcpjavadevtools.agent.failure.FailureFingerprint;
-import com.nimbly.mcpjavadevtools.agent.failure.FailureFrame;
-import com.nimbly.mcpjavadevtools.agent.failure.FailureTraceAnalysis;
+import com.nimbly.mcpjavadevtools.agent.debug.api.DebugApi;
 import com.nimbly.mcpjavadevtools.agent.control.http.model.ProbeHttpPayloads;
-import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStateSnapshot;
-import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopResult;
-import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
-import com.nimbly.mcpjavadevtools.agent.runtime.RuntimePortSignal;
-import com.nimbly.mcpjavadevtools.agent.runtime.RuntimeStringSignal;
-import com.nimbly.mcpjavadevtools.agent.runtime.model.ActuationState;
-import com.nimbly.mcpjavadevtools.agent.runtime.model.KeyStatus;
-import com.nimbly.mcpjavadevtools.agent.runtime.model.RuntimeState;
+import com.nimbly.mcpjavadevtools.agent.profiler.api.ProfilerApi;
+import com.nimbly.mcpjavadevtools.agent.runtime.api.RuntimeApi;
 
 import java.util.ArrayList;
 import java.util.List;
 
-final class ProbeHttpMapper {
+public final class ProbeHttpMapper {
   private ProbeHttpMapper() {}
 
-  static ProbeHttpPayloads.StatusEnvelope buildStatusEnvelope(String contractVersion, String key) {
+  public static ProbeHttpPayloads.StatusEnvelope buildStatusEnvelope(String contractVersion, String key) {
     return new ProbeHttpPayloads.StatusEnvelope(
         contractVersion,
         buildProbePayload(key),
-        buildCapturePreviewPayload(ProbeCaptureStore.getCapturePreviewForKey(key)),
+        buildCapturePreviewPayload(DebugApi.capturePreviewForKey(key)),
         buildRuntimePayload()
     );
   }
 
-  static ProbeHttpPayloads.StatusBatchRow buildStatusBatchRow(String key) {
+  public static ProbeHttpPayloads.StatusBatchRow buildStatusBatchRow(String key) {
     return new ProbeHttpPayloads.StatusBatchRow(
         true,
         buildProbePayload(key),
-        buildCapturePreviewPayload(ProbeCaptureStore.getCapturePreviewForKey(key)),
+        buildCapturePreviewPayload(DebugApi.capturePreviewForKey(key)),
         buildRuntimePayload()
     );
   }
 
-  static ProbeHttpPayloads.ResetEnvelope buildResetEnvelope(String contractVersion, String key) {
-    KeyStatus status = ProbeRuntime.keyStatus(key);
+  public static ProbeHttpPayloads.ResetEnvelope buildResetEnvelope(String contractVersion, String key) {
+    RuntimeApi.KeyStatus status = RuntimeApi.keyStatus(key);
     return new ProbeHttpPayloads.ResetEnvelope(
         contractVersion,
         true,
@@ -54,8 +40,8 @@ final class ProbeHttpMapper {
     );
   }
 
-  static ProbeHttpPayloads.ResetRow buildResetRow(String key) {
-    KeyStatus status = ProbeRuntime.keyStatus(key);
+  public static ProbeHttpPayloads.ResetRow buildResetRow(String key) {
+    RuntimeApi.KeyStatus status = RuntimeApi.keyStatus(key);
     return new ProbeHttpPayloads.ResetRow(
         true,
         key,
@@ -64,16 +50,16 @@ final class ProbeHttpMapper {
     );
   }
 
-  static ProbeHttpPayloads.CaptureEnvelope buildCaptureEnvelope(String contractVersion, CaptureRecordView capture) {
+  public static ProbeHttpPayloads.CaptureEnvelope buildCaptureEnvelope(String contractVersion, DebugApi.CaptureRecord capture) {
     return new ProbeHttpPayloads.CaptureEnvelope(
         contractVersion,
         buildCaptureRecordPayload(capture)
     );
   }
 
-  static ProbeHttpPayloads.FailureAnalysisEnvelope buildFailureAnalysisEnvelope(
+  public static ProbeHttpPayloads.FailureAnalysisEnvelope buildFailureAnalysisEnvelope(
       String contractVersion,
-      FailureTraceAnalysis analysis
+      DebugApi.FailureTraceAnalysis analysis
   ) {
     return new ProbeHttpPayloads.FailureAnalysisEnvelope(
         contractVersion,
@@ -84,9 +70,9 @@ final class ProbeHttpMapper {
         analysis.reasons());
   }
 
-  static ProbeHttpPayloads.FailureVerificationEnvelope buildFailureVerificationEnvelope(
+  public static ProbeHttpPayloads.FailureVerificationEnvelope buildFailureVerificationEnvelope(
       String contractVersion,
-      FailureComparison comparison
+      DebugApi.FailureComparison comparison
   ) {
     return new ProbeHttpPayloads.FailureVerificationEnvelope(
         contractVersion,
@@ -95,10 +81,10 @@ final class ProbeHttpMapper {
         comparison.reasons());
   }
 
-  static ProbeHttpPayloads.ProfilerEnvelope buildProfilerStateEnvelope(
+  public static ProbeHttpPayloads.ProfilerEnvelope buildProfilerStateEnvelope(
       String contractVersion,
       String action,
-      ProfilerStateSnapshot state
+      ProfilerApi.State state
   ) {
     return new ProbeHttpPayloads.ProfilerEnvelope(
         contractVersion,
@@ -108,10 +94,10 @@ final class ProbeHttpMapper {
     );
   }
 
-  static ProbeHttpPayloads.ProfilerEnvelope buildProfilerStopEnvelope(
+  public static ProbeHttpPayloads.ProfilerEnvelope buildProfilerStopEnvelope(
       String contractVersion,
       String action,
-      ProfilerStopResult result
+      ProfilerApi.StopResult result
   ) {
     return new ProbeHttpPayloads.ProfilerEnvelope(
         contractVersion,
@@ -134,7 +120,7 @@ final class ProbeHttpMapper {
   }
 
   private static ProbeHttpPayloads.ProbePayload buildProbePayload(String key) {
-    KeyStatus status = ProbeRuntime.keyStatus(key);
+    RuntimeApi.KeyStatus status = RuntimeApi.keyStatus(key);
     return new ProbeHttpPayloads.ProbePayload(
         status.key(),
         status.hitCount(),
@@ -144,9 +130,9 @@ final class ProbeHttpMapper {
     );
   }
 
-  private static ProbeHttpPayloads.CapturePreviewPayload buildCapturePreviewPayload(CapturePreviewView preview) {
+  private static ProbeHttpPayloads.CapturePreviewPayload buildCapturePreviewPayload(DebugApi.CapturePreview preview) {
     if (preview == null || !preview.available) {
-      String redactionMode = preview == null ? ProbeCaptureStore.getCaptureRedactionMode() : preview.redactionMode;
+      String redactionMode = preview == null ? DebugApi.captureRedactionMode() : preview.redactionMode;
       return new ProbeHttpPayloads.CapturePreviewPayload(
           false,
           redactionMode,
@@ -183,33 +169,33 @@ final class ProbeHttpMapper {
     );
   }
 
-  private static List<ProbeHttpPayloads.CapturePreviewArgPayload> buildCapturePreviewArgs(List<CaptureValueView> values) {
+  private static List<ProbeHttpPayloads.CapturePreviewArgPayload> buildCapturePreviewArgs(List<DebugApi.CaptureValue> values) {
     if (values == null || values.isEmpty()) return List.of();
     List<ProbeHttpPayloads.CapturePreviewArgPayload> out = new ArrayList<>();
     for (int i = 0; i < values.size(); i++) {
-      CaptureValueView value = values.get(i);
+      DebugApi.CaptureValue value = values.get(i);
       out.add(new ProbeHttpPayloads.CapturePreviewArgPayload(
           i,
-          value.truncated,
-          value.originalLength,
-          value.redacted
+          value.truncated(),
+          value.originalLength(),
+          value.redacted()
       ));
     }
     return out;
   }
 
-  private static ProbeHttpPayloads.CapturePreviewValuePayload buildCapturePreviewValue(CaptureValueView value) {
+  private static ProbeHttpPayloads.CapturePreviewValuePayload buildCapturePreviewValue(DebugApi.CaptureValue value) {
     if (value == null) return null;
     return new ProbeHttpPayloads.CapturePreviewValuePayload(
-        value.truncated,
-        value.originalLength,
-        value.redacted
+        value.truncated(),
+        value.originalLength(),
+        value.redacted()
     );
   }
 
   private static ProbeHttpPayloads.RuntimePayload buildRuntimePayload() {
-    RuntimeState runtime = ProbeRuntime.runtimeState();
-    ActuationState actuation = runtime.actuation();
+    RuntimeApi.RuntimeState runtime = RuntimeApi.runtimeState();
+    RuntimeApi.ActuationState actuation = runtime.actuation();
     return new ProbeHttpPayloads.RuntimePayload(
         actuation.mode(),
         actuation.sessionId(),
@@ -222,25 +208,25 @@ final class ProbeHttpMapper {
         runtime.serverEpoch(),
         buildRuntimeStringSignal(runtime.applicationType()),
         buildRuntimePortSignal(runtime.appPort()),
-        ProbeRuntime.runtimeInstanceId()
+        RuntimeApi.runtimeInstanceId()
     );
   }
 
-  private static ProbeHttpPayloads.RuntimeStringSignalPayload buildRuntimeStringSignal(RuntimeStringSignal signal) {
+  private static ProbeHttpPayloads.RuntimeStringSignalPayload buildRuntimeStringSignal(RuntimeApi.RuntimeStringSignal signal) {
     if (signal == null) {
       return new ProbeHttpPayloads.RuntimeStringSignalPayload("unknown", "runtime_introspection", 0.0);
     }
-    return new ProbeHttpPayloads.RuntimeStringSignalPayload(signal.value, signal.source, signal.confidence);
+    return new ProbeHttpPayloads.RuntimeStringSignalPayload(signal.value(), signal.source(), signal.confidence());
   }
 
-  private static ProbeHttpPayloads.RuntimePortSignalPayload buildRuntimePortSignal(RuntimePortSignal signal) {
+  private static ProbeHttpPayloads.RuntimePortSignalPayload buildRuntimePortSignal(RuntimeApi.RuntimePortSignal signal) {
     if (signal == null) {
       return new ProbeHttpPayloads.RuntimePortSignalPayload(null, "runtime_introspection", 0.0);
     }
-    return new ProbeHttpPayloads.RuntimePortSignalPayload(signal.value, signal.source, signal.confidence);
+    return new ProbeHttpPayloads.RuntimePortSignalPayload(signal.value(), signal.source(), signal.confidence());
   }
 
-  private static ProbeHttpPayloads.ProfilerPayload buildProfilerStatePayload(ProfilerStateSnapshot state) {
+  private static ProbeHttpPayloads.ProfilerPayload buildProfilerStatePayload(ProfilerApi.State state) {
     return new ProbeHttpPayloads.ProfilerPayload(
         state.status(),
         state.provider(),
@@ -256,7 +242,7 @@ final class ProbeHttpMapper {
     );
   }
 
-  private static ProbeHttpPayloads.CaptureRecordPayload buildCaptureRecordPayload(CaptureRecordView capture) {
+  private static ProbeHttpPayloads.CaptureRecordPayload buildCaptureRecordPayload(DebugApi.CaptureRecord capture) {
     return new ProbeHttpPayloads.CaptureRecordPayload(
         capture.captureId,
         capture.methodKey,
@@ -274,34 +260,34 @@ final class ProbeHttpMapper {
     );
   }
 
-  private static List<ProbeHttpPayloads.CaptureArgPayload> buildCaptureArgs(List<CaptureValueView> values) {
+  private static List<ProbeHttpPayloads.CaptureArgPayload> buildCaptureArgs(List<DebugApi.CaptureValue> values) {
     if (values == null || values.isEmpty()) return List.of();
     List<ProbeHttpPayloads.CaptureArgPayload> out = new ArrayList<>();
     for (int i = 0; i < values.size(); i++) {
-      CaptureValueView value = values.get(i);
+      DebugApi.CaptureValue value = values.get(i);
       out.add(new ProbeHttpPayloads.CaptureArgPayload(
           i,
-          value.value,
-          value.truncated,
-          value.originalLength,
-          value.redacted
+          value.value(),
+          value.truncated(),
+          value.originalLength(),
+          value.redacted()
       ));
     }
     return out;
   }
 
-  private static ProbeHttpPayloads.CaptureValuePayload buildCaptureValue(CaptureValueView value) {
+  private static ProbeHttpPayloads.CaptureValuePayload buildCaptureValue(DebugApi.CaptureValue value) {
     if (value == null) return null;
     return new ProbeHttpPayloads.CaptureValuePayload(
-        value.value,
-        value.truncated,
-        value.originalLength,
-        value.redacted
+        value.value(),
+        value.truncated(),
+        value.originalLength(),
+        value.redacted()
     );
   }
 
   private static ProbeHttpPayloads.FailureFingerprintPayload buildFailureFingerprintPayload(
-      FailureFingerprint fingerprint
+      DebugApi.FailureFingerprint fingerprint
   ) {
     if (fingerprint == null) return null;
     return new ProbeHttpPayloads.FailureFingerprintPayload(
@@ -313,7 +299,7 @@ final class ProbeHttpMapper {
         fingerprint.incompletenessReasons());
   }
 
-  private static ProbeHttpPayloads.FailureFramePayload buildFailureFramePayload(FailureFrame frame) {
+  private static ProbeHttpPayloads.FailureFramePayload buildFailureFramePayload(DebugApi.FailureFrame frame) {
     if (frame == null) return null;
     return new ProbeHttpPayloads.FailureFramePayload(
         frame.className(),
@@ -329,7 +315,7 @@ final class ProbeHttpMapper {
   }
 
   private static ProbeHttpPayloads.FailureExceptionSectionPayload buildFailureExceptionSectionPayload(
-      FailureExceptionSection section
+      DebugApi.FailureExceptionSection section
   ) {
     return new ProbeHttpPayloads.FailureExceptionSectionPayload(
         section.exceptionType(),

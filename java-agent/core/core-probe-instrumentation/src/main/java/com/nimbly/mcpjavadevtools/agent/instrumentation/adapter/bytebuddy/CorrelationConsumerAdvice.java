@@ -1,5 +1,6 @@
-package com.nimbly.mcpjavadevtools.agent.runtime;
+package com.nimbly.mcpjavadevtools.agent.instrumentation.adapter.bytebuddy;
 
+import com.nimbly.mcpjavadevtools.agent.runtime.api.CorrelationApi;
 import java.lang.reflect.Method;
 import net.bytebuddy.asm.Advice;
 
@@ -11,11 +12,11 @@ public final class CorrelationConsumerAdvice {
   private CorrelationConsumerAdvice() {}
 
   @Advice.OnMethodEnter
-  public static CorrelationContext.BindingSnapshot enter(
+  public static CorrelationApi.BindingSnapshot enter(
       @Advice.AllArguments Object[] arguments,
       @Advice.Origin Method origin
   ) {
-    return CorrelationEventConsumerAdapter.bindFromEventArguments(
+    return CorrelationApi.bindFromEventArguments(
         arguments, origin, hasKnownConsumerAnnotation(origin));
   }
 
@@ -38,7 +39,7 @@ public final class CorrelationConsumerAdvice {
   }
 
   @Advice.OnMethodExit(onThrowable = Throwable.class)
-  public static void exit(@Advice.Enter CorrelationContext.BindingSnapshot previous) {
-    CorrelationEventConsumerAdapter.restore(previous);
+  public static void exit(@Advice.Enter CorrelationApi.BindingSnapshot previous) {
+    CorrelationApi.restore(previous);
   }
 }

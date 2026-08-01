@@ -1,6 +1,6 @@
-package com.nimbly.mcpjavadevtools.agent.instrumentation;
+package com.nimbly.mcpjavadevtools.agent.instrumentation.adapter.bytebuddy;
 
-import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
+import com.nimbly.mcpjavadevtools.agent.runtime.api.RuntimeApi;
 import net.bytebuddy.asm.AsmVisitorWrapper;
 import net.bytebuddy.description.field.FieldDescription;
 import net.bytebuddy.description.field.FieldList;
@@ -107,7 +107,7 @@ public final class LineHitVisitor extends AsmVisitorWrapper.AbstractBase {
             super.visitLineNumber(line, start);
             if (line <= 0) return;
             currentLine = line;
-            ProbeRuntime.registerResolvableLine(dottedClassName, probeMethodName, line);
+            RuntimeApi.registerResolvableLine(dottedClassName, probeMethodName, line);
             super.visitLdcInsn(dottedClassName);
             super.visitLdcInsn(probeMethodName);
             super.visitLdcInsn(line);
@@ -127,7 +127,7 @@ public final class LineHitVisitor extends AsmVisitorWrapper.AbstractBase {
               return;
             }
 
-            ProbeRuntime.registerActuatableLine(dottedClassName, probeMethodName, currentLine);
+            RuntimeApi.registerActuatableLine(dottedClassName, probeMethodName, currentLine);
 
             super.visitLdcInsn(dottedClassName);
             super.visitLdcInsn(probeMethodName);

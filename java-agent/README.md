@@ -2,6 +2,9 @@
 
 Grouped module layout with non-breaking artifact names.
 
+The authoritative module purpose, dependency direction, public-surface rules,
+and migration inventory are documented in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Active module groups
 
 - `core/core-probe` (`mcp-java-dev-tools-agent`)

@@ -4,7 +4,8 @@ import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.TypeDeclaration;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.TypeDescriptor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeDescriptor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeIndex;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -97,5 +98,4 @@ public final class TypeIndexBuilder {
         }
     }
 }
-
 

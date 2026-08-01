@@ -1,6 +1,6 @@
 package com.nimbly.mcpjavadevtools.agent.capture;
 
-import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
+import com.nimbly.mcpjavadevtools.agent.runtime.api.RuntimeApi;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -248,7 +248,7 @@ final class CaptureValueSerializer {
   }
 
   private static String quoteJson(String raw) {
-    return "\"" + ProbeRuntime.escJson(raw == null ? "" : raw) + "\"";
+    return "\"" + RuntimeApi.escJson(raw == null ? "" : raw) + "\"";
   }
 
   private static final class ValueNormalization {

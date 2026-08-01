@@ -9,13 +9,13 @@ java-agent/mappers-adapters/adapter-request-mapper-spring-http/src/main/java/com
 \- (Spring extractor implementation classes)
 
 java-agent/mappers-adapters/adapter-request-mapper-spring-http/src/main/resources/META-INF/services
-\- com.nimbly.mcpjavadevtools.requestmapping.extractor.MappingExtractor
+\- com.nimbly.mcpjavadevtools.requestmapping.api.MappingExtractor
 ```
 
 ## Organization
 
 - Implements Spring-specific annotation extraction and merge behavior only.
 - Depends on `core-entrypoint-mapper` contracts/SPI.
-- Registered as a `ServiceLoader` provider for `MappingExtractor`.
+- Registered as a `ServiceLoader` provider for `com.nimbly.mcpjavadevtools.requestmapping.api.MappingExtractor`.
 - No probe runtime or javaagent instrumentation logic belongs in this module.
 
