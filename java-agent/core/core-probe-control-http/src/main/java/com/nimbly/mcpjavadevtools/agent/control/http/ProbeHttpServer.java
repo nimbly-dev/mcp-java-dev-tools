@@ -6,6 +6,9 @@ import com.nimbly.mcpjavadevtools.agent.contract.ContractVersion;
 import com.nimbly.mcpjavadevtools.agent.control.auth.ProbeAuth;
 import com.nimbly.mcpjavadevtools.agent.control.http.model.ProbeHttpPayloads;
 import com.nimbly.mcpjavadevtools.agent.control.http.model.ProbeHttpRequests;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureComparison;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureTraceAnalysis;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureTraceAnalyzer;
 import com.nimbly.mcpjavadevtools.agent.profiler.ProbeProfilerRegistry;
 import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStartRequest;
 import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStateSnapshot;
@@ -50,6 +53,8 @@ public final class ProbeHttpServer {
     server.createContext("/__probe/reset", new ResetHandler());
     server.createContext("/__probe/actuate", new ActuateHandler());
     server.createContext("/__probe/capture", new CaptureHandler());
+    server.createContext("/__probe/failure/analyze", new FailureAnalyzeHandler());
+    server.createContext("/__probe/failure/verify", new FailureVerifyHandler());
     server.createContext("/__probe/profiler", new ProfilerHandler());
     server.setExecutor(null);
     server.start();
@@ -493,6 +498,73 @@ public final class ProbeHttpServer {
       }
 
       ProbeHttpJson.writeJson(exchange, 200, ProbeHttpMapper.buildCaptureEnvelope(CONTRACT_VERSION, capture));
+    }
+  }
+
+  private static final class FailureAnalyzeHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+        ProbeHttpJson.writeJson(exchange, 405, new ProbeHttpPayloads.ErrorEnvelope("method_not_allowed", null));
+        return;
+      }
+      if (!ProbeAuth.authorizeObserve(exchange)) {
+        ProbeHttpJson.writeJson(exchange, 401, new ProbeHttpPayloads.ErrorEnvelope("unauthorized", "observe"));
+        return;
+      }
+      ProbeHttpRequests.FailureAnalyzeRequest request = ProbeHttpJson.readBodyJson(
+          exchange.getRequestBody(), ProbeHttpRequests.FailureAnalyzeRequest.class);
+      if (request.trace() == null || request.trace().isBlank()) {
+        ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("missing_trace", null));
+        return;
+      }
+      FailureTraceAnalysis analysis = FailureTraceAnalyzer.analyze(request.trace());
+      ProbeHttpJson.writeJson(exchange, 200, ProbeHttpMapper.buildFailureAnalysisEnvelope(CONTRACT_VERSION, analysis));
+    }
+  }
+
+  private static final class FailureVerifyHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+        ProbeHttpJson.writeJson(exchange, 405, new ProbeHttpPayloads.ErrorEnvelope("method_not_allowed", null));
+        return;
+      }
+      if (!ProbeAuth.authorizeObserve(exchange)) {
+        ProbeHttpJson.writeJson(exchange, 401, new ProbeHttpPayloads.ErrorEnvelope("unauthorized", "observe"));
+        return;
+      }
+      ProbeHttpRequests.FailureVerifyRequest request = ProbeHttpJson.readBodyJson(
+          exchange.getRequestBody(), ProbeHttpRequests.FailureVerifyRequest.class);
+      if (!hasVerificationInput(request)) {
+        ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("invalid_failure_verify", null));
+        return;
+      }
+      CaptureRecordView capture = ProbeCaptureStore.getCaptureById(request.captureId().trim());
+      if (capture == null) {
+        ProbeHttpJson.writeJson(exchange, 404, new ProbeHttpPayloads.CaptureNotFoundEnvelope(
+            CONTRACT_VERSION, "capture_not_found", request.captureId().trim()));
+        return;
+      }
+      FailureComparison comparison = FailureComparison.compare(
+          request.expectedExceptionType().trim(),
+          request.expectedRootCauseType().trim(),
+          request.expectedNearestApplicationMethodKey().trim(),
+          ProbeCaptureStore.getFailureFingerprintByCaptureId(request.captureId().trim()));
+      ProbeHttpJson.writeJson(exchange, 200, ProbeHttpMapper.buildFailureVerificationEnvelope(
+          CONTRACT_VERSION, comparison));
+    }
+
+    private static boolean hasVerificationInput(ProbeHttpRequests.FailureVerifyRequest request) {
+      if (request == null) return false;
+      return notBlank(request.captureId())
+          && notBlank(request.expectedExceptionType())
+          && notBlank(request.expectedRootCauseType())
+          && notBlank(request.expectedNearestApplicationMethodKey());
+    }
+
+    private static boolean notBlank(String value) {
+      return value != null && !value.isBlank();
     }
   }
 

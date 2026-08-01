@@ -1,4 +1,6 @@
 package com.nimbly.mcpjavadevtools.agent.capture;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureFingerprint;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureTraceAnalyzer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedHashMap;
@@ -111,6 +113,9 @@ public final class ProbeCaptureStore {
             captureRedactionMode,
             captureStoredMaxChars
         );
+    FailureFingerprint failureFingerprint = thrown == null
+        ? null
+        : FailureTraceAnalyzer.analyze(thrown).fingerprint();
     List<String> executionPaths = ExecutionPathCollector.collectExecutionPaths(dottedClassName, methodName);
 
     CaptureEntry entry = new CaptureEntry(
@@ -124,6 +129,7 @@ public final class ProbeCaptureStore {
         capturedArgs,
         capturedReturn,
         capturedThrown,
+        failureFingerprint,
         executionPaths,
         captureRedactionMode
     );
@@ -164,6 +170,14 @@ public final class ProbeCaptureStore {
       CaptureEntry entry = CAPTURE_BY_ID.get(captureId.trim());
       if (entry == null) return null;
       return entry.toRecord();
+    }
+  }
+
+  public static FailureFingerprint getFailureFingerprintByCaptureId(String captureId) {
+    if (captureId == null || captureId.isBlank()) return null;
+    synchronized (CAPTURE_LOCK) {
+      CaptureEntry entry = CAPTURE_BY_ID.get(captureId.trim());
+      return entry == null ? null : entry.failureFingerprint();
     }
   }
 

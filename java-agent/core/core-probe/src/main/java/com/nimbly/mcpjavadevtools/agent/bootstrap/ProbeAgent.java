@@ -157,6 +157,8 @@ public final class ProbeAgent {
     try {
       installInstrumentation(inst, cfg, jdkCorrelationReady);
       activeInstrumentation = inst;
+      ProbeRuntime.registerLoadedClassResolver(className -> loadedClasses(inst, className));
+      ProbeRuntime.registerApplicationClassResolver(cfg::shouldInstrument);
       active = true;
       return LifecycleResult.active("active");
     } catch (RuntimeException exception) {
@@ -290,6 +292,8 @@ public final class ProbeAgent {
       }
       stopProbeServer();
       ProbeRuntime.registerCorrelationBoundaryInstaller(null);
+      ProbeRuntime.registerLoadedClassResolver(null);
+      ProbeRuntime.registerApplicationClassResolver(null);
       ACTIVE_TRANSFORMERS.clear();
       TRANSFORMED_CLASS_NAMES.clear();
       activeInstrumentation = null;
@@ -316,6 +320,14 @@ public final class ProbeAgent {
             + ": " + exception.getMessage());
       }
     }
+  }
+
+  private static List<Class<?>> loadedClasses(Instrumentation instrumentation, String className) {
+    List<Class<?>> matches = new ArrayList<>();
+    for (Class<?> loadedClass : instrumentation.getAllLoadedClasses()) {
+      if (className.equals(loadedClass.getName())) matches.add(loadedClass);
+    }
+    return List.copyOf(matches);
   }
 
   private static boolean removeOwnedTransformers() {

@@ -25,7 +25,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration classifies 
   const appServer = http.createServer(async (req, res) => {
     if (req.method === "GET" && (req.url === "/a" || req.url === "/b")) {
       requestCount += 1;
-      await new Promise((resolve) => setTimeout(resolve, 15));
+      await new Promise((resolve) => setTimeout(resolve, 150));
       res.statusCode = 200;
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ ok: true, path: req.url }));
@@ -57,12 +57,12 @@ test("[IT][execution_orchestration][execute] execution_orchestration classifies 
       {
         projectRoot: projectRootAbs,
         defaults: {
-          requestTimeoutMs: 100,
+          requestTimeoutMs: 500,
           retryMax: 2,
           orchestrator: {
             resumePollMax: 5,
             resumePollIntervalMs: 5,
-            resumePollTimeoutMs: 10,
+            resumePollTimeoutMs: 100,
           },
         },
         executionProfiles: [

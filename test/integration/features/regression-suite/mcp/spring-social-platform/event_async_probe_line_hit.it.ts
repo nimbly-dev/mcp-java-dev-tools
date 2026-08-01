@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as fssync from "node:fs";
-import * as os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -15,6 +14,7 @@ import {
   startEventAppWithAgent,
   startMcpClient,
 } from "@test/support/spring/social-platform/shared.fixture";
+import { createRepoOwnedTempWorkspace } from "@test/support/test_temp_workspace.fixture";
 
 type ToolResult = {
   structuredContent?: Record<string, unknown>;
@@ -70,7 +70,7 @@ async function callTool(
 }
 
 test("[IT][execution_orchestration][execute] execution_orchestration preserves probe.hit for authenticated async event trigger on controller and listener targets", async () => {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-event-async-probe-line-hit-it-"));
+  const tmpRoot = await createRepoOwnedTempWorkspace("mcp-event-async-probe-line-hit-it-");
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = "event-async-probe-project";
   const projectRootAbs = workspaceRootAbs;

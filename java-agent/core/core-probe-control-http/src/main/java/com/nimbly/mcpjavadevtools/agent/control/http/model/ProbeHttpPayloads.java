@@ -206,4 +206,49 @@ public final class ProbeHttpPayloads {
       int originalLength,
       boolean redacted
   ) {}
+
+  public record FailureAnalysisEnvelope(
+      String contractVersion,
+      FailureFingerprintPayload fingerprint,
+      List<FailureFramePayload> investigationCandidates,
+      FailureFramePayload dependencyBoundary,
+      List<FailureExceptionSectionPayload> exceptionSections,
+      List<String> reasons
+  ) {}
+
+  public record FailureExceptionSectionPayload(
+      String exceptionType,
+      boolean suppressed,
+      boolean elidedFrames,
+      List<FailureFramePayload> frames
+  ) {}
+
+  public record FailureVerificationEnvelope(
+      String contractVersion,
+      String outcome,
+      FailureFingerprintPayload observedFingerprint,
+      List<String> reasons
+  ) {}
+
+  public record FailureFingerprintPayload(
+      String exceptionType,
+      String rootCauseType,
+      FailureFramePayload nearestApplicationFrame,
+      String normalizedMessage,
+      boolean complete,
+      List<String> incompletenessReasons
+  ) {}
+
+  public record FailureFramePayload(
+      String className,
+      String methodName,
+      String sourceFile,
+      Integer lineNumber,
+      String ownership,
+      String codeSource,
+      String strictLineKey,
+      String methodDescriptor,
+      List<String> codeSourceCandidates,
+      String resolutionReason
+  ) {}
 }

@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbly.mcpjavadevtools.agent.capture.CapturePreviewView;
+import com.nimbly.mcpjavadevtools.agent.capture.ProbeCaptureStore;
 import com.nimbly.mcpjavadevtools.agent.runtime.ProbeRuntime;
 import java.io.IOException;
 import java.net.URI;
@@ -32,6 +34,7 @@ class ProbeActuationTargetValidationHttpTest {
     ProbeRuntime.registerResolvableLine(CLASS_NAME, METHOD_NAME, 20);
     ProbeRuntime.registerResolvableLine(CLASS_NAME, METHOD_NAME, 30);
     ProbeRuntime.registerActuatableLine(CLASS_NAME, METHOD_NAME, 30);
+    ProbeRuntime.registerApplicationClassResolver(className -> className.startsWith("com.example."));
     server = ProbeHttpServer.start("127.0.0.1", 0);
   }
 
@@ -39,6 +42,7 @@ class ProbeActuationTargetValidationHttpTest {
   void stopServer() {
     server.stop();
     ProbeRuntime.configure("observe", "", "", false);
+    ProbeRuntime.registerApplicationClassResolver(null);
   }
 
   @Test
@@ -101,6 +105,93 @@ class ProbeActuationTargetValidationHttpTest {
     assertEquals("", runtime.get("sessionId").asText());
     assertEquals(ProbeRuntime.runtimeInstanceId(), runtime.get("runtimeInstanceId").asText());
     assertFalse(runtime.get("runtimeInstanceId").asText().isBlank());
+  }
+
+  @Test
+  void analyzesFailureTraceWithoutReturningTheOriginalTrace() throws Exception {
+    String payload = "{"
+        + "\"trace\":\"com.example.OrderFailure: order 123456 failed\\n"
+        + "  at com.example.OrderService.submit(OrderService.java:42)\\n"
+        + "Caused by: java.lang.IllegalStateException: unavailable\""
+        + "}";
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://127.0.0.1:" + server.port() + "/__probe/failure/analyze"))
+        .header("content-type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(payload))
+        .build();
+
+    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    JsonNode body = JSON.readTree(response.body());
+
+    assertEquals(200, response.statusCode());
+    assertEquals("com.example.OrderFailure", body.get("fingerprint").get("exceptionType").asText());
+    assertEquals("java.lang.IllegalStateException", body.get("fingerprint").get("rootCauseType").asText());
+    assertEquals(2, body.get("exceptionSections").size());
+    assertEquals("com.example.OrderFailure", body.get("exceptionSections").get(0).get("exceptionType").asText());
+    assertEquals("com.example.OrderService#submit:42", body.get("investigationCandidates").get(0)
+        .get("strictLineKey").asText());
+    assertFalse(response.body().contains("order 123456 failed"));
+  }
+
+  @Test
+  void analyzesUncaughtThreadTraceAndSkipsDependencyFramesOutsideTheConfiguredScope() throws Exception {
+    String payload = "{"
+        + "\"trace\":\"Exception in thread \\\"main\\\" java.lang.IllegalStateException: failed\\n"
+        + "  at io.netty.handler.codec.Decoder.decode(Decoder.java:42)\\n"
+        + "  at com.example.OrderService.submit(OrderService.java:51)\""
+        + "}";
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://127.0.0.1:" + server.port() + "/__probe/failure/analyze"))
+        .header("content-type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(payload))
+        .build();
+
+    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    JsonNode body = JSON.readTree(response.body());
+
+    assertEquals(200, response.statusCode());
+    assertEquals("java.lang.IllegalStateException", body.get("fingerprint").get("exceptionType").asText());
+    assertEquals("com.example.OrderService#submit:51", body.get("investigationCandidates").get(0)
+        .get("strictLineKey").asText());
+    assertEquals("io.netty.handler.codec.Decoder", body.get("dependencyBoundary").get("className").asText());
+  }
+
+  @Test
+  void verifiesAnObservedCaptureAgainstTheExpectedFailureFingerprint() throws Exception {
+    String className = "com.example.OrderService";
+    String methodName = "submit";
+    IllegalStateException failure = new IllegalStateException("inventory unavailable");
+    failure.setStackTrace(new StackTraceElement[] {
+        new StackTraceElement(className, methodName, "OrderService.java", 42)
+    });
+    ProbeCaptureStore.captureByClassMethod(
+        className,
+        methodName,
+        new Object[0],
+        null,
+        failure,
+        System.currentTimeMillis(),
+        System.currentTimeMillis(),
+        -1L
+    );
+    CapturePreviewView capture = ProbeCaptureStore.getCapturePreviewForKey(className + "#" + methodName);
+    String payload = "{"
+        + "\"captureId\":\"" + capture.captureId + "\","
+        + "\"expectedExceptionType\":\"java.lang.IllegalStateException\","
+        + "\"expectedRootCauseType\":\"java.lang.IllegalStateException\","
+        + "\"expectedNearestApplicationMethodKey\":\"" + className + "#" + methodName + "\""
+        + "}";
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://127.0.0.1:" + server.port() + "/__probe/failure/verify"))
+        .header("content-type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(payload))
+        .build();
+
+    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    JsonNode body = JSON.readTree(response.body());
+
+    assertEquals(200, response.statusCode());
+    assertEquals("matched", body.get("outcome").asText());
   }
 
   private void assertRejectedArm(

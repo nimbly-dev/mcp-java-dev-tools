@@ -4,6 +4,11 @@ import com.nimbly.mcpjavadevtools.agent.capture.CapturePreviewView;
 import com.nimbly.mcpjavadevtools.agent.capture.CaptureRecordView;
 import com.nimbly.mcpjavadevtools.agent.capture.CaptureValueView;
 import com.nimbly.mcpjavadevtools.agent.capture.ProbeCaptureStore;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureComparison;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureExceptionSection;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureFingerprint;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureFrame;
+import com.nimbly.mcpjavadevtools.agent.failure.FailureTraceAnalysis;
 import com.nimbly.mcpjavadevtools.agent.control.http.model.ProbeHttpPayloads;
 import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStateSnapshot;
 import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopResult;
@@ -64,6 +69,30 @@ final class ProbeHttpMapper {
         contractVersion,
         buildCaptureRecordPayload(capture)
     );
+  }
+
+  static ProbeHttpPayloads.FailureAnalysisEnvelope buildFailureAnalysisEnvelope(
+      String contractVersion,
+      FailureTraceAnalysis analysis
+  ) {
+    return new ProbeHttpPayloads.FailureAnalysisEnvelope(
+        contractVersion,
+        buildFailureFingerprintPayload(analysis.fingerprint()),
+        analysis.investigationCandidates().stream().map(ProbeHttpMapper::buildFailureFramePayload).toList(),
+        buildFailureFramePayload(analysis.dependencyBoundary()),
+        analysis.exceptionSections().stream().map(ProbeHttpMapper::buildFailureExceptionSectionPayload).toList(),
+        analysis.reasons());
+  }
+
+  static ProbeHttpPayloads.FailureVerificationEnvelope buildFailureVerificationEnvelope(
+      String contractVersion,
+      FailureComparison comparison
+  ) {
+    return new ProbeHttpPayloads.FailureVerificationEnvelope(
+        contractVersion,
+        comparison.outcome(),
+        buildFailureFingerprintPayload(comparison.observedFingerprint()),
+        comparison.reasons());
   }
 
   static ProbeHttpPayloads.ProfilerEnvelope buildProfilerStateEnvelope(
@@ -269,5 +298,43 @@ final class ProbeHttpMapper {
         value.originalLength,
         value.redacted
     );
+  }
+
+  private static ProbeHttpPayloads.FailureFingerprintPayload buildFailureFingerprintPayload(
+      FailureFingerprint fingerprint
+  ) {
+    if (fingerprint == null) return null;
+    return new ProbeHttpPayloads.FailureFingerprintPayload(
+        fingerprint.exceptionType(),
+        fingerprint.rootCauseType(),
+        buildFailureFramePayload(fingerprint.nearestApplicationFrame()),
+        fingerprint.normalizedMessage(),
+        fingerprint.complete(),
+        fingerprint.incompletenessReasons());
+  }
+
+  private static ProbeHttpPayloads.FailureFramePayload buildFailureFramePayload(FailureFrame frame) {
+    if (frame == null) return null;
+    return new ProbeHttpPayloads.FailureFramePayload(
+        frame.className(),
+        frame.methodName(),
+        frame.sourceFile(),
+        frame.lineNumber(),
+        frame.ownership(),
+        frame.codeSource(),
+        frame.strictLineKey(),
+        frame.methodDescriptor(),
+        frame.codeSourceCandidates(),
+        frame.resolutionReason());
+  }
+
+  private static ProbeHttpPayloads.FailureExceptionSectionPayload buildFailureExceptionSectionPayload(
+      FailureExceptionSection section
+  ) {
+    return new ProbeHttpPayloads.FailureExceptionSectionPayload(
+        section.exceptionType(),
+        section.suppressed(),
+        section.elidedFrames(),
+        section.frames().stream().map(ProbeHttpMapper::buildFailureFramePayload).toList());
   }
 }

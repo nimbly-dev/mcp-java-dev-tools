@@ -24,6 +24,7 @@
       "@tools-feature-jvm-lifecycle": ["tools/features/jvm-lifecycle/index.ts"],
       "@tools-feature-artifact-management": ["tools/features/artifact-management/index.ts"],
       "@tools-feature-execution-orchestration": ["tools/features/execution-orchestration/index.ts"],
+      "@tools-feature-failure-analysis": ["tools/features/failure-analysis/index.ts"],
       "@tools-feature-regression-suite": ["tools/features/regression-suite/index.ts"],
       "@tools-feature-performance-suite": ["tools/features/performance-suite/index.ts"],
       "@tools-feature-performance-workload-jmeter": [

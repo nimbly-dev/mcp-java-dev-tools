@@ -1,6 +1,7 @@
 export * from "./artifact-management";
 export * from "./execution-orchestration";
 export * from "./execution-profile-export";
+export * from "./failure-analysis";
 export * from "./jvm-lifecycle";
 export * from "./probe";
 export * from "./reason-codes";

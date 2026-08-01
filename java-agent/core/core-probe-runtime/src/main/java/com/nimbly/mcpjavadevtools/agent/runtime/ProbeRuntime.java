@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 
@@ -34,12 +35,39 @@ public final class ProbeRuntime {
       new KclBindingStatus("not_observed", "kcl_binding_not_observed", "", "", 0L);
   private static volatile CorrelationBoundaryInstaller CORRELATION_BOUNDARY_INSTALLER;
   private static volatile List<CorrelationConsumerBoundary> INSTALLED_CORRELATION_BOUNDARIES = List.of();
+  private static volatile Function<String, List<Class<?>>> LOADED_CLASS_RESOLVER = ignored -> List.of();
+  private static volatile Function<String, Boolean> APPLICATION_CLASS_RESOLVER = ignored -> false;
   private static final int MAX_RUNTIME_LINE_HIT_EVENTS = 10_000;
 
   private static final long MIN_TTL_MS = 1_000L;
   private static final long MAX_TTL_MS = 300_000L;
 
   private ProbeRuntime() {}
+
+  public static void registerLoadedClassResolver(Function<String, List<Class<?>>> resolver) {
+    LOADED_CLASS_RESOLVER = resolver == null ? ignored -> List.of() : resolver;
+  }
+
+  public static List<Class<?>> loadedClasses(String className) {
+    try {
+      List<Class<?>> resolved = LOADED_CLASS_RESOLVER.apply(className);
+      return resolved == null ? List.of() : List.copyOf(resolved);
+    } catch (RuntimeException ignored) {
+      return List.of();
+    }
+  }
+
+  public static void registerApplicationClassResolver(Function<String, Boolean> resolver) {
+    APPLICATION_CLASS_RESOLVER = resolver == null ? ignored -> false : resolver;
+  }
+
+  public static boolean isApplicationClass(String className) {
+    try {
+      return Boolean.TRUE.equals(APPLICATION_CLASS_RESOLVER.apply(className));
+    } catch (RuntimeException ignored) {
+      return false;
+    }
+  }
 
   public static void configure(
       String mode,

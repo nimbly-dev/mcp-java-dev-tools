@@ -1,0 +1,4 @@
+interface:
+  display_name: "Failure Lens"
+  short_description: "Reproduce Java failures with Sidecar evidence"
+  default_prompt: "Use $mcp-java-dev-tools-failure-lens to investigate this pasted Java exception."

@@ -97,6 +97,34 @@ examples:
 }
 ```
 
+## failure_analysis
+
+`failure_analysis` is a bounded Sidecar-backed Failure Lens capability. It is not a CI/Regression Suite, generic request harness, or static diagnosis tool.
+
+| Field                     | Meaning                                                                                               | Action                | Required | Example                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| `outcome`                 | Deterministic investigation result. Only `REPRODUCED` may carry a diagnosis.                          | both                  | true     | `"NOT_REPRODUCED"`                                                                                           |
+| `reasonCode`              | Stable failure-analysis reason.                                                                       | both                  | true     | `"different_root_cause"`                                                                                     |
+| `fingerprint`             | Expected Java failure identity created from the pasted trace; never a diagnosis.                      | `analyze_trace`       | true     | `{"exceptionType":"com.example.OrderFailure"}`                                                               |
+| `investigationCandidates` | Bounded Sidecar frame candidates for the Skill Workflow to pass to Route Synthesis and Probe.         | `analyze_trace`       | false    | `[{"strictLineKey":"com.example.OrderService#submit:42"}]`                                                   |
+| `dependencyBoundary`      | First bounded framework/dependency boundary near the supplied failure, when available.                | `analyze_trace`       | false    | `{"className":"org.springframework.web.Controller","methodName":"invoke"}`                                   |
+| `exceptionSections`       | Bounded causal-chain and suppressed-exception sections, including resolved frame/JAR facts.           | `analyze_trace`       | false    | `[{"exceptionType":"java.lang.IllegalStateException","suppressed":false}]`                                   |
+| `investigation`           | Explicit guided/hands-off mode and bounded attempt/time authorization supplied by the caller.         | both                  | false    | `{"mode":"guided","attemptLimit":2,"elapsedTimeLimitMs":60000}`                                              |
+| `sidecarAuthorization`    | Optional supplied observe credential sent only as the Sidecar `Authorization` header; never echoed.   | both                  | false    | `"Bearer &lt;redacted&gt;"`                                                                                  |
+| `incompleteReasons`       | Deterministic reasons that prevent a complete expected fingerprint.                                   | `analyze_trace`       | false    | `["source_line_missing"]`                                                                                    |
+| `expectedFingerprint`     | Required reproduction key: exception type, root-cause type, nearest application method.               | `verify_reproduction` | true     | `{"nearestApplicationMethodKey":"com.example.OrderService#submit"}`                                          |
+| `observedFingerprint`     | Sidecar-observed runtime failure identity.                                                            | `verify_reproduction` | false    | `{"rootCauseType":"java.lang.IllegalStateException"}`                                                        |
+| `lineHit`                 | Strict Line Key and positive Line Hit evidence supplied from canonical Probe output.                  | `verify_reproduction` | true     | `{"strictLineKey":"com.example.OrderService#submit:42","hitCount":1}`                                        |
+| `diagnosisClaimed`        | Explicit false marker for non-reproduction.                                                           | `verify_reproduction` | false    | `false`                                                                                                      |
+| `cleanupStatus`           | Probe/session cleanup ownership; the Skill Workflow reports final disarm/reset/deactivation evidence. | `verify_reproduction` | true     | `"external_workflow_owned"`                                                                                  |
+| `terminalState`           | Bounded Skill Workflow terminal fact for a cancelled, blocked, or environment-mismatch investigation. | `verify_reproduction` | false    | `{"outcome":"CANCELLED","reasonCode":"user_cancelled","cleanupStatus":"cleanup_confirmed","attemptCount":1}` |
+
+The Failure Lens Skill Workflow invokes `failure_analysis`, Route Synthesis, Probe, and `jvm_lifecycle` as separate public MCP Tool calls. `failure_analysis` does not invoke MCP transport or another Feature Module's internal actions.
+
+`analyze_trace` returns `INCONCLUSIVE` with `failure_fingerprint_incomplete` when the Sidecar cannot establish a complete reproduction key. `verify_reproduction` returns `INCONCLUSIVE` with `capture_not_found` when a bounded capture expires or was removed before comparison. Both outcomes explicitly set `diagnosisClaimed=false`.
+
+For a terminal Skill Workflow state, `verify_reproduction` returns the supplied non-diagnostic outcome (`BLOCKED_*`, `CANCELLED`, `ENVIRONMENT_MISMATCH`, or `INCONCLUSIVE`) without contacting the Sidecar. `REPRODUCED` and `NOT_REPRODUCED` cannot be supplied as terminal states. `cleanupStatus` is `cleanup_confirmed`, `cleanup_incomplete`, or `external_workflow_owned`.
+
 ## jvm_lifecycle
 
 | fieldName              | fieldDesc                                                                                                   | toolUsedBy                        | required | exampleValue                                                                |
@@ -166,19 +194,19 @@ examples:
 
 ## route_synthesis action=discover_handlers
 
-| Field                                | Description                                                                                   | Tool              | Required | Example                                           |
-| ------------------------------------ | --------------------------------------------------------------------------------------------- | ----------------- | -------- | ------------------------------------------------- |
-| `resultType`                         | Handler discovery result category.                                                            | `route_synthesis` | true     | `"handler_inventory"`                             |
-| `status`                             | `ready` only when every handler has a runtime-validated Strict Line Key; otherwise `partial`. | `route_synthesis` | true     | `"ready"`                                         |
-| `controllerFqcn`                     | Exact Spring controller FQCN resolved in the class-scoped mapper pass.                        | `route_synthesis` | true     | `"com.example.catalog.UserController"`            |
-| `handlers[]`                         | Deterministic supported Spring HTTP handler inventory; helper methods are excluded.           | `route_synthesis` | true     | `[{"httpMethod":"GET","path":"/users/{id}"}]`     |
-| `handlers[].signature`               | Java method declaration used to preserve overloaded handler identity.                         | `route_synthesis` | true     | `"getUser(String id)"`                            |
-| `handlers[].runtimeClassFqcn`         | Class that owns the executable method used to construct a Strict Line Key; may differ for inherited handlers. | `route_synthesis` | true | `"com.example.catalog.BaseUserController"` |
-| `handlers[].declarationLine`         | Source declaration line for the handler method.                                               | `route_synthesis` | true     | `41`                                              |
-| `handlers[].firstExecutableLine`     | Runtime-resolvable executable line, or `null` when unresolved.                                | `route_synthesis` | true     | `43`                                              |
-| `handlers[].strictLineKey`           | Strict Line Key emitted only after runtime validation.                                        | `route_synthesis` | false    | `"com.example.catalog.UserController#getUser:43"` |
-| `handlers[].lineSelectionReasonCode` | Deterministic reason when no Strict Line Key is emitted.                                      | `route_synthesis` | false    | `"runtime_unreachable"`                           |
-| `handlers[].nextActionCode`          | Follow-up action for an unresolved handler line.                                              | `route_synthesis` | false    | `"verify_probe_reachability"`                     |
+| Field                                | Description                                                                                                   | Tool              | Required | Example                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------- | -------- | ------------------------------------------------- |
+| `resultType`                         | Handler discovery result category.                                                                            | `route_synthesis` | true     | `"handler_inventory"`                             |
+| `status`                             | `ready` only when every handler has a runtime-validated Strict Line Key; otherwise `partial`.                 | `route_synthesis` | true     | `"ready"`                                         |
+| `controllerFqcn`                     | Exact Spring controller FQCN resolved in the class-scoped mapper pass.                                        | `route_synthesis` | true     | `"com.example.catalog.UserController"`            |
+| `handlers[]`                         | Deterministic supported Spring HTTP handler inventory; helper methods are excluded.                           | `route_synthesis` | true     | `[{"httpMethod":"GET","path":"/users/{id}"}]`     |
+| `handlers[].signature`               | Java method declaration used to preserve overloaded handler identity.                                         | `route_synthesis` | true     | `"getUser(String id)"`                            |
+| `handlers[].runtimeClassFqcn`        | Class that owns the executable method used to construct a Strict Line Key; may differ for inherited handlers. | `route_synthesis` | true     | `"com.example.catalog.BaseUserController"`        |
+| `handlers[].declarationLine`         | Source declaration line for the handler method.                                                               | `route_synthesis` | true     | `41`                                              |
+| `handlers[].firstExecutableLine`     | Runtime-resolvable executable line, or `null` when unresolved.                                                | `route_synthesis` | true     | `43`                                              |
+| `handlers[].strictLineKey`           | Strict Line Key emitted only after runtime validation.                                                        | `route_synthesis` | false    | `"com.example.catalog.UserController#getUser:43"` |
+| `handlers[].lineSelectionReasonCode` | Deterministic reason when no Strict Line Key is emitted.                                                      | `route_synthesis` | false    | `"runtime_unreachable"`                           |
+| `handlers[].nextActionCode`          | Follow-up action for an unresolved handler line.                                                              | `route_synthesis` | false    | `"verify_probe_reachability"`                     |
 
 `discover_handlers` requires `projectRootAbs` and an exact controller FQCN in `classHint`. It uses the Spring Request Mapper's existing annotation and path-merging semantics. Supply `probeId` or `probeBaseUrl` to attempt runtime validation; without a selector, static handler metadata is returned with explicit unresolved-line guidance.
 

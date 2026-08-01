@@ -1,6 +1,7 @@
 package com.nimbly.mcpjavadevtools.agent.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -28,5 +29,20 @@ class ActuationTargetValidationTest {
   @Test
   void rejectsMalformedLineKeysAsNotActuatable() {
     assertFalse(ProbeRuntime.isLineActuatableKey("not-a-strict-line-key"));
+  }
+
+  @Test
+  void expiresTemporaryActuationSessionsAsTheInterruptedWorkflowFallback() throws Exception {
+    ProbeRuntime.armSession(
+        "failure-lens-timeout",
+        "return_boolean",
+        CLASS_NAME + "#" + METHOD_NAME + ":30",
+        true,
+        ProbeRuntime.minTtlMs());
+
+    Thread.sleep(ProbeRuntime.minTtlMs() + 50L);
+
+    assertEquals("disarmed", ProbeRuntime.sessionState("failure-lens-timeout").scopeState());
+    assertEquals(0, ProbeRuntime.actuationState().activeSessionCount());
   }
 }
