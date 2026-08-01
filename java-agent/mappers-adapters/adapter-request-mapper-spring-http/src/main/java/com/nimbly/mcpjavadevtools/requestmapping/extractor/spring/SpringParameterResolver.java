@@ -6,8 +6,8 @@ import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.ResolvedParameter;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MethodContext;
+import com.nimbly.mcpjavadevtools.requestmapping.api.ResolvedParameter;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -4,8 +4,9 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.nimbly.mcpjavadevtools.requestmapping.api.ResolverRequest;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.TypeDescriptor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MethodContext;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeDescriptor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeIndex;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -183,5 +184,4 @@ public final class MethodSelector {
         return out;
     }
 }
-
 

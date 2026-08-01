@@ -5,13 +5,15 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.nimbly.mcpjavadevtools.requestmapping.api.HandlerInventoryEntry;
 import com.nimbly.mcpjavadevtools.requestmapping.api.HandlerInventoryResponse;
+import com.nimbly.mcpjavadevtools.requestmapping.api.FailureResponse;
 import com.nimbly.mcpjavadevtools.requestmapping.api.ResolverRequest;
 import com.nimbly.mcpjavadevtools.requestmapping.api.ResolverResponse;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.TypeDescriptor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MethodContext;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeDescriptor;
 import com.nimbly.mcpjavadevtools.requestmapping.extractor.ExtractorRegistry;
-import com.nimbly.mcpjavadevtools.requestmapping.extractor.MappingExtractor;
-import com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MappingExtractor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.ResolvedMapping;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeIndex;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -180,8 +182,7 @@ public final class HandlerInventoryResolver {
             String nextAction,
             List<String> evidence
     ) {
-        com.nimbly.mcpjavadevtools.requestmapping.api.FailureResponse response =
-                new com.nimbly.mcpjavadevtools.requestmapping.api.FailureResponse();
+        FailureResponse response = new FailureResponse();
         response.status = "report";
         response.contractVersion = contractVersion;
         response.reasonCode = reasonCode;

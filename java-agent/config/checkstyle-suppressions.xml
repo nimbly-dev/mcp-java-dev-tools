@@ -11,4 +11,12 @@
   <suppress files="LineHitVisitor\.java" checks="MethodLength"/>
   <suppress files="RequestMappingResolver\.java" checks="MethodLength"/>
   <suppress files="AgentConfig\.java" checks="MethodLength"/>
+  <!-- Capability owners may use their own implementation packages. The three
+       rules remain active for imports into other capability modules. -->
+  <suppress files="core[\\/]core-probe-runtime[\\/]src[\\/]main[\\/].*" checks="RegexpSinglelineJava"/>
+  <suppress files="core[\\/]core-probe-debug[\\/]src[\\/]main[\\/].*" checks="RegexpSinglelineJava"/>
+  <suppress files="core[\\/]core-probe-profiler[\\/]src[\\/]main[\\/].*" checks="RegexpSinglelineJava"/>
+  <!-- Legacy Request Mapper bridge files intentionally import the preserved
+       pre-api FQCNs; active adapters remain subject to the API-only rule. -->
+  <suppress files="core[\\/]core-entrypoint-mapper[\\/]src[\\/]main[\\/]java[\\/]com[\\/]nimbly[\\/]mcpjavadevtools[\\/]requestmapping[\\/](core[\\/]TypeIndex|transport[\\/]TransportMaterializer|transport[\\/]http[\\/]PathMaterializer|extractor[\\/]MappingExtractor)\.java" checks="RegexpSinglelineJava"/>
 </suppressions>

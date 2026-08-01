@@ -16,6 +16,22 @@
       <property name="format" value="\?.*\?.*:"/>
       <property name="message" value="Nested ternary expressions are disallowed."/>
     </module>
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="^import com\.nimbly\.mcpjavadevtools\.requestmapping\.(ast\.[A-Z][A-Za-z0-9_]*|resolution\.[A-Z][A-Za-z0-9_]*|extractor\.MappingExtractor|transport\.(TransportMaterializer|http\.PathMaterializer));$"/>
+      <property name="message" value="Request Mapper adapters must import the requestmapping.api surface."/>
+    </module>
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="^import(?: static)? com\.nimbly\.mcpjavadevtools\.agent\.runtime\.(?!api\.)[A-Za-z0-9_$.]+;$"/>
+      <property name="message" value="Cross-capability imports must use agent.runtime.api."/>
+    </module>
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="^import(?: static)? com\.nimbly\.mcpjavadevtools\.agent\.debug\.(?!api\.)[A-Za-z0-9_$.]+;$"/>
+      <property name="message" value="Cross-capability imports must use agent.debug.api."/>
+    </module>
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="^import(?: static)? com\.nimbly\.mcpjavadevtools\.agent\.profiler\.(?!api\.)[A-Za-z0-9_$.]+;$"/>
+      <property name="message" value="Cross-capability imports must use agent.profiler.api."/>
+    </module>
     <module name="PackageName">
       <property name="format" value="^com\.nimbly\.mcpjavadevtools(\.[a-z][a-z0-9]*)*$"/>
     </module>

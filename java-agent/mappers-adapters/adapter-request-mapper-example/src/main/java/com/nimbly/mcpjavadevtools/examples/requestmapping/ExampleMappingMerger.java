@@ -11,9 +11,9 @@ import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.expr.TextBlockLiteralExpr;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.TypeDescriptor;
-import com.nimbly.mcpjavadevtools.requestmapping.core.TypeIndex;
+import com.nimbly.mcpjavadevtools.requestmapping.api.MethodContext;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeDescriptor;
+import com.nimbly.mcpjavadevtools.requestmapping.api.TypeIndex;
 
 import java.util.List;
 import java.util.Optional;

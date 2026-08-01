@@ -1,27 +1,27 @@
 package com.nimbly.mcpjavadevtools.agent.control.http;
 
 import com.nimbly.mcpjavadevtools.agent.control.http.model.ProbeHttpPayloads;
-import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStateSnapshot;
+import com.nimbly.mcpjavadevtools.agent.profiler.api.ProfilerApi;
 
-final class ProbeProfilerHttpResponses {
+public final class ProbeProfilerHttpResponses {
   private ProbeProfilerHttpResponses() {}
 
-  static boolean shouldFailClosedOnStart(ProfilerStateSnapshot state) {
+  public static boolean shouldFailClosedOnStart(ProfilerApi.State state) {
     return state == null || !state.supported() || "failed".equals(state.status());
   }
 
-  static int startStatusCode(ProfilerStateSnapshot state) {
+  public static int startStatusCode(ProfilerApi.State state) {
     if (state != null && !state.supported()) {
       return 409;
     }
     return 500;
   }
 
-  static ProbeHttpPayloads.ErrorEnvelope startErrorEnvelope(ProfilerStateSnapshot state) {
+  public static ProbeHttpPayloads.ErrorEnvelope startErrorEnvelope(ProfilerApi.State state) {
     return new ProbeHttpPayloads.ErrorEnvelope(startErrorCode(state), null);
   }
 
-  private static String startErrorCode(ProfilerStateSnapshot state) {
+  private static String startErrorCode(ProfilerApi.State state) {
     if (state == null) {
       return "profiler_start_failed";
     }

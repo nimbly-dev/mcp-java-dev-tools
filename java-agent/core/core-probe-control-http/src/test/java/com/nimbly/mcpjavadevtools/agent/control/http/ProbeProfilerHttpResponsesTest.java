@@ -1,6 +1,6 @@
 package com.nimbly.mcpjavadevtools.agent.control.http;
 
-import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStateSnapshot;
+import com.nimbly.mcpjavadevtools.agent.profiler.api.ProfilerApi;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -11,7 +11,7 @@ class ProbeProfilerHttpResponsesTest {
 
   @Test
   void unsupportedStartFailsClosedWithConflict() {
-    ProfilerStateSnapshot state = new ProfilerStateSnapshot(
+    ProfilerApi.State state = new ProfilerApi.State(
         "disabled",
         "async-profiler",
         false,
@@ -33,7 +33,7 @@ class ProbeProfilerHttpResponsesTest {
 
   @Test
   void failedStartFailsClosedWithServerError() {
-    ProfilerStateSnapshot state = new ProfilerStateSnapshot(
+    ProfilerApi.State state = new ProfilerApi.State(
         "failed",
         "async-profiler",
         true,
@@ -55,7 +55,7 @@ class ProbeProfilerHttpResponsesTest {
 
   @Test
   void runningStartRemainsSuccessShaped() {
-    ProfilerStateSnapshot state = new ProfilerStateSnapshot(
+    ProfilerApi.State state = new ProfilerApi.State(
         "running",
         "async-profiler",
         true,

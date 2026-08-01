@@ -18,7 +18,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
-final class ProbeHttpJson {
+public final class ProbeHttpJson {
   private static final ObjectMapper MAPPER = JsonMapper.builder()
       .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
       .serializationInclusion(JsonInclude.Include.NON_NULL)
@@ -26,14 +26,14 @@ final class ProbeHttpJson {
 
   private ProbeHttpJson() {}
 
-  static String queryParam(URI uri, String key) {
+  public static String queryParam(URI uri, String key) {
     String q = uri.getRawQuery();
     if (q == null || q.isEmpty()) return null;
     Map<String, String> m = parseQuery(q);
     return m.get(key);
   }
 
-  static <T> T readBodyJson(InputStream body, Class<T> type) throws IOException {
+  public static <T> T readBodyJson(InputStream body, Class<T> type) throws IOException {
     byte[] bytes = body.readAllBytes();
     if (bytes.length == 0) {
       return MAPPER.readValue("{}", type);
@@ -41,7 +41,7 @@ final class ProbeHttpJson {
     return MAPPER.readValue(bytes, type);
   }
 
-  static List<String> normalizeDistinctKeys(List<String> keys) {
+  public static List<String> normalizeDistinctKeys(List<String> keys) {
     LinkedHashSet<String> out = new LinkedHashSet<>();
     for (String raw : keys) {
       if (raw == null) continue;
@@ -52,15 +52,15 @@ final class ProbeHttpJson {
     return new ArrayList<>(out);
   }
 
-  static String toJson(Object payload) throws IOException {
+  public static String toJson(Object payload) throws IOException {
     return MAPPER.writeValueAsString(payload);
   }
 
-  static void writeJson(HttpExchange exchange, int statusCode, Object payload) throws IOException {
+  public static void writeJson(HttpExchange exchange, int statusCode, Object payload) throws IOException {
     writeJsonRaw(exchange, statusCode, toJson(payload));
   }
 
-  static void writeJsonRaw(HttpExchange exchange, int statusCode, String body) throws IOException {
+  public static void writeJsonRaw(HttpExchange exchange, int statusCode, String body) throws IOException {
     byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
     exchange.getResponseHeaders().set("content-type", "application/json; charset=utf-8");
     exchange.sendResponseHeaders(statusCode, bytes.length);
