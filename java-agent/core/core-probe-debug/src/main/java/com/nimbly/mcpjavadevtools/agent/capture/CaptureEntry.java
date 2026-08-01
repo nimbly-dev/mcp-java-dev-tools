@@ -1,5 +1,7 @@
 package com.nimbly.mcpjavadevtools.agent.capture;
 
+import com.nimbly.mcpjavadevtools.agent.failure.FailureFingerprint;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -16,6 +18,7 @@ final class CaptureEntry {
   private final List<CaptureValue> args;
   private final CaptureValue returnValue;
   private final CaptureValue thrownValue;
+  private final FailureFingerprint failureFingerprint;
   private final List<String> executionPaths;
   private final String redactionMode;
 
@@ -30,6 +33,7 @@ final class CaptureEntry {
       List<CaptureValue> args,
       CaptureValue returnValue,
       CaptureValue thrownValue,
+      FailureFingerprint failureFingerprint,
       List<String> executionPaths,
       String redactionMode
   ) {
@@ -43,8 +47,13 @@ final class CaptureEntry {
     this.args = args;
     this.returnValue = returnValue;
     this.thrownValue = thrownValue;
+    this.failureFingerprint = failureFingerprint;
     this.executionPaths = executionPaths == null ? Collections.emptyList() : executionPaths;
     this.redactionMode = redactionMode;
+  }
+
+  FailureFingerprint failureFingerprint() {
+    return failureFingerprint;
   }
 
   CapturePreviewView toPreview(int previewMaxChars) {

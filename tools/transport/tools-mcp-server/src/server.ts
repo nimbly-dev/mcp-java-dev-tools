@@ -28,6 +28,7 @@ import { registerExecutionProfileExportTool } from "@/tools/core/execution_profi
 import { registerArtifactManagementTool } from "@/tools/core/artifact_management/handler";
 import { registerExecutionOrchestrationTool } from "@/tools/core/execution_orchestration/handler";
 import { registerJvmLifecycleTool } from "@/tools/core/jvm_lifecycle/handler";
+import { registerFailureAnalysisTool } from "@/tools/core/failure_analysis/handler";
 
 function resolveBuildFingerprint(): string {
   const distServerAbs = path.resolve(__dirname, "../../../../server.js");
@@ -359,6 +360,7 @@ async function main() {
     getWorkspaceContext: () => workspaceContext,
   });
   registerJvmLifecycleTool(server);
+  registerFailureAnalysisTool(server);
   registerTransportExecuteTool(server, {
     allowNonWrappedExecutable: () => activeRegistry?.allowNonWrappedExecutable ?? false,
   });

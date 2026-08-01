@@ -43,4 +43,13 @@ public final class ProbeHttpRequests {
       List<String> parameterTypes,
       Integer eventArgumentIndex
   ) {}
+
+  public record FailureAnalyzeRequest(String trace) {}
+
+  public record FailureVerifyRequest(
+      String captureId,
+      String expectedExceptionType,
+      String expectedRootCauseType,
+      String expectedNearestApplicationMethodKey
+  ) {}
 }

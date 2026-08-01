@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import * as fs from "node:fs/promises";
+import * as http from "node:http";
 import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -71,6 +72,39 @@ function getNonEmptyLines(buffer: string): string[] {
 test("[IT][tools-mcp-server][stdio] stdio transport keeps stdout protocol-only and writes diagnostics to stderr", async () => {
   const stdoutChunks: string[] = [];
   const stderrChunks: string[] = [];
+  let authorizedFailureAnalysisRequests = 0;
+  const sidecar = http.createServer((request, response) => {
+    if (request.url !== "/__probe/failure/analyze") {
+      response.statusCode = 404;
+      response.end();
+      return;
+    }
+    if (request.headers.authorization !== "Bearer test-observe-token") {
+      response.statusCode = 401;
+      response.end();
+      return;
+    }
+    authorizedFailureAnalysisRequests += 1;
+    response.setHeader("content-type", "application/json");
+    response.end(
+      JSON.stringify({
+        fingerprint: {
+          exceptionType: "com.example.OrderFailure",
+          rootCauseType: "java.lang.IllegalStateException",
+          nearestApplicationFrame: { className: "com.example.OrderService", methodName: "submit" },
+          complete: true,
+          incompletenessReasons: [],
+        },
+        investigationCandidates: [],
+        reasons: [],
+      }),
+    );
+  });
+  await new Promise<void>((resolve) => sidecar.listen(0, "127.0.0.1", resolve));
+  const sidecarAddress = sidecar.address();
+  if (!sidecarAddress || typeof sidecarAddress === "string")
+    throw new Error("sidecar address unavailable");
+  const sidecarBaseUrl = `http://127.0.0.1:${sidecarAddress.port}`;
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-stdio-transport-it-"));
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const probeConfigAbs = path.join(workspaceRootAbs, ".mcpjvm", "probe-config.json");
@@ -84,7 +118,7 @@ test("[IT][tools-mcp-server][stdio] stdio transport keeps stdout protocol-only a
           dev: {
             probes: {
               "post-app": {
-                baseUrl: "http://127.0.0.1:9191",
+                baseUrl: sidecarBaseUrl,
                 include: ["com.example.social.**"],
                 exclude: [],
               },
@@ -142,14 +176,51 @@ test("[IT][tools-mcp-server][stdio] stdio transport keeps stdout protocol-only a
       method: "tools/list",
       params: {},
     });
+    const analyzeTrace = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: {
+        name: "failure_analysis",
+        arguments: {
+          action: "analyze_trace",
+          input: {
+            trace: "com.example.OrderFailure: failed",
+            sidecarBaseUrl,
+            sidecarAuthorization: "Bearer test-observe-token",
+          },
+        },
+      },
+    });
+    const cancelledInvestigation = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: {
+        name: "failure_analysis",
+        arguments: {
+          action: "verify_reproduction",
+          input: {
+            terminalState: {
+              outcome: "CANCELLED",
+              reasonCode: "user_cancelled",
+              cleanupStatus: "cleanup_confirmed",
+              attemptCount: 1,
+            },
+          },
+        },
+      },
+    });
 
     child.stdin?.write(`${initialize}\n`);
     child.stdin?.write(`${initialized}\n`);
     child.stdin?.write(`${listTools}\n`);
+    child.stdin?.write(`${analyzeTrace}\n`);
+    child.stdin?.write(`${cancelledInvestigation}\n`);
 
     await waitFor(
       () =>
-        getNonEmptyLines(stdoutChunks.join("")).length >= 2 &&
+        getNonEmptyLines(stdoutChunks.join("")).length >= 4 &&
         stderrChunks.join("").includes("running (stdio)"),
       {
         timeoutMs: 10_000,
@@ -160,7 +231,7 @@ test("[IT][tools-mcp-server][stdio] stdio transport keeps stdout protocol-only a
     );
 
     const stdoutLines = getNonEmptyLines(stdoutChunks.join(""));
-    assert.equal(stdoutLines.length >= 2, true);
+    assert.equal(stdoutLines.length >= 4, true);
 
     const parsedLines = stdoutLines.map((line) => {
       try {
@@ -189,6 +260,22 @@ test("[IT][tools-mcp-server][stdio] stdio transport keeps stdout protocol-only a
     );
     assert.equal(toolNames.has("probe"), true);
     assert.equal(toolNames.has("route_synthesis"), true);
+    assert.equal(toolNames.has("failure_analysis"), true);
+
+    const analysisResponse = parsedLines.find((message) => message.id === 3);
+    const analysisResult = (analysisResponse?.result ?? {}) as {
+      structuredContent?: { outcome?: string };
+    };
+    const analysisStructuredContent = analysisResult.structuredContent;
+    assert.equal(analysisStructuredContent?.outcome, "ANALYZED");
+    assert.equal(authorizedFailureAnalysisRequests, 1);
+    const cancellationResponse = parsedLines.find((message) => message.id === 4);
+    const cancellationResult = (cancellationResponse?.result ?? {}) as {
+      structuredContent?: { outcome?: string; cleanupStatus?: string; diagnosisClaimed?: boolean };
+    };
+    assert.equal(cancellationResult.structuredContent?.outcome, "CANCELLED");
+    assert.equal(cancellationResult.structuredContent?.cleanupStatus, "cleanup_confirmed");
+    assert.equal(cancellationResult.structuredContent?.diagnosisClaimed, false);
     assert.equal(toolNames.has("probe_check"), false);
     assert.equal(toolNames.has("probe_enable"), false);
     assert.equal(toolNames.has("probe_get_capture"), false);
@@ -211,6 +298,7 @@ test("[IT][tools-mcp-server][stdio] stdio transport keeps stdout protocol-only a
   } finally {
     child.stdin?.end();
     await forceStop(child);
+    await new Promise<void>((resolve) => sidecar.close(() => resolve()));
     await fs.rm(tmpRoot, { recursive: true, force: true });
   }
 });

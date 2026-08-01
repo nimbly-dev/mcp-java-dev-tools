@@ -1,0 +1,8 @@
+{
+  "name": "@mcp-java-dev-tools/tools-feature-failure-analysis",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Failure Analysis Feature Module",
+  "main": "index.ts",
+  "types": "index.ts"
+}

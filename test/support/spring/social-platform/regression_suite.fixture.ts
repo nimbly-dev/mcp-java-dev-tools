@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as fssync from "node:fs";
-import * as os from "node:os";
 import path from "node:path";
 
 import {
@@ -15,6 +14,7 @@ import {
   startEventProducerAppWithAgent,
   startMcpClient,
 } from "@test/support/spring/social-platform/shared.fixture";
+import { createRepoOwnedTempWorkspace } from "@test/support/test_temp_workspace.fixture";
 
 export type ToolResult = {
   structuredContent?: Record<string, unknown>;
@@ -102,8 +102,8 @@ export async function startEventCrossServiceRegressionSuiteFixture(args?: {
   consumerExtraJavaArgs?: string[];
   producerExtraJavaArgs?: string[];
 }) {
-  const tmpRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), args?.tmpPrefix ?? "mcp-event-cross-service-regression-suite-it-"),
+  const tmpRoot = await createRepoOwnedTempWorkspace(
+    args?.tmpPrefix ?? "mcp-event-cross-service-regression-suite-it-",
   );
   const workspaceRootAbs = path.join(tmpRoot, "workspace");
   const projectName = args?.projectName ?? "event-cross-service-regression-project";
