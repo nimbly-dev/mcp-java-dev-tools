@@ -16,6 +16,10 @@ import {
   type RegressionPlanInput,
 } from "@/models/inputs/artifact_management/regression_plan/input.model";
 import {
+  SecurityPlanInputSchema,
+  type SecurityPlanInput,
+} from "@/models/inputs/artifact_management/security_plan/input.model";
+import {
   RunResultInputSchema,
   type RunResultInput,
 } from "@/models/inputs/artifact_management/run_result/input.model";
@@ -40,6 +44,11 @@ export const ArtifactManagementRequestSchema = z.discriminatedUnion("artifactTyp
     artifactType: z.literal("regression_plan"),
     action: z.enum(["read", "validate", "upsert", "list"]),
     input: RegressionPlanInputSchema,
+  }),
+  z.object({
+    artifactType: z.literal("security_plan"),
+    action: z.enum(["read", "validate", "upsert", "list"]),
+    input: SecurityPlanInputSchema,
   }),
   z
     .object({
@@ -72,6 +81,7 @@ export type ArtifactManagementEnvelope = {
     | ProbeConfigInput
     | ProjectContextInput
     | RegressionPlanInput
+    | SecurityPlanInput
     | RunResultInput
     | ExecutionExportInput;
 };
@@ -87,6 +97,7 @@ export const ArtifactManagementInputSchema = {
     ProbeConfigInputSchema,
     ProjectContextInputSchema,
     RegressionPlanInputSchema,
+    SecurityPlanInputSchema,
     RunResultInputSchema,
     ExecutionExportInputSchema,
   ]),

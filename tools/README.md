@@ -8,10 +8,12 @@ This folder is the workspace-style scaffold for TS tool packages.
 - `core/tools-core`
 - `core/tools-registry`
 - `features/execution-profile-export`
+- `features/security-suite`
 - `spec/execution-plan-spec`
 - `spec/performance-execution-plan-spec`
 - `spec/project-artifact-spec`
 - `spec/regression-execution-plan-spec`
+- `spec/security-execution-plan-spec`
 - `synthesizers/tools-synthesizer-api`
 - `synthesizers/tools-spring-http`
 - `synthesizers/tools-jaxrs-http`
@@ -54,9 +56,12 @@ These are folder-level placeholders only. Spring HTTP is the only active synthes
   - `spec/performance-execution-plan-spec/src` (performance execution-plan models)
   - `spec/project-artifact-spec/src`
   - `spec/regression-execution-plan-spec/src` (regression models and validation contracts only)
+  - `spec/security-execution-plan-spec/src` (Security Suite contracts, validation, and path policy)
   - `spec/execution-correlation-artifact-spec/src` (suite-neutral execution correlation models, validation, and path policy)
 - Regression Suite runtime implementation:
   - `features/regression-suite`
+- Security Suite foundation implementation:
+  - `features/security-suite`
 - Spring HTTP synthesizer runtime implementation:
   - `synthesizers/tools-spring-http/src`
 

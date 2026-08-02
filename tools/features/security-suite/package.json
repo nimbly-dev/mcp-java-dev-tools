@@ -1,0 +1,6 @@
+{
+  "name": "@mcp-java-dev-tools/security-suite",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mode-neutral Security Suite Feature Module"
+}

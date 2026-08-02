@@ -134,6 +134,17 @@ export async function exportExecutionProfileAction(input: {
     }
 
     const selectedTarget = await loadExecutionProfileExportTarget(selectorInput);
+    if (selectedTarget.profile.suiteType === "security") {
+      return blockedResponse(
+        "security_export_unsupported",
+        "Security Suite execution profiles do not produce request or workload replay exports",
+        {
+          suiteType: "security",
+          executionProfile: selectedTarget.profile.executionProfile,
+          nextAction: "Use the Security Suite Skill Workflow and canonical Security run Artifacts.",
+        },
+      );
+    }
     const resolvedExportId =
       selectedTarget.profile.suiteType === "performance"
         ? selectedTarget.exportId

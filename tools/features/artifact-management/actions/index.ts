@@ -5,6 +5,7 @@ import { handleExecutionExportArtifact } from "./execution_export.action";
 import { handleProbeConfigArtifact } from "./probe_config.action";
 import { handleProjectContextArtifact } from "./project_context.action";
 import { handleRegressionPlanArtifact } from "./regression_plan.action";
+import { handleSecurityPlanArtifact } from "./security_plan.action";
 import { handleRunResultArtifact } from "./run_result.action";
 
 function actionAllowed(artifactType: ArtifactType, action: string): boolean {
@@ -31,6 +32,7 @@ export async function dispatchArtifactAction(
     case "probe_config": return handleProbeConfigArtifact(ctx, request);
     case "project_context": return handleProjectContextArtifact(ctx, request);
     case "regression_plan": return handleRegressionPlanArtifact(ctx, request);
+    case "security_plan": return handleSecurityPlanArtifact(ctx, request);
     case "run_result": return handleRunResultArtifact(ctx, request);
     case "execution_export": return handleExecutionExportArtifact(ctx, request);
   }

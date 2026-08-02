@@ -1,5 +1,6 @@
 import { dispatchPerformanceSuiteAction } from "@tools-feature-performance-suite";
 import { dispatchRegressionSuiteAction } from "@tools-regression-suite";
+import { dispatchSecuritySuiteAction } from "@tools-feature-security-suite";
 import type {
   RuntimeSuiteBlockedResult,
   RuntimeSuiteRunResult,
@@ -11,7 +12,7 @@ import type {
 import type { ExecutionOrchestrationSuiteToolInvoker } from "./execution_orchestration_transport";
 
 export function createSuitePassExecutor(args: {
-  suiteType: "performance" | "regression";
+  suiteType: "performance" | "regression" | "security";
   workspaceRootAbs: string;
   projectName: string;
   executionProfile: string;
@@ -35,8 +36,7 @@ export function createSuitePassExecutor(args: {
         ? { priorPlanRuns: state.priorSuite.planRuns }
         : {}),
       ...(state.priorSuite &&
-      typeof state.priorSuite.suiteContext === "object" &&
-      state.priorSuite.suiteContext !== null
+      typeof state.priorSuite.suiteContext === "object"
         ? { priorSuiteContext: state.priorSuite.suiteContext }
         : {}),
       ...(state.priorSuite && typeof state.priorSuite.nextPlanOrder === "number"
@@ -47,6 +47,13 @@ export function createSuitePassExecutor(args: {
 
     if (args.suiteType === "performance") {
       return dispatchPerformanceSuiteAction({
+        action: "execute",
+        input: sharedInput,
+      }) as Promise<RuntimeSuiteRunResult | RuntimeSuiteBlockedResult>;
+    }
+
+    if (args.suiteType === "security") {
+      return dispatchSecuritySuiteAction({
         action: "execute",
         input: sharedInput,
       }) as Promise<RuntimeSuiteRunResult | RuntimeSuiteBlockedResult>;

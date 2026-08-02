@@ -4,6 +4,7 @@ export const ArtifactTypeSchema = z.enum([
   "probe_config",
   "project_context",
   "regression_plan",
+  "security_plan",
   "run_result",
   "execution_export",
 ]);
@@ -26,6 +27,7 @@ export const ARTIFACT_ACTION_ALLOWLIST = {
   probe_config: ["read", "validate", "upsert", "reload"],
   project_context: ["read", "validate", "upsert", "list"],
   regression_plan: ["read", "validate", "upsert", "list"],
+  security_plan: ["read", "validate", "upsert", "list"],
   run_result: ["read", "list", "rebuild", "backfill", "cutover", "query", "cleanup"],
   execution_export: ["read", "list", "generate"],
 } as const;
