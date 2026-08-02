@@ -57,6 +57,8 @@ export type SecurityAttackCategory =
 export type SecurityRequestExpectation = {
   outcome: "allow" | "deny" | "error";
   statusCodes?: number[];
+  mustHitRuntimeTargets?: string[];
+  mustNotHitRuntimeTargets?: string[];
 };
 
 export type SecurityAttackRequest = {
@@ -82,6 +84,14 @@ export type SecurityRuntimeTarget = {
   probeId: string;
   strictLineKey: string;
   purpose: "business-entrypoint" | "sensitive-sink" | "custom";
+  instrumentationTargetRef?: string;
+};
+
+export type SecurityInstrumentationTarget = {
+  id: string;
+  scope: "application" | "dependency";
+  classFqcn: string;
+  dependencyRef?: string;
 };
 
 export type SecurityExhaustivenessPolicy = {
@@ -126,6 +136,7 @@ export type SecurityPlanContract =
       securityMode: "sidecar_assisted";
       securityKnowledge?: SecurityKnowledge;
       runtimeTargets: SecurityRuntimeTarget[];
+      instrumentationTargets?: SecurityInstrumentationTarget[];
     });
 
 export type SecurityContractReasonCode =
@@ -145,7 +156,8 @@ export type SecurityContractReasonCode =
   | "security_contract_reference_invalid"
   | "security_contract_secret_persisted"
   | "security_contract_blackbox_forbidden_field"
-  | "security_contract_sidecar_runtime_target_required";
+  | "security_contract_sidecar_runtime_target_required"
+  | "security_contract_instrumentation_targets_invalid";
 
 export type SecurityContractValidationResult =
   | { ok: true; contract: SecurityPlanContract }

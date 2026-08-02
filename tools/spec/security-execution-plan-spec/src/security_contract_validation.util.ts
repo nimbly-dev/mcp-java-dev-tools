@@ -57,12 +57,58 @@ function isSecurityRequest(value: unknown): boolean {
   ) {
     return false;
   }
+  const runtimeTargetLists = [
+    value.expect.mustHitRuntimeTargets,
+    value.expect.mustNotHitRuntimeTargets,
+  ];
+  if (
+    runtimeTargetLists.some(
+      (targets) =>
+        targets !== undefined &&
+        (!Array.isArray(targets) ||
+          targets.some((target) => !isNonEmptyString(target)) ||
+          new Set(targets).size !== targets.length),
+    )
+  ) {
+    return false;
+  }
   return (
     value.expect.statusCodes === undefined ||
     (Array.isArray(value.expect.statusCodes) &&
       value.expect.statusCodes.length > 0 &&
       value.expect.statusCodes.every((code) => isPositiveInteger(code) && code <= 599))
   );
+}
+
+function validateRuntimeExpectationReferences(args: {
+  attacks: SecurityAttackProfile[];
+  runtimeTargets: Array<Record<string, unknown>>;
+}): string | null {
+  const targetById = new Map<string, string>();
+  for (const target of args.runtimeTargets) {
+    if (isNonEmptyString(target.id) && isNonEmptyString(target.entrypointRef)) {
+      targetById.set(target.id.trim(), target.entrypointRef.trim());
+    }
+  }
+  for (const attack of args.attacks) {
+    for (const phase of ["baseline", "attack"] as const) {
+      const expectation = attack[phase].expect as SecurityAttackProfile["baseline"]["expect"];
+      const targetIds = [
+        ...(expectation.mustHitRuntimeTargets ?? []),
+        ...(expectation.mustNotHitRuntimeTargets ?? []),
+      ];
+      for (const targetId of targetIds) {
+        const targetEntrypoint = targetById.get(targetId);
+        if (!targetEntrypoint) {
+          return `attackProfiles.${attack.id}.${phase}.expect references unknown runtime target '${targetId}'`;
+        }
+        if (targetEntrypoint !== attack.entrypointRef) {
+          return `attackProfiles.${attack.id}.${phase}.expect runtime target '${targetId}' belongs to a different entrypoint`;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 const BLACKBOX_FORBIDDEN_KEYS = new Set([
@@ -81,6 +127,10 @@ const BLACKBOX_FORBIDDEN_KEYS = new Set([
   "sidecar",
   "sidecaragent",
   "runtimetargets",
+  "musthitruntimetargets",
+  "mustnothitruntimetargets",
+  "instrumentationtargets",
+  "instrumentationtargetref",
   "runtimeinstanceid",
   "internalruntime",
   "dependency",
@@ -494,7 +544,10 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
           !isNonEmptyString(target.entrypointRef) ||
           !isNonEmptyString(target.probeId) ||
           !isNonEmptyString(target.strictLineKey) ||
-          !/^.+#[^:]+:\d+$/.test(target.strictLineKey),
+          !/^[$A-Za-z_][$\w]*(?:\.[$A-Za-z_][$\w]*)*#[\w$<>]+:\d+$/.test(target.strictLineKey) ||
+          (target.purpose !== "business-entrypoint" &&
+            target.purpose !== "sensitive-sink" &&
+            target.purpose !== "custom"),
       )
     ) {
       return invalid("security_contract_runtime_targets_invalid", [
@@ -508,6 +561,74 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
       return invalid("security_contract_reference_invalid", [
         "runtimeTargets.entrypointRef must reference an entrypoint",
       ]);
+    }
+    if (input.instrumentationTargets !== undefined) {
+      if (!Array.isArray(input.instrumentationTargets)) {
+        return invalid("security_contract_instrumentation_targets_invalid", [
+          "instrumentationTargets must be an array when provided",
+        ]);
+      }
+      const instrumentationTargetIds = input.instrumentationTargets.map((target) =>
+        isRecord(target) && isNonEmptyString(target.id) ? target.id.trim() : "",
+      );
+      if (
+        instrumentationTargetIds.some((id) => !id) ||
+        new Set(instrumentationTargetIds).size !== instrumentationTargetIds.length ||
+        input.instrumentationTargets.some(
+          (target) =>
+            !isRecord(target) ||
+            !isNonEmptyString(target.id) ||
+            (target.scope !== "application" && target.scope !== "dependency") ||
+            !isNonEmptyString(target.classFqcn) ||
+            !/^[$A-Za-z_][$\w]*(?:\.[$A-Za-z_][$\w]*)*$/.test(target.classFqcn) ||
+            (target.scope === "dependency" && !isNonEmptyString(target.dependencyRef)) ||
+            (target.scope === "application" && target.dependencyRef !== undefined),
+        )
+      ) {
+        return invalid("security_contract_instrumentation_targets_invalid", [
+          "instrumentationTargets must declare unique application/dependency scopes and valid FQCNs; dependency targets require dependencyRef",
+        ]);
+      }
+      const instrumentationTargetIdSet = new Set(instrumentationTargetIds);
+      const referencedTargetIds = new Set<string>();
+      for (const target of input.runtimeTargets) {
+        if (!isRecord(target) || target.instrumentationTargetRef === undefined) continue;
+        if (!isNonEmptyString(target.instrumentationTargetRef)) {
+          return invalid("security_contract_instrumentation_targets_invalid", [
+            "runtimeTargets.instrumentationTargetRef must be a non-empty instrumentation target id",
+          ]);
+        }
+        const targetRef = target.instrumentationTargetRef.trim();
+        if (!instrumentationTargetIdSet.has(targetRef)) {
+          return invalid("security_contract_reference_invalid", [
+            `runtime target '${String(target.id)}' references unknown instrumentation target '${targetRef}'`,
+          ]);
+        }
+        referencedTargetIds.add(targetRef);
+      }
+      const unreferencedTarget = instrumentationTargetIds.find(
+        (id) => !referencedTargetIds.has(id),
+      );
+      if (unreferencedTarget) {
+        return invalid("security_contract_instrumentation_targets_invalid", [
+          `instrumentation target '${unreferencedTarget}' is not linked to a runtime target`,
+        ]);
+      }
+    } else if (
+      input.runtimeTargets.some(
+        (target) => isRecord(target) && target.instrumentationTargetRef !== undefined,
+      )
+    ) {
+      return invalid("security_contract_instrumentation_targets_invalid", [
+        "runtimeTargets.instrumentationTargetRef requires instrumentationTargets",
+      ]);
+    }
+    const runtimeExpectationReferenceError = validateRuntimeExpectationReferences({
+      attacks: input.attackProfiles as SecurityAttackProfile[],
+      runtimeTargets: input.runtimeTargets.filter(isRecord),
+    });
+    if (runtimeExpectationReferenceError) {
+      return invalid("security_contract_reference_invalid", [runtimeExpectationReferenceError]);
     }
   }
 

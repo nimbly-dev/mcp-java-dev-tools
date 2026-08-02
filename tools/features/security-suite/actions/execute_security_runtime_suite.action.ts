@@ -184,7 +184,15 @@ async function executeSecurityPlan(args: {
           contract: validated.contract,
           mcpInvoke: args.input.mcpInvoke,
         })
-      : executeSidecarAssistedSecurityMode({ planName: args.planName });
+      : await executeSidecarAssistedSecurityMode({
+          workspaceRootAbs: args.input.workspaceRootAbs,
+          projectName: args.input.projectName,
+          executionProfile: args.input.executionProfile,
+          planName: args.planName,
+          runId: `${args.input.suiteRunId ?? "security"}-${args.planName}`,
+          contract: validated.contract,
+          mcpInvoke: args.input.mcpInvoke,
+        });
   return {
     status: modeResult.status,
     runStatus: modeResult.runStatus,

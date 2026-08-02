@@ -5,6 +5,8 @@ import {
   validateSecurityArtifactSegment,
   validateSecurityPlanContract,
 } from "@tools-security-execution-plan-spec";
+import { validateSidecarInstrumentationSelection } from "@tools-feature-security-suite";
+import type { SecurityPlanContract } from "@tools-security-execution-plan-spec";
 import type { ArtifactActionContext, ArtifactActionRequest, ArtifactActionResult } from "./types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import { readJsonFile, writeJsonFile } from "../shared/json_io";
@@ -12,7 +14,24 @@ import { resolveProjectName } from "../shared/project_resolution";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  return value.filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
+}
+
+function validateSidecarSelection(
+  workspaceRootAbs: string,
+  contract: SecurityPlanContract,
+): { ok: true } | { ok: false; reasonCode: string; reason: string } {
+  if (contract.securityMode !== "sidecar_assisted") return { ok: true };
+  const selection = validateSidecarInstrumentationSelection({
+    workspaceRootAbs,
+    runtimeTargets: contract.runtimeTargets,
+    ...(contract.instrumentationTargets
+      ? { instrumentationTargets: contract.instrumentationTargets }
+      : {}),
+  });
+  return selection.ok ? { ok: true } : selection;
 }
 
 export async function handleSecurityPlanArtifact(
@@ -83,12 +102,14 @@ export async function handleSecurityPlanArtifact(
   if (request.action === "read") {
     const selectors = asStringArray(request.input.query?.select);
     const includeAll = selectors.length === 0;
-    const metadata = includeAll || selectors.includes("metadata") || selectors.includes("summary")
-      ? ((await readJsonFile(metadataPath)) as Record<string, unknown>)
-      : undefined;
-    const contract = includeAll || selectors.includes("contract") || selectors.includes("summary")
-      ? ((await readJsonFile(contractPath)) as Record<string, unknown>)
-      : undefined;
+    const metadata =
+      includeAll || selectors.includes("metadata") || selectors.includes("summary")
+        ? ((await readJsonFile(metadataPath)) as Record<string, unknown>)
+        : undefined;
+    const contract =
+      includeAll || selectors.includes("contract") || selectors.includes("summary")
+        ? ((await readJsonFile(contractPath)) as Record<string, unknown>)
+        : undefined;
     const output: Record<string, unknown> = {
       resultType: "artifact",
       status: "ok",
@@ -105,7 +126,9 @@ export async function handleSecurityPlanArtifact(
         authenticationProfileCount: Array.isArray(contract?.authenticationProfiles)
           ? contract.authenticationProfiles.length
           : 0,
-        attackProfileCount: Array.isArray(contract?.attackProfiles) ? contract.attackProfiles.length : 0,
+        attackProfileCount: Array.isArray(contract?.attackProfiles)
+          ? contract.attackProfiles.length
+          : 0,
       };
     }
     if (selectors.includes("metadata") || includeAll) output.artifact = { metadata };
@@ -131,6 +154,14 @@ export async function handleSecurityPlanArtifact(
         reasonMeta: { projectName, planName, errors: validated.errors },
       });
     }
+    const sidecarSelection = validateSidecarSelection(ctx.workspaceRootAbs, validated.contract);
+    if (!sidecarSelection.ok) {
+      return buildFailClosedArtifactResponse({
+        reasonCode: sidecarSelection.reasonCode,
+        reason: sidecarSelection.reason,
+        reasonMeta: { projectName, planName },
+      });
+    }
     return okArtifactResponse({
       resultType: "artifact",
       status: "ok",
@@ -145,7 +176,12 @@ export async function handleSecurityPlanArtifact(
     return buildFailClosedArtifactResponse({
       reasonCode: "artifact_payload_required",
       reason: "payload is required for upsert",
-      reasonMeta: { artifactType: request.artifactType, action: request.action, projectName, planName },
+      reasonMeta: {
+        artifactType: request.artifactType,
+        action: request.action,
+        projectName,
+        planName,
+      },
     });
   }
   const contractPayload = request.input.payload.contract ?? {};
@@ -155,6 +191,14 @@ export async function handleSecurityPlanArtifact(
       reasonCode: validated.reasonCode,
       reason: "security plan contract validation failed",
       reasonMeta: { projectName, planName, errors: validated.errors },
+    });
+  }
+  const sidecarSelection = validateSidecarSelection(ctx.workspaceRootAbs, validated.contract);
+  if (!sidecarSelection.ok) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: sidecarSelection.reasonCode,
+      reason: sidecarSelection.reason,
+      reasonMeta: { projectName, planName },
     });
   }
   await writeJsonFile(metadataPath, request.input.payload.metadata ?? {});

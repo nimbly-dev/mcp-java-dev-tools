@@ -16,10 +16,15 @@ This Skill Workflow authors the mode-neutral Security Artifact contract. It does
 5. Apply the shared safety and verdict policies from the Security Artifact Spec.
 6. Validate the contract through `artifact_management` with `artifactType=security_plan` before upserting it.
 
+For `sidecar_assisted`, author or deterministically resolve `runtimeTargets` during craft/build. Use the existing `route_synthesis` `infer_target` or `class_methods` action for FQCN/method selection, validate the selected line against the selected Probe, then persist the resulting `Class#method:line` target in the security plan. Each target must bind one entrypoint to one configured Probe ID and one Strict Line Key. If a FQCN/method reference resolves to zero or multiple Strict Line Keys, fail closed instead of guessing. Runtime expectation lists (`mustHitRuntimeTargets` and `mustNotHitRuntimeTargets`) may only reference targets bound to the same entrypoint.
+
+When a Sidecar target depends on application or explicitly selected dependency instrumentation, persist an `instrumentationTargets` declaration and link it from `runtimeTargets[].instrumentationTargetRef`. Use `scope=application` for application classes and `scope=dependency` with a bounded `dependencyRef` for dependency classes. Craft/build validates the selected FQCN against the workspace Probe include/exclude rules and fails closed when the selected class is not instrumentable.
+
 ## Mode boundary
 
 - `blackbox` plans contain network-visible target data and pinned `securityKnowledge.packRefs`; they must not contain source, JAR, FQCN, Sidecar, Probe, or Strict Line Key data.
 - `sidecar_assisted` plans may declare runtime targets with Probe IDs and Strict Line Keys, but an external-exploitability claim still requires an external attack path.
+- Sidecar-assisted plans may inspect application or explicitly declared dependency symbols during craft/build, but must persist only bounded target references and sanitized diagnostics; never persist credentials, raw environment variables, or arbitrary source dumps.
 
 ## Required contract fields
 
