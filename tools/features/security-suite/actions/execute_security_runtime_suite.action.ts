@@ -20,10 +20,15 @@ import { executeSidecarAssistedSecurityMode } from "../modes/sidecar_assisted/se
 import { readSecuritySuiteManifest } from "../support/load_security_suite_manifest";
 
 type SecurityPlanExecution = {
-  status: "blocked";
-  reasonCode: string;
-  requiredUserAction: string[];
-  reasonMeta: { securityMode: "blackbox" | "sidecar_assisted"; planName: string };
+  status: "executed" | "blocked";
+  runStatus: "pass" | "fail" | "blocked";
+  runId?: string;
+  reasonCode?: string;
+  requiredUserAction?: string[];
+  reasonMeta: Record<string, unknown> & {
+    securityMode: "blackbox" | "sidecar_assisted";
+    planName: string;
+  };
 };
 
 function buildSuiteRunId(args: ExecuteSecurityRuntimeSuiteArgs): string {
@@ -128,6 +133,7 @@ async function executeSecurityPlan(args: {
     const reasonCode = error instanceof Error ? error.message : String(error);
     return {
       status: "blocked",
+      runStatus: "blocked",
       reasonCode,
       requiredUserAction: [`Resolve the Security plan Artifact path for '${args.planName}'.`],
       reasonMeta: { securityMode: "blackbox", planName: args.planName },
@@ -139,6 +145,7 @@ async function executeSecurityPlan(args: {
   if (!rawContract) {
     return {
       status: "blocked",
+      runStatus: "blocked",
       reasonCode: "security_contract_missing",
       requiredUserAction: [`Create security contract Artifact at ${contractPath}.`],
       reasonMeta: { securityMode: "blackbox", planName: args.planName },
@@ -150,6 +157,7 @@ async function executeSecurityPlan(args: {
   } catch {
     return {
       status: "blocked",
+      runStatus: "blocked",
       reasonCode: "security_contract_invalid_json",
       requiredUserAction: [`Fix invalid JSON in ${contractPath}.`],
       reasonMeta: { securityMode: "blackbox", planName: args.planName },
@@ -159,6 +167,7 @@ async function executeSecurityPlan(args: {
   if (!validated.ok) {
     return {
       status: "blocked",
+      runStatus: "blocked",
       reasonCode: validated.reasonCode,
       requiredUserAction: validated.errors,
       reasonMeta: { securityMode: "blackbox", planName: args.planName },
@@ -166,13 +175,27 @@ async function executeSecurityPlan(args: {
   }
   const modeResult: SecurityModeExecutionResult =
     validated.contract.securityMode === "blackbox"
-      ? executeBlackboxSecurityMode({ planName: args.planName })
+      ? await executeBlackboxSecurityMode({
+          workspaceRootAbs: args.input.workspaceRootAbs,
+          projectName: args.input.projectName,
+          executionProfile: args.input.executionProfile,
+          planName: args.planName,
+          runId: `${args.input.suiteRunId ?? "security"}-${args.planName}`,
+          contract: validated.contract,
+          mcpInvoke: args.input.mcpInvoke,
+        })
       : executeSidecarAssistedSecurityMode({ planName: args.planName });
   return {
-    status: "blocked",
-    reasonCode: modeResult.reasonCode,
-    requiredUserAction: modeResult.requiredUserAction,
-    reasonMeta: { securityMode: validated.contract.securityMode, planName: args.planName },
+    status: modeResult.status,
+    runStatus: modeResult.runStatus,
+    ...(modeResult.runId ? { runId: modeResult.runId } : {}),
+    ...(modeResult.reasonCode ? { reasonCode: modeResult.reasonCode } : {}),
+    ...(modeResult.requiredUserAction ? { requiredUserAction: modeResult.requiredUserAction } : {}),
+    reasonMeta: {
+      securityMode: validated.contract.securityMode,
+      planName: args.planName,
+      ...(modeResult.reasonMeta ?? {}),
+    },
   };
 }
 
@@ -202,7 +225,11 @@ export async function executeSecurityRuntimeSuite(
   }
 
   const startPlanOrder = args.startPlanOrder ?? 1;
-  if (!Number.isInteger(startPlanOrder) || startPlanOrder < 1 || startPlanOrder > orderedPlans.length + 1) {
+  if (
+    !Number.isInteger(startPlanOrder) ||
+    startPlanOrder < 1 ||
+    startPlanOrder > orderedPlans.length + 1
+  ) {
     return blockedSuiteResult({
       executionProfile: suite.manifest.executionProfile,
       executionPolicy: suite.manifest.executionPolicy,
@@ -212,7 +239,10 @@ export async function executeSecurityRuntimeSuite(
     });
   }
   const maxPlansPerCall = args.maxPlansPerCall;
-  if (maxPlansPerCall !== undefined && (!Number.isInteger(maxPlansPerCall) || maxPlansPerCall < 1)) {
+  if (
+    maxPlansPerCall !== undefined &&
+    (!Number.isInteger(maxPlansPerCall) || maxPlansPerCall < 1)
+  ) {
     return blockedSuiteResult({
       executionProfile: suite.manifest.executionProfile,
       executionPolicy: suite.manifest.executionPolicy,
@@ -222,10 +252,14 @@ export async function executeSecurityRuntimeSuite(
     });
   }
 
-  const planRuns: RuntimeSuitePlanRunResult[] = (args.priorPlanRuns ?? []).map((entry) => ({ ...entry }));
+  const planRuns: RuntimeSuitePlanRunResult[] = (args.priorPlanRuns ?? []).map((entry) => ({
+    ...entry,
+  }));
   let processedPlans = 0;
   let stop = false;
-  let hasBlocked = planRuns.some((entry) => entry.status === "blocked" || entry.runStatus === "blocked");
+  let hasBlocked = planRuns.some(
+    (entry) => entry.status === "blocked" || entry.runStatus === "blocked",
+  );
   let hasFail = planRuns.some((entry) => entry.runStatus === "fail");
   let firstReasonCode: string | undefined;
   let nextPlanOrder: number | undefined;
@@ -247,23 +281,31 @@ export async function executeSecurityRuntimeSuite(
     const run: RuntimeSuitePlanRunResult = {
       order: plan.order,
       planName: plan.planName,
-      status: "blocked",
-      runStatus: "blocked",
-      blockedReasonCode: execution.reasonCode,
-      blockedReasonMeta: {
-        ...execution.reasonMeta,
-        requiredUserAction: execution.requiredUserAction,
-      },
+      status: execution.status,
+      runStatus: execution.runStatus,
+      ...(execution.runId ? { runId: execution.runId } : {}),
+      ...(execution.status === "blocked"
+        ? {
+            ...(execution.reasonCode ? { blockedReasonCode: execution.reasonCode } : {}),
+            blockedReasonMeta: {
+              ...execution.reasonMeta,
+              ...(execution.requiredUserAction
+                ? { requiredUserAction: execution.requiredUserAction }
+                : {}),
+            },
+          }
+        : {}),
     };
     upsertPlanRun(planRuns, run);
     lastCompletedPlan = run;
-    hasBlocked = true;
+    hasBlocked ||= execution.runStatus === "blocked";
+    hasFail ||= execution.runStatus === "fail";
     firstReasonCode ??= execution.reasonCode;
-    if (effectiveOnFail({ plan, executionPolicy: suite.manifest.executionPolicy }) === "stop") {
+    if (
+      (execution.runStatus === "blocked" || execution.runStatus === "fail") &&
+      effectiveOnFail({ plan, executionPolicy: suite.manifest.executionPolicy }) === "stop"
+    ) {
       stop = true;
-    }
-    if (execution.reasonCode === "security_mode_execution_not_implemented") {
-      hasFail = true;
     }
   }
 
@@ -288,8 +330,11 @@ export async function executeSecurityRuntimeSuite(
               lastCompletedPlan: {
                 order: lastCompletedPlan.order,
                 planName: lastCompletedPlan.planName,
-                status: "blocked",
-                runStatus: "blocked",
+                status: lastCompletedPlan.status === "blocked" ? "blocked" : "executed",
+                ...(lastCompletedPlan.runStatus && lastCompletedPlan.runStatus !== "in_progress"
+                  ? { runStatus: lastCompletedPlan.runStatus }
+                  : {}),
+                ...(lastCompletedPlan.runId ? { runId: lastCompletedPlan.runId } : {}),
               },
             }
           : {}),

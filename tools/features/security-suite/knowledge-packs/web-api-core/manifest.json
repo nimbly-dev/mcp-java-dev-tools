@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "web-api-core",
+  "version": "1.0.0",
+  "ref": "web-api-core@1.0.0",
+  "rulesFile": "rules.json",
+  "compatibility": {
+    "contractVersionRange": ">=1.0.0 <2.0.0"
+  }
+}

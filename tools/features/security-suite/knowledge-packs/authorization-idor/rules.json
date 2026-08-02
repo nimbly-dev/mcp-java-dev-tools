@@ -1,0 +1,9 @@
+[
+  {
+    "id": "authorization-idor-cross-tenant",
+    "categories": ["authorization"],
+    "entrypointTypes": ["http"],
+    "severity": "high",
+    "title": "Authorization boundary permitted a foreign resource response"
+  }
+]

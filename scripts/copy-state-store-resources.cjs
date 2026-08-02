@@ -23,3 +23,24 @@ const target = path.join(
 
 fs.mkdirSync(target, { recursive: true });
 fs.cpSync(source, target, { recursive: true });
+
+const knowledgePackSource = path.join(
+  __dirname,
+  "..",
+  "tools",
+  "features",
+  "security-suite",
+  "knowledge-packs",
+);
+const knowledgePackTarget = path.join(
+  __dirname,
+  "..",
+  "dist",
+  "tools",
+  "features",
+  "security-suite",
+  "knowledge-packs",
+);
+
+fs.mkdirSync(knowledgePackTarget, { recursive: true });
+fs.cpSync(knowledgePackSource, knowledgePackTarget, { recursive: true });

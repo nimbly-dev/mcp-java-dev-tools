@@ -11,9 +11,10 @@ This Skill Workflow authors the mode-neutral Security Artifact contract. It does
 
 1. Research only declared or locally observable entrypoints and authentication profiles.
 2. Select exactly one `securityMode`: `blackbox` or `sidecar_assisted`.
-3. Build a finite attack matrix from the declared entrypoints, authentication profiles, and attack profiles.
-4. Apply the shared safety and verdict policies from the Security Artifact Spec.
-5. Validate the contract through `artifact_management` with `artifactType=security_plan` before upserting it.
+3. For `blackbox`, select and pin packs from [the local knowledge-pack index](references/knowledge-pack-index.md); do not perform live research during CI execution.
+4. Build a finite attack matrix from the declared entrypoints, authentication profiles, and attack profiles.
+5. Apply the shared safety and verdict policies from the Security Artifact Spec.
+6. Validate the contract through `artifact_management` with `artifactType=security_plan` before upserting it.
 
 ## Mode boundary
 
