@@ -21,6 +21,8 @@ Each case is `passed`, `confirmed`, `not_applicable`, or `blocked`. Finding proo
 
 Black-box execution must not use source, JAR/classpath, FQCN, Sidecar, Probe, or Strict Line Key information. Sidecar-assisted execution may use those inputs, but must not convert internal analysis into an external-exploitability claim.
 
-## Foundation behavior
+## Black-box execution behavior
 
-The mode-neutral foundation exposes the route and contract boundaries. Until the follow-on mode implementations are present, execution must fail closed with a deterministic foundation-only result rather than report a clean pass.
+Black-box execution selects only locally versioned knowledge packs, generates one finite case for each declared attack profile, and invokes HTTP cases through `transport_execute` with `wrappedOnly=true`. It persists the matrix, coverage, findings, and redacted HTTP evidence under the canonical Security run Artifact path.
+
+Missing symbolic credentials, target-boundary violations, transport failures, unexpected baseline responses, and incomplete matrix coverage are deterministic blocked outcomes.

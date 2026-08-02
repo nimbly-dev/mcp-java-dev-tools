@@ -5,6 +5,7 @@ export function executeSidecarAssistedSecurityMode(args: {
 }): SecurityModeExecutionResult {
   return {
     status: "blocked",
+    runStatus: "blocked",
     reasonCode: "security_mode_execution_not_implemented",
     requiredUserAction: [
       "Install the Sidecar-assisted Security Mode implementation from the follow-on security mode ticket before executing this plan.",

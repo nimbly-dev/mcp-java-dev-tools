@@ -21,4 +21,4 @@ Read the canonical Security run Artifact and report:
 
 Never render incomplete required coverage as a clean pass. Preserve the distinction between external proof, internal hardening evidence, and corroborated external proof. If the canonical run Artifact is missing, invalid, or conflicting, fail closed and return a blocked result with the exact missing evidence.
 
-The mode-neutral foundation defines the report shape. Mode-specific evidence interpretation belongs to the Black-box and Sidecar-assisted follow-on implementations.
+The mode-neutral foundation defines the report shape. Black-box findings use external HTTP request/response evidence; Sidecar-assisted evidence interpretation remains owned by its mode implementation.

@@ -2,10 +2,7 @@ export type SecurityMode = "blackbox" | "sidecar_assisted";
 
 export type SecurityOutcome = "passed" | "confirmed" | "not_applicable" | "blocked";
 
-export type SecurityProofClassification =
-  | "external"
-  | "internal"
-  | "corroborated_external";
+export type SecurityProofClassification = "external" | "internal" | "corroborated_external";
 
 export type SecuritySeverity = "critical" | "high" | "medium" | "low" | "info";
 
@@ -31,6 +28,7 @@ export type SecurityTargetBoundary = {
   allowedHosts: string[];
   allowedPorts: number[];
   externalNetworkAccess: "forbidden";
+  fixtureContext?: Record<string, string>;
 };
 
 export type SecurityKnowledge = {

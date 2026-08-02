@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   dispatchSecuritySuiteAction,
   executeSecurityRuntimeSuite,
+  loadSecurityBlackboxKnowledgePacks,
   readSecurityRunArtifact,
   writeSecurityRunArtifacts,
 } from "@tools-feature-security-suite";
@@ -54,6 +55,107 @@ function securityContract(): SecurityPlanContract {
   };
 }
 
+function blackboxContract(): SecurityPlanContract {
+  const contract = securityContract();
+  contract.targetBoundary = {
+    ...contract.targetBoundary,
+    baseUrl: "http://127.0.0.1:8080",
+  };
+  contract.securityKnowledge = { packRefs: ["authorization-idor@1.0.0"] };
+  contract.verdictPolicy = {
+    ...contract.verdictPolicy,
+    failOnSeverity: ["high"],
+  };
+  contract.entrypoints = [
+    { id: "read-order", type: "http", method: "GET", path: "/orders/{orderId}" },
+  ];
+  contract.attackProfiles = [
+    {
+      ...contract.attackProfiles[0]!,
+      id: "cross-tenant-order-access",
+      category: "authorization",
+      entrypointRef: "read-order",
+      baseline: {
+        pathParameters: { orderId: "own-order" },
+        expect: { outcome: "allow", statusCodes: [200] },
+      },
+      attack: {
+        pathParameters: { orderId: "foreign-order" },
+        expect: { outcome: "deny", statusCodes: [403, 404] },
+      },
+    },
+  ];
+  return contract;
+}
+
+function writeSecurityPlanFixture(args: {
+  root: string;
+  contract: SecurityPlanContract;
+  planName?: string;
+  projectName?: string;
+}): void {
+  const projectName = args.projectName ?? "demo";
+  const planName = args.planName ?? "authorization";
+  const projectRoot = path.join(args.root, ".mcpjvm", projectName);
+  const planRoot = path.join(projectRoot, "plans", "security", planName);
+  fs.mkdirSync(planRoot, { recursive: true });
+  fs.writeFileSync(path.join(planRoot, "metadata.json"), "{}\n", "utf8");
+  fs.writeFileSync(path.join(planRoot, "contract.json"), JSON.stringify(args.contract), "utf8");
+  fs.writeFileSync(
+    path.join(projectRoot, "projects.json"),
+    JSON.stringify({
+      workspaces: [
+        {
+          projectRoot: args.root,
+          defaults: {
+            orchestrator: { resumePollMax: 1, resumePollIntervalMs: 1, resumePollTimeoutMs: 1000 },
+          },
+          executionProfiles: [
+            {
+              executionProfile: "security-ci",
+              suiteType: "security",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName }],
+            },
+          ],
+        },
+      ],
+    }),
+    "utf8",
+  );
+}
+
+async function executeBlackboxFixture(args: {
+  root: string;
+  contract: SecurityPlanContract;
+  attackStatusCode: number;
+  calls?: Array<Record<string, unknown>>;
+}): Promise<Awaited<ReturnType<typeof executeSecurityRuntimeSuite>>> {
+  writeSecurityPlanFixture({ root: args.root, contract: args.contract });
+  return executeSecurityRuntimeSuite({
+    workspaceRootAbs: args.root,
+    projectName: "demo",
+    executionProfile: "security-ci",
+    mcpInvoke: async ({ toolName, input }) => {
+      assert.equal(toolName, "transport_execute");
+      assert.deepEqual(input.options, { wrappedOnly: true });
+      args.calls?.push(input);
+      const request = input.request;
+      const url =
+        typeof request === "object" && request !== null && "url" in request
+          ? String((request as Record<string, unknown>).url)
+          : "";
+      return {
+        structuredContent: {
+          status: "pass",
+          durationMs: 1,
+          statusCode: url.includes("foreign-order") ? args.attackStatusCode : 200,
+        },
+      };
+    },
+  });
+}
+
 test("[UT][security-suite] writes and reads canonical Security run Artifacts", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-artifact-"));
   try {
@@ -95,6 +197,22 @@ test("[UT][security-suite] writes and reads canonical Security run Artifacts", a
   }
 });
 
+test("[UT][security-blackbox] loads file-backed packs and enforces manifest compatibility ranges", async () => {
+  const loaded = await loadSecurityBlackboxKnowledgePacks({
+    packRefs: ["authorization-idor@1.0.0"],
+    contractVersion: "1.4.0",
+  });
+  assert.ok(loaded.ok);
+  assert.equal(loaded.packs[0]?.rules[0]?.id, "authorization-idor-cross-tenant");
+
+  const incompatible = await loadSecurityBlackboxKnowledgePacks({
+    packRefs: ["authorization-idor@1.0.0"],
+    contractVersion: "2.0.0",
+  });
+  assert.ok(!incompatible.ok);
+  assert.equal(incompatible.reasonCode, "security_knowledge_pack_incompatible");
+});
+
 test("[UT][security-plan-artifact] rejects traversal before resolving the project Artifact", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-path-"));
   try {
@@ -134,7 +252,9 @@ test("[UT][security-plan-artifact] rejects resolved credentials before writing t
     });
     assert.equal(result.structuredContent.reasonCode, "security_contract_secret_persisted");
     assert.equal(
-      fs.existsSync(path.join(root, ".mcpjvm", "demo", "plans", "security", "authorization", "contract.json")),
+      fs.existsSync(
+        path.join(root, ".mcpjvm", "demo", "plans", "security", "authorization", "contract.json"),
+      ),
       false,
     );
   } finally {
@@ -169,7 +289,11 @@ test("[UT][security-suite] processes ordered plan slices and resumes with prior 
       const planRoot = path.join(projectRoot, "plans", "security", planName);
       fs.mkdirSync(planRoot, { recursive: true });
       fs.writeFileSync(path.join(planRoot, "metadata.json"), "{}\n", "utf8");
-      fs.writeFileSync(path.join(planRoot, "contract.json"), JSON.stringify(securityContract()), "utf8");
+      fs.writeFileSync(
+        path.join(planRoot, "contract.json"),
+        JSON.stringify(securityContract()),
+        "utf8",
+      );
     }
     fs.writeFileSync(
       path.join(projectRoot, "projects.json"),
@@ -178,7 +302,11 @@ test("[UT][security-suite] processes ordered plan slices and resumes with prior 
           {
             projectRoot: root,
             defaults: {
-              orchestrator: { resumePollMax: 1, resumePollIntervalMs: 1, resumePollTimeoutMs: 1000 },
+              orchestrator: {
+                resumePollMax: 1,
+                resumePollIntervalMs: 1,
+                resumePollTimeoutMs: 1000,
+              },
             },
             executionProfiles: [
               {
@@ -274,12 +402,157 @@ test("[UT][security-suite] sanitizes sensitive finding and evidence diagnostics"
       ],
     });
     const persisted = fs.readFileSync(
-      path.join(root, ".mcpjvm", "demo", "plans", "security", "authorization", "runs", "run-1", "execution.result.json"),
+      path.join(
+        root,
+        ".mcpjvm",
+        "demo",
+        "plans",
+        "security",
+        "authorization",
+        "runs",
+        "run-1",
+        "execution.result.json",
+      ),
       "utf8",
     );
     assert.equal(persisted.includes("super-secret"), false);
     assert.equal(persisted.includes("abc.def.ghi"), false);
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[UT][security-blackbox] executes the finite baseline and attack case through wrapped transport", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-blackbox-pass-"));
+  try {
+    const calls: Array<Record<string, unknown>> = [];
+    const result = await executeBlackboxFixture({
+      root,
+      contract: blackboxContract(),
+      attackStatusCode: 403,
+      calls,
+    });
+    assert.equal(result.status, "pass");
+    const planRun = result.planRuns[0];
+    assert.ok(planRun);
+    assert.equal(planRun.status, "executed");
+    assert.equal(planRun.runStatus, "pass");
+    assert.equal(calls.length, 2);
+    const artifact = await readSecurityRunArtifact({
+      workspaceRootAbs: root,
+      projectName: "demo",
+      planName: "authorization",
+      runId: planRun.runId ?? "",
+    });
+    assert.ok(artifact.ok);
+    assert.deepEqual(artifact.artifact.matrix.plannedCaseIds, ["cross-tenant-order-access"]);
+    assert.equal(artifact.artifact.coverage.passedCount, 1);
+    assert.equal(artifact.artifact.coverage.complete, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[UT][security-blackbox] classifies an allowed foreign response as an external confirmed finding", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-blackbox-finding-"));
+  try {
+    const result = await executeBlackboxFixture({
+      root,
+      contract: blackboxContract(),
+      attackStatusCode: 200,
+    });
+    assert.equal(result.status, "fail");
+    const artifact = await readSecurityRunArtifact({
+      workspaceRootAbs: root,
+      projectName: "demo",
+      planName: "authorization",
+      runId: result.planRuns[0]?.runId ?? "",
+    });
+    assert.ok(artifact.ok);
+    assert.equal(artifact.artifact.coverage.confirmedCount, 1);
+    const finding = artifact.artifact.findings[0];
+    assert.ok(finding);
+    assert.equal(finding.proofClassification, "external");
+    assert.equal(finding.evidenceRefIds.length, 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[UT][security-blackbox] isolates symbolic credentials per case and never persists the resolved value", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-blackbox-auth-"));
+  const envName = "SECURITY_LIMITEDUSERTOKEN";
+  const previous = process.env[envName];
+  process.env[envName] = "resolved-token-value";
+  try {
+    const contract = blackboxContract();
+    contract.authenticationProfiles = [
+      {
+        id: "limited-user",
+        kind: "bearer",
+        role: "customer",
+        credentialRef: "security.limitedUserToken",
+      },
+    ];
+    contract.attackProfiles[0]!.authenticationProfileRef = "limited-user";
+    const calls: Array<Record<string, unknown>> = [];
+    const result = await executeBlackboxFixture({ root, contract, attackStatusCode: 403, calls });
+    assert.equal(result.status, "pass");
+    for (const call of calls) {
+      const headers = (call.request as Record<string, unknown>).headers as Record<string, unknown>;
+      assert.equal(headers.Authorization, "Bearer resolved-token-value");
+    }
+    const artifact = await readSecurityRunArtifact({
+      workspaceRootAbs: root,
+      projectName: "demo",
+      planName: "authorization",
+      runId: result.planRuns[0]?.runId ?? "",
+    });
+    assert.ok(artifact.ok);
+    const executionResult = fs.readFileSync(
+      path.join(
+        root,
+        ".mcpjvm",
+        "demo",
+        "plans",
+        "security",
+        "authorization",
+        "runs",
+        result.planRuns[0]?.runId ?? "",
+        "execution.result.json",
+      ),
+      "utf8",
+    );
+    assert.equal(executionResult.includes("resolved-token-value"), false);
+  } finally {
+    if (typeof previous === "string") process.env[envName] = previous;
+    else delete process.env[envName];
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[UT][security-blackbox] blocks incomplete execution when a credential reference cannot be resolved", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-blackbox-blocked-"));
+  const envName = "SECURITY_LIMITEDUSERTOKEN";
+  const previous = process.env[envName];
+  delete process.env[envName];
+  try {
+    const contract = blackboxContract();
+    contract.authenticationProfiles = [
+      {
+        id: "limited-user",
+        kind: "bearer",
+        credentialRef: "security.limitedUserToken",
+      },
+    ];
+    contract.attackProfiles[0]!.authenticationProfileRef = "limited-user";
+    const result = await executeBlackboxFixture({ root, contract, attackStatusCode: 403 });
+    assert.equal(result.status, "blocked");
+    assert.equal(result.reasonCode, "security_blackbox_coverage_incomplete");
+    assert.equal(result.planRuns[0]?.runStatus, "blocked");
+  } finally {
+    if (typeof previous === "string") process.env[envName] = previous;
+    else delete process.env[envName];
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

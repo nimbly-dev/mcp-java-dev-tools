@@ -52,6 +52,7 @@ export type SecurityFiniteAttackMatrix = {
   mode: "finite_matrix";
   plannedCaseIds: string[];
   plannedCount: number;
+  knowledgePackRefs?: string[];
 };
 
 export type SecurityCoverage = {

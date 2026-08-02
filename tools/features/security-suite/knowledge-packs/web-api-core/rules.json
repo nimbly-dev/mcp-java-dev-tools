@@ -1,0 +1,9 @@
+[
+  {
+    "id": "web-api-core-http",
+    "categories": ["*"],
+    "entrypointTypes": ["http"],
+    "severity": "medium",
+    "title": "HTTP/API security expectation was not enforced"
+  }
+]

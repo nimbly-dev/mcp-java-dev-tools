@@ -29,16 +29,32 @@ function isAllowedEntrypointType(value: unknown): boolean {
 }
 
 function isAllowedAuthenticationKind(value: unknown): boolean {
-  return value === "anonymous" || value === "bearer" || value === "basic" || value === "api_key" || value === "custom";
+  return (
+    value === "anonymous" ||
+    value === "bearer" ||
+    value === "basic" ||
+    value === "api_key" ||
+    value === "custom"
+  );
 }
 
 function isAllowedSeverity(value: unknown): boolean {
-  return value === "critical" || value === "high" || value === "medium" || value === "low" || value === "info";
+  return (
+    value === "critical" ||
+    value === "high" ||
+    value === "medium" ||
+    value === "low" ||
+    value === "info"
+  );
 }
 
 function isSecurityRequest(value: unknown): boolean {
   if (!isRecord(value) || !isRecord(value.expect)) return false;
-  if (value.expect.outcome !== "allow" && value.expect.outcome !== "deny" && value.expect.outcome !== "error") {
+  if (
+    value.expect.outcome !== "allow" &&
+    value.expect.outcome !== "deny" &&
+    value.expect.outcome !== "error"
+  ) {
     return false;
   }
   return (
@@ -96,15 +112,18 @@ const SENSITIVE_PERSISTED_KEY_PATTERN =
   /(?:password|passwd|passphrase|token|secret|apikey|authkey|authtoken|credential|cookie|accesskey|clientsecret|privatekey|resolved|env)/;
 
 const UNRESOLVED_REFERENCE_PATTERN = /^\$\{[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+\}$/;
-const UNRESOLVED_AUTH_VALUE_PATTERN = /^(?:Bearer|Basic)\s+\$\{[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+\}$/i;
-const SYMBOLIC_CREDENTIAL_REFERENCE_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+$/;
+const UNRESOLVED_AUTH_VALUE_PATTERN =
+  /^(?:Bearer|Basic)\s+\$\{[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+\}$/i;
+const SYMBOLIC_CREDENTIAL_REFERENCE_PATTERN =
+  /^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+$/;
 const RESOLVED_SECRET_STRING_PATTERN =
   /\b(?:bearer|basic)\s+\S+|\b(?:password|passwd|passphrase|token|secret|api[_-]?key|authorization|cookie)\s*[:=]\s*(?!\$\{[^}]+\})\S+|\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/i;
 
 function isUnresolvedSecretValue(value: unknown): value is string {
   return (
     typeof value === "string" &&
-    (UNRESOLVED_REFERENCE_PATTERN.test(value.trim()) || UNRESOLVED_AUTH_VALUE_PATTERN.test(value.trim()))
+    (UNRESOLVED_REFERENCE_PATTERN.test(value.trim()) ||
+      UNRESOLVED_AUTH_VALUE_PATTERN.test(value.trim()))
   );
 }
 
@@ -117,7 +136,13 @@ function findPersistedSecretViolation(
   fieldPath: string,
   sensitiveContext = false,
 ): string | null {
-  if (sensitiveContext && value !== null && typeof value !== "string" && !Array.isArray(value) && !isRecord(value)) {
+  if (
+    sensitiveContext &&
+    value !== null &&
+    typeof value !== "string" &&
+    !Array.isArray(value) &&
+    !isRecord(value)
+  ) {
     return fieldPath;
   }
   if (typeof value === "string") {
@@ -126,7 +151,11 @@ function findPersistedSecretViolation(
   }
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index += 1) {
-      const violation = findPersistedSecretViolation(value[index], `${fieldPath}[${index}]`, sensitiveContext);
+      const violation = findPersistedSecretViolation(
+        value[index],
+        `${fieldPath}[${index}]`,
+        sensitiveContext,
+      );
       if (violation) return violation;
     }
     return null;
@@ -142,7 +171,8 @@ function findPersistedSecretViolation(
     }
     const isTargetBoundaryEnvironment = nestedPath === "contract.targetBoundary.environment";
     const isSensitiveKey =
-      SENSITIVE_PERSISTED_KEYS.has(normalizedKey) || SENSITIVE_PERSISTED_KEY_PATTERN.test(normalizedKey);
+      SENSITIVE_PERSISTED_KEYS.has(normalizedKey) ||
+      SENSITIVE_PERSISTED_KEY_PATTERN.test(normalizedKey);
     if (!isTargetBoundaryEnvironment && isSensitiveKey) {
       const violation = findPersistedSecretViolation(nestedValue, nestedPath, true);
       if (violation) return violation;
@@ -199,7 +229,8 @@ function validateAttackProfileReferences(
   authIds: Set<string>,
 ): string | null {
   for (const attack of attacks) {
-    if (!entrypointIds.has(attack.entrypointRef)) return `attackProfiles.${attack.id}.entrypointRef`;
+    if (!entrypointIds.has(attack.entrypointRef))
+      return `attackProfiles.${attack.id}.entrypointRef`;
     if (!authIds.has(attack.authenticationProfileRef)) {
       return `attackProfiles.${attack.id}.authenticationProfileRef`;
     }
@@ -253,6 +284,47 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
       "blackbox contracts must pin at least one securityKnowledge.packRefs entry",
     ]);
   }
+  if (
+    input.securityMode === "blackbox" &&
+    isRecord(input.securityKnowledge) &&
+    Array.isArray(input.securityKnowledge.packRefs) &&
+    input.securityKnowledge.packRefs.some(
+      (ref) => !/^[a-z0-9][a-z0-9-]*@\d+\.\d+\.\d+$/.test(String(ref)),
+    )
+  ) {
+    return invalid("security_contract_knowledge_invalid", [
+      "blackbox securityKnowledge.packRefs must use a pinned pack@major.minor.patch reference",
+    ]);
+  }
+
+  if (input.securityMode === "blackbox" && isRecord(boundary)) {
+    if (!isNonEmptyString(boundary.baseUrl)) {
+      return invalid("security_contract_target_boundary_invalid", [
+        "blackbox targetBoundary.baseUrl is required for HTTP execution",
+      ]);
+    }
+    try {
+      const baseUrl = new URL(boundary.baseUrl);
+      const allowedHosts = boundary.allowedHosts as unknown[];
+      const allowedPorts = boundary.allowedPorts as unknown[];
+      let port = 80;
+      if (baseUrl.protocol === "https:") port = 443;
+      if (baseUrl.port) port = Number(baseUrl.port);
+      if (
+        (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:") ||
+        !allowedHosts.includes(baseUrl.hostname) ||
+        !allowedPorts.includes(port)
+      ) {
+        return invalid("security_contract_target_boundary_invalid", [
+          "blackbox baseUrl must use HTTP(S) and match an allowed host and port",
+        ]);
+      }
+    } catch {
+      return invalid("security_contract_target_boundary_invalid", [
+        "blackbox targetBoundary.baseUrl must be a valid HTTP(S) URL",
+      ]);
+    }
+  }
 
   if (!Array.isArray(input.entrypoints) || input.entrypoints.length === 0) {
     return invalid("security_contract_entrypoints_invalid", ["entrypoints must be non-empty"]);
@@ -287,6 +359,24 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
   ) {
     return invalid("security_contract_authentication_profiles_invalid", [
       "authenticationProfiles must have unique non-empty ids",
+    ]);
+  }
+  if (
+    input.securityMode === "blackbox" &&
+    input.authenticationProfiles.some((profile) => {
+      if (!isRecord(profile)) return true;
+      if (profile.kind === "anonymous") return profile.credentialRef !== undefined;
+      return !isSymbolicCredentialReference(profile.credentialRef);
+    })
+  ) {
+    const persistedSecretViolation = findPersistedSecretViolation(input, "contract");
+    if (persistedSecretViolation) {
+      return invalid("security_contract_secret_persisted", [
+        `resolved credentials, tokens, passwords, authorization values, and raw environment values cannot be persisted at ${persistedSecretViolation}; use an unresolved reference placeholder`,
+      ]);
+    }
+    return invalid("security_contract_authentication_profiles_invalid", [
+      "blackbox anonymous profiles must not declare credentials and constrained profiles must use symbolic credentialRef values",
     ]);
   }
 
@@ -369,6 +459,21 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
         internalRuntimeEntrypoint
           ? "blackbox contracts must not declare internal_runtime entrypoints"
           : `blackbox contracts contain forbidden internal-runtime data at ${blackboxViolation}`,
+      ]);
+    }
+    if (
+      input.entrypoints.some(
+        (entry) =>
+          !isRecord(entry) ||
+          entry.type !== "http" ||
+          !isNonEmptyString(entry.method) ||
+          !isNonEmptyString(entry.path) ||
+          !String(entry.path).startsWith("/") ||
+          String(entry.path).startsWith("//"),
+      )
+    ) {
+      return invalid("security_contract_entrypoints_invalid", [
+        "blackbox entrypoints must be HTTP entries with a relative path and method",
       ]);
     }
   } else {

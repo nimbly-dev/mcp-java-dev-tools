@@ -34,8 +34,10 @@ export type ExecuteSecurityRuntimeSuiteArgs = {
 };
 
 export type SecurityModeExecutionResult = {
-  status: "blocked";
-  reasonCode: string;
-  requiredUserAction: string[];
-  reasonMeta?: { securityMode: SecurityMode; planName: string };
+  status: "executed" | "blocked";
+  runStatus: "pass" | "fail" | "blocked";
+  runId?: string;
+  reasonCode?: string;
+  requiredUserAction?: string[];
+  reasonMeta?: Record<string, unknown> & { securityMode: SecurityMode; planName: string };
 };

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "authorization-idor",
+  "version": "1.0.0",
+  "ref": "authorization-idor@1.0.0",
+  "rulesFile": "rules.json",
+  "compatibility": {
+    "contractVersionRange": "^1.0.0"
+  }
+}
