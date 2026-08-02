@@ -22,3 +22,7 @@ Read the canonical Security run Artifact and report:
 Never render incomplete required coverage as a clean pass. Preserve the distinction between external proof, internal hardening evidence, and corroborated external proof. If the canonical run Artifact is missing, invalid, or conflicting, fail closed and return a blocked result with the exact missing evidence.
 
 The mode-neutral foundation defines the report shape. Black-box findings use external HTTP request/response evidence; Sidecar-assisted evidence interpretation remains owned by its mode implementation.
+
+For Sidecar-assisted runs, include the fresh Probe evidence references, runtime identity, required/forbidden target interpretation, and proof classification. Distinguish `external`, `internal`, and `corroborated_external`; a Sidecar-only signal must never be rendered as an externally demonstrated exploit.
+
+Render selected application/dependency instrumentation as bounded runtime evidence, including the target scope and dependency reference when present. Do not render raw source, credentials, environment values, or unrestricted classpath contents.

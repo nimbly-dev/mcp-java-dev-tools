@@ -4,5 +4,11 @@ export { readSecuritySuiteManifest } from "./support/load_security_suite_manifes
 export { writeSecurityRunArtifacts } from "./persistence/security_artifact_writer";
 export { readSecurityRunArtifact } from "./persistence/security_artifact_reader";
 export { loadSecurityBlackboxKnowledgePacks } from "./support/security_blackbox_knowledge";
+export {
+  validateSidecarInstrumentationSelection,
+  type SidecarInstrumentationSelection,
+  type SidecarInstrumentationSelectionResult,
+} from "./support/validate_sidecar_instrumentation_selection";
+export { executeSidecarAssistedSecurityMode } from "./modes/sidecar_assisted/security_sidecar_assisted_mode";
 export type SecuritySuiteFeatureModule = "security-suite";
 export type * from "./models/security_suite.model";

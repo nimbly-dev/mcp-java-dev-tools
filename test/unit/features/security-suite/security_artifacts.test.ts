@@ -12,7 +12,10 @@ import {
   writeSecurityRunArtifacts,
 } from "@tools-feature-security-suite";
 import { dispatchArtifactManagementAction } from "@tools-feature-artifact-management";
-import type { SecurityPlanContract } from "@tools-security-execution-plan-spec";
+import {
+  validateSecurityPlanContract,
+  type SecurityPlanContract,
+} from "@tools-security-execution-plan-spec";
 
 function securityContract(): SecurityPlanContract {
   return {
@@ -87,6 +90,35 @@ function blackboxContract(): SecurityPlanContract {
   ];
   return contract;
 }
+
+test("[UT][security-contract] rejects Sidecar-only runtime fields in Black-box contracts", () => {
+  for (const field of [
+    "mustHitRuntimeTargets",
+    "mustNotHitRuntimeTargets",
+    "instrumentationTargets",
+  ]) {
+    const contract = JSON.parse(JSON.stringify(securityContract())) as Record<string, unknown>;
+    if (field === "instrumentationTargets") {
+      contract.instrumentationTargets = [
+        {
+          id: "sidecar-target",
+          scope: "dependency",
+          classFqcn: "org.example.Policy",
+          dependencyRef: "policy-lib",
+        },
+      ];
+    } else {
+      const attacks = contract.attackProfiles as Array<Record<string, unknown>>;
+      const baseline = attacks[0]?.baseline as Record<string, unknown>;
+      const expect = baseline.expect as Record<string, unknown>;
+      expect[field] = ["sidecar-target"];
+    }
+    const result = validateSecurityPlanContract(contract);
+    assert.equal(result.ok, false);
+    assert.equal(result.reasonCode, "security_contract_blackbox_forbidden_field");
+    assert.match(result.errors[0] ?? "", new RegExp(field));
+  }
+});
 
 function writeSecurityPlanFixture(args: {
   root: string;
@@ -256,6 +288,102 @@ test("[UT][security-plan-artifact] rejects resolved credentials before writing t
         path.join(root, ".mcpjvm", "demo", "plans", "security", "authorization", "contract.json"),
       ),
       false,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[UT][security-plan-artifact] validates selected dependency instrumentation against Probe include/exclude rules", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-sidecar-craft-"));
+  try {
+    fs.mkdirSync(path.join(root, ".mcpjvm"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, ".mcpjvm", "probe-config.json"),
+      JSON.stringify({
+        defaultProfile: "security",
+        profiles: {
+          security: {
+            probes: {
+              orders: {
+                baseUrl: "http://127.0.0.1:9193",
+                include: ["com.example.**", "org.acme.policy.**"],
+                exclude: ["org.acme.policy.internal.**"],
+              },
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+    const contract = {
+      ...securityContract(),
+      securityMode: "sidecar_assisted" as const,
+      runtimeTargets: [
+        {
+          id: "policy-check",
+          entrypointRef: "health",
+          probeId: "orders",
+          strictLineKey: "org.acme.policy.PolicyService#check:42",
+          purpose: "sensitive-sink" as const,
+          instrumentationTargetRef: "policy-dependency",
+        },
+      ],
+      instrumentationTargets: [
+        {
+          id: "policy-dependency",
+          scope: "dependency" as const,
+          classFqcn: "org.acme.policy.PolicyService",
+          dependencyRef: "acme-policy",
+        },
+      ],
+    } as Extract<SecurityPlanContract, { securityMode: "sidecar_assisted" }>;
+    const result = await dispatchArtifactManagementAction({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "security_plan",
+        action: "upsert",
+        input: {
+          projectName: "demo",
+          planName: "authorization",
+          payload: { contract },
+        },
+      },
+    });
+    assert.equal(result.structuredContent.status, "ok");
+
+    const rejected = {
+      ...contract,
+      instrumentationTargets: [
+        {
+          id: "policy-dependency",
+          scope: "dependency" as const,
+          classFqcn: "org.acme.policy.internal.PolicyService",
+          dependencyRef: "acme-policy",
+        },
+      ],
+      runtimeTargets: [
+        {
+          ...contract.runtimeTargets[0]!,
+          strictLineKey: "org.acme.policy.internal.PolicyService#check:42",
+        },
+      ],
+    } as Extract<SecurityPlanContract, { securityMode: "sidecar_assisted" }>;
+    const rejectedResult = await dispatchArtifactManagementAction({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "security_plan",
+        action: "upsert",
+        input: {
+          projectName: "demo",
+          planName: "authorization-rejected",
+          payload: { contract: rejected },
+        },
+      },
+    });
+    assert.equal(
+      rejectedResult.structuredContent.reasonCode,
+      "security_sidecar_instrumentation_excluded",
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
