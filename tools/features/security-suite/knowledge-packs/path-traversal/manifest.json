@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "path-traversal",
+  "version": "1.0.0",
+  "ref": "path-traversal@1.0.0",
+  "rulesFile": "rules.json",
+  "description": "Bounded, non-destructive path parameter and query cases confined to the declared local target.",
+  "ruleIds": ["path-traversal-bounded-parameter"],
+  "compatibility": {
+    "contractVersionRange": "^1.0.0"
+  }
+}

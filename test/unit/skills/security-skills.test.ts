@@ -5,11 +5,12 @@ import test from "node:test";
 
 const root = path.resolve("skills");
 
-test("[UT][skills] Security foundation registers all three public Skill Workflows", () => {
+test("[UT][skills] Security foundation registers all public Skill Workflows", () => {
   const names = [
     "mcp-java-dev-tools-security-plan-crafter",
     "mcp-java-dev-tools-security-suite",
     "mcp-java-dev-tools-security-result",
+    "mcp-java-dev-tools-security-suite-diagnostic",
   ];
   for (const name of names) {
     const skillPath = path.join(root, name, "SKILL.md");

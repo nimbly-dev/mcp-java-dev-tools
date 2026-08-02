@@ -1,0 +1,4 @@
+interface:
+  display_name: "MCP Java Dev Tools Security Suite Diagnostic"
+  short_description: "Diagnose Security Suite plans and run evidence"
+  default_prompt: "Use $mcp-java-dev-tools-security-suite-diagnostic to diagnose this Security plan or run from bounded Artifact, SQLite, and optional live Probe evidence."

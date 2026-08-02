@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "authorization-cross-tenant",
+  "version": "1.0.0",
+  "ref": "authorization-cross-tenant@1.0.0",
+  "rulesFile": "rules.json",
+  "description": "Safe Tenant A versus Tenant B authorization checks with isolated identities and fixtures.",
+  "ruleIds": ["authorization-cross-tenant-resource"],
+  "compatibility": {
+    "contractVersionRange": "^1.0.0"
+  }
+}

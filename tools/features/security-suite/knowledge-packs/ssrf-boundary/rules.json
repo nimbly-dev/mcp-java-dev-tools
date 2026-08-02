@@ -1,0 +1,43 @@
+[
+  {
+    "id": "ssrf-local-callback-boundary",
+    "cwe": ["CWE-918"],
+    "rationale": "URL-fetching behavior must be constrained to declared local callback or allow-listed hosts without external-network access.",
+    "categories": ["ssrf"],
+    "entrypointTypes": ["http"],
+    "applicability": {
+      "authenticationKinds": ["anonymous", "bearer", "basic", "api_key", "custom"],
+      "requiredFixtureContextKeys": ["localCallbackUrl", "allowListedHost"]
+    },
+    "caseTemplates": [
+      {
+        "id": "local-callback-url",
+        "baseline": { "expectedOutcome": "allow", "statusCodes": [200] },
+        "attack": {
+          "mutation": "local-callback-url",
+          "mutationBoundary": "query_parameter",
+          "payloadTemplates": ["${fixture.localCallbackUrl}"],
+          "expectedOutcome": "deny",
+          "statusCodes": [400, 403, 422]
+        }
+      }
+    ],
+    "safety": {
+      "mutationBoundary": "query_parameter",
+      "cleanup": "required",
+      "maxImpact": "test_tenant_only"
+    },
+    "evidence": {
+      "required": ["baseline_http_response", "attack_http_response"],
+      "confirmation": "external_request_response"
+    },
+    "severity": "high",
+    "reasonCodes": {
+      "passed": "security_ssrf_boundary_passed",
+      "confirmed": "security_ssrf_boundary_confirmed",
+      "notApplicable": "security_ssrf_boundary_not_applicable",
+      "blocked": "security_ssrf_boundary_blocked"
+    },
+    "title": "URL-fetching boundary accepted a non-allow-listed target"
+  }
+]

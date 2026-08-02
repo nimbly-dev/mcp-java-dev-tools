@@ -348,6 +348,9 @@ export async function executeBlackboxSecurityMode(args: {
     const rule = findApplicableSecurityBlackboxRule({
       packs: selected.packs,
       category: attack.category,
+      entrypointType: entrypoint.type,
+      authenticationKind: authenticationProfile.kind,
+      fixtureContextKeys: Object.keys(contract.targetBoundary.fixtureContext ?? {}),
     });
     if (!rule) {
       cases.push(notApplicableCase(attack, "security_blackbox_knowledge_not_applicable").coverage);

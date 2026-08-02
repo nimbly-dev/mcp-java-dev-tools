@@ -728,7 +728,19 @@ export async function executeSidecarAssistedSecurityMode(args: {
         activeRuntimeByProbe,
       };
       const rule = selectedPacks
-        ? findApplicableSecurityBlackboxRule({ packs: selectedPacks, category: attack.category })
+        ? findApplicableSecurityBlackboxRule({
+            packs: selectedPacks,
+            category: attack.category,
+            entrypointType:
+              validatedContract.entrypoints.find(
+                (entrypoint) => entrypoint.id === attack.entrypointRef,
+              )?.type ?? "http",
+            authenticationKind:
+              validatedContract.authenticationProfiles.find(
+                (profile) => profile.id === attack.authenticationProfileRef,
+              )?.kind ?? "custom",
+            fixtureContextKeys: Object.keys(validatedContract.targetBoundary.fixtureContext ?? {}),
+          })
         : undefined;
       if (rule) executeArgs.rule = rule;
       const result = await executeCase(executeArgs);

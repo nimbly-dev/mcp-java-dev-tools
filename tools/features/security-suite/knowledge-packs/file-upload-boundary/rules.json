@@ -1,0 +1,43 @@
+[
+  {
+    "id": "file-upload-content-type-boundary",
+    "cwe": ["CWE-434"],
+    "rationale": "Upload handlers must constrain content type and filename behavior to safe test-tenant content without executable payloads.",
+    "categories": ["file_upload"],
+    "entrypointTypes": ["http"],
+    "applicability": {
+      "authenticationKinds": ["bearer", "basic", "api_key", "custom"],
+      "requiredFixtureContextKeys": ["safeUploadFilename", "safeContentType"]
+    },
+    "caseTemplates": [
+      {
+        "id": "safe-upload-content-type",
+        "baseline": { "expectedOutcome": "allow", "statusCodes": [200, 201, 202] },
+        "attack": {
+          "mutation": "safe-upload-content-type",
+          "mutationBoundary": "body",
+          "payloadTemplates": ["${fixture.safeUploadFilename}"],
+          "expectedOutcome": "deny",
+          "statusCodes": [400, 403, 415, 422]
+        }
+      }
+    ],
+    "safety": {
+      "mutationBoundary": "body",
+      "cleanup": "required",
+      "maxImpact": "test_tenant_only"
+    },
+    "evidence": {
+      "required": ["baseline_http_response", "attack_http_response"],
+      "confirmation": "external_request_response"
+    },
+    "severity": "high",
+    "reasonCodes": {
+      "passed": "security_file_upload_boundary_passed",
+      "confirmed": "security_file_upload_boundary_confirmed",
+      "notApplicable": "security_file_upload_boundary_not_applicable",
+      "blocked": "security_file_upload_boundary_blocked"
+    },
+    "title": "File upload boundary accepted unsafe content or type"
+  }
+]

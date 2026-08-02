@@ -1,0 +1,43 @@
+[
+  {
+    "id": "path-traversal-bounded-parameter",
+    "cwe": ["CWE-22"],
+    "rationale": "Path-like parameters must remain within the declared application boundary and must not resolve attacker-controlled parent paths.",
+    "categories": ["path_traversal"],
+    "entrypointTypes": ["http"],
+    "applicability": {
+      "authenticationKinds": ["anonymous", "bearer", "basic", "api_key", "custom"],
+      "requiredFixtureContextKeys": ["safePath"]
+    },
+    "caseTemplates": [
+      {
+        "id": "bounded-path-parameter",
+        "baseline": { "expectedOutcome": "allow", "statusCodes": [200] },
+        "attack": {
+          "mutation": "bounded-path-parameter",
+          "mutationBoundary": "path_parameter",
+          "payloadTemplates": ["${fixture.boundedPathTraversalCase}"],
+          "expectedOutcome": "deny",
+          "statusCodes": [400, 403, 404, 422]
+        }
+      }
+    ],
+    "safety": {
+      "mutationBoundary": "path_parameter",
+      "cleanup": "not_required",
+      "maxImpact": "read_only"
+    },
+    "evidence": {
+      "required": ["baseline_http_response", "attack_http_response"],
+      "confirmation": "external_request_response"
+    },
+    "severity": "high",
+    "reasonCodes": {
+      "passed": "security_path_traversal_passed",
+      "confirmed": "security_path_traversal_confirmed",
+      "notApplicable": "security_path_traversal_not_applicable",
+      "blocked": "security_path_traversal_blocked"
+    },
+    "title": "Path parameter escaped the declared application boundary"
+  }
+]

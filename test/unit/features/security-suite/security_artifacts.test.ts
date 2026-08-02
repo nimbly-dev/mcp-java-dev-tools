@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   dispatchSecuritySuiteAction,
   executeSecurityRuntimeSuite,
+  findApplicableSecurityBlackboxRule,
   loadSecurityBlackboxKnowledgePacks,
   readSecurityRunArtifact,
   writeSecurityRunArtifacts,
@@ -63,6 +64,10 @@ function blackboxContract(): SecurityPlanContract {
   contract.targetBoundary = {
     ...contract.targetBoundary,
     baseUrl: "http://127.0.0.1:8080",
+    fixtureContext: {
+      ownResourceId: "own-order",
+      foreignResourceId: "foreign-order",
+    },
   };
   contract.securityKnowledge = { packRefs: ["authorization-idor@1.0.0"] };
   contract.verdictPolicy = {
@@ -72,12 +77,21 @@ function blackboxContract(): SecurityPlanContract {
   contract.entrypoints = [
     { id: "read-order", type: "http", method: "GET", path: "/orders/{orderId}" },
   ];
+  contract.authenticationProfiles = [
+    {
+      id: "limited-user",
+      kind: "bearer",
+      role: "customer",
+      credentialRef: "security.testToken",
+    },
+  ];
   contract.attackProfiles = [
     {
       ...contract.attackProfiles[0]!,
       id: "cross-tenant-order-access",
       category: "authorization",
       entrypointRef: "read-order",
+      authenticationProfileRef: "limited-user",
       baseline: {
         pathParameters: { orderId: "own-order" },
         expect: { outcome: "allow", statusCodes: [200] },
@@ -164,28 +178,39 @@ async function executeBlackboxFixture(args: {
   calls?: Array<Record<string, unknown>>;
 }): Promise<Awaited<ReturnType<typeof executeSecurityRuntimeSuite>>> {
   writeSecurityPlanFixture({ root: args.root, contract: args.contract });
-  return executeSecurityRuntimeSuite({
-    workspaceRootAbs: args.root,
-    projectName: "demo",
-    executionProfile: "security-ci",
-    mcpInvoke: async ({ toolName, input }) => {
-      assert.equal(toolName, "transport_execute");
-      assert.deepEqual(input.options, { wrappedOnly: true });
-      args.calls?.push(input);
-      const request = input.request;
-      const url =
-        typeof request === "object" && request !== null && "url" in request
-          ? String((request as Record<string, unknown>).url)
-          : "";
-      return {
-        structuredContent: {
-          status: "pass",
-          durationMs: 1,
-          statusCode: url.includes("foreign-order") ? args.attackStatusCode : 200,
-        },
-      };
-    },
-  });
+  const envName = "SECURITY_TESTTOKEN";
+  const previous = process.env[envName];
+  const usesDefaultTestToken = args.contract.authenticationProfiles.some(
+    (profile) => profile.credentialRef === "security.testToken",
+  );
+  if (usesDefaultTestToken) process.env[envName] = "resolved-test-token";
+  try {
+    return await executeSecurityRuntimeSuite({
+      workspaceRootAbs: args.root,
+      projectName: "demo",
+      executionProfile: "security-ci",
+      mcpInvoke: async ({ toolName, input }) => {
+        assert.equal(toolName, "transport_execute");
+        assert.deepEqual(input.options, { wrappedOnly: true });
+        args.calls?.push(input);
+        const request = input.request;
+        const url =
+          typeof request === "object" && request !== null && "url" in request
+            ? String((request as Record<string, unknown>).url)
+            : "";
+        return {
+          structuredContent: {
+            status: "pass",
+            durationMs: 1,
+            statusCode: url.includes("foreign-order") ? args.attackStatusCode : 200,
+          },
+        };
+      },
+    });
+  } finally {
+    if (typeof previous === "string") process.env[envName] = previous;
+    else delete process.env[envName];
+  }
 }
 
 test("[UT][security-suite] writes and reads canonical Security run Artifacts", async () => {
@@ -243,6 +268,79 @@ test("[UT][security-blackbox] loads file-backed packs and enforces manifest comp
   });
   assert.ok(!incompatible.ok);
   assert.equal(incompatible.reasonCode, "security_knowledge_pack_incompatible");
+});
+
+test("[UT][security-blackbox] loads every curated v1 pack with a strict rule contract", async () => {
+  const refs = [
+    "web-api-core@1.0.0",
+    "authorization-idor@1.0.0",
+    "authorization-cross-tenant@1.0.0",
+    "authentication-boundary@1.0.0",
+    "path-traversal@1.0.0",
+    "ssrf-boundary@1.0.0",
+    "file-upload-boundary@1.0.0",
+    "input-injection-boundary@1.0.0",
+    "deserialization-boundary@1.0.0",
+  ];
+  const loaded = await loadSecurityBlackboxKnowledgePacks({ packRefs: refs });
+  assert.ok(loaded.ok);
+  assert.deepEqual(
+    loaded.packs.map((pack) => pack.ref),
+    refs,
+  );
+  for (const pack of loaded.packs) {
+    assert.equal(pack.ruleIds.length, pack.rules.length);
+    for (const rule of pack.rules) {
+      assert.ok(rule.cwe.length > 0);
+      assert.ok(rule.rationale.length > 0);
+      assert.ok(rule.caseTemplates.length > 0);
+      assert.deepEqual(rule.evidence.required, ["baseline_http_response", "attack_http_response"]);
+      assert.match(rule.reasonCodes.blocked, /^security_/);
+    }
+  }
+});
+
+test("[UT][security-blackbox] fails closed for duplicate and malformed catalog inputs", async () => {
+  const duplicate = await loadSecurityBlackboxKnowledgePacks({
+    packRefs: ["web-api-core@1.0.0", "web-api-core@1.0.0"],
+  });
+  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.reasonCode, "security_knowledge_pack_duplicate");
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-malformed-pack-"));
+  try {
+    const malformedPack = path.join(root, "malformed-pack");
+    fs.mkdirSync(malformedPack, { recursive: true });
+    fs.writeFileSync(
+      path.join(malformedPack, "manifest.json"),
+      JSON.stringify({ schemaVersion: "1.0.0", id: "malformed-pack" }),
+      "utf8",
+    );
+    const malformed = await loadSecurityBlackboxKnowledgePacks({
+      packRefs: ["web-api-core@1.0.0"],
+      packRootAbs: root,
+    });
+    assert.equal(malformed.ok, false);
+    assert.equal(malformed.reasonCode, "security_knowledge_pack_malformed");
+    assert.deepEqual(malformed.refs, ["malformed-pack"]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[UT][security-blackbox] prefers a category-specific rule over the shared wildcard rule", async () => {
+  const loaded = await loadSecurityBlackboxKnowledgePacks({
+    packRefs: ["web-api-core@1.0.0", "authorization-idor@1.0.0"],
+  });
+  assert.ok(loaded.ok);
+  const rule = findApplicableSecurityBlackboxRule({
+    packs: loaded.packs,
+    category: "authorization",
+    entrypointType: "http",
+    authenticationKind: "bearer",
+    fixtureContextKeys: ["ownResourceId", "foreignResourceId"],
+  });
+  assert.equal(rule?.id, "authorization-idor-cross-tenant");
 });
 
 test("[UT][security-plan-artifact] rejects traversal before resolving the project Artifact", async () => {

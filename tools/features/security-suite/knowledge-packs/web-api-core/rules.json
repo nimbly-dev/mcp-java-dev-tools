@@ -1,9 +1,43 @@
 [
   {
     "id": "web-api-core-http",
+    "cwe": ["CWE-200"],
+    "rationale": "HTTP/API cases need declared entrypoints and reproducible external response evidence before a security result can be classified.",
     "categories": ["*"],
     "entrypointTypes": ["http"],
+    "applicability": {
+      "authenticationKinds": ["anonymous", "bearer", "basic", "api_key", "custom"],
+      "requiredFixtureContextKeys": []
+    },
+    "caseTemplates": [
+      {
+        "id": "declared-http-boundary",
+        "baseline": { "expectedOutcome": "allow", "statusCodes": [200] },
+        "attack": {
+          "mutation": "bounded-input",
+          "mutationBoundary": "query_parameter",
+          "payloadTemplates": ["${fixture.safeInput}"],
+          "expectedOutcome": "deny",
+          "statusCodes": [400, 401, 403, 404, 422]
+        }
+      }
+    ],
+    "safety": {
+      "mutationBoundary": "query_parameter",
+      "cleanup": "not_required",
+      "maxImpact": "read_only"
+    },
+    "evidence": {
+      "required": ["baseline_http_response", "attack_http_response"],
+      "confirmation": "external_request_response"
+    },
     "severity": "medium",
+    "reasonCodes": {
+      "passed": "security_web_api_core_passed",
+      "confirmed": "security_web_api_core_confirmed",
+      "notApplicable": "security_web_api_core_not_applicable",
+      "blocked": "security_web_api_core_blocked"
+    },
     "title": "HTTP/API security expectation was not enforced"
   }
 ]
