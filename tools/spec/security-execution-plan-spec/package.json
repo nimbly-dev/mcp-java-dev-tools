@@ -1,0 +1,6 @@
+{
+  "name": "@mcp-java-dev-tools/security-execution-plan-spec",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Artifact Spec models, validation, and path policy for Security Suite Artifacts"
+}

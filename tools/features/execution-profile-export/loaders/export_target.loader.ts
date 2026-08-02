@@ -114,7 +114,7 @@ function normalizeProfile(raw: Record<string, unknown>): ExportExecutionProfileT
   }
   const suiteTypeRaw = asString(raw.suiteType);
   const suiteType: ExecutionProfileSuiteType =
-    suiteTypeRaw === "performance" ? "performance" : "regression";
+    suiteTypeRaw === "performance" || suiteTypeRaw === "security" ? suiteTypeRaw : "regression";
   const rawPlans = Array.isArray(raw.plans) ? raw.plans : [];
   const plans = rawPlans
     .map((entry) => {

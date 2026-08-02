@@ -21,7 +21,7 @@ async function fileExists(abs: string): Promise<boolean> {
 
 export async function resolvePlansRootAbs(args: {
   workspaceRootAbs: string;
-  suiteType: "regression" | "performance";
+  suiteType: "regression" | "performance" | "security";
   projectName?: string;
 }): Promise<string> {
   const mcpjvmRoot = path.join(args.workspaceRootAbs, ".mcpjvm");

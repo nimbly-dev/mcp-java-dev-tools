@@ -7,7 +7,7 @@ export type ExecutionProfileExportPlanRun = {
   runId?: string;
 };
 
-export type ExecutionProfileSuiteType = "regression" | "performance";
+export type ExecutionProfileSuiteType = "regression" | "performance" | "security";
 
 export type ExecutionProfileExportManifest = {
   schemaVersion: "1.0.0";

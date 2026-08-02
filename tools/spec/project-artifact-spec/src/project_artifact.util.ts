@@ -495,8 +495,8 @@ function normalizeExecutionProfile(input: unknown, index: number, errors: string
     return null;
   }
   const suiteTypeRaw = asTrimmedString(input.suiteType) ?? "regression";
-  if (suiteTypeRaw !== "regression" && suiteTypeRaw !== "performance") {
-    errors.push(`workspaces[].executionProfiles[${index}].suiteType must be regression|performance`);
+  if (suiteTypeRaw !== "regression" && suiteTypeRaw !== "performance" && suiteTypeRaw !== "security") {
+    errors.push(`workspaces[].executionProfiles[${index}].suiteType must be regression|performance|security`);
     return null;
   }
   if (!Array.isArray(input.plans) || input.plans.length === 0) {
