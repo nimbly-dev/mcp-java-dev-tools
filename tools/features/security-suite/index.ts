@@ -3,7 +3,10 @@ export { executeSecurityRuntimeSuite } from "./actions/execute_security_runtime_
 export { readSecuritySuiteManifest } from "./support/load_security_suite_manifest";
 export { writeSecurityRunArtifacts } from "./persistence/security_artifact_writer";
 export { readSecurityRunArtifact } from "./persistence/security_artifact_reader";
-export { loadSecurityBlackboxKnowledgePacks } from "./support/security_blackbox_knowledge";
+export {
+  findApplicableSecurityBlackboxRule,
+  loadSecurityBlackboxKnowledgePacks,
+} from "./support/security_blackbox_knowledge";
 export {
   validateSidecarInstrumentationSelection,
   type SidecarInstrumentationSelection,

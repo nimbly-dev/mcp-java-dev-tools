@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "ref": "authorization-idor@1.0.0",
   "rulesFile": "rules.json",
+  "description": "Safe own-versus-foreign resource authorization checks for HTTP/API entrypoints.",
+  "ruleIds": ["authorization-idor-cross-tenant"],
   "compatibility": {
     "contractVersionRange": "^1.0.0"
   }

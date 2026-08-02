@@ -1,17 +1,17 @@
 [
   {
-    "id": "authorization-idor-cross-tenant",
+    "id": "authorization-cross-tenant-resource",
     "cwe": ["CWE-639", "CWE-862", "CWE-863"],
-    "rationale": "An authenticated principal must not retrieve another principal's resource by changing a declared resource identifier.",
+    "rationale": "Tenant isolation requires a limited identity from Tenant A to be denied access to a Tenant B resource.",
     "categories": ["authorization"],
     "entrypointTypes": ["http"],
     "applicability": {
       "authenticationKinds": ["bearer", "basic", "api_key", "custom"],
-      "requiredFixtureContextKeys": ["ownResourceId", "foreignResourceId"]
+      "requiredFixtureContextKeys": ["tenantA", "tenantB", "ownResourceId", "foreignResourceId"]
     },
     "caseTemplates": [
       {
-        "id": "own-versus-foreign-resource",
+        "id": "tenant-a-versus-tenant-b-resource",
         "baseline": { "expectedOutcome": "allow", "statusCodes": [200] },
         "attack": {
           "mutation": "own-versus-foreign-resource",
@@ -25,7 +25,7 @@
     "safety": {
       "mutationBoundary": "path_parameter",
       "cleanup": "not_required",
-      "maxImpact": "read_only"
+      "maxImpact": "test_tenant_only"
     },
     "evidence": {
       "required": ["baseline_http_response", "attack_http_response"],
@@ -33,11 +33,11 @@
     },
     "severity": "high",
     "reasonCodes": {
-      "passed": "security_authorization_idor_passed",
-      "confirmed": "security_authorization_idor_confirmed",
-      "notApplicable": "security_authorization_idor_not_applicable",
-      "blocked": "security_authorization_idor_blocked"
+      "passed": "security_authorization_cross_tenant_passed",
+      "confirmed": "security_authorization_cross_tenant_confirmed",
+      "notApplicable": "security_authorization_cross_tenant_not_applicable",
+      "blocked": "security_authorization_cross_tenant_blocked"
     },
-    "title": "Authorization boundary permitted a foreign resource response"
+    "title": "Tenant boundary permitted a foreign resource response"
   }
 ]

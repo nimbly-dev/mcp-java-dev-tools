@@ -60,6 +60,10 @@ function securityContract(baseUrl: string): SecurityPlanContract {
       allowedHosts: ["127.0.0.1"],
       allowedPorts: [new URL(baseUrl).port ? Number(new URL(baseUrl).port) : 80],
       externalNetworkAccess: "forbidden",
+      fixtureContext: {
+        ownResourceId: "own-order",
+        foreignResourceId: "foreign-order",
+      },
     },
     securityKnowledge: { packRefs: ["authorization-idor@1.0.0"] },
     entrypoints: [{ id: "read-order", type: "http", method: "GET", path: "/orders/{orderId}" }],

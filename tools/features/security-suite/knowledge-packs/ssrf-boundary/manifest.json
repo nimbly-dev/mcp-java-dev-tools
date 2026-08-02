@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "ssrf-boundary",
+  "version": "1.0.0",
+  "ref": "ssrf-boundary@1.0.0",
+  "rulesFile": "rules.json",
+  "description": "Safe local callback and allow-list cases; external-network access is never permitted.",
+  "ruleIds": ["ssrf-local-callback-boundary"],
+  "compatibility": {
+    "contractVersionRange": "^1.0.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "deserialization-boundary",
+  "version": "1.0.0",
+  "ref": "deserialization-boundary@1.0.0",
+  "rulesFile": "rules.json",
+  "description": "Non-executing, safe serialized-value applicability and evidence rules.",
+  "ruleIds": ["deserialization-non-executing-boundary"],
+  "compatibility": {
+    "contractVersionRange": "^1.0.0"
+  }
+}

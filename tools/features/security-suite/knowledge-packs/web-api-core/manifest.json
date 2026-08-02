@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "ref": "web-api-core@1.0.0",
   "rulesFile": "rules.json",
+  "description": "Shared safe HTTP/API applicability and external evidence expectations.",
+  "ruleIds": ["web-api-core-http"],
   "compatibility": {
     "contractVersionRange": ">=1.0.0 <2.0.0"
   }

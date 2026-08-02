@@ -1,0 +1,43 @@
+[
+  {
+    "id": "authentication-boundary-cases",
+    "cwe": ["CWE-287"],
+    "rationale": "Protected HTTP/API entrypoints must reject anonymous, missing, malformed, or insufficient authentication contexts.",
+    "categories": ["authentication"],
+    "entrypointTypes": ["http"],
+    "applicability": {
+      "authenticationKinds": ["anonymous", "bearer", "basic", "api_key", "custom"],
+      "requiredFixtureContextKeys": []
+    },
+    "caseTemplates": [
+      {
+        "id": "missing-or-constrained-authentication",
+        "baseline": { "expectedOutcome": "allow", "statusCodes": [200] },
+        "attack": {
+          "mutation": "missing-authentication",
+          "mutationBoundary": "header",
+          "payloadTemplates": ["${fixture.anonymousRequest}"],
+          "expectedOutcome": "deny",
+          "statusCodes": [401, 403]
+        }
+      }
+    ],
+    "safety": {
+      "mutationBoundary": "header",
+      "cleanup": "not_required",
+      "maxImpact": "read_only"
+    },
+    "evidence": {
+      "required": ["baseline_http_response", "attack_http_response"],
+      "confirmation": "external_request_response"
+    },
+    "severity": "high",
+    "reasonCodes": {
+      "passed": "security_authentication_boundary_passed",
+      "confirmed": "security_authentication_boundary_confirmed",
+      "notApplicable": "security_authentication_boundary_not_applicable",
+      "blocked": "security_authentication_boundary_blocked"
+    },
+    "title": "Authentication boundary accepted an unauthenticated or insufficient context"
+  }
+]

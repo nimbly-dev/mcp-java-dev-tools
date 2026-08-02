@@ -1,0 +1,43 @@
+[
+  {
+    "id": "deserialization-non-executing-boundary",
+    "cwe": ["CWE-502"],
+    "rationale": "Deserialization checks must remain non-executing and limited to declared serialized input boundaries.",
+    "categories": ["deserialization"],
+    "entrypointTypes": ["http"],
+    "applicability": {
+      "authenticationKinds": ["anonymous", "bearer", "basic", "api_key", "custom"],
+      "requiredFixtureContextKeys": ["safeSerializedValue"]
+    },
+    "caseTemplates": [
+      {
+        "id": "non-executing-serialized-value",
+        "baseline": { "expectedOutcome": "allow", "statusCodes": [200] },
+        "attack": {
+          "mutation": "non-executing-serialized-value",
+          "mutationBoundary": "body",
+          "payloadTemplates": ["${fixture.safeSerializedValue}"],
+          "expectedOutcome": "deny",
+          "statusCodes": [400, 415, 422]
+        }
+      }
+    ],
+    "safety": {
+      "mutationBoundary": "body",
+      "cleanup": "not_required",
+      "maxImpact": "read_only"
+    },
+    "evidence": {
+      "required": ["baseline_http_response", "attack_http_response"],
+      "confirmation": "external_request_response"
+    },
+    "severity": "critical",
+    "reasonCodes": {
+      "passed": "security_deserialization_boundary_passed",
+      "confirmed": "security_deserialization_boundary_confirmed",
+      "notApplicable": "security_deserialization_boundary_not_applicable",
+      "blocked": "security_deserialization_boundary_blocked"
+    },
+    "title": "Deserialization boundary accepted an unsafe serialized value"
+  }
+]

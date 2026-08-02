@@ -1,0 +1,43 @@
+[
+  {
+    "id": "input-injection-bounded-case",
+    "cwe": ["CWE-89", "CWE-78"],
+    "rationale": "Only declared HTTP contracts that safely expose bounded input fields may receive non-destructive injection detection cases.",
+    "categories": ["injection"],
+    "entrypointTypes": ["http"],
+    "applicability": {
+      "authenticationKinds": ["anonymous", "bearer", "basic", "api_key", "custom"],
+      "requiredFixtureContextKeys": ["boundedInput"]
+    },
+    "caseTemplates": [
+      {
+        "id": "bounded-input",
+        "baseline": { "expectedOutcome": "allow", "statusCodes": [200] },
+        "attack": {
+          "mutation": "bounded-input",
+          "mutationBoundary": "query_parameter",
+          "payloadTemplates": ["${fixture.boundedInput}"],
+          "expectedOutcome": "deny",
+          "statusCodes": [400, 403, 422]
+        }
+      }
+    ],
+    "safety": {
+      "mutationBoundary": "query_parameter",
+      "cleanup": "not_required",
+      "maxImpact": "read_only"
+    },
+    "evidence": {
+      "required": ["baseline_http_response", "attack_http_response"],
+      "confirmation": "external_request_response"
+    },
+    "severity": "critical",
+    "reasonCodes": {
+      "passed": "security_input_injection_boundary_passed",
+      "confirmed": "security_input_injection_boundary_confirmed",
+      "notApplicable": "security_input_injection_boundary_not_applicable",
+      "blocked": "security_input_injection_boundary_blocked"
+    },
+    "title": "Declared input boundary accepted an injection case"
+  }
+]
