@@ -32,7 +32,7 @@ function securityContract(): SecurityPlanContract {
     securityKnowledge: { packRefs: ["web-api-core@1.0.0"] },
     entrypoints: [{ id: "health", type: "http", method: "GET", path: "/health" }],
     authenticationProfiles: [{ id: "anonymous", kind: "anonymous" }],
-    attackProfiles: [
+    customCases: [
       {
         id: "health-check",
         category: "other",
@@ -85,9 +85,9 @@ function blackboxContract(): SecurityPlanContract {
       credentialRef: "security.testToken",
     },
   ];
-  contract.attackProfiles = [
+  contract.customCases = [
     {
-      ...contract.attackProfiles[0]!,
+      ...contract.customCases![0]!,
       id: "cross-tenant-order-access",
       category: "authorization",
       entrypointRef: "read-order",
@@ -122,7 +122,7 @@ test("[UT][security-contract] rejects Sidecar-only runtime fields in Black-box c
         },
       ];
     } else {
-      const attacks = contract.attackProfiles as Array<Record<string, unknown>>;
+      const attacks = contract.customCases as Array<Record<string, unknown>>;
       const baseline = attacks[0]?.baseline as Record<string, unknown>;
       const expect = baseline.expect as Record<string, unknown>;
       expect[field] = ["sidecar-target"];
@@ -562,6 +562,7 @@ test("[UT][security-suite] processes ordered plan slices and resumes with prior 
     assert.equal(first.nextPlanOrder, 2);
     assert.equal(first.planRuns.length, 1);
     if (typeof first.suiteRunId !== "string") throw new Error("security suite run id missing");
+    assert.equal(first.planRuns[0]?.runId, `${first.suiteRunId}-plan-a`);
 
     const second = await executeSecurityRuntimeSuite({
       workspaceRootAbs: root,
@@ -576,6 +577,7 @@ test("[UT][security-suite] processes ordered plan slices and resumes with prior 
     assert.equal(second.status, "partial_fail");
     assert.equal(second.planRuns.length, 2);
     assert.equal(second.planRuns[1]?.planName, "plan-b");
+    assert.equal(second.planRuns[1]?.runId, `${first.suiteRunId}-plan-b`);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -679,6 +681,66 @@ test("[UT][security-blackbox] executes the finite baseline and attack case throu
   }
 });
 
+test("[UT][security-blackbox] classifies non-applicable catalog rules before mutation targeting", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-blackbox-applicability-"));
+  try {
+    const contract = securityContract();
+    delete contract.securityKnowledge;
+    delete contract.customCases;
+    contract.entrypoints = [
+      {
+        id: "publish",
+        type: "http",
+        method: "POST",
+        path: "/test_api",
+        baseline: {
+          headers: { "Content-Type": "application/json" },
+          body: { dataBody: "safe boundary baseline" },
+        },
+      },
+    ];
+    contract.targetBoundary = {
+      ...contract.targetBoundary,
+      fixtureContext: {
+        anonymousRequest: "anonymous",
+        safeInput: "safe-input",
+        safeSerializedValue: "safe-serialized-value",
+      },
+    };
+    contract.authenticationProfiles = [{ id: "anonymous", kind: "anonymous" }];
+    const result = await executeBlackboxFixture({ root, contract, attackStatusCode: 403 });
+    const artifact = await readSecurityRunArtifact({
+      workspaceRootAbs: root,
+      projectName: "demo",
+      planName: "authorization",
+      runId: result.planRuns[0]?.runId ?? "",
+    });
+    assert.ok(artifact.ok);
+    assert.equal(artifact.artifact.coverage.notApplicableCount, 7);
+    assert.equal(
+      artifact.artifact.coverage.cases.some(
+        (securityCase) => securityCase.reasonCode === "security_blackbox_mutation_target_missing",
+      ),
+      false,
+    );
+    assert.equal(
+      artifact.artifact.coverage.cases.some(
+        (securityCase) => securityCase.reasonCode === "security_authorization_idor_not_applicable",
+      ),
+      true,
+    );
+    assert.equal(
+      artifact.artifact.coverage.cases.some(
+        (securityCase) =>
+          securityCase.reasonCode === "security_authorization_cross_tenant_not_applicable",
+      ),
+      true,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("[UT][security-blackbox] classifies an allowed foreign response as an external confirmed finding", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-blackbox-finding-"));
   try {
@@ -720,7 +782,7 @@ test("[UT][security-blackbox] isolates symbolic credentials per case and never p
         credentialRef: "security.limitedUserToken",
       },
     ];
-    contract.attackProfiles[0]!.authenticationProfileRef = "limited-user";
+    contract.customCases![0]!.authenticationProfileRef = "limited-user";
     const calls: Array<Record<string, unknown>> = [];
     const result = await executeBlackboxFixture({ root, contract, attackStatusCode: 403, calls });
     assert.equal(result.status, "pass");
@@ -771,7 +833,7 @@ test("[UT][security-blackbox] blocks incomplete execution when a credential refe
         credentialRef: "security.limitedUserToken",
       },
     ];
-    contract.attackProfiles[0]!.authenticationProfileRef = "limited-user";
+    contract.customCases![0]!.authenticationProfileRef = "limited-user";
     const result = await executeBlackboxFixture({ root, contract, attackStatusCode: 403 });
     assert.equal(result.status, "blocked");
     assert.equal(result.reasonCode, "security_blackbox_coverage_incomplete");

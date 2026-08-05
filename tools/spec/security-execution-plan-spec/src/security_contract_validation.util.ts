@@ -28,6 +28,42 @@ function isAllowedEntrypointType(value: unknown): boolean {
   );
 }
 
+function entrypointType(value: Record<string, unknown>): string | undefined {
+  if (isRecord(value.transport) && typeof value.transport.type === "string") {
+    return value.transport.type;
+  }
+  return typeof value.type === "string" ? value.type : undefined;
+}
+
+function entrypointHttpShapeIsValid(value: Record<string, unknown>): boolean {
+  const transport = isRecord(value.transport) ? value.transport : value;
+  return (
+    entrypointType(value) === "http" &&
+    isNonEmptyString(transport.method) &&
+    isNonEmptyString(transport.path) &&
+    String(transport.path).startsWith("/") &&
+    !String(transport.path).startsWith("//")
+  );
+}
+
+function isStringRecord(value: unknown): boolean {
+  return isRecord(value) && Object.values(value).every((child) => typeof child === "string");
+}
+
+function isHttpBaselineRecipe(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (
+    Object.keys(value).some((key) => !["pathParameters", "query", "headers", "body"].includes(key))
+  ) {
+    return false;
+  }
+  return (
+    (value.pathParameters === undefined || isStringRecord(value.pathParameters)) &&
+    (value.query === undefined || isStringRecord(value.query)) &&
+    (value.headers === undefined || isStringRecord(value.headers))
+  );
+}
+
 function isAllowedAuthenticationKind(value: unknown): boolean {
   return (
     value === "anonymous" ||
@@ -50,6 +86,20 @@ function isAllowedSeverity(value: unknown): boolean {
 
 function isSecurityRequest(value: unknown): boolean {
   if (!isRecord(value) || !isRecord(value.expect)) return false;
+  if (value.transport !== undefined) {
+    if (!isRecord(value.transport) || !isAllowedEntrypointType(value.transport.type)) {
+      return false;
+    }
+    if (value.transport.type === "http") {
+      if (value.transport.query !== undefined && !isRecord(value.transport.query)) return false;
+      if (
+        value.transport.queryParameters !== undefined &&
+        !isRecord(value.transport.queryParameters)
+      ) {
+        return false;
+      }
+    }
+  }
   if (
     value.expect.outcome !== "allow" &&
     value.expect.outcome !== "deny" &&
@@ -320,19 +370,15 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
     const knowledge = input.securityKnowledge;
     if (
       !isRecord(knowledge) ||
-      !Array.isArray(knowledge.packRefs) ||
-      knowledge.packRefs.length === 0 ||
-      knowledge.packRefs.some((value) => !isNonEmptyString(value))
+      (knowledge.packRefs !== undefined &&
+        (!Array.isArray(knowledge.packRefs) ||
+          knowledge.packRefs.length === 0 ||
+          knowledge.packRefs.some((value) => !isNonEmptyString(value))))
     ) {
       return invalid("security_contract_knowledge_invalid", [
-        "securityKnowledge.packRefs must contain at least one non-empty reference",
+        "securityKnowledge.packRefs must contain non-empty pinned references when provided",
       ]);
     }
-  }
-  if (input.securityMode === "blackbox" && input.securityKnowledge === undefined) {
-    return invalid("security_contract_knowledge_invalid", [
-      "blackbox contracts must pin at least one securityKnowledge.packRefs entry",
-    ]);
   }
   if (
     input.securityMode === "blackbox" &&
@@ -385,10 +431,26 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
   if (
     entrypointIds.some((id) => !id) ||
     new Set(entrypointIds).size !== entrypointIds.length ||
-    input.entrypoints.some((entry) => !isRecord(entry) || !isAllowedEntrypointType(entry.type))
+    input.entrypoints.some(
+      (entry) => !isRecord(entry) || !isAllowedEntrypointType(entrypointType(entry)),
+    )
   ) {
     return invalid("security_contract_entrypoints_invalid", [
       "entrypoints must have unique non-empty ids",
+    ]);
+  }
+  if (
+    input.securityMode === "blackbox" &&
+    input.entrypoints.some(
+      (entry) =>
+        isRecord(entry) &&
+        entrypointType(entry) === "http" &&
+        entry.baseline !== undefined &&
+        !isHttpBaselineRecipe(entry.baseline),
+    )
+  ) {
+    return invalid("security_contract_entrypoints_invalid", [
+      "HTTP entrypoint baseline recipes may contain only pathParameters, query, headers, and body",
     ]);
   }
 
@@ -430,12 +492,29 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
     ]);
   }
 
-  if (!Array.isArray(input.attackProfiles) || input.attackProfiles.length === 0) {
+  if (input.securityMode === "blackbox" && input.attackProfiles !== undefined) {
     return invalid("security_contract_attack_profiles_invalid", [
-      "attackProfiles must be non-empty",
+      "blackbox contracts must use customCases for explicit overrides; attackProfiles are not allowed in normal mode",
     ]);
   }
-  const attackIds = input.attackProfiles.map((attack) =>
+  const authoredCases =
+    input.securityMode === "blackbox"
+      ? input.customCases
+      : (input.customCases ?? input.attackProfiles);
+  if (
+    input.securityMode === "sidecar_assisted" &&
+    (!Array.isArray(authoredCases) || authoredCases.length === 0)
+  ) {
+    return invalid("security_contract_attack_profiles_invalid", [
+      "sidecar_assisted contracts must define non-empty customCases",
+    ]);
+  }
+  if (authoredCases !== undefined && !Array.isArray(authoredCases)) {
+    return invalid("security_contract_attack_profiles_invalid", [
+      "customCases must be an array when provided",
+    ]);
+  }
+  const attackIds = (authoredCases ?? []).map((attack) =>
     isRecord(attack) && isNonEmptyString(attack.id) ? attack.id.trim() : "",
   );
   if (attackIds.some((id) => !id) || new Set(attackIds).size !== attackIds.length) {
@@ -444,7 +523,7 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
     ]);
   }
   if (
-    input.attackProfiles.some(
+    (authoredCases ?? []).some(
       (attack) =>
         !isRecord(attack) ||
         !isNonEmptyString(attack.entrypointRef) ||
@@ -458,7 +537,7 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
     ]);
   }
   const referenceError = validateAttackProfileReferences(
-    input.attackProfiles as SecurityAttackProfile[],
+    (authoredCases ?? []) as SecurityAttackProfile[],
     new Set(entrypointIds),
     new Set(authIds),
   );
@@ -502,7 +581,7 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
   if (input.securityMode === "blackbox") {
     const blackboxViolation = findBlackboxViolation(input, "contract");
     const internalRuntimeEntrypoint = input.entrypoints.some(
-      (entry) => isRecord(entry) && entry.type === "internal_runtime",
+      (entry) => isRecord(entry) && entrypointType(entry) === "internal_runtime",
     );
     if (blackboxViolation || internalRuntimeEntrypoint) {
       return invalid("security_contract_blackbox_forbidden_field", [
@@ -515,15 +594,11 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
       input.entrypoints.some(
         (entry) =>
           !isRecord(entry) ||
-          entry.type !== "http" ||
-          !isNonEmptyString(entry.method) ||
-          !isNonEmptyString(entry.path) ||
-          !String(entry.path).startsWith("/") ||
-          String(entry.path).startsWith("//"),
+          (entrypointType(entry) === "http" && !entrypointHttpShapeIsValid(entry)),
       )
     ) {
       return invalid("security_contract_entrypoints_invalid", [
-        "blackbox entrypoints must be HTTP entries with a relative path and method",
+        "HTTP entrypoints must declare a relative path and method inside the HTTP transport",
       ]);
     }
   } else {
@@ -624,7 +699,7 @@ export function validateSecurityPlanContract(input: unknown): SecurityContractVa
       ]);
     }
     const runtimeExpectationReferenceError = validateRuntimeExpectationReferences({
-      attacks: input.attackProfiles as SecurityAttackProfile[],
+      attacks: (authoredCases ?? []) as SecurityAttackProfile[],
       runtimeTargets: input.runtimeTargets.filter(isRecord),
     });
     if (runtimeExpectationReferenceError) {

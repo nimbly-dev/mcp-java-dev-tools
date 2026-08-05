@@ -84,6 +84,7 @@ const CorrelationStateDetailSchema = z.object({
 });
 
 export const RunResultQuerySchema = ArtifactSelectQuerySchema.extend({
+  suiteType: z.enum(["regression", "security"]).optional(),
   filters: CorrelationStateFiltersSchema.optional(),
   sort: z
     .object({ field: z.literal("startedAtEpochMs"), direction: z.enum(["asc", "desc"]) })
@@ -154,6 +155,7 @@ export const RunResultQuerySchema = ArtifactSelectQuerySchema.extend({
   });
 
 export const RunResultInputSchema = ProjectScopedInputSchema.extend({
+  suiteType: z.enum(["regression", "security"]).optional(),
   planName: z.string().optional(),
   runId: z.string().optional(),
   executionProfile: z.string().optional(),

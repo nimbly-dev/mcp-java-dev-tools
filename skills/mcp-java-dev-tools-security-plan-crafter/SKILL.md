@@ -11,8 +11,8 @@ This Skill Workflow authors the mode-neutral Security Artifact contract. It does
 
 1. Research only declared or locally observable entrypoints and authentication profiles.
 2. Select exactly one `securityMode`: `blackbox` or `sidecar_assisted`.
-3. For `blackbox`, select and pin packs from [the local knowledge-pack index](references/knowledge-pack-index.md); do not perform live research during CI execution.
-4. Build a finite attack matrix from the declared entrypoints, authentication profiles, and attack profiles.
+3. For `blackbox`, use the reviewed local catalog by default. Use `securityKnowledge.packRefs` only as an advanced targeted/reproduction override; do not perform live research during CI execution.
+4. Declare the finite external boundary, HTTP entrypoints with safe `baseline` request recipes, authentication profiles, fixture capabilities, and optional bounded `customCases`/constraints. Normal cases are generated from applicable catalog rule templates; do not author `attackProfiles` in Black-box plans.
 5. Apply the shared safety and verdict policies from the Security Artifact Spec.
 6. Validate the contract through `artifact_management` with `artifactType=security_plan` before upserting it.
 
@@ -22,13 +22,13 @@ When a Sidecar target depends on application or explicitly selected dependency i
 
 ## Mode boundary
 
-- `blackbox` plans contain network-visible target data and pinned `securityKnowledge.packRefs`; they must not contain source, JAR, FQCN, Sidecar, Probe, or Strict Line Key data.
+- `blackbox` plans contain network-visible target data and may omit `securityKnowledge.packRefs` for catalog-default selection; they must not contain source, JAR, FQCN, Sidecar, Probe, or Strict Line Key data.
 - `sidecar_assisted` plans may declare runtime targets with Probe IDs and Strict Line Keys, but an external-exploitability claim still requires an external attack path.
 - Sidecar-assisted plans may inspect application or explicitly declared dependency symbols during craft/build, but must persist only bounded target references and sanitized diagnostics; never persist credentials, raw environment variables, or arbitrary source dumps.
 
 ## Required contract fields
 
-`suiteType`, `securityMode`, `targetBoundary`, `entrypoints`, `authenticationProfiles`, `attackProfiles`, `exhaustiveness`, `safetyPolicy`, and `verdictPolicy` are required. Never persist resolved credentials, tokens, passwords, or raw environment variables.
+`suiteType`, `securityMode`, `targetBoundary`, `entrypoints`, `authenticationProfiles`, `exhaustiveness`, `safetyPolicy`, and `verdictPolicy` are required. Each HTTP entrypoint should declare a safe `baseline` recipe containing only path parameters, query values, headers, and body data; missing or unusable recipes block generated cases. `customCases` is optional and is an override surface, not the normal case source. Never persist resolved credentials, tokens, passwords, or raw environment variables.
 
 ## Fail-closed rules
 

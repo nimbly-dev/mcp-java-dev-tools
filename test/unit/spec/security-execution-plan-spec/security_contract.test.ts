@@ -19,9 +19,17 @@ function baseContract(): SecurityPlanContract {
       externalNetworkAccess: "forbidden",
     },
     securityKnowledge: { packRefs: ["web-api-core@1.0.0"] },
-    entrypoints: [{ id: "read-order", type: "http", method: "GET", path: "/orders/{id}" }],
+    entrypoints: [
+      {
+        id: "read-order",
+        type: "http",
+        method: "GET",
+        path: "/orders/{id}",
+        baseline: { pathParameters: { id: "${fixture.ownResourceId}" } },
+      },
+    ],
     authenticationProfiles: [{ id: "anonymous", kind: "anonymous", role: "anonymous" }],
-    attackProfiles: [
+    customCases: [
       {
         id: "authorization-boundary",
         category: "authorization",
@@ -59,6 +67,29 @@ test("[UT][security-artifact-spec] validates the shared blackbox contract", () =
   assert.equal(result.ok, true);
 });
 
+test("[UT][security-artifact-spec] rejects legacy blackbox attackProfiles", () => {
+  const result = validateSecurityPlanContract({
+    ...baseContract(),
+    attackProfiles: baseContract().customCases,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reasonCode, "security_contract_attack_profiles_invalid");
+});
+
+test("[UT][security-artifact-spec] rejects invalid HTTP baseline recipes", () => {
+  const result = validateSecurityPlanContract({
+    ...baseContract(),
+    entrypoints: [
+      {
+        ...baseContract().entrypoints[0],
+        baseline: { expect: { outcome: "allow" } },
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reasonCode, "security_contract_entrypoints_invalid");
+});
+
 test("[UT][security-artifact-spec] rejects runtime targets in blackbox mode", () => {
   const result = validateSecurityPlanContract({
     ...baseContract(),
@@ -77,7 +108,10 @@ test("[UT][security-artifact-spec] rejects runtime targets in blackbox mode", ()
 });
 
 test("[UT][security-artifact-spec] requires sidecar runtime targets", () => {
-  const result = validateSecurityPlanContract({ ...baseContract(), securityMode: "sidecar_assisted" });
+  const result = validateSecurityPlanContract({
+    ...baseContract(),
+    securityMode: "sidecar_assisted",
+  });
   assert.equal(result.ok, false);
   assert.equal(result.reasonCode, "security_contract_sidecar_runtime_target_required");
 });
@@ -102,7 +136,7 @@ test("[UT][security-artifact-spec] accepts valid sidecar runtime targets", () =>
 test("[UT][security-artifact-spec] rejects unresolved attack references", () => {
   const result = validateSecurityPlanContract({
     ...baseContract(),
-    attackProfiles: [{ ...baseContract().attackProfiles[0], entrypointRef: "missing" }],
+    customCases: [{ ...baseContract().customCases![0]!, entrypointRef: "missing" }],
   });
   assert.equal(result.ok, false);
   assert.equal(result.reasonCode, "security_contract_reference_invalid");
@@ -120,11 +154,11 @@ test("[UT][security-artifact-spec] rejects resolved credentials and secret heade
 
   const headerResult = validateSecurityPlanContract({
     ...baseContract(),
-    attackProfiles: [
+    customCases: [
       {
-        ...baseContract().attackProfiles[0]!,
+        ...baseContract().customCases![0]!,
         attack: {
-          ...baseContract().attackProfiles[0]!.attack,
+          ...baseContract().customCases![0]!.attack,
           headers: { Authorization: "Bearer resolved-token" },
         },
       },
@@ -140,12 +174,12 @@ test("[UT][security-artifact-spec] allows symbolic credential and header referen
     authenticationProfiles: [
       { id: "bearer", kind: "bearer", credentialRef: "security.limitedUserToken" },
     ],
-    attackProfiles: [
+    customCases: [
       {
-        ...baseContract().attackProfiles[0]!,
+        ...baseContract().customCases![0]!,
         authenticationProfileRef: "bearer",
         baseline: {
-          ...baseContract().attackProfiles[0]!.baseline,
+          ...baseContract().customCases![0]!.baseline,
           headers: { Authorization: "Bearer ${security.limitedUserToken}" },
         },
       },
@@ -157,12 +191,15 @@ test("[UT][security-artifact-spec] allows symbolic credential and header referen
 test("[UT][security-artifact-spec] rejects nested passwords and raw environment values", () => {
   const result = validateSecurityPlanContract({
     ...baseContract(),
-    attackProfiles: [
+    customCases: [
       {
-        ...baseContract().attackProfiles[0]!,
+        ...baseContract().customCases![0]!,
         attack: {
-          ...baseContract().attackProfiles[0]!.attack,
-          body: { nested: { password: "resolved-password" }, environment: { API_TOKEN: "resolved-token" } },
+          ...baseContract().customCases![0]!.attack,
+          body: {
+            nested: { password: "resolved-password" },
+            environment: { API_TOKEN: "resolved-token" },
+          },
         },
       },
     ],

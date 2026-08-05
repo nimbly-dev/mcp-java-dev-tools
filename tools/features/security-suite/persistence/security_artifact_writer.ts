@@ -84,6 +84,30 @@ function sanitizeSecurityMatrix(matrix: SecurityFiniteAttackMatrix): SecurityFin
     ...(matrix.knowledgePackRefs
       ? { knowledgePackRefs: matrix.knowledgePackRefs.map(sanitizeSecurityId) }
       : {}),
+    ...(matrix.knowledgeSnapshot
+      ? {
+          knowledgeSnapshot: {
+            selection: matrix.knowledgeSnapshot.selection,
+            packs: matrix.knowledgeSnapshot.packs.map((pack) => ({
+              id: sanitizeSecurityId(pack.id),
+              version: sanitizeSecurityId(pack.version),
+              ref: sanitizeSecurityId(pack.ref),
+              compatibility: {
+                contractVersionRange: sanitizeSecurityDiagnostic(
+                  pack.compatibility.contractVersionRange,
+                ),
+              },
+              ...(pack.contentDigest
+                ? {
+                    contentDigest: /^[a-f0-9]{64}$/.test(pack.contentDigest)
+                      ? pack.contentDigest
+                      : sanitizeSecurityId(pack.contentDigest),
+                  }
+                : {}),
+            })),
+          },
+        }
+      : {}),
   };
 }
 
@@ -99,7 +123,11 @@ function sanitizeSecurityCoverage(coverage: SecurityCoverage): SecurityCoverage 
       evidenceRefIds: securityCase.evidenceRefIds.map(sanitizeSecurityId),
       findingIds: securityCase.findingIds.map(sanitizeSecurityId),
       ...(securityCase.reasonCode
-        ? { reasonCode: sanitizeSecurityDiagnostic(securityCase.reasonCode) }
+        ? {
+            reasonCode: /^[a-z0-9_]+$/.test(securityCase.reasonCode)
+              ? securityCase.reasonCode
+              : sanitizeSecurityDiagnostic(securityCase.reasonCode),
+          }
         : {}),
     })),
   };
@@ -132,7 +160,13 @@ export async function writeSecurityRunArtifacts(args: {
     planName: args.planName,
     runId: args.runId,
     status: args.status,
-    ...(args.reasonCode ? { reasonCode: sanitizeSecurityDiagnostic(args.reasonCode) } : {}),
+    ...(args.reasonCode
+      ? {
+          reasonCode: /^[a-z0-9_]+$/.test(args.reasonCode)
+            ? args.reasonCode
+            : sanitizeSecurityDiagnostic(args.reasonCode),
+        }
+      : {}),
     matrix,
     coverage,
     findings,

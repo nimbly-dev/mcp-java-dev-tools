@@ -1319,3 +1319,104 @@ test("[UT][artifact-management][artifact_management] artifact_management run_res
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 });
+
+test("[UT][artifact-management][artifact_management] artifact_management reads Security run Artifacts and degrades optional SQLite evidence", async () => {
+  const root = createTestTempDir("artifact-management-security-run-read");
+  try {
+    const projectName = "security-project";
+    const planName = "authorization-boundary";
+    const runId = "security-123-authorization-boundary";
+    writeJson(path.join(root, ".mcpjvm", projectName, "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    const runRoot = path.join(
+      root,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "security",
+      planName,
+      "runs",
+      runId,
+    );
+    writeJson(path.join(runRoot, "execution.result.json"), {
+      schemaVersion: "1.0.0",
+      suiteType: "security",
+      securityMode: "blackbox",
+      executionProfile: "security-default",
+      planName,
+      runId,
+      status: "blocked",
+      reasonCode: "security_blackbox_fixture_missing",
+      matrix: { mode: "finite_matrix", plannedCaseIds: ["case-1"], plannedCount: 1 },
+      coverage: {
+        plannedCount: 1,
+        executedCount: 0,
+        passedCount: 0,
+        confirmedCount: 0,
+        notApplicableCount: 0,
+        blockedCount: 1,
+        complete: false,
+        cases: [],
+      },
+      findings: [],
+      evidence: [],
+    });
+
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "read",
+        input: {
+          projectName,
+          planName,
+          runId,
+          query: {
+            select: ["summary", "executionResult", "matrix", "coverage", "findings", "evidence"],
+          },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.status, "ok");
+    assert.equal(out.structuredContent.suiteType, "security");
+    assert.equal(out.structuredContent.summary.runStatus, "blocked");
+    assert.equal(out.structuredContent.artifact.coverage.blockedCount, 1);
+    assert.equal(out.structuredContent.operationalState.status, "unavailable");
+    assert.equal(
+      out.structuredContent.operationalState.reasonCode,
+      "security_diagnostic_sqlite_unavailable",
+    );
+
+    const listed = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "list",
+        input: { projectName, planName, suiteType: "security" },
+      },
+    });
+    assert.equal(listed.structuredContent.status, "ok");
+    assert.equal(listed.structuredContent.suiteType, "security");
+    assert.deepEqual(listed.structuredContent.runIds, [runId]);
+
+    const queried = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "query",
+        input: {
+          projectName,
+          stateSurface: "run_state",
+          query: { suiteType: "security", planName, pageSize: 10 },
+        },
+      },
+    });
+    assert.equal(queried.structuredContent.status, "ok");
+    assert.equal(queried.structuredContent.items.length, 1);
+    assert.equal(queried.structuredContent.items[0].runId, runId);
+    assert.equal(queried.structuredContent.operationalState.status, "unavailable");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+  }
+});

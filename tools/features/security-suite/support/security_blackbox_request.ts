@@ -58,9 +58,21 @@ function collectFixtureContext(
   };
 }
 
+function httpTransport(
+  entrypoint: SecurityEntrypoint,
+): { type: "http"; method: string; path: string } | undefined {
+  if ("transport" in entrypoint) {
+    return entrypoint.transport.type === "http" ? entrypoint.transport : undefined;
+  }
+  return entrypoint.type === "http" && entrypoint.method && entrypoint.path
+    ? { type: "http", method: entrypoint.method, path: entrypoint.path }
+    : undefined;
+}
+
 function resolveString(value: string, context: Record<string, string>): string {
   return value.replace(/\$\{([^}]+)\}/g, (match, key: string) => {
-    const resolved = readRuntimeValue(key, context);
+    const fixtureKey = key.startsWith("fixture.") ? key.slice("fixture.".length) : key;
+    const resolved = readRuntimeValue(key, context) ?? readRuntimeValue(fixtureKey, context);
     if (typeof resolved !== "string") throw new Error(`security_fixture_missing:${key}`);
     return resolved;
   });
@@ -98,14 +110,20 @@ function applyAuthentication(args: {
   const credential = resolveCredential(args.profile, args.credentialContext);
   if (!credential) return args.headers;
   const headers = { ...args.headers };
+  const hasExplicitHeader = (name: string): boolean =>
+    Object.keys(headers).some((key) => key.toLowerCase() === name.toLowerCase());
   if (args.profile.kind === "bearer") {
-    headers.Authorization = /^Bearer\s+/i.test(credential) ? credential : `Bearer ${credential}`;
+    if (!hasExplicitHeader("Authorization")) {
+      headers.Authorization = /^Bearer\s+/i.test(credential) ? credential : `Bearer ${credential}`;
+    }
   } else if (args.profile.kind === "basic") {
-    headers.Authorization = /^Basic\s+/i.test(credential) ? credential : `Basic ${credential}`;
+    if (!hasExplicitHeader("Authorization")) {
+      headers.Authorization = /^Basic\s+/i.test(credential) ? credential : `Basic ${credential}`;
+    }
   } else if (args.profile.kind === "api_key") {
-    headers["X-API-Key"] = credential;
+    if (!hasExplicitHeader("X-API-Key")) headers["X-API-Key"] = credential;
   } else {
-    headers.Authorization = credential;
+    if (!hasExplicitHeader("Authorization")) headers.Authorization = credential;
   }
   return headers;
 }
@@ -127,21 +145,31 @@ export function buildBlackboxHttpRequest(args: {
   attackRequest: SecurityAttackRequest;
   authenticationProfile: SecurityAuthenticationProfile;
 }): Record<string, unknown> {
-  if (args.entrypoint.type !== "http" || !args.entrypoint.method || !args.entrypoint.path) {
+  const transport = httpTransport(args.entrypoint);
+  if (!transport) {
     throw new Error(`security_blackbox_entrypoint_unsupported:${args.entrypoint.id}`);
   }
   if (!args.contract.targetBoundary.baseUrl) throw new Error("security_blackbox_base_url_missing");
   const fixtureContext = collectFixtureContext(args.contract, args.entrypoint);
+  const requestTransport = args.attackRequest.transport;
+  const httpRequestTransport = requestTransport?.type === "http" ? requestTransport : undefined;
   const pathParameters = asStringRecord(
-    resolveUnknown(args.attackRequest.pathParameters ?? {}, fixtureContext),
+    resolveUnknown(
+      httpRequestTransport?.pathParameters ?? args.attackRequest.pathParameters ?? {},
+      fixtureContext,
+    ),
   );
   const queryParameters = asStringRecord(
-    resolveUnknown(args.attackRequest.queryParameters ?? {}, fixtureContext),
+    resolveUnknown(
+      httpRequestTransport?.query ??
+        httpRequestTransport?.queryParameters ??
+        args.attackRequest.query ??
+        args.attackRequest.queryParameters ??
+        {},
+      fixtureContext,
+    ),
   );
-  const path = replacePathParameters(
-    resolveString(args.entrypoint.path, fixtureContext),
-    pathParameters,
-  );
+  const path = replacePathParameters(resolveString(transport.path, fixtureContext), pathParameters);
   const url = new URL(path, args.contract.targetBoundary.baseUrl);
   const allowedHosts = args.contract.targetBoundary.allowedHosts.map((host) => host.toLowerCase());
   let effectivePort = 80;
@@ -156,7 +184,10 @@ export function buildBlackboxHttpRequest(args: {
   for (const [key, value] of Object.entries(queryParameters)) url.searchParams.set(key, value);
   const credentialContext = { ...fixtureContext };
   const resolvedHeaders = asStringRecord(
-    resolveUnknown(args.attackRequest.headers ?? {}, credentialContext),
+    resolveUnknown(
+      httpRequestTransport?.headers ?? args.attackRequest.headers ?? {},
+      credentialContext,
+    ),
   );
   const headers = applyAuthentication({
     headers: resolvedHeaders,
@@ -164,11 +195,16 @@ export function buildBlackboxHttpRequest(args: {
     credentialContext,
   });
   return {
-    method: args.entrypoint.method.toUpperCase(),
+    method: transport.method.toUpperCase(),
     url: url.toString(),
     headers,
-    ...(typeof args.attackRequest.body !== "undefined"
-      ? { body: resolveUnknown(args.attackRequest.body, fixtureContext) }
+    ...(typeof (httpRequestTransport?.body ?? args.attackRequest.body) !== "undefined"
+      ? {
+          body: resolveUnknown(
+            httpRequestTransport?.body ?? args.attackRequest.body,
+            fixtureContext,
+          ),
+        }
       : {}),
     timeoutMs: args.contract.safetyPolicy.maxDurationMs,
   };

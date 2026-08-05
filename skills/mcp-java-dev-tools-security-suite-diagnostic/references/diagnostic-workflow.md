@@ -12,7 +12,7 @@ At minimum establish:
 - `securityMode=blackbox` or `securityMode=sidecar_assisted`;
 - a finite, deterministic case matrix with unique case IDs;
 - target/entrypoint and authentication references that stay within the plan boundary;
-- knowledge-pack references that resolve to supported packs and versions;
+- the optional knowledge-pack override or persisted catalog snapshot that resolves to supported packs and versions;
 - mode-appropriate evidence requirements; and
 - a compatible project execution profile/runtime context when Sidecar-assisted evidence is required.
 

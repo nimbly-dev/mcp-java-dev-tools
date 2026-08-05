@@ -12,7 +12,7 @@ This Skill Workflow is the execution router for Security Suite plans.
 1. Load the selected execution profile and require `suiteType=security`.
 2. Load and validate the Security plan Artifact through `artifact_management` with `artifactType=security_plan`.
 3. Route `securityMode=blackbox` to Black-box execution or `securityMode=sidecar_assisted` to Sidecar-assisted execution.
-4. Execute only the finite matrix authored by the plan; do not crawl unknown API surface.
+4. For Black-box, resolve the immutable catalog snapshot and execute the finite generated matrix plus bounded custom cases; do not crawl unknown API surface.
 5. Treat any required blocked case or incomplete matrix as a non-clean result.
 
 ## Outcome and proof semantics
@@ -23,9 +23,9 @@ Black-box execution must not use source, JAR/classpath, FQCN, Sidecar, Probe, or
 
 ## Black-box execution behavior
 
-Black-box execution selects only locally versioned knowledge packs, generates one finite case for each declared attack profile, and invokes HTTP cases through `transport_execute` with `wrappedOnly=true`. It persists the matrix, coverage, findings, and redacted HTTP evidence under the canonical Security run Artifact path.
+Black-box execution selects every compatible local knowledge pack by default (or an explicit advanced override), generates finite cases from rule templates × declared HTTP entrypoints × authentication profiles × fixture capabilities, and invokes HTTP cases through `transport_execute` with `wrappedOnly=true`. It persists the resolved knowledge snapshot, matrix, coverage, findings, and redacted HTTP evidence under the canonical Security run Artifact path.
 
-Missing symbolic credentials, target-boundary violations, transport failures, unexpected baseline responses, and incomplete matrix coverage are deterministic blocked outcomes.
+Missing symbolic credentials, missing required fixtures, target-boundary violations, unsupported transport adapters, transport failures, unexpected baseline responses, snapshot mismatch, and incomplete matrix coverage are deterministic blocked outcomes. Safely unsupported rules are `not_applicable`.
 
 ## Sidecar-assisted execution behavior
 

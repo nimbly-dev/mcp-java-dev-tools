@@ -284,7 +284,10 @@ export async function executeSecurityRuntimeSuite(
       break;
     }
 
-    const execution = await executeSecurityPlan({ input: args, planName: plan.planName });
+    const execution = await executeSecurityPlan({
+      input: { ...args, suiteRunId },
+      planName: plan.planName,
+    });
     processedPlans += 1;
     const run: RuntimeSuitePlanRunResult = {
       order: plan.order,

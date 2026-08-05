@@ -16,6 +16,7 @@
         "attack": {
           "mutation": "safe-upload-content-type",
           "mutationBoundary": "body",
+          "selector": { "kind": "body", "jsonPointer": "" },
           "payloadTemplates": ["${fixture.safeUploadFilename}"],
           "expectedOutcome": "deny",
           "statusCodes": [400, 403, 415, 422]

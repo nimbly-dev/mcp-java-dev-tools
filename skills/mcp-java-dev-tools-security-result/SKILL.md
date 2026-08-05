@@ -13,6 +13,7 @@ Read the canonical Security run Artifact and report:
 
 - run status and selected `securityMode`;
 - planned versus executed finite-matrix coverage;
+- resolved knowledge snapshot (selection mode, pack refs, compatibility metadata, and content digests);
 - counts for `passed`, `confirmed`, `not_applicable`, and `blocked` cases;
 - findings with severity, category, and proof classification;
 - redacted evidence references and deterministic reason codes.

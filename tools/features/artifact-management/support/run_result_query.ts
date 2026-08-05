@@ -1,3 +1,7 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { readSecurityRunArtifact } from "@tools-feature-security-suite";
+import { resolveSecurityPlansRootAbs } from "@tools-security-execution-plan-spec";
 import type {
   ArtifactActionContext,
   ArtifactActionRequest,
@@ -14,11 +18,124 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+async function querySecurityRunArtifacts(args: {
+  workspaceRootAbs: string;
+  projectName: string;
+  query: NonNullable<ArtifactActionRequest<"run_result">["input"]["query"]>;
+}): Promise<ArtifactActionResult> {
+  const pageSize = args.query.pageSize;
+  const plansRootAbs = await resolveSecurityPlansRootAbs(
+    args.workspaceRootAbs,
+    args.projectName,
+  ).catch(() => undefined);
+  const planEntries = plansRootAbs
+    ? await fs.readdir(plansRootAbs, { withFileTypes: true }).catch(() => [])
+    : [];
+  const requestedPlanName = args.query.planName?.trim();
+  const planNames = planEntries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((planName) => !requestedPlanName || planName === requestedPlanName)
+    .sort();
+  if (requestedPlanName && planNames.length === 0 && plansRootAbs)
+    planNames.push(requestedPlanName);
+
+  const requestedRunId = args.query.runId?.trim();
+  const requestedSuiteRunId = args.query.suiteRunId?.trim();
+  const statusFilter = args.query.status
+    ? new Set(Array.isArray(args.query.status) ? args.query.status : [args.query.status])
+    : undefined;
+  const items: Array<Record<string, unknown>> = [];
+  for (const planName of planNames.slice(0, 100)) {
+    if (!plansRootAbs) break;
+    const runsRootAbs = path.join(plansRootAbs, planName, "runs");
+    const runEntries = await fs.readdir(runsRootAbs, { withFileTypes: true }).catch(() => []);
+    const runIds = runEntries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((runId) => !requestedRunId || runId === requestedRunId)
+      .sort();
+    for (const runId of runIds.slice(0, 100)) {
+      const read = await readSecurityRunArtifact({
+        workspaceRootAbs: args.workspaceRootAbs,
+        projectName: args.projectName,
+        planName,
+        runId,
+      });
+      if (!read.ok) continue;
+      const artifact = read.artifact;
+      if (requestedSuiteRunId && !artifact.runId.startsWith(`${requestedSuiteRunId}-`)) continue;
+      if (statusFilter && !statusFilter.has(artifact.status)) continue;
+      const updatedAtEpochMs = await fs
+        .stat(read.pathAbs)
+        .then((stat) => Math.trunc(stat.mtimeMs))
+        .catch(() => 0);
+      items.push({
+        stateKind: "plan",
+        projectName: args.projectName,
+        planName: artifact.planName,
+        runId: artifact.runId,
+        ...(requestedSuiteRunId ? { suiteRunId: requestedSuiteRunId } : {}),
+        status: artifact.status,
+        executionProfile: artifact.executionProfile,
+        reasonCode: artifact.reasonCode,
+        updatedAtEpochMs,
+        coverage: {
+          plannedCount: artifact.coverage.plannedCount,
+          executedCount: artifact.coverage.executedCount,
+          blockedCount: artifact.coverage.blockedCount,
+          complete: artifact.coverage.complete,
+        },
+      });
+    }
+  }
+  items.sort((left, right) => {
+    const leftTime = typeof left.updatedAtEpochMs === "number" ? left.updatedAtEpochMs : 0;
+    const rightTime = typeof right.updatedAtEpochMs === "number" ? right.updatedAtEpochMs : 0;
+    return args.query.sortDirection === "asc" ? leftTime - rightTime : rightTime - leftTime;
+  });
+  const page = items.slice(0, pageSize);
+  return okArtifactResponse({
+    resultType: "artifact",
+    status: "ok",
+    artifactType: "run_result",
+    action: "query",
+    stateSurface: "run_state",
+    projectName: args.projectName,
+    suiteType: "security",
+    projectionVersion: 1,
+    pageSize,
+    hasMore: items.length > page.length,
+    sort: { field: "updatedAtEpochMs", direction: args.query.sortDirection },
+    items: page,
+    operationalState: {
+      source: "sqlite",
+      status: "unavailable",
+      reasonCode: "security_diagnostic_sqlite_unavailable",
+      detail: "security_run_projection_not_populated",
+    },
+  });
+}
+
 export async function handleRunResultQuery(
   ctx: ArtifactActionContext,
   request: ArtifactActionRequest<"run_result">,
   projectName: string,
 ): Promise<ArtifactActionResult> {
+  if (
+    request.input.stateSurface === "run_state" &&
+    (request.input.suiteType === "security" || request.input.query?.suiteType === "security")
+  ) {
+    return querySecurityRunArtifacts({
+      workspaceRootAbs: ctx.workspaceRootAbs,
+      projectName,
+      query: request.input.query ?? {
+        suiteType: "security",
+        sortDirection: "desc",
+        pageSize: 10,
+      },
+    });
+  }
   if (request.input.stateSurface === "watcher_state") {
     const watcherQuery = request.input.query;
     const misplacedWatcherFilters = [
@@ -110,12 +227,9 @@ export async function handleRunResultQuery(
   }
   const runQuery = asRecord(request.input.query);
   const runFilters = asRecord(runQuery?.filters);
-  const suiteRunId =
-    typeof runFilters?.suiteRunId === "string"
-      ? runFilters.suiteRunId
-      : typeof runQuery?.suiteRunId === "string"
-        ? runQuery.suiteRunId
-        : undefined;
+  let suiteRunId: string | undefined;
+  if (typeof runFilters?.suiteRunId === "string") suiteRunId = runFilters.suiteRunId;
+  else if (typeof runQuery?.suiteRunId === "string") suiteRunId = runQuery.suiteRunId;
   const queried = await queryRunState({
     workspaceRootAbs: ctx.workspaceRootAbs,
     input: {

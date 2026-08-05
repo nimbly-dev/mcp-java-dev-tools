@@ -16,10 +16,13 @@ This index is Skill Workflow routing guidance. Detailed machine-readable manifes
 
 Rules:
 
-- Pin at least one exact `pack@major.minor.patch` reference in `securityKnowledge.packRefs`.
-- The loader resolves the exact pack reference, then checks the manifest's contract-version compatibility range before execution.
-- A catalog with an unavailable, malformed, duplicate, or incompatible pinned pack fails closed before case execution.
-- Each selected rule declares its CWE mapping, applicability predicates, finite baseline/attack template, safe mutation boundary, cleanup/max-impact policy, evidence requirements, and deterministic reason codes.
-- Use only declared HTTP/API entrypoints and explicit attack profiles.
+- The normal Black-box plan omits `securityKnowledge.packRefs`; the loader selects every compatible, safe, applicable pack from this reviewed local catalog.
+- Pin exact `pack@major.minor.patch` references only for an advanced targeted/reproduction override.
+- The loader checks each selected manifest's contract-version compatibility range before execution.
+- The generated run persists the selected pack id, version, compatibility metadata, and content digest. Resume reuses that snapshot and blocks on digest mismatch.
+- An unavailable, malformed, duplicate, or incompatible selected pack fails closed before case execution.
+- Each selected rule declares its CWE mapping, applicability predicates, finite baseline/attack template, mutation operator, boundary-aligned selector, payload templates, cleanup/max-impact policy, evidence requirements, and deterministic reason codes.
+- A normal HTTP entrypoint supplies the safe baseline recipe. The engine clones that recipe and applies only the selected rule mutation: path/query selectors target an existing declared parameter (or the deterministic `*` selector), header selectors are case-insensitive, and body selectors use a bounded JSON Pointer.
+- Use only declared HTTP/API entrypoints. Normal cases are generated from applicable rule templates; bounded `customCases` are explicit overrides.
 - Do not add source, JAR/classpath, FQCN, Sidecar, Probe, or Strict Line Key data to a Black-box contract.
 - Updating attack knowledge requires a reviewed versioned pack change; CI does not perform live web research.

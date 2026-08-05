@@ -1,4 +1,5 @@
-import { promises as fs } from "node:fs";
+import { promises as fs, type Dirent } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import type {
@@ -31,11 +32,18 @@ export type SecurityKnowledgeCaseTemplate = {
       | "bounded-input"
       | "non-executing-serialized-value";
     mutationBoundary: "path_parameter" | "query_parameter" | "header" | "body";
+    selector: SecurityMutationSelector;
     payloadTemplates: string[];
     expectedOutcome: "deny" | "error";
     statusCodes: number[];
   };
 };
+
+export type SecurityMutationSelector =
+  | { kind: "path_parameter"; name: string }
+  | { kind: "query_parameter"; name: string }
+  | { kind: "header"; name: string }
+  | { kind: "body"; jsonPointer: string };
 
 export type SecurityBlackboxKnowledgeRule = {
   id: string;
@@ -82,6 +90,7 @@ type SecurityKnowledgePackManifest = {
 
 export type SecurityBlackboxKnowledgePack = SecurityKnowledgePackManifest & {
   rules: SecurityBlackboxKnowledgeRule[];
+  contentDigest: string;
 };
 
 type SecurityKnowledgeLoadFailure = {
@@ -91,7 +100,8 @@ type SecurityKnowledgeLoadFailure = {
     | "security_knowledge_pack_unavailable"
     | "security_knowledge_pack_malformed"
     | "security_knowledge_pack_duplicate"
-    | "security_knowledge_pack_incompatible";
+    | "security_knowledge_pack_incompatible"
+    | "security_knowledge_catalog_unavailable";
   refs: string[];
   errors?: string[];
 };
@@ -240,6 +250,7 @@ function validateCaseTemplate(value: unknown): value is SecurityKnowledgeCaseTem
     !hasOnlyKeys(value.attack, [
       "mutation",
       "mutationBoundary",
+      "selector",
       "payloadTemplates",
       "expectedOutcome",
       "statusCodes",
@@ -248,6 +259,19 @@ function validateCaseTemplate(value: unknown): value is SecurityKnowledgeCaseTem
     !MUTATIONS.has(value.attack.mutation) ||
     typeof value.attack.mutationBoundary !== "string" ||
     !MUTATION_BOUNDARIES.has(value.attack.mutationBoundary) ||
+    !isRecord(value.attack.selector) ||
+    !hasOnlyKeys(value.attack.selector, ["kind", "name", "jsonPointer"]) ||
+    value.attack.selector.kind !== value.attack.mutationBoundary ||
+    (value.attack.selector.kind !== "body" &&
+      (value.attack.selector.jsonPointer !== undefined ||
+        !isNonEmptyString(value.attack.selector.name) ||
+        (value.attack.selector.name !== "*" &&
+          /[\u0000-\u001f]/.test(value.attack.selector.name)))) ||
+    (value.attack.selector.kind === "body" &&
+      (value.attack.selector.name !== undefined ||
+        typeof value.attack.selector.jsonPointer !== "string" ||
+        (value.attack.selector.jsonPointer !== "" &&
+          !value.attack.selector.jsonPointer.startsWith("/")))) ||
     !Array.isArray(value.attack.payloadTemplates) ||
     value.attack.payloadTemplates.length === 0 ||
     value.attack.payloadTemplates.some(
@@ -432,16 +456,32 @@ async function readPack(packRoot: string, directoryName: string): Promise<PackRe
         contractVersionRange: manifest.compatibility.contractVersionRange,
       },
       rules,
+      contentDigest: createHash("sha256")
+        .update(
+          JSON.stringify({
+            schemaVersion: manifest.schemaVersion,
+            id: manifest.id,
+            version: manifest.version,
+            ref: manifest.ref,
+            rulesFile: manifest.rulesFile,
+            description: manifest.description,
+            ruleIds: manifest.ruleIds,
+            compatibility: manifest.compatibility,
+            rules,
+          }),
+        )
+        .digest("hex"),
     },
   };
 }
 
 export async function loadSecurityBlackboxKnowledgePacks(args: {
-  packRefs: string[];
+  packRefs?: string[];
   contractVersion?: string;
   packRootAbs?: string;
 }): Promise<{ ok: true; packs: SecurityBlackboxKnowledgePack[] } | SecurityKnowledgeLoadFailure> {
-  const invalidRefs = args.packRefs.filter((ref) => !PACK_REF_PATTERN.test(ref));
+  const requestedRefs = args.packRefs;
+  const invalidRefs = (requestedRefs ?? []).filter((ref) => !PACK_REF_PATTERN.test(ref));
   if (invalidRefs.length > 0) {
     return {
       ok: false,
@@ -449,8 +489,8 @@ export async function loadSecurityBlackboxKnowledgePacks(args: {
       refs: [...new Set(invalidRefs)].sort(),
     };
   }
-  const duplicateRequestedRefs = args.packRefs.filter(
-    (ref, index) => args.packRefs.indexOf(ref) !== index,
+  const duplicateRequestedRefs = (requestedRefs ?? []).filter(
+    (ref, index) => requestedRefs!.indexOf(ref) !== index,
   );
   if (duplicateRequestedRefs.length > 0) {
     return {
@@ -461,7 +501,17 @@ export async function loadSecurityBlackboxKnowledgePacks(args: {
   }
 
   const packRoot = args.packRootAbs ?? defaultKnowledgePackRoot();
-  const directories = await fs.readdir(packRoot, { withFileTypes: true }).catch(() => []);
+  let directories: Dirent[];
+  try {
+    directories = await fs.readdir(packRoot, { withFileTypes: true });
+  } catch {
+    return {
+      ok: false,
+      reasonCode: "security_knowledge_catalog_unavailable",
+      refs: [],
+      errors: [`Security knowledge-pack catalog is unavailable at ${packRoot}.`],
+    };
+  }
   const parsed = await Promise.all(
     directories
       .filter((entry) => entry.isDirectory())
@@ -493,7 +543,7 @@ export async function loadSecurityBlackboxKnowledgePacks(args: {
       refs: [...new Set(duplicateCatalogRefs)].sort(),
     };
   }
-  const unavailableRefs = args.packRefs.filter(
+  const unavailableRefs = (requestedRefs ?? []).filter(
     (ref) => !available.some((pack) => pack.ref === ref),
   );
   if (unavailableRefs.length > 0) {
@@ -504,7 +554,9 @@ export async function loadSecurityBlackboxKnowledgePacks(args: {
     };
   }
   const contractVersion = args.contractVersion ?? "1.0.0";
-  const selected = args.packRefs.map((ref) => available.find((pack) => pack.ref === ref)!);
+  const selected = requestedRefs
+    ? requestedRefs.map((ref) => available.find((pack) => pack.ref === ref)!)
+    : available;
   const incompatibleRefs = selected
     .filter(
       (pack) => !satisfiesVersionRange(contractVersion, pack.compatibility.contractVersionRange),
@@ -548,4 +600,26 @@ export function findApplicableSecurityBlackboxRule(args: {
       if (leftIsWildcard !== rightIsWildcard) return leftIsWildcard ? 1 : -1;
       return left.id.localeCompare(right.id);
     })[0];
+}
+
+export function findApplicableSecurityBlackboxRules(args: {
+  packs: SecurityBlackboxKnowledgePack[];
+  category?: SecurityAttackCategory;
+  entrypointType: SecurityEntrypointType;
+  authenticationKind: SecurityAuthenticationKind;
+}): SecurityBlackboxKnowledgeRule[] {
+  return args.packs
+    .flatMap((pack) => pack.rules)
+    .filter((rule) => {
+      const categoryMatches =
+        rule.categories[0] === "*" ||
+        args.category === undefined ||
+        (rule.categories as readonly string[]).includes(args.category);
+      return (
+        categoryMatches &&
+        rule.entrypointTypes.includes(args.entrypointType) &&
+        rule.applicability.authenticationKinds.includes(args.authenticationKind)
+      );
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
 }

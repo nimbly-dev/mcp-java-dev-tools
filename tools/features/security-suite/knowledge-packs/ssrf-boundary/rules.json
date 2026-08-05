@@ -16,6 +16,7 @@
         "attack": {
           "mutation": "local-callback-url",
           "mutationBoundary": "query_parameter",
+          "selector": { "kind": "query_parameter", "name": "*" },
           "payloadTemplates": ["${fixture.localCallbackUrl}"],
           "expectedOutcome": "deny",
           "statusCodes": [400, 403, 422]

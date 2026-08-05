@@ -5,6 +5,7 @@ export { writeSecurityRunArtifacts } from "./persistence/security_artifact_write
 export { readSecurityRunArtifact } from "./persistence/security_artifact_reader";
 export {
   findApplicableSecurityBlackboxRule,
+  findApplicableSecurityBlackboxRules,
   loadSecurityBlackboxKnowledgePacks,
 } from "./support/security_blackbox_knowledge";
 export {

@@ -16,6 +16,7 @@
         "attack": {
           "mutation": "bounded-path-parameter",
           "mutationBoundary": "path_parameter",
+          "selector": { "kind": "path_parameter", "name": "*" },
           "payloadTemplates": ["${fixture.boundedPathTraversalCase}"],
           "expectedOutcome": "deny",
           "statusCodes": [400, 403, 404, 422]

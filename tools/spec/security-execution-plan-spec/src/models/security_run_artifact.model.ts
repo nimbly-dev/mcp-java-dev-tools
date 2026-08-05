@@ -53,6 +53,20 @@ export type SecurityFiniteAttackMatrix = {
   plannedCaseIds: string[];
   plannedCount: number;
   knowledgePackRefs?: string[];
+  knowledgeSnapshot?: SecurityKnowledgeSnapshot;
+};
+
+export type SecurityKnowledgePackSnapshot = {
+  id: string;
+  version: string;
+  ref: string;
+  compatibility: { contractVersionRange: string };
+  contentDigest?: string;
+};
+
+export type SecurityKnowledgeSnapshot = {
+  selection: "catalog_default" | "explicit_override";
+  packs: SecurityKnowledgePackSnapshot[];
 };
 
 export type SecurityCoverage = {
