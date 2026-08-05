@@ -16,6 +16,7 @@
         "attack": {
           "mutation": "own-versus-foreign-resource",
           "mutationBoundary": "path_parameter",
+          "selector": { "kind": "path_parameter", "name": "*" },
           "payloadTemplates": ["${fixture.foreignResourceId}"],
           "expectedOutcome": "deny",
           "statusCodes": [403, 404]

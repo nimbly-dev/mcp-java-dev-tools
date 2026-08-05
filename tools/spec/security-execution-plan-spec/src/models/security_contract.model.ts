@@ -14,13 +14,44 @@ export type SecurityEntrypointType =
   | "scheduled"
   | "internal_runtime";
 
-export type SecurityEntrypoint = {
-  id: string;
-  type: SecurityEntrypointType;
-  method?: string;
-  path?: string;
-  details?: Record<string, unknown>;
+export type SecurityHttpEntrypointTransport = {
+  type: "http";
+  method: string;
+  path: string;
 };
+
+export type SecurityUnsupportedEntrypointTransport = {
+  type: Exclude<SecurityEntrypointType, "http">;
+  [key: string]: unknown;
+};
+
+export type SecurityEntrypointTransport =
+  | SecurityHttpEntrypointTransport
+  | SecurityUnsupportedEntrypointTransport;
+
+export type SecurityHttpBaselineRequest = {
+  pathParameters?: Record<string, string>;
+  query?: Record<string, string>;
+  headers?: Record<string, string>;
+  body?: unknown;
+};
+
+export type SecurityEntrypoint =
+  | {
+      id: string;
+      transport: SecurityEntrypointTransport;
+      baseline?: SecurityHttpBaselineRequest;
+      details?: Record<string, unknown>;
+    }
+  | {
+      /** @deprecated Use transport.type. Kept so existing Artifacts can be migrated safely. */
+      id: string;
+      type: SecurityEntrypointType;
+      method?: string;
+      path?: string;
+      baseline?: SecurityHttpBaselineRequest;
+      details?: Record<string, unknown>;
+    };
 
 export type SecurityTargetBoundary = {
   environment: "local-ci";
@@ -32,7 +63,8 @@ export type SecurityTargetBoundary = {
 };
 
 export type SecurityKnowledge = {
-  packRefs: string[];
+  /** Advanced targeted/reproduction override. Omit for normal catalog-driven execution. */
+  packRefs?: string[];
 };
 
 export type SecurityCredentialRef = string;
@@ -62,12 +94,25 @@ export type SecurityRequestExpectation = {
 };
 
 export type SecurityAttackRequest = {
+  transport?: SecurityRequestTransport;
   pathParameters?: Record<string, string>;
   queryParameters?: Record<string, string>;
+  query?: Record<string, string>;
   headers?: Record<string, string>;
   body?: unknown;
   expect: SecurityRequestExpectation;
 };
+
+export type SecurityRequestTransport =
+  | {
+      type: "http";
+      pathParameters?: Record<string, string>;
+      query?: Record<string, string>;
+      queryParameters?: Record<string, string>;
+      headers?: Record<string, string>;
+      body?: unknown;
+    }
+  | SecurityUnsupportedEntrypointTransport;
 
 export type SecurityAttackProfile = {
   id: string;
@@ -120,7 +165,7 @@ type SecurityPlanContractBase = {
   targetBoundary: SecurityTargetBoundary;
   entrypoints: SecurityEntrypoint[];
   authenticationProfiles: SecurityAuthenticationProfile[];
-  attackProfiles: SecurityAttackProfile[];
+  customCases?: SecurityAttackProfile[];
   exhaustiveness: SecurityExhaustivenessPolicy;
   safetyPolicy: SecuritySafetyPolicy;
   verdictPolicy: SecurityVerdictPolicy;
@@ -129,12 +174,13 @@ type SecurityPlanContractBase = {
 export type SecurityPlanContract =
   | (SecurityPlanContractBase & {
       securityMode: "blackbox";
-      securityKnowledge: SecurityKnowledge;
+      securityKnowledge?: SecurityKnowledge;
       runtimeTargets?: never;
     })
   | (SecurityPlanContractBase & {
       securityMode: "sidecar_assisted";
       securityKnowledge?: SecurityKnowledge;
+      attackProfiles: SecurityAttackProfile[];
       runtimeTargets: SecurityRuntimeTarget[];
       instrumentationTargets?: SecurityInstrumentationTarget[];
     });
@@ -145,6 +191,8 @@ export type SecurityContractReasonCode =
   | "security_contract_security_mode_invalid"
   | "security_contract_target_boundary_invalid"
   | "security_contract_knowledge_invalid"
+  | "security_contract_transport_invalid"
+  | "security_contract_unsupported_transport"
   | "security_contract_entrypoints_invalid"
   | "security_contract_authentication_profiles_invalid"
   | "security_contract_attack_profiles_invalid"

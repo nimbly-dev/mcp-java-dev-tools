@@ -16,6 +16,7 @@
         "attack": {
           "mutation": "bounded-input",
           "mutationBoundary": "query_parameter",
+          "selector": { "kind": "query_parameter", "name": "*" },
           "payloadTemplates": ["${fixture.boundedInput}"],
           "expectedOutcome": "deny",
           "statusCodes": [400, 403, 422]

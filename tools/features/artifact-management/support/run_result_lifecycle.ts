@@ -5,6 +5,7 @@ import type {
   ArtifactActionRequest,
   ArtifactActionResult,
 } from "../actions/types";
+import { resolveSecurityPlanRootAbs } from "@tools-security-execution-plan-spec";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import { cleanupRunStateRetention } from "../state-store/run_state_retention_cleanup";
 import { backfillLegacyCorrelationIndex } from "../state-store/legacy_backfill_state_store";
@@ -12,7 +13,11 @@ import { cutoverRunStateStore } from "../state-store/state_store_cutover";
 import { rebuildRunStateStore } from "../state-store/rebuild/run_state_store_rebuild";
 import type { RunStateRebuildResult } from "../state-store/model/run_state_store.model";
 import { handleRunResultQuery } from "./run_result_query";
-import { readRunResultArtifact, workspaceRelativePath } from "./run_result_artifact";
+import {
+  readRunResultArtifact,
+  resolveRunResultSuiteType,
+  workspaceRelativePath,
+} from "./run_result_artifact";
 
 export async function handleRunResultLifecycle(
   ctx: ArtifactActionContext,
@@ -161,15 +166,26 @@ export async function handleRunResultLifecycle(
         reasonMeta: { action: request.action },
       });
     }
-    const runsRoot = path.join(
-      ctx.workspaceRootAbs,
-      ".mcpjvm",
-      projectName,
-      "plans",
-      "regression",
-      planName,
-      "runs",
-    );
+    const suiteType = await resolveRunResultSuiteType(request, ctx.workspaceRootAbs, projectName);
+    const runsRoot =
+      suiteType === "security"
+        ? path.join(
+            await resolveSecurityPlanRootAbs({
+              workspaceRootAbs: ctx.workspaceRootAbs,
+              projectName,
+              planName,
+            }),
+            "runs",
+          )
+        : path.join(
+            ctx.workspaceRootAbs,
+            ".mcpjvm",
+            projectName,
+            "plans",
+            "regression",
+            planName,
+            "runs",
+          );
     const runs = await fs.readdir(runsRoot, { withFileTypes: true }).catch(() => []);
     const runIds = runs
       .filter((entry) => entry.isDirectory())
@@ -183,6 +199,7 @@ export async function handleRunResultLifecycle(
       projectName,
       planName,
       runIds,
+      ...(suiteType === "security" ? { suiteType } : {}),
     });
   }
 

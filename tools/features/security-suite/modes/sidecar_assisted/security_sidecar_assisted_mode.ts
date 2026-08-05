@@ -9,6 +9,7 @@ import type {
   SecurityPlanContract,
   SecurityRequestExpectation,
   SecurityRuntimeTarget,
+  SecurityEntrypointType,
 } from "@tools-security-execution-plan-spec";
 
 import type {
@@ -29,6 +30,12 @@ type SidecarSecurityPlanContract = Extract<
   SecurityPlanContract,
   { securityMode: "sidecar_assisted" }
 >;
+
+function entrypointType(
+  entrypoint: SidecarSecurityPlanContract["entrypoints"][number],
+): SecurityEntrypointType {
+  return "transport" in entrypoint ? entrypoint.transport.type : entrypoint.type;
+}
 
 type ProbeSnapshot = {
   hitCount: number;
@@ -425,7 +432,7 @@ async function executeCase(args: {
     if (!entrypoint || !authenticationProfile) {
       return blockedCase({ attack: args.attack, reasonCode: "security_sidecar_reference_missing" });
     }
-    if (entrypoint.type !== "http") {
+    if (entrypointType(entrypoint) !== "http") {
       return blockedCase({
         attack: args.attack,
         reasonCode: "security_sidecar_entrypoint_not_supported",
@@ -691,12 +698,12 @@ export async function executeSidecarAssistedSecurityMode(args: {
       mode: "finite_matrix",
       plannedCaseIds: validatedContract.attackProfiles.map((attack) => attack.id),
       plannedCount: validatedContract.attackProfiles.length,
-      ...(validatedContract.securityKnowledge
+      ...(validatedContract.securityKnowledge?.packRefs
         ? { knowledgePackRefs: validatedContract.securityKnowledge.packRefs }
         : {}),
     };
     let selectedPacks: SecurityBlackboxKnowledgePack[] | undefined;
-    if (validatedContract.securityKnowledge) {
+    if (validatedContract.securityKnowledge?.packRefs) {
       const packs = await loadSecurityBlackboxKnowledgePacks({
         packRefs: validatedContract.securityKnowledge.packRefs,
       });
@@ -731,10 +738,12 @@ export async function executeSidecarAssistedSecurityMode(args: {
         ? findApplicableSecurityBlackboxRule({
             packs: selectedPacks,
             category: attack.category,
-            entrypointType:
-              validatedContract.entrypoints.find(
-                (entrypoint) => entrypoint.id === attack.entrypointRef,
-              )?.type ?? "http",
+            entrypointType: (() => {
+              const entrypoint = validatedContract.entrypoints.find(
+                (candidate) => candidate.id === attack.entrypointRef,
+              );
+              return entrypoint ? entrypointType(entrypoint) : "http";
+            })(),
             authenticationKind:
               validatedContract.authenticationProfiles.find(
                 (profile) => profile.id === attack.authenticationProfileRef,

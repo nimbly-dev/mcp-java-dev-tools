@@ -16,6 +16,7 @@
         "attack": {
           "mutation": "non-executing-serialized-value",
           "mutationBoundary": "body",
+          "selector": { "kind": "body", "jsonPointer": "" },
           "payloadTemplates": ["${fixture.safeSerializedValue}"],
           "expectedOutcome": "deny",
           "statusCodes": [400, 415, 422]

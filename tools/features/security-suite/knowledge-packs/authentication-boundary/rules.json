@@ -16,6 +16,7 @@
         "attack": {
           "mutation": "missing-authentication",
           "mutationBoundary": "header",
+          "selector": { "kind": "header", "name": "Authorization" },
           "payloadTemplates": ["${fixture.anonymousRequest}"],
           "expectedOutcome": "deny",
           "statusCodes": [401, 403]

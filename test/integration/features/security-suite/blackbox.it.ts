@@ -18,7 +18,10 @@ type IntegrationServer = {
   requests: Array<{ url: string; authorization?: string }>;
 };
 
-function startSecurityServer(args: { foreignStatus: number }): Promise<IntegrationServer> {
+function startSecurityServer(args: {
+  foreignStatus: number;
+  catalogDefaultPairwise?: boolean;
+}): Promise<IntegrationServer> {
   return new Promise((resolve, reject) => {
     const requests: IntegrationServer["requests"] = [];
     const server = http.createServer((request, response) => {
@@ -28,7 +31,28 @@ function startSecurityServer(args: { foreignStatus: number }): Promise<Integrati
           ? { authorization: request.headers.authorization }
           : {}),
       });
-      response.statusCode = request.url?.includes("foreign-order") ? args.foreignStatus : 200;
+      const isAttack = args.catalogDefaultPairwise && requests.length % 2 === 0;
+      if (isAttack) {
+        if (!request.headers.authorization) {
+          response.statusCode = 401;
+          response.setHeader("content-type", "application/json");
+          response.end(JSON.stringify({ status: response.statusCode }));
+          return;
+        }
+        if (request.url?.includes("foreign-order")) {
+          response.statusCode = args.foreignStatus;
+          response.setHeader("content-type", "application/json");
+          response.end(JSON.stringify({ status: response.statusCode }));
+          return;
+        }
+        const requestHasBoundedInput =
+          request.url?.includes("securityInput") ||
+          request.url?.includes("safe%2Fchild") ||
+          Number(request.headers["content-length"] ?? 0) > 0;
+        response.statusCode = requestHasBoundedInput ? 400 : args.foreignStatus;
+      } else {
+        response.statusCode = request.url?.includes("foreign-order") ? args.foreignStatus : 200;
+      }
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({ status: response.statusCode }));
     });
@@ -75,7 +99,7 @@ function securityContract(baseUrl: string): SecurityPlanContract {
         credentialRef: "security.integrationToken",
       },
     ],
-    attackProfiles: [
+    customCases: [
       {
         id: "cross-tenant-order-access",
         category: "authorization",
@@ -225,6 +249,117 @@ test("[IT][security-blackbox] persists an external confirmed finding for an allo
     assert.ok(artifact.ok);
     assert.equal(artifact.artifact.coverage.confirmedCount, 1);
     assert.equal(artifact.artifact.findings[0]?.proofClassification, "external");
+  } finally {
+    await stopServer(runtime.server);
+    if (typeof previous === "string") process.env[envName] = previous;
+    else delete process.env[envName];
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[IT][security-blackbox] generates and executes the catalog-default matrix with fixture namespaces", async () => {
+  const runtime = await startSecurityServer({ foreignStatus: 403, catalogDefaultPairwise: true });
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-it-catalog-default-"));
+  const envName = "SECURITY_INTEGRATIONTOKEN";
+  const previous = process.env[envName];
+  process.env[envName] = "integration-token";
+  try {
+    const contract: SecurityPlanContract = {
+      suiteType: "security",
+      securityMode: "blackbox",
+      targetBoundary: {
+        environment: "local-ci",
+        baseUrl: `http://127.0.0.1:${runtime.port}`,
+        allowedHosts: ["127.0.0.1"],
+        allowedPorts: [runtime.port],
+        externalNetworkAccess: "forbidden",
+        fixtureContext: {
+          ownResourceId: "own-order",
+          foreignResourceId: "foreign-order",
+          tenantA: "tenant-a",
+          tenantB: "tenant-b",
+          anonymousRequest: "anonymous-request",
+          boundedPathTraversalCase: "safe/child",
+          safePath: "safe/child",
+          localCallbackUrl: `http://127.0.0.1:${runtime.port}/callback`,
+          allowListedHost: "127.0.0.1",
+          safeUploadFilename: "safe.txt",
+          safeContentType: "text/plain",
+          boundedInput: "bounded-input",
+          safeSerializedValue: "safe-serialized-value",
+          safeInput: "safe-input",
+        },
+      },
+      entrypoints: [
+        {
+          id: "read-order",
+          transport: { type: "http", method: "POST", path: "/orders/{orderId}" },
+          baseline: {
+            pathParameters: { orderId: "${fixture.ownResourceId}" },
+            query: { securityInput: "${fixture.safeInput}" },
+            headers: { "Content-Type": "application/json" },
+            body: { data: "${fixture.safeInput}" },
+          },
+        },
+      ],
+      authenticationProfiles: [
+        {
+          id: "limited-user",
+          kind: "bearer",
+          role: "customer",
+          credentialRef: "security.integrationToken",
+        },
+      ],
+      exhaustiveness: { mode: "finite_matrix", requireAllCases: true, onIncomplete: "blocked" },
+      safetyPolicy: {
+        maxConcurrency: 1,
+        maxRequestsPerSecond: 1000,
+        maxDurationMs: 5000,
+        destructivePayloads: "forbidden",
+        stateMutation: "test-tenant-only",
+        cleanupRequired: true,
+      },
+      verdictPolicy: {
+        failOnSeverity: ["critical", "high"],
+        requireExhaustiveCompletion: true,
+        blockedCountsAs: "fail",
+      },
+    };
+    const result = await executeAgainstWrappedTransport({ root, contract });
+    assert.equal(result.status, "pass");
+    assert.ok(runtime.requests.length > 2);
+    const planRun = result.planRuns[0];
+    assert.ok(planRun?.runId);
+    const artifact = await readSecurityRunArtifact({
+      workspaceRootAbs: root,
+      projectName: "demo",
+      planName: "authorization",
+      runId: planRun.runId,
+    });
+    assert.ok(artifact.ok);
+    const knowledgeSnapshot = artifact.artifact.matrix.knowledgeSnapshot;
+    assert.ok(knowledgeSnapshot);
+    assert.equal(knowledgeSnapshot.selection, "catalog_default");
+    assert.ok(knowledgeSnapshot.packs.length > 1);
+    assert.equal(artifact.artifact.coverage.blockedCount, 0);
+    assert.equal(
+      artifact.artifact.coverage.cases.some(
+        (securityCase) => securityCase.reasonCode === "security_blackbox_fixture_unresolved",
+      ),
+      false,
+    );
+    const resumed = await executeAgainstWrappedTransport({ root, contract });
+    assert.equal(resumed.status, "pass");
+    const resumedPlanRun = resumed.planRuns[0];
+    assert.ok(resumedPlanRun?.runId);
+    const resumedArtifact = await readSecurityRunArtifact({
+      workspaceRootAbs: root,
+      projectName: "demo",
+      planName: "authorization",
+      runId: resumedPlanRun.runId,
+    });
+    assert.ok(resumedArtifact.ok);
+    assert.equal(resumedArtifact.artifact.matrix.knowledgeSnapshot?.selection, "catalog_default");
   } finally {
     await stopServer(runtime.server);
     if (typeof previous === "string") process.env[envName] = previous;

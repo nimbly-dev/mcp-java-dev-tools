@@ -1,8 +1,14 @@
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import { resolveRegressionRunDirAbs } from "@tools-feature-regression-suite";
+import { readSecurityRunArtifact } from "@tools-feature-security-suite";
+import { resolveSecurityPlanRootAbs } from "@tools-security-execution-plan-spec";
 import type { ArtifactActionRequest, ArtifactActionResult } from "../actions/types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
 import { readJsonFile } from "../shared/json_io";
+import { queryRunState } from "../state-store/run_state_query";
+
+type RunResultSuiteType = "regression" | "security";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -59,6 +65,195 @@ function toWindowedSection<T>(
   };
 }
 
+function requestedSuiteType(
+  request: ArtifactActionRequest<"run_result">,
+): RunResultSuiteType | undefined {
+  return request.input.suiteType ?? request.input.query?.suiteType;
+}
+
+async function hasFile(pathAbs: string): Promise<boolean> {
+  try {
+    return (await fs.stat(pathAbs)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+export async function resolveRunResultSuiteType(
+  request: ArtifactActionRequest<"run_result">,
+  workspaceRootAbs: string,
+  projectName: string,
+): Promise<RunResultSuiteType> {
+  const explicit = requestedSuiteType(request);
+  if (explicit) return explicit;
+
+  const planName = request.input.planName?.trim();
+  const runId = request.input.runId?.trim();
+  if (planName && runId) {
+    const security = await readSecurityRunArtifact({
+      workspaceRootAbs,
+      projectName,
+      planName,
+      runId,
+    });
+    if (security.ok) return "security";
+  }
+
+  if (planName) {
+    const regressionPlanRoot = path.join(
+      workspaceRootAbs,
+      ".mcpjvm",
+      projectName,
+      "plans",
+      "regression",
+      planName,
+    );
+    if (await hasFile(path.join(regressionPlanRoot, "contract.json"))) return "regression";
+
+    const securityPlanRoot = await resolveSecurityPlanRootAbs({
+      workspaceRootAbs,
+      projectName,
+      planName,
+    }).catch(() => undefined);
+    if (securityPlanRoot && (await hasFile(path.join(securityPlanRoot, "contract.json"))))
+      return "security";
+  }
+
+  return "regression";
+}
+
+async function readSecurityOperationalState(args: {
+  workspaceRootAbs: string;
+  projectName: string;
+  planName: string;
+  runId: string;
+}): Promise<Record<string, unknown>> {
+  const queried = await queryRunState({
+    workspaceRootAbs: args.workspaceRootAbs,
+    input: {
+      projectName: args.projectName,
+      planName: args.planName,
+      runId: args.runId,
+      pageSize: 1,
+    },
+  });
+  if (!queried.ok) {
+    const reasonCode =
+      queried.reasonCode === "state_store_corrupt" ||
+      queried.reasonCode === "state_store_schema_unsupported"
+        ? "security_diagnostic_sqlite_corrupt"
+        : "security_diagnostic_sqlite_unavailable";
+    return {
+      source: "sqlite",
+      status: "unavailable",
+      reasonCode,
+      detail: queried.reasonCode,
+    };
+  }
+  const item = queried.items[0];
+  if (!item) {
+    return {
+      source: "sqlite",
+      status: "unavailable",
+      reasonCode: "security_diagnostic_sqlite_unavailable",
+      detail: "security_run_projection_missing",
+    };
+  }
+  return { source: "sqlite", status: "available", item };
+}
+
+async function readSecurityRunResultArtifact(
+  request: ArtifactActionRequest<"run_result">,
+  workspaceRootAbs: string,
+  projectName: string,
+): Promise<ArtifactActionResult> {
+  const planName = request.input.planName?.trim();
+  const runId = request.input.runId?.trim();
+  if (!planName || !runId) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: "run_artifact_selector_required",
+      reason: "planName and runId are required for a Security run artifact read",
+      reasonMeta: { suiteType: "security", planName, runId },
+    });
+  }
+  const read = await readSecurityRunArtifact({
+    workspaceRootAbs,
+    projectName,
+    planName,
+    runId,
+  });
+  if (!read.ok) {
+    return buildFailClosedArtifactResponse({
+      reasonCode:
+        read.reasonCode === "security_run_artifact_missing"
+          ? "run_artifact_missing"
+          : "run_artifact_invalid",
+      reason:
+        read.reasonCode === "security_run_artifact_missing"
+          ? "run artifact file not found"
+          : "run artifact is invalid",
+      reasonMeta: { suiteType: "security", planName, runId, pathAbs: read.pathAbs },
+    });
+  }
+
+  const artifact = read.artifact;
+  const selectors = asStringArray(request.input.query?.select);
+  const summary = {
+    suiteType: "security",
+    securityMode: artifact.securityMode,
+    runStatus: artifact.status,
+    planName: artifact.planName,
+    runId: artifact.runId,
+    plannedCount: artifact.coverage.plannedCount,
+    executedCount: artifact.coverage.executedCount,
+    passedCount: artifact.coverage.passedCount,
+    confirmedCount: artifact.coverage.confirmedCount,
+    notApplicableCount: artifact.coverage.notApplicableCount,
+    blockedCount: artifact.coverage.blockedCount,
+    complete: artifact.coverage.complete,
+    findingCount: artifact.findings.length,
+    evidenceCount: artifact.evidence.length,
+    ...(artifact.reasonCode ? { reasonCode: artifact.reasonCode } : {}),
+  };
+  const operationalState = await readSecurityOperationalState({
+    workspaceRootAbs,
+    projectName,
+    planName,
+    runId,
+  });
+  if (selectors.length === 0) {
+    return okArtifactResponse({
+      resultType: "artifact",
+      status: "ok",
+      artifactType: request.artifactType,
+      action: request.action,
+      suiteType: "security",
+      runDirAbs: path.dirname(read.pathAbs),
+      summary,
+      operationalState,
+    });
+  }
+
+  const response: Record<string, unknown> = {
+    resultType: "artifact",
+    status: "ok",
+    artifactType: request.artifactType,
+    action: request.action,
+    suiteType: "security",
+    runDirAbs: path.dirname(read.pathAbs),
+    operationalState,
+  };
+  const artifactSections: Record<string, unknown> = {};
+  if (selectors.includes("summary")) response.summary = summary;
+  if (selectors.includes("executionResult")) artifactSections.executionResult = artifact;
+  if (selectors.includes("matrix")) artifactSections.matrix = artifact.matrix;
+  if (selectors.includes("coverage")) artifactSections.coverage = artifact.coverage;
+  if (selectors.includes("findings")) artifactSections.findings = artifact.findings;
+  if (selectors.includes("evidence")) artifactSections.evidence = artifact.evidence;
+  if (Object.keys(artifactSections).length > 0) response.artifact = artifactSections;
+  return okArtifactResponse(response);
+}
+
 export function workspaceRelativePath(
   workspaceRootAbs: string,
   pathAbs: string,
@@ -74,6 +269,9 @@ export async function readRunResultArtifact(
   workspaceRootAbs: string,
   projectName: string,
 ): Promise<ArtifactActionResult> {
+  if ((await resolveRunResultSuiteType(request, workspaceRootAbs, projectName)) === "security") {
+    return readSecurityRunResultArtifact(request, workspaceRootAbs, projectName);
+  }
   const runDirArgs: {
     workspaceRootAbs: string;
     projectName?: string;
