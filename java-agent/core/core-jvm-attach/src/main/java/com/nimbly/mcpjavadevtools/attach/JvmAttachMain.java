@@ -66,22 +66,10 @@ public final class JvmAttachMain {
     if (Long.toString(ProcessHandle.current().pid()).equals(command.pid())) {
       return AttachResult.failed(command.operation(), "self_attach_forbidden");
     }
-    if (!listedPid(command.pid())) {
-      return AttachResult.failed(command.operation(), "target_not_attachable");
-    }
     if (!isRepositoryOwnedAgent(command.agentJar())) {
       return AttachResult.failed(command.operation(), "agent_artifact_invalid");
     }
     return loadAgent(command);
-  }
-
-  private static boolean listedPid(String pid) {
-    for (VirtualMachineDescriptor descriptor : VirtualMachine.list()) {
-      if (pid.equals(descriptor.id())) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private static AttachResult loadAgent(Command command) {
