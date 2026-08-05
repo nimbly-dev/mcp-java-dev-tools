@@ -2,6 +2,7 @@ package com.nimbly.mcpjavadevtools.attach;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -64,6 +65,45 @@ class JvmAttachMainTest {
     } finally {
       Files.deleteIfExists(mountedAgent);
     }
+  }
+
+  @Test
+  void attemptsExplicitLivePidWhenAttachDiscoveryOmitsTheTarget() throws Exception {
+    Process fixture = new ProcessBuilder(
+        javaExecutable(),
+        "-XX:+DisableAttachMechanism",
+        "-cp",
+        System.getProperty("java.class.path"),
+        AttachFixture.class.getName()).start();
+    Path agentJar = Files.createTempFile("mcp-java-dev-tools-agent", ".jar");
+    try {
+      assertTrue(fixture.isAlive());
+      writeRepositoryAgentManifest(agentJar);
+
+      JvmAttachMain.AttachResult result = JvmAttachMain.run(new String[] {
+          "attach",
+          "--pid",
+          Long.toString(fixture.pid()),
+          "--agent-jar",
+          agentJar.toString(),
+          "--confirm",
+          "true"
+      });
+
+      assertEquals("blocked", result.outcome());
+      assertNotEquals("target_not_attachable", result.reasonCode());
+    } finally {
+      fixture.destroyForcibly();
+      fixture.waitFor();
+      Files.deleteIfExists(agentJar);
+    }
+  }
+
+  private static String javaExecutable() {
+    String executable = System.getProperty("os.name", "").toLowerCase().contains("win")
+        ? "java.exe"
+        : "java";
+    return Path.of(System.getProperty("java.home"), "bin", executable).toString();
   }
 
   private static void writeRepositoryAgentManifest(Path agentJar) throws IOException {
