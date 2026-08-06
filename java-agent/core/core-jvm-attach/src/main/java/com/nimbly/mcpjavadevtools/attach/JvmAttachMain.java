@@ -167,7 +167,7 @@ public final class JvmAttachMain {
     try {
       String feature = machine.getSystemProperties().getProperty("java.specification.version", "");
       return javaFeatureAtLeast21(feature) ? null : "target_java_version_unsupported";
-    } catch (IOException exception) {
+    } catch (IOException | InternalError exception) {
       return "target_runtime_unverified";
     }
   }
