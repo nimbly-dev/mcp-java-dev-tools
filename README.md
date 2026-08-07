@@ -152,8 +152,8 @@ discovery is intentionally unverified and does not expose target command lines o
 
 ```powershell
 java -jar java-agent\core\core-jvm-attach\target\mcp-java-dev-tools-core-jvm-attach-0.1.8.jar discover
-java -jar java-agent\core\core-jvm-attach\target\mcp-java-dev-tools-core-jvm-attach-0.1.8.jar attach --pid {pid} --agent-jar {absolute-agent-jar-path} --confirm true
-java -jar java-agent\core\core-jvm-attach\target\mcp-java-dev-tools-core-jvm-attach-0.1.8.jar deactivate --pid {pid} --agent-jar {absolute-agent-jar-path} --confirm true
+java -jar java-agent\core\core-jvm-attach\target\mcp-java-dev-tools-core-jvm-attach-0.1.8.jar attach --pid {pid} --expected-process-start-epoch-ms {process-start-epoch-ms} --agent-jar {absolute-agent-jar-path} --confirm true
+java -jar java-agent\core\core-jvm-attach\target\mcp-java-dev-tools-core-jvm-attach-0.1.8.jar deactivate --pid {pid} --expected-process-start-epoch-ms {process-start-epoch-ms} --agent-jar {absolute-agent-jar-path} --confirm true
 ```
 
 On Java 21, dynamic agent loading succeeds by default but emits the JEP 451 warning.

@@ -132,11 +132,22 @@ For a terminal Skill Workflow state, `verify_reproduction` returns the supplied 
 | `resultType`           | Deterministic output kind (`jvm_list`, `jvm_lifecycle`, or `report`).                                       | `jvm_lifecycle`                   | true     | `"jvm_lifecycle"`                                                           |
 | `status`               | `ok` only for the helper's structured active/deactivation result; otherwise `blocked`.                      | `jvm_lifecycle`                   | true     | `"ok"`                                                                      |
 | `reasonCode`           | Stable lifecycle/helper failure or reported reason code.                                                    | `jvm_lifecycle`                   | true     | `"active"`                                                                  |
-| `jvms[]`               | Bounded discovery descriptors. Every descriptor is unverified.                                              | `jvm_lifecycle action=list_jvms`  | false    | `[{"pid":"1234","attachmentState":"unverified","probeState":"unverified"}]` |
+| `jvms[]`               | Bounded discovery descriptors. Every descriptor is unverified; identity and framework fields are deterministic inference only. | `jvm_lifecycle action=list_jvms` | false | `[{"pid":"1234","identityHint":"orders-service.jar","identitySource":"sanitized_attach_descriptor","frameworkHint":"spring_boot_candidate","frameworkEvidence":["spring_boot_launcher","executable_jar_name"],"processStartEpochMs":1720000000000,"attachmentState":"unverified","probeState":"unverified"}]` |
+| `jvms[].identityHint`  | Sanitized application or executable token, or `null` when no bounded identity token is available.          | `jvm_lifecycle action=list_jvms` | false | `"orders-service.jar"` |
+| `jvms[].identitySource` | Bounded source classification (`sanitized_attach_descriptor`, `sanitized_executable_basename`, or `unavailable`). | `jvm_lifecycle action=list_jvms` | false | `"sanitized_attach_descriptor"` |
+| `jvms[].frameworkHint` | Deterministic framework inference (`spring_boot_candidate` or `unknown`); never framework proof.         | `jvm_lifecycle action=list_jvms` | false | `"spring_boot_candidate"` |
+| `jvms[].frameworkEvidence` | Bounded evidence tokens (`spring_boot_launcher`, `executable_jar_name`); an empty list means `frameworkHint` is `unknown`. | `jvm_lifecycle action=list_jvms` | false | `["spring_boot_launcher","executable_jar_name"]` |
+| `jvms[].processStartEpochMs` | Process start timestamp used as the required PID-reuse fence; `null` means mutation cannot proceed. | `jvm_lifecycle action=list_jvms` | true | `1720000000000` |
 | `selectedJvm.pid`      | Exact target PID for a lifecycle mutation.                                                                  | `jvm_lifecycle`                   | false    | `"1234"`                                                                    |
+| `selectedJvm.expectedProcessStartEpochMs` | Start timestamp supplied with a lifecycle mutation and matched again before agent loading. | `jvm_lifecycle action=attach/deactivate` | false | `1720000000000` |
 | `lifecycle`            | Structured result returned by the Java lifecycle helper.                                                    | `jvm_lifecycle`                   | false    | `{"operation":"attach","outcome":"active"}`                                 |
 | `probe.baseUrl`        | Selected Probe control URL. Its `verification` remains `pending` until canonical `probe` evidence succeeds. | `jvm_lifecycle action=attach`     | false    | `"http://127.0.0.1:9191"`                                                   |
 | `nonRestorableClasses` | Bounded class list returned when agent-owned deactivation is partial.                                       | `jvm_lifecycle action=deactivate` | false    | `[]`                                                                        |
+
+`list_jvms` remains additive and retains `pid`, `attachmentState`, and `probeState` compatibility. Direct
+`attach` and `deactivate` callers must now supply `expectedProcessStartEpochMs`; this is an intentional breaking
+change so lifecycle mutation fails closed when the selected PID has been recycled or its start time cannot be
+verified. No raw command lines, arguments, environment values, or JVM system properties are emitted.
 
 ## debug_check
 

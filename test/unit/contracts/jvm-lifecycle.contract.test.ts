@@ -8,6 +8,7 @@ test("[UT][contracts][jvm_lifecycle] requires an explicit numeric PID and confir
     action: "attach",
     input: {
       pid: "1234",
+      expectedProcessStartEpochMs: 1720000000000,
       confirm: true,
       probeHost: "127.0.0.1",
       probePort: 9190,
@@ -17,9 +18,23 @@ test("[UT][contracts][jvm_lifecycle] requires an explicit numeric PID and confir
 
   const rejected = JvmLifecycleRequestSchema.safeParse({
     action: "attach",
-    input: { pid: "1234", confirm: false },
+    input: { pid: "1234", expectedProcessStartEpochMs: 1720000000000, confirm: false },
   });
   assert.equal(rejected.success, false);
+});
+
+test("[UT][contracts][jvm_lifecycle] requires process-start fencing for mutation", () => {
+  const missingFence = JvmLifecycleRequestSchema.safeParse({
+    action: "deactivate",
+    input: { pid: "1234", confirm: true },
+  });
+  assert.equal(missingFence.success, false);
+
+  const accepted = JvmLifecycleRequestSchema.safeParse({
+    action: "deactivate",
+    input: { pid: "1234", expectedProcessStartEpochMs: 1720000000000, confirm: true },
+  });
+  assert.equal(accepted.success, true);
 });
 
 test("[UT][contracts][jvm_lifecycle] keeps discovery separate from lifecycle mutation", () => {

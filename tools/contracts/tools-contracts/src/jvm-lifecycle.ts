@@ -14,6 +14,7 @@ const ListJvmsInputSchema = z.object({}).strict();
 const AttachInputSchema = z
   .object({
     pid: NumericPidSchema,
+    expectedProcessStartEpochMs: z.number().int().positive(),
     confirm: z.literal(true),
     probeHost: ProbeHostSchema.optional(),
     probePort: ProbePortSchema.optional(),
@@ -24,6 +25,7 @@ const AttachInputSchema = z
 const DeactivateInputSchema = z
   .object({
     pid: NumericPidSchema,
+    expectedProcessStartEpochMs: z.number().int().positive(),
     confirm: z.literal(true),
   })
   .strict();

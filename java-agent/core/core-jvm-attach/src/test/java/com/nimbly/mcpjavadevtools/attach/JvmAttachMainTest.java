@@ -18,7 +18,8 @@ class JvmAttachMainTest {
   @Test
   void failsClosedWhenMutationConfirmationIsMissing() {
     JvmAttachMain.AttachResult result = JvmAttachMain.run(new String[] {
-        "attach", "--pid", "123", "--agent-jar", "missing.jar", "--confirm", "false"
+        "attach", "--pid", "123", "--expected-process-start-epoch-ms", "123",
+        "--agent-jar", "missing.jar", "--confirm", "false"
     });
 
     assertEquals("blocked", result.outcome());
@@ -28,11 +29,22 @@ class JvmAttachMainTest {
   @Test
   void rejectsNonNumericPidBeforeTryingToLoadAnAgent() {
     JvmAttachMain.AttachResult result = JvmAttachMain.run(new String[] {
-        "deactivate", "--pid", "not-a-pid", "--agent-jar", "missing.jar", "--confirm", "true"
+        "deactivate", "--pid", "not-a-pid", "--expected-process-start-epoch-ms", "123",
+        "--agent-jar", "missing.jar", "--confirm", "true"
     });
 
     assertEquals("blocked", result.outcome());
     assertEquals("pid_invalid", result.reasonCode());
+  }
+
+  @Test
+  void requiresProcessStartFenceForDirectMutationCallers() {
+    JvmAttachMain.AttachResult result = JvmAttachMain.run(new String[] {
+        "deactivate", "--pid", "123", "--agent-jar", "missing.jar", "--confirm", "true"
+    });
+
+    assertEquals("blocked", result.outcome());
+    assertEquals("process_start_required", result.reasonCode());
   }
 
   @Test
@@ -42,7 +54,44 @@ class JvmAttachMainTest {
     assertEquals("discover", result.operation());
     assertEquals("unverified", result.outcome());
     assertEquals("jvm_discovery_unverified", result.reasonCode());
+    assertTrue(result.toJson().contains("\"candidates\""));
+    assertTrue(result.toJson().contains("\"frameworkEvidence\""));
+    assertTrue(result.toJson().contains("\"processStartEpochMs\""));
     assertFalse(result.toJson().contains("displayName"));
+  }
+
+  @Test
+  void rejectsPidReuseBeforeAnyLifecycleMutation() throws Exception {
+    Process fixture = new ProcessBuilder(
+        javaExecutable(),
+        "-XX:+DisableAttachMechanism",
+        "-cp",
+        System.getProperty("java.class.path"),
+        AttachFixture.class.getName()).start();
+    try {
+      assertTrue(fixture.isAlive());
+      long startEpochMs = fixture.toHandle().info().startInstant()
+          .orElseThrow()
+          .toEpochMilli();
+
+      JvmAttachMain.AttachResult result = JvmAttachMain.run(new String[] {
+          "attach",
+          "--pid",
+          Long.toString(fixture.pid()),
+          "--expected-process-start-epoch-ms",
+          Long.toString(startEpochMs + 1),
+          "--agent-jar",
+          "missing.jar",
+          "--confirm",
+          "true"
+      });
+
+      assertEquals("blocked", result.outcome());
+      assertEquals("pid_reused_or_process_identity_mismatch", result.reasonCode());
+    } finally {
+      fixture.destroyForcibly();
+      fixture.waitFor();
+    }
   }
 
   @Test
@@ -84,6 +133,8 @@ class JvmAttachMainTest {
           "attach",
           "--pid",
           Long.toString(fixture.pid()),
+          "--expected-process-start-epoch-ms",
+          Long.toString(fixture.toHandle().info().startInstant().orElseThrow().toEpochMilli()),
           "--agent-jar",
           agentJar.toString(),
           "--confirm",

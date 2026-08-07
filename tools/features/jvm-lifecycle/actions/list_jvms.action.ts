@@ -24,7 +24,13 @@ export async function listJvmsAction(): Promise<JvmLifecycleResponse> {
   const jvms = result.pids
     .filter((pid) => pid !== String(process.pid))
     .slice(0, 128)
-    .map((pid) => ({ pid, attachmentState: "unverified", probeState: "unverified" }));
+    .map((pid) => result.candidates.find((candidate) => candidate.pid === pid))
+    .filter((candidate) => candidate !== undefined)
+    .map((candidate) => ({
+      ...candidate,
+      attachmentState: "unverified",
+      probeState: "unverified",
+    }));
   return response({
     resultType: "jvm_list",
     status: "ok",
