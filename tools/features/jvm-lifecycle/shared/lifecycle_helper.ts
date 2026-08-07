@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
 
-import type { LifecycleHelperResult } from "../models/jvm_lifecycle.model";
+import type { JvmCandidate, LifecycleHelperResult } from "../models/jvm_lifecycle.model";
 
 const HELPER_JAR_ENV = "MCP_JAVA_ATTACH_HELPER_JAR";
 const AGENT_JAR_ENV = "MCP_JAVA_AGENT_JAR";
@@ -98,8 +98,10 @@ function parseHelperResult(value: string): LifecycleHelperResult | undefined {
       typeof parsed.outcome !== "string" ||
       typeof parsed.reasonCode !== "string" ||
       !Array.isArray(parsed.pids) ||
+      !Array.isArray(parsed.candidates) ||
       !Array.isArray(parsed.nonRestorableClasses) ||
       !parsed.pids.every((pid) => typeof pid === "string") ||
+      !parsed.candidates.every(isJvmCandidate) ||
       !parsed.nonRestorableClasses.every((className) => typeof className === "string")
     ) {
       return undefined;
@@ -108,6 +110,32 @@ function parseHelperResult(value: string): LifecycleHelperResult | undefined {
   } catch {
     return undefined;
   }
+}
+
+function isJvmCandidate(value: unknown): value is JvmCandidate {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const candidate = value as Partial<JvmCandidate>;
+  return (
+    typeof candidate.pid === "string" &&
+    /^[1-9][0-9]*$/u.test(candidate.pid) &&
+    (typeof candidate.identityHint === "string" || candidate.identityHint === null) &&
+    (candidate.identityHint === null || candidate.identityHint.length <= 128) &&
+    (candidate.identitySource === "sanitized_attach_descriptor" ||
+      candidate.identitySource === "sanitized_executable_basename" ||
+      candidate.identitySource === "unavailable") &&
+    (candidate.frameworkHint === "spring_boot_candidate" ||
+      candidate.frameworkHint === "unknown") &&
+    Array.isArray(candidate.frameworkEvidence) &&
+    candidate.frameworkEvidence.length <= 4 &&
+    candidate.frameworkEvidence.every(
+      (evidence) => evidence === "spring_boot_launcher" || evidence === "executable_jar_name",
+    ) &&
+    (typeof candidate.processStartEpochMs === "number" || candidate.processStartEpochMs === null) &&
+    (candidate.processStartEpochMs === null ||
+      (Number.isSafeInteger(candidate.processStartEpochMs) && candidate.processStartEpochMs > 0))
+  );
 }
 
 export async function runLifecycleHelper(
@@ -145,7 +173,9 @@ export async function runLifecycleHelper(
         finish(parsed);
         return;
       }
-      finish({ reasonCode: exitCode === 0 ? "attach_helper_output_invalid" : "attach_helper_failed" });
+      finish({
+        reasonCode: exitCode === 0 ? "attach_helper_output_invalid" : "attach_helper_failed",
+      });
     });
   });
 }

@@ -1,7 +1,11 @@
 import type { JvmLifecycleRequest } from "@tools-contracts/jvm-lifecycle";
 
 import type { JvmLifecycleResponse } from "../models/jvm_lifecycle.model";
-import { resolveAgentJar, resolveLifecycleHelperLaunch, runLifecycleHelper } from "../shared/lifecycle_helper";
+import {
+  resolveAgentJar,
+  resolveLifecycleHelperLaunch,
+  runLifecycleHelper,
+} from "../shared/lifecycle_helper";
 
 type DeactivateInput = Extract<JvmLifecycleRequest, { action: "deactivate" }>["input"];
 
@@ -14,7 +18,11 @@ function response(structuredContent: Record<string, unknown>): JvmLifecycleRespo
 
 export async function deactivateAction(input: DeactivateInput): Promise<JvmLifecycleResponse> {
   if (input.pid === String(process.pid)) {
-    return response({ resultType: "report", status: "blocked", reasonCode: "mcp_server_attach_forbidden" });
+    return response({
+      resultType: "report",
+      status: "blocked",
+      reasonCode: "mcp_server_attach_forbidden",
+    });
   }
   const launch = resolveLifecycleHelperLaunch();
   if (!launch.ok) {
@@ -28,6 +36,8 @@ export async function deactivateAction(input: DeactivateInput): Promise<JvmLifec
     "deactivate",
     "--pid",
     input.pid,
+    "--expected-process-start-epoch-ms",
+    String(input.expectedProcessStartEpochMs),
     "--agent-jar",
     agentJar.value,
     "--confirm",
@@ -45,7 +55,7 @@ export async function deactivateAction(input: DeactivateInput): Promise<JvmLifec
     resultType: "jvm_lifecycle",
     status: deactivated ? "ok" : "blocked",
     reasonCode: result.reasonCode,
-    selectedJvm: { pid: input.pid },
+    selectedJvm: { pid: input.pid, expectedProcessStartEpochMs: input.expectedProcessStartEpochMs },
     lifecycle: { operation: result.operation, outcome: result.outcome },
     nonRestorableClasses: result.nonRestorableClasses,
   });
