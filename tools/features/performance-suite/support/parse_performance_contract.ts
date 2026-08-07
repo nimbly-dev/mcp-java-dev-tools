@@ -313,6 +313,22 @@ export function resolveProfilerStartFailure(
   return null;
 }
 
+export function resolveProfilerProviderMetadata(
+  value: unknown,
+): { name: string; event?: string; outputFormat?: string } | undefined {
+  if (!isRecord(value)) return undefined;
+  const result = isRecord(value.result) ? value.result : value;
+  const name = asTrimmedString(result.provider);
+  if (!name) return undefined;
+  const event = asTrimmedString(result.event);
+  const outputFormat = asTrimmedString(result.outputFormat);
+  return {
+    name,
+    ...(event ? { event } : {}),
+    ...(outputFormat ? { outputFormat } : {}),
+  };
+}
+
 export function resolveExecutionTiming(
   input: Record<string, unknown>,
 ): PerformancePlanContract["analysis"] extends { executionTiming?: infer T }
@@ -326,10 +342,12 @@ export function resolveExecutionTiming(
   const event = asTrimmedString(executionTiming.event);
   const intervalNanos = asPositiveInteger(executionTiming.intervalNanos);
   const outputFormat = asTrimmedString(executionTiming.outputFormat);
-  if (provider !== "async-profiler") return undefined as never;
+  if (provider !== "auto" && provider !== "async-profiler" && provider !== "jfr") {
+    return undefined as never;
+  }
   return {
     enabled: true,
-    provider: "async-profiler",
+    provider,
     ...(event ? { event } : {}),
     ...(typeof intervalNanos === "number" ? { intervalNanos } : {}),
     ...(outputFormat === "jfr" ? { outputFormat: "jfr" as const } : {}),

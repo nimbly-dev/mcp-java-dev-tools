@@ -47,8 +47,10 @@ Required when `analysis.msta.enabled=true`.
 Current supported fields:
 
 - `enabled`: must be `true`
-- `provider`: current supported value: `async-profiler`
-- native Windows JVMs are not currently supported by `async-profiler`; profiler start fails closed with reason code `profiler_unsupported_platform`
+- `provider`: `auto`, `async-profiler`, or `jfr`
+- `async-profiler` remains explicitly selectable and is supported on its bundled Linux/macOS platforms only; explicit selection fails closed on unsupported platforms
+- `auto` selects `async-profiler` when available and otherwise selects JFR when the running Java 21+ runtime exposes JFR
+- `jfr` uses the JDK Flight Recorder execution-sample provider and is cross-platform on supported Java 21+ runtimes
 - `event`: optional provider-specific event name such as `cpu` or `wall`
 - `intervalNanos`: optional provider-specific sampling interval
 - `outputFormat`: current supported value: `jfr`
@@ -178,7 +180,7 @@ These states apply to run-result Artifacts only. They do not require `execution-
 - `jfrPath`: readable profiler capture path used for analysis
 - `sourceEventTypes[]`: sampled event types actually consumed by the evidence builder
 - `durationMs`: measured run duration used for approximate time attribution
-- `provider`: optional provider metadata
+- `provider`: optional selected-provider metadata; for `auto`, this records the provider actually used
   - `name`
   - `event`
   - `outputFormat`

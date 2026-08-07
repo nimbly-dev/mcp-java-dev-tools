@@ -19,7 +19,7 @@ export type ProbeGetCaptureInput = { captureId: string; baseUrl?: string; probeI
 export type ProbeGetStatusInput = { key?: string; keys?: string[]; lineHint?: number; baseUrl?: string; probeId?: string; timeoutMs?: number };
 export type ProbeResetInput = { key?: string; keys?: string[]; className?: string; lineHint?: number; baseUrl?: string; probeId?: string; timeoutMs?: number };
 export type ProbeWaitForHitInput = { key: string; lineHint?: number; baseUrl?: string; probeId?: string; timeoutMs?: number; pollIntervalMs?: number; maxRetries?: number };
-export type ProbeProfilerInput = { action: "start" | "stop" | "reset" | "status" | "download"; sessionId?: string; event?: string; intervalNanos?: number; outputPath?: string; outputFormat?: "jfr"; baseUrl?: string; probeId?: string; timeoutMs?: number };
+export type ProbeProfilerInput = { action: "start" | "stop" | "reset" | "status" | "download"; provider?: "auto" | "async-profiler" | "jfr"; sessionId?: string; event?: string; intervalNanos?: number; outputPath?: string; outputFormat?: "jfr"; baseUrl?: string; probeId?: string; timeoutMs?: number };
 
 export type ProbeActionRequest =
   | { action: "actuate"; input: ProbeEnableInput }

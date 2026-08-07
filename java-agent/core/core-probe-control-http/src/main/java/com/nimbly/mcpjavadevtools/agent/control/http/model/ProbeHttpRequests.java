@@ -20,6 +20,7 @@ public final class ProbeHttpRequests {
 
   public record ProfilerRequest(
       String action,
+      String provider,
       String sessionId,
       String event,
       Long intervalNanos,

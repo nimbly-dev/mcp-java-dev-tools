@@ -55,8 +55,9 @@ This file defines the normative rules used by the craft skill.
 Optional unless `analysis.msta.enabled=true`.
 
 - `enabled`: must be `true` when present for active timing capture
-- `provider`: current supported value `async-profiler`
-- native Windows JVMs are not currently supported by `async-profiler`; if unsupported, profiler start fails closed with reason code `profiler_unsupported_platform`
+- `provider`: `auto`, `async-profiler`, or `jfr`; use `auto` for new cross-platform plans
+- `provider=async-profiler` remains explicit and unsupported on native Windows; `provider=auto` selects JFR when async-profiler is unavailable
+- JFR requires Java 21+ and provides execution-timing/JFR evidence, not async-profiler's native CPU, allocation, or lock semantics
 - `event`: optional provider-specific sampling event such as `cpu` or `wall`
 - `intervalNanos`: optional positive integer sampling interval
 - `outputFormat`: current supported value `jfr`

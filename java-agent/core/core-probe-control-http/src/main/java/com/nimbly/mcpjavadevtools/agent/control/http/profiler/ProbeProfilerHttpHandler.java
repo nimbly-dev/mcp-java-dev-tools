@@ -52,6 +52,7 @@ public final class ProbeProfilerHttpHandler implements HttpHandler {
       if ("start".equals(action)) {
         ProfilerApi.State state = ProfilerApi.start(
             new ProfilerApi.StartRequest(
+                request.provider(),
                 request.sessionId(),
                 request.event(),
                 request.intervalNanos(),

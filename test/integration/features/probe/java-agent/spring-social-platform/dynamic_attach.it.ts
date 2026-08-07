@@ -18,7 +18,13 @@ type LifecycleResult = {
   outcome: string;
   reasonCode: string;
   pids: string[];
+  candidates?: LifecycleCandidate[];
   nonRestorableClasses: string[];
+};
+
+type LifecycleCandidate = {
+  pid: string;
+  processStartEpochMs?: number;
 };
 
 type ProbeStatus = {
@@ -36,6 +42,13 @@ test("[IT][java-agent][probe] dynamic attach instruments a live Spring applicati
 
     const helperJar = await resolveJvmAttachHelperJar();
     const agentJar = await resolveJavaAgentJar();
+    const discovered = await runLifecycleHelper(helperJar, ["discover"]);
+    const target = discovered.candidates?.find((candidate) => candidate.pid === String(runtime.pid));
+    assert.ok(
+      target?.processStartEpochMs,
+      `Dynamic-attach fixture JVM was not present in lifecycle discovery: ${JSON.stringify(discovered)}`,
+    );
+    const expectedProcessStartEpochMs = String(target.processStartEpochMs);
     const probePort = new URL(runtime.probeBaseUrl).port;
     const agentArgs = `host=127.0.0.1;port=${probePort};include=com.example.social.**`;
 
@@ -45,6 +58,8 @@ test("[IT][java-agent][probe] dynamic attach instruments a live Spring applicati
       String(runtime.pid),
       "--agent-jar",
       agentJar,
+      "--expected-process-start-epoch-ms",
+      expectedProcessStartEpochMs,
       "--confirm",
       "true",
       "--agent-args",
@@ -59,6 +74,8 @@ test("[IT][java-agent][probe] dynamic attach instruments a live Spring applicati
       String(runtime.pid),
       "--agent-jar",
       agentJar,
+      "--expected-process-start-epoch-ms",
+      expectedProcessStartEpochMs,
       "--confirm",
       "true",
       "--agent-args",
@@ -92,6 +109,8 @@ test("[IT][java-agent][probe] dynamic attach instruments a live Spring applicati
       String(runtime.pid),
       "--agent-jar",
       agentJar,
+      "--expected-process-start-epoch-ms",
+      expectedProcessStartEpochMs,
       "--confirm",
       "true",
     ]);

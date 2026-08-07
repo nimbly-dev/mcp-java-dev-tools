@@ -56,7 +56,7 @@ export type PerformanceExportPlanContract = {
   analysis?: {
     executionTiming?: {
       enabled: true;
-      provider: "async-profiler";
+      provider: "auto" | "async-profiler" | "jfr";
       event?: string;
       intervalNanos?: number;
       outputFormat?: "jfr";
@@ -226,12 +226,14 @@ export async function loadPerformancePlanContract(input: {
       },
       ...(executionTiming &&
       executionTiming.enabled === true &&
-      asString(executionTiming.provider) === "async-profiler"
+      (asString(executionTiming.provider) === "auto" ||
+        asString(executionTiming.provider) === "async-profiler" ||
+        asString(executionTiming.provider) === "jfr")
         ? {
             analysis: {
               executionTiming: {
                 enabled: true,
-                provider: "async-profiler",
+                provider: asString(executionTiming.provider) as "auto" | "async-profiler" | "jfr",
                 ...(executionTimingEvent ? { event: executionTimingEvent } : {}),
                 ...(typeof executionTiming.intervalNanos === "number"
                   ? { intervalNanos: executionTiming.intervalNanos }
