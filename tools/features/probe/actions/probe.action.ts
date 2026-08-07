@@ -348,6 +348,7 @@ export function createProbeDomain(cfg: ProbeDomainConfig) {
         baseUrl: base.baseUrl,
         profilerPath: cfg.probeProfilerPath,
       };
+      if (typeof input.provider === "string") args.provider = input.provider;
       if (typeof input.sessionId === "string") args.sessionId = input.sessionId;
       if (typeof input.event === "string") args.event = input.event;
       if (typeof input.intervalNanos === "number") args.intervalNanos = input.intervalNanos;

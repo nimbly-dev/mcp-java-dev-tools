@@ -409,6 +409,12 @@ function resolveProfilerStartFailure(result) {
   return null;
 }
 
+function resolveSelectedProfilerProvider(result, fallback) {
+  return result && typeof result.provider === "string" && result.provider.trim().length > 0
+    ? result.provider.trim()
+    : fallback;
+}
+
 function percentile(values, ratio) {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -654,11 +660,13 @@ async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
 
   let profilerStopResult;
   let profilerStartResult;
+  let selectedProfilerProvider;
   if (plan.contract.analysis?.executionTiming?.enabled === true) {
     const sessionId = `${plan.planName}-${Date.now()}`;
     try {
       const startResult = await profiler(probeBaseUrl, {
         action: "start",
+        provider: plan.contract.analysis.executionTiming.provider,
         sessionId,
         ...(plan.contract.analysis.executionTiming.event ? { event: plan.contract.analysis.executionTiming.event } : {}),
         ...(typeof plan.contract.analysis.executionTiming.intervalNanos === "number"
@@ -673,6 +681,10 @@ async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
       plan._profilerSessionId = activeProfilerSessionId;
       plan._profilerStartResult = startResult;
       profilerStartResult = startResult;
+      selectedProfilerProvider = resolveSelectedProfilerProvider(
+        startResult,
+        plan.contract.analysis.executionTiming.provider,
+      );
       const profilerStartFailure = resolveProfilerStartFailure(startResult);
       if (profilerStartFailure) {
         return blockedPlanResult(profilerStartFailure.reasonCode, profilerStartFailure.detail, {
@@ -680,7 +692,7 @@ async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
           reasonMeta: {
             probeBaseUrl,
             sessionId,
-            provider: "async-profiler",
+            provider: selectedProfilerProvider,
             event: plan.contract.analysis.executionTiming.event ?? "cpu",
             planName: plan.planName,
           },
@@ -697,7 +709,7 @@ async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
         reasonMeta: {
           probeBaseUrl,
           sessionId,
-          provider: "async-profiler",
+          provider: selectedProfilerProvider ?? plan.contract.analysis.executionTiming.provider,
           event: plan.contract.analysis.executionTiming.event ?? "cpu",
           planName: plan.planName,
         },
@@ -762,13 +774,17 @@ async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
         sessionId: plan._profilerSessionId,
         outputFormat: plan.contract.analysis.executionTiming.outputFormat ?? "jfr",
       });
+      selectedProfilerProvider = resolveSelectedProfilerProvider(
+        profilerStopResult,
+        selectedProfilerProvider ?? plan.contract.analysis.executionTiming.provider,
+      );
     } catch (error) {
       return blockedPlanResult("performance_profiler_stop_failed", errorDetail(error), {
         failedStep: "profiler_stop",
         reasonMeta: {
           probeBaseUrl,
           sessionId: plan._profilerSessionId,
-          provider: "async-profiler",
+          provider: selectedProfilerProvider ?? plan.contract.analysis.executionTiming.provider,
           planName: plan.planName,
         },
         executionTiming: {
@@ -792,7 +808,7 @@ async function runPlan(plan, envContext, runtimeConfig, runDirAbs) {
           probeBaseUrl,
           sessionId: plan._profilerSessionId,
           outputPath: profilerOutputPath,
-          provider: "async-profiler",
+          provider: selectedProfilerProvider ?? plan.contract.analysis.executionTiming.provider,
           planName: plan.planName,
         },
         executionTiming: {

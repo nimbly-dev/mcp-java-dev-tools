@@ -25,9 +25,9 @@ public final class ProfilerApi {
   }
 
   public static State start(StartRequest request) {
-    return toApi(ProbeProfilerRegistry.active().start(
+    return toApi(ProbeProfilerRegistry.start(
         new ProfilerStartRequest(
-            request.sessionId(), request.event(), request.intervalNanos(), request.outputPath(), request.outputFormat())));
+            request.provider(), request.sessionId(), request.event(), request.intervalNanos(), request.outputPath(), request.outputFormat())));
   }
 
   public static StopResult stop(StopRequest request) {
@@ -50,7 +50,7 @@ public final class ProfilerApi {
         value.stoppedAtEpochMs(), value.outputPath(), value.outputFormat(), value.detail());
   }
 
-  public record StartRequest(String sessionId, String event, Long intervalNanos, String outputPath,
+  public record StartRequest(String provider, String sessionId, String event, Long intervalNanos, String outputPath,
                              String outputFormat) {}
   public record StopRequest(String sessionId, String outputPath, String outputFormat) {}
   public record State(String status, String provider, boolean supported, String sessionId,

@@ -15,6 +15,8 @@ export type JmeterWorkloadProvider = {
 
 export type PerformanceWorkloadProvider = BuiltinWorkloadProvider | JmeterWorkloadProvider;
 
+export type ExecutionTimingProvider = "auto" | "async-profiler" | "jfr";
+
 export type PerformancePlanMetadata = {
   specVersion?: string;
   suiteType: "performance";
@@ -60,7 +62,7 @@ export type PerformancePlanContract = {
   analysis?: {
     executionTiming?: {
       enabled: true;
-      provider: "async-profiler";
+      provider: ExecutionTimingProvider;
       event?: string;
       intervalNanos?: number;
       outputFormat?: "jfr";

@@ -36,6 +36,7 @@ function buildProfilerErrorResult(args: {
 
 export async function probeProfiler(args: {
   action: "start" | "stop" | "reset" | "status" | "download";
+  provider?: "auto" | "async-profiler" | "jfr";
   baseUrl: string;
   profilerPath: string;
   sessionId?: string;
@@ -116,6 +117,7 @@ export async function probeProfiler(args: {
       res = await fetchJson(url, { method: "GET", timeoutMs });
     } else {
       const payload: Record<string, unknown> = { action: args.action };
+      if (typeof args.provider === "string") payload.provider = args.provider;
       if (typeof args.sessionId === "string") payload.sessionId = args.sessionId;
       if (typeof args.event === "string") payload.event = args.event;
       if (typeof args.intervalNanos === "number") payload.intervalNanos = args.intervalNanos;

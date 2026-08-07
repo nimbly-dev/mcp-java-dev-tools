@@ -6,10 +6,16 @@ import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopRequest;
 import com.nimbly.mcpjavadevtools.agent.profiler.model.ProfilerStopResult;
 
 public final class NoopProbeProfiler implements ProbeProfiler {
-  private static final String PROVIDER = "async-profiler";
+  private static final String DEFAULT_PROVIDER = "async-profiler";
+  private final String provider;
   private final String detail;
 
   public NoopProbeProfiler(String detail) {
+    this(DEFAULT_PROVIDER, detail);
+  }
+
+  public NoopProbeProfiler(String provider, String detail) {
+    this.provider = provider == null || provider.isBlank() ? DEFAULT_PROVIDER : provider.trim();
     this.detail = detail == null || detail.isBlank() ? "profiler_not_configured" : detail.trim();
   }
 
@@ -27,7 +33,7 @@ public final class NoopProbeProfiler implements ProbeProfiler {
   public ProfilerStopResult stop(ProfilerStopRequest request) {
     return new ProfilerStopResult(
         request == null || request.sessionId() == null ? "" : request.sessionId().trim(),
-        PROVIDER,
+        provider,
         "disabled",
         false,
         null,
@@ -45,7 +51,7 @@ public final class NoopProbeProfiler implements ProbeProfiler {
   private ProfilerStateSnapshot disabledState() {
     return new ProfilerStateSnapshot(
         "disabled",
-        PROVIDER,
+        provider,
         false,
         "",
         null,

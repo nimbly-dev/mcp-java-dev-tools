@@ -103,7 +103,7 @@ Use explicit method references only for timing-analysis focus.
 Required fields when enabled:
 
 1. `analysis.executionTiming.enabled=true`
-2. `analysis.executionTiming.provider=async-profiler`
+2. `analysis.executionTiming.provider=auto` for new cross-platform plans; existing `async-profiler` plans remain valid
 3. `analysis.executionTiming.outputFormat=jfr`
 4. `analysis.msta.enabled=true`
 5. `analysis.msta.methodTargets[].methodRef`

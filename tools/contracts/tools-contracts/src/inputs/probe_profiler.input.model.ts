@@ -9,17 +9,21 @@ export const ProbeProfilerInputSchema = {
     .min(1)
     .optional()
     .describe("Logical profiler session id. Required for start; optional for stop/status/reset."),
+  provider: z
+    .enum(["auto", "async-profiler", "jfr"])
+    .optional()
+    .describe("Profiler provider intent. Existing async-profiler plans remain explicit; auto selects the best available provider."),
   event: z
     .string()
     .min(1)
     .optional()
-    .describe("async-profiler event name. Defaults to cpu."),
+    .describe("Provider-specific event name. Defaults to cpu."),
   intervalNanos: z
     .number()
     .int()
     .positive()
     .optional()
-    .describe("Optional async-profiler sampling interval in nanoseconds."),
+    .describe("Optional provider sampling interval in nanoseconds."),
   outputPath: z
     .string()
     .min(1)
@@ -28,7 +32,7 @@ export const ProbeProfilerInputSchema = {
   outputFormat: z
     .enum(["jfr"])
     .optional()
-    .describe("Profiler output format. First implementation supports jfr only."),
+    .describe("Profiler output format. Both async-profiler and JFR providers emit jfr."),
   baseUrl: z
     .string()
     .optional()

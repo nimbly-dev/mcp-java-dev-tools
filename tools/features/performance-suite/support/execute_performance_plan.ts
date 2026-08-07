@@ -15,6 +15,7 @@ import {
   sanitizeSuitePersistedContext,
 } from "@tools-feature-regression-suite";
 import { parsePerformancePlanMetadata } from "./parse_performance_plan_metadata";
+import { resolveProfilerProviderMetadata } from "./parse_performance_contract";
 import type { ExecutePerformancePlanWorkflowArgs } from "../models/performance_suite.model";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -322,6 +323,9 @@ export async function executePerformancePlanWorkflow(
   const startedAt = new Date();
   let profilerStartResult: Record<string, unknown> | undefined;
   let profilerStopResult: Record<string, unknown> | undefined;
+  let selectedProfilerProvider:
+    | { name: string; event?: string; outputFormat?: string }
+    | undefined;
   if (contract.analysis?.executionTiming?.enabled === true) {
     const profilerSessionId = `${runId}-execution-timing`;
     logPerformancePhase({ runId, planName: args.planName, phase: "profiler_start_begin" });
@@ -331,6 +335,7 @@ export async function executePerformancePlanWorkflow(
         action: "profiler",
         input: {
           action: "start",
+          provider: contract.analysis.executionTiming.provider,
           sessionId: profilerSessionId,
           ...(typeof contract.observationTargets.probeId === "string"
             ? { probeId: contract.observationTargets.probeId }
@@ -346,6 +351,7 @@ export async function executePerformancePlanWorkflow(
       },
     });
     profilerStartResult = profilerStart.structuredContent;
+    selectedProfilerProvider = resolveProfilerProviderMetadata(profilerStartResult);
     logPerformancePhase({ runId, planName: args.planName, phase: "profiler_start_complete" });
     const profilerStartFailure = resolveProfilerStartFailure(profilerStartResult);
     if (profilerStartFailure) {
@@ -433,6 +439,8 @@ export async function executePerformancePlanWorkflow(
       },
     });
     profilerStopResult = profilerStop.structuredContent;
+    selectedProfilerProvider =
+      resolveProfilerProviderMetadata(profilerStopResult) ?? selectedProfilerProvider;
     logPerformancePhase({ runId, planName: args.planName, phase: "profiler_stop_complete" });
     logPerformancePhase({ runId, planName: args.planName, phase: "profiler_download_begin" });
     let profilerDownload = await args.mcpInvoke({
@@ -533,7 +541,7 @@ export async function executePerformancePlanWorkflow(
           ...(contract.analysis?.msta?.mode ? { mode: contract.analysis.msta.mode } : {}),
           ...(contract.analysis?.executionTiming
             ? {
-                provider: {
+                provider: selectedProfilerProvider ?? {
                   name: contract.analysis.executionTiming.provider,
                   ...(contract.analysis.executionTiming.event
                     ? { event: contract.analysis.executionTiming.event }

@@ -237,7 +237,7 @@ public final class ProbeHttpMapper {
         state.event(),
         state.intervalNanos(),
         state.outputPath(),
-        state.outputPath() == null ? null : "jfr",
+        "jfr",
         state.detail()
     );
   }
