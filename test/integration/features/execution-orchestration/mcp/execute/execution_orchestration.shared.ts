@@ -71,6 +71,15 @@ export async function listen(server: http.Server): Promise<number> {
   return address.port;
 }
 
+async function cleanupTemporaryWorkspace(tmpRoot: string): Promise<void> {
+  await fs.rm(tmpRoot, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 100,
+  });
+}
+
 export {
   assert,
   fs,
@@ -79,6 +88,7 @@ export {
   os,
   path,
   test,
+  cleanupTemporaryWorkspace,
   renderPerformanceResultFromArtifacts,
   startMcpClient,
 };
