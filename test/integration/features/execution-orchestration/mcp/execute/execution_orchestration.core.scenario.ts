@@ -6,6 +6,7 @@ import {
   os,
   path,
   test,
+  cleanupTemporaryWorkspace,
   callTool,
   writeJson,
   listen,
@@ -107,7 +108,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration execute use
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -218,7 +219,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration execute doe
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -358,7 +359,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration accepts com
     appServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -503,7 +504,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration resolves pr
     appServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -654,7 +655,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration passes tran
     appServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -805,7 +806,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration keeps optio
     appServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -951,7 +952,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration supports ar
     appServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -1071,7 +1072,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration surfaces bl
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -1205,7 +1206,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration composes ba
     appServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -1383,7 +1384,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration resolves co
     appServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -1536,7 +1537,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration records unr
     appServer.close();
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });
@@ -1685,7 +1686,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration continue_on
   } finally {
     await mcp?.close();
     if (fssync.existsSync(tmpRoot)) {
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+      await cleanupTemporaryWorkspace(tmpRoot);
     }
   }
 });

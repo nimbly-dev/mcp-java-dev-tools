@@ -1,18 +1,29 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 
 import type { JvmCandidate, LifecycleHelperResult } from "../models/jvm_lifecycle.model";
 
 const HELPER_JAR_ENV = "MCP_JAVA_ATTACH_HELPER_JAR";
 const AGENT_JAR_ENV = "MCP_JAVA_AGENT_JAR";
 const JAVA_BIN_ENV = "MCP_JAVA_BIN";
-const HELPER_TIMEOUT_MS = 15_000;
+const HELPER_INITIAL_TIMEOUT_MS = 15_000;
+const ATTACH_RECONCILIATION_TIMEOUT_MS = 15_000;
 const MAX_HELPER_OUTPUT_CHARS = 65_536;
 
 export type LifecycleHelperLaunch = {
   helperJarAbs: string;
   javaBin: string;
+};
+
+export type LifecycleHelperRunOptions = {
+  initialTimeoutMs?: number;
+  attachReconciliationTimeoutMs?: number;
+  spawnHelper?: (launch: LifecycleHelperLaunch, args: string[]) => LifecycleHelperChild;
+};
+
+export type LifecycleHelperChild = Pick<ChildProcess, "kill" | "once"> & {
+  stdout: NonNullable<ChildProcess["stdout"]>;
 };
 
 function isRegularFile(candidate: string): boolean {
@@ -141,24 +152,45 @@ function isJvmCandidate(value: unknown): value is JvmCandidate {
 export async function runLifecycleHelper(
   launch: LifecycleHelperLaunch,
   args: string[],
+  options: LifecycleHelperRunOptions = {},
 ): Promise<LifecycleHelperResult | { reasonCode: string }> {
   return await new Promise((resolve) => {
-    const child = spawn(launch.javaBin, ["-jar", launch.helperJarAbs, ...args], {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    let child: LifecycleHelperChild;
+    try {
+      child =
+        options.spawnHelper?.(launch, args) ??
+        spawn(launch.javaBin, ["-jar", launch.helperJarAbs, ...args], {
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true,
+        });
+    } catch {
+      resolve({ reasonCode: "attach_helper_spawn_failed" });
+      return;
+    }
     let stdout = "";
     let settled = false;
+    let attachReconciliationTimeout: NodeJS.Timeout | undefined;
     const finish = (result: LifecycleHelperResult | { reasonCode: string }) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeout);
+      clearTimeout(initialTimeout);
+      if (attachReconciliationTimeout) clearTimeout(attachReconciliationTimeout);
       resolve(result);
     };
-    const timeout = setTimeout(() => {
+    const initialTimeoutMs = options.initialTimeoutMs ?? HELPER_INITIAL_TIMEOUT_MS;
+    const attachReconciliationTimeoutMs =
+      options.attachReconciliationTimeoutMs ?? ATTACH_RECONCILIATION_TIMEOUT_MS;
+    const initialTimeout = setTimeout(() => {
+      if (args[0] === "attach") {
+        attachReconciliationTimeout = setTimeout(() => {
+          child.kill();
+          finish({ reasonCode: "attach_helper_timeout" });
+        }, attachReconciliationTimeoutMs);
+        return;
+      }
       child.kill();
       finish({ reasonCode: "attach_helper_timeout" });
-    }, HELPER_TIMEOUT_MS);
+    }, initialTimeoutMs);
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
