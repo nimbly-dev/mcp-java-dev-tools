@@ -28,6 +28,8 @@ Use this skill for operational management of `.mcpjvm/probe-config.json` and reg
 7. Probe `baseUrl` MUST point to probe endpoint mapping (java-agent probe port), not application API `server.port`.
 8. `defaultProbe` MUST NOT be present in any profile.
 9. If a profile contains more than one probe, callers MUST use explicit `probeId` or `baseUrl`.
+10. `dynamic_attach_local` resolves `probeId` from this registry; its `baseUrl` must be an origin-only HTTP URL with an explicit port and no credentials, path, query, or fragment.
+11. Dynamic attach serializes `include[]` and `exclude[]` as CSV agent arguments. Individual patterns must be non-empty and must not contain `,`, `;`, or `=`; the resulting host remains subject to the lifecycle allowed-host policy.
 
 ## Config Shape (Required)
 
@@ -63,6 +65,7 @@ Use this skill for operational management of `.mcpjvm/probe-config.json` and reg
 ```
 
 Notes:
+
 1. `baseUrl` is probe endpoint URL (for example `http://127.0.0.1:9193`), not application API URL.
 2. `runtime.port` is application API/server port (for example `9001`) when known.
 
@@ -130,4 +133,3 @@ When setting `include[]`:
   }
 }
 ```
-

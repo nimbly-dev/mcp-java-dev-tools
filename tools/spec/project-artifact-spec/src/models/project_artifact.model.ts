@@ -85,6 +85,15 @@ export type ProjectScriptEntry = ProjectCommandEntry & {
 
 export type ProjectRuntimeStartupEntry = ProjectCommandEntry;
 
+export type ProjectSidecarLifecycleActivation = "dynamic_attach_local";
+
+export type ProjectSidecarLifecyclePolicy = {
+  activation: ProjectSidecarLifecycleActivation;
+  targetStartupName: string;
+  probeId: string;
+  verifyProbeAfterAttach: true;
+};
+
 export type ProjectRuntimeContext = {
   name: string;
   mode: ProjectRuntimeMode;
@@ -92,6 +101,7 @@ export type ProjectRuntimeContext = {
   autoStart?: boolean;
   autoStopOnFinish?: boolean;
   startups?: ProjectRuntimeStartupEntry[];
+  sidecarLifecycle?: ProjectSidecarLifecyclePolicy;
 };
 
 export type ExternalHealthCheck =
@@ -171,6 +181,7 @@ export type ProjectArtifactValidationResult =
         | "workspace_root_invalid"
         | "env_key_missing"
         | "runtime_context_unknown"
+        | "sidecar_lifecycle_invalid"
         | "external_system_invalid";
       errors: string[];
     };

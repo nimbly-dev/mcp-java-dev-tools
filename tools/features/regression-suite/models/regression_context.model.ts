@@ -20,6 +20,7 @@ export type ProjectContextBlockedReason =
   | "env_key_missing"
   | "script_execution_failed"
   | "runtime_context_unknown"
+  | "sidecar_lifecycle_invalid"
   | "external_system_invalid"
   | "external_healthcheck_failed";
 
@@ -49,6 +50,7 @@ export type ResolveProjectContextArgs = {
   healthChecksEnabled?: boolean;
   strictProbeVerification?: boolean;
   strictProbeBaseUrls?: string[];
+  runtimeLifecyclePrepared?: boolean;
   runtimeStarter?: RuntimeStarter;
 };
 

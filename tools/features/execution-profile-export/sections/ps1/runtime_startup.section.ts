@@ -33,6 +33,7 @@ export function buildPs1RuntimeStartupSection(input: {
   const lines: string[] = [];
   const mode = asString(runtimeContext.mode);
   const composeFile = asString(runtimeContext.composeFile);
+  const autoStopOnFinish = runtimeContext.autoStopOnFinish === true;
   if (mode === "docker" && composeFile) {
     const title = `${asString(runtimeContext.name) ?? "docker-context"} compose up`;
     lines.push(`Write-Host '[R${String(lines.length + 1).padStart(2, "0")}] ${title}'`);
@@ -61,7 +62,19 @@ export function buildPs1RuntimeStartupSection(input: {
         lines.push(`[Environment]::SetEnvironmentVariable('${key}', ${psSingleQuoted(value)}, 'Process')`);
       }
     }
-    if (appdir) {
+    if (mode === "terminal") {
+      const argList = args.length > 0 ? `@(${args.map(psSingleQuoted).join(", ")})` : "@()";
+      const workingDirectory = appdir
+        ? ` -WorkingDirectory (Join-Path $script:McpJvmWorkspaceRoot ${psSingleQuoted(appdir)})`
+        : "";
+      lines.push(`$__mcpjvm_startup_args = ${argList}`);
+      lines.push(`$__mcpjvm_started_process = Start-Process -FilePath ${psSingleQuoted(command)} -ArgumentList $__mcpjvm_startup_args${workingDirectory} -NoNewWindow -PassThru`);
+      lines.push("if ($null -eq $__mcpjvm_started_process -or $__mcpjvm_started_process.Id -le 0) { throw 'runtime_start_failed: terminal startup did not produce a PID' }");
+      lines.push("$script:McpJvmOwnedRuntimeProcesses += $__mcpjvm_started_process");
+      if (autoStopOnFinish) {
+        lines.push("$script:McpJvmStopOwnedRuntime = $true");
+      }
+    } else if (appdir) {
       lines.push(`Push-Location (Join-Path $script:McpJvmWorkspaceRoot ${psSingleQuoted(appdir)})`);
       lines.push("try {");
       lines.push(`  & ${psSingleQuoted(command)} ${args.map(psSingleQuoted).join(" ")}`);

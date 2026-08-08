@@ -164,6 +164,89 @@ test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fail
   if (!result.ok) assert.equal(result.reasonCode, "runtime_context_unknown");
 });
 
+test("[UT][project-artifact-spec][project_artifact] accepts a direct Java dynamic attach startup", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      withRequiredDefaults({
+        projectRoot: "C:\\workspace\\spring",
+        runtimeContexts: [
+          {
+            name: "local-jar",
+            mode: "terminal",
+            autoStart: true,
+            sidecarLifecycle: {
+              activation: "dynamic_attach_local",
+              targetStartupName: "orders-service",
+              probeId: "orders-service",
+              verifyProbeAfterAttach: true,
+            },
+            startups: [
+              {
+                name: "orders-service",
+                command: "java",
+                args: [
+                  "-Dspring.profiles.active=test",
+                  "-jar",
+                  "target/orders.jar",
+                  "--server.port=8080",
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.deepEqual(result.artifact.workspaces[0].runtimeContexts?.[0].sidecarLifecycle, {
+      activation: "dynamic_attach_local",
+      targetStartupName: "orders-service",
+      probeId: "orders-service",
+      verifyProbeAfterAttach: true,
+    });
+  }
+});
+
+test("[UT][project-artifact-spec][project_artifact] rejects shell wrappers and optional cleanup disablement for dynamic attach", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      withRequiredDefaults({
+        projectRoot: "C:\\workspace\\spring",
+        runtimeContexts: [
+          {
+            name: "local-jar",
+            mode: "terminal",
+            autoStart: true,
+            sidecarLifecycle: {
+              activation: "dynamic_attach_local",
+              targetStartupName: "orders-service",
+              probeId: "orders-service",
+              verifyProbeAfterAttach: true,
+              deactivateOnFinish: false,
+            },
+            startups: [
+              {
+                name: "orders-service",
+                command: "powershell",
+                args: ["-File", "run-orders.ps1"],
+              },
+            ],
+          },
+        ],
+      }),
+    ],
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reasonCode, "sidecar_lifecycle_invalid");
+    assert.match(result.errors.join("\n"), /must invoke java or java\.exe directly/);
+    assert.match(result.errors.join("\n"), /deactivateOnFinish is implied/);
+  }
+});
+
 test("[UT][project-artifact-spec][project_artifact] write/read project artifact preserves deterministic shape", async () => {
   const root = createTestTempDir("project-artifact");
   try {

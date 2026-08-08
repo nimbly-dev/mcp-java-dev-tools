@@ -5,12 +5,12 @@ import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { loadConfigFromEnvAndArgs } from "@/config/server-config";
+import { loadConfigFromEnvAndArgs } from "./config/server-config";
 import {
   resolveProbeConfigFileForWorkspace,
   resolveWorkspaceFromRoots,
   type WorkspaceContext,
-} from "@/config/workspace-context";
+} from "./config/workspace-context";
 import {
   InitializedNotificationSchema,
   RootsListChangedNotificationSchema,
@@ -21,14 +21,14 @@ import {
   summarizeProbeRegistry,
   type ProbeRegistrySummary,
 } from "@tools-core/probe-registry";
-import { registerRouteSynthesisTool } from "@/tools/core/route_synthesis/handler";
-import { registerProbeTools } from "@/tools/core/probe/handler";
-import { registerTransportExecuteTool } from "@/tools/core/transport_execute/handler";
-import { registerExecutionProfileExportTool } from "@/tools/core/execution_profile_export/handler";
-import { registerArtifactManagementTool } from "@/tools/core/artifact_management/handler";
-import { registerExecutionOrchestrationTool } from "@/tools/core/execution_orchestration/handler";
-import { registerJvmLifecycleTool } from "@/tools/core/jvm_lifecycle/handler";
-import { registerFailureAnalysisTool } from "@/tools/core/failure_analysis/handler";
+import { registerRouteSynthesisTool } from "./tools/core/route_synthesis/handler";
+import { registerProbeTools } from "./tools/core/probe/handler";
+import { registerTransportExecuteTool } from "./tools/core/transport_execute/handler";
+import { registerExecutionProfileExportTool } from "./tools/core/execution_profile_export/handler";
+import { registerArtifactManagementTool } from "./tools/core/artifact_management/handler";
+import { registerExecutionOrchestrationTool } from "./tools/core/execution_orchestration/handler";
+import { registerJvmLifecycleTool } from "./tools/core/jvm_lifecycle/handler";
+import { registerFailureAnalysisTool } from "./tools/core/failure_analysis/handler";
 
 function resolveBuildFingerprint(): string {
   const distServerAbs = path.resolve(__dirname, "../../../../server.js");

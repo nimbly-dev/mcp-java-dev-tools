@@ -31,6 +31,8 @@ export type ExecuteSecurityRuntimeSuiteArgs = {
   startPlanOrder?: number;
   priorPlanRuns?: RuntimeSuiteRunResult["planRuns"];
   maxPlansPerCall?: number;
+  priorSuiteContext?: Record<string, unknown>;
+  signal?: AbortSignal;
 };
 
 export type SecurityModeExecutionResult = {

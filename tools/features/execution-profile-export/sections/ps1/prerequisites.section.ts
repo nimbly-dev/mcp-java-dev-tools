@@ -100,6 +100,7 @@ function renderProjectEnvHelpers(workspace: Record<string, unknown> | undefined)
   lines.push("    if ($pair.Count -ne 2 -or $pair[0] -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { return }");
   lines.push("    $value = $pair[1]");
   lines.push("    if ($value.StartsWith('\"') -and $value.EndsWith('\"') -and $value.Length -ge 2) { $value = $value.Substring(1, $value.Length - 2) }");
+  lines.push("    if ([string]::IsNullOrWhiteSpace($value) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($pair[0], 'Process'))) { return }");
   lines.push("    [Environment]::SetEnvironmentVariable($pair[0], $value, 'Process')");
   lines.push("  }");
   lines.push("}");
@@ -112,6 +113,14 @@ function renderProjectEnvHelpers(workspace: Record<string, unknown> | undefined)
   const vars = workspace?.variables;
   if (vars && typeof vars === "object" && !Array.isArray(vars)) {
     const varsRecord = vars as Record<string, unknown>;
+    const bearerTokenEnv = typeof varsRecord.bearerTokenEnv === "string"
+      ? varsRecord.bearerTokenEnv.trim()
+      : "";
+    if (bearerTokenEnv.length > 0) {
+      lines.push("  if (-not $SkipAuthBearerFallback -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER', 'Process')) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('" + bearerTokenEnv.replace(/'/g, "''") + "', 'Process'))) {");
+      lines.push("    [Environment]::SetEnvironmentVariable('AUTH_BEARER', [Environment]::GetEnvironmentVariable('" + bearerTokenEnv.replace(/'/g, "''") + "', 'Process'), 'Process')");
+      lines.push("  }");
+    }
     const mappings: Array<{ sourceKey: string; targetVar: string }> = [
       { sourceKey: "keycloakClientIdEnv", targetVar: "KEYCLOAK_CLIENT_ID" },
       { sourceKey: "keycloakClientSecretEnv", targetVar: "KEYCLOAK_CLIENT_SECRET" },

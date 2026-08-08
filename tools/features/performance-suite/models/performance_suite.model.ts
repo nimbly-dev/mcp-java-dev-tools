@@ -27,6 +27,7 @@ export type ExecutePerformancePlanWorkflowArgs = {
   runtimeConfigOverride?: { requestTimeoutMs?: number; retryMax?: number };
   providedContext?: Record<string, unknown>;
   mcpInvoke: PerformanceMcpToolInvoker;
+  runtimeLifecyclePrepared?: boolean;
 };
 
 export type ExecutePerformanceRuntimeSuiteArgs = {
@@ -38,4 +39,7 @@ export type ExecutePerformanceRuntimeSuiteArgs = {
   startPlanOrder?: number;
   priorPlanRuns?: RuntimeSuiteRunResult["planRuns"];
   maxPlansPerCall?: number;
+  priorSuiteContext?: Record<string, unknown>;
+  runtimeLifecyclePrepared?: boolean;
+  signal?: AbortSignal;
 };

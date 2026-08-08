@@ -162,6 +162,19 @@ On Java 21, dynamic agent loading succeeds by default but emits the JEP 451 warn
 results. `VirtualMachine.detach()` closes the helper session; it does not unload agent classes.
 Deactivation disables Sidecar Agent-owned instrumentation and reports non-restorable classes.
 
+For local CI, declare `sidecarLifecycle.activation` in the project Artifact instead of attaching through a shell wrapper. The supported startup is one direct `java`/`java.exe` invocation with one relative `-jar` path; the execution orchestrator owns attach, canonical Probe verification, resume continuity, cancellation cleanup, and terminal deactivation under one `suiteRunId`.
+
+```json
+{
+  "sidecarLifecycle": {
+    "activation": "dynamic_attach_local",
+    "targetStartupName": "orders-service",
+    "probeId": "orders-service",
+    "verifyProbeAfterAttach": true
+  }
+}
+```
+
 ---
 
 <details>

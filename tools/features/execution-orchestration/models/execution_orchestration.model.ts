@@ -24,6 +24,7 @@ export type ExecutionOrchestrationActionInput = {
   workspaceRootAbs: string;
   action: "execute";
   probeConfig?: ProbeDomainConfig;
+  signal?: AbortSignal;
   payload: {
     projectName: string;
     executionProfile: string;

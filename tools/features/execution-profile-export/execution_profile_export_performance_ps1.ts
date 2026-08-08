@@ -18,9 +18,11 @@ import {
   type PerformanceExportBundlePlan,
 } from "./performance_jmeter_export";
 import { assertPerformanceExportProbeBindingsResolved } from "./performance_export_probe_binding";
+import { preparePerformancePortableDynamicAttach } from "./performance_dynamic_attach_export";
 import { buildReadmeTemplateModel } from "./renderers/readme.renderer";
 import { preparePs1ExportPackage } from "./sections/ps1/export_package.section";
 import { buildPs1HealthcheckSection } from "./sections/ps1/healthcheck.section";
+import { buildPs1PrerequisitesSections } from "./sections/ps1/prerequisites.section";
 import { buildPs1RuntimeStartupSection } from "./sections/ps1/runtime_startup.section";
 import { resolveOneOffExportDir } from "./sections/shared/oneoff_export_dir";
 
@@ -156,6 +158,29 @@ export async function exportExecutionProfilePerformancePs1(
     runtimeContextName: target.profile.runtimeContextName,
     includeRuntimeStartup: defaults.includeRuntimeStartup,
   });
+  const dynamicAttach = await preparePerformancePortableDynamicAttach({
+    workspaceRootAbs: input.workspaceRootAbs,
+    exportDirAbs,
+    workspace,
+    ...(target.profile.runtimeContextName
+      ? { runtimeContextName: target.profile.runtimeContextName }
+      : {}),
+  });
+  const prerequisiteSections = await buildPs1PrerequisitesSections({
+    workspaceRootAbs: input.workspaceRootAbs,
+    ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
+      ? { projectName: input.projectName.trim() }
+      : {}),
+    workspace,
+    executionProfile: target.profile.executionProfile,
+    planRuns: target.profile.plans.map((plan) => ({
+      order: plan.order,
+      planName: plan.planName,
+      status: "executed" as const,
+      runStatus: "blocked" as const,
+    })),
+    planExecutionSection: [],
+  });
   const healthcheckGateSection = buildPs1HealthcheckSection({
     workspace,
     includeHealthcheckGate: defaults.includeHealthcheckGate,
@@ -196,11 +221,15 @@ export async function exportExecutionProfilePerformancePs1(
     data: {
       manifest,
       includeResolvedSecrets,
+      prerequisitesSection: joinLines(prerequisiteSections.prerequisitesSection),
       preRuntimeScriptSection: joinLines(exportPackageSections.preRuntimeScriptSection),
       runtimeStartupSection: joinLines(runtimeStartupSection),
+      dynamicAttachSection: joinLines(dynamicAttach.attachPs1Section),
+      dynamicAttachCleanupSection: joinLines(dynamicAttach.cleanupPs1Section),
       postRuntimeScriptSection: joinLines(exportPackageSections.postRuntimeScriptSection),
       healthcheckGateSection: joinLines(healthcheckGateSection),
       postHealthcheckScriptSection: joinLines(exportPackageSections.postHealthcheckScriptSection),
+      postStartupAuthSection: joinLines(prerequisiteSections.postStartupAuthSection),
       prePlanScriptSection: joinLines(exportPackageSections.prePlanScriptSection),
     },
   });

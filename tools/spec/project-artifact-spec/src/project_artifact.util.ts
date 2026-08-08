@@ -12,8 +12,10 @@ import type {
   ExecutionProfileSuiteType,
   ExecutionProfileScriptRef,
   ProjectCommandEntry,
+  ProjectRuntimeMode,
   ProjectRuntimeContext,
   ProjectRuntimeStartupEntry,
+  ProjectSidecarLifecyclePolicy,
   ProjectScriptEntry,
   ProjectScriptPhase,
   ProjectWorkspaceEntry,
@@ -46,7 +48,9 @@ function validateReplayableScriptPath(input: {
 }): void {
   if (!input.value) return;
   if (isAbsolutePathLike(input.value)) {
-    input.errors.push(`${input.fieldPath} must be relative/replayable (absolute paths are not allowed)`);
+    input.errors.push(
+      `${input.fieldPath} must be relative/replayable (absolute paths are not allowed)`,
+    );
   }
 }
 
@@ -84,17 +88,30 @@ function normalizeRequiredPositiveInteger(args: {
   return args.value;
 }
 
-function normalizeProjectScriptPhase(value: unknown, fieldPath: string, errors: string[]): ProjectScriptPhase | undefined {
+function normalizeProjectScriptPhase(
+  value: unknown,
+  fieldPath: string,
+  errors: string[],
+): ProjectScriptPhase | undefined {
   const phase = asTrimmedString(value);
   if (!phase) return undefined;
-  if (phase !== "preRuntime" && phase !== "postRuntime" && phase !== "postHealthcheck" && phase !== "prePlan") {
+  if (
+    phase !== "preRuntime" &&
+    phase !== "postRuntime" &&
+    phase !== "postHealthcheck" &&
+    phase !== "prePlan"
+  ) {
     errors.push(`${fieldPath} must be preRuntime|postRuntime|postHealthcheck|prePlan`);
     return undefined;
   }
   return phase;
 }
 
-function normalizeCommandEntry(input: unknown, fieldPath: string, errors: string[]): ProjectCommandEntry | null {
+function normalizeCommandEntry(
+  input: unknown,
+  fieldPath: string,
+  errors: string[],
+): ProjectCommandEntry | null {
   if (!isRecord(input)) {
     errors.push(`${fieldPath} must be object`);
     return null;
@@ -152,10 +169,126 @@ function normalizeCommandEntry(input: unknown, fieldPath: string, errors: string
   };
 }
 
-function normalizeProjectScript(input: unknown, index: number, errors: string[]): ProjectScriptEntry | null {
+function isAbsoluteOrTraversalPath(value: string): boolean {
+  if (isAbsolutePathLike(value)) return true;
+  return value.split(/[\\/]/u).some((segment) => segment === "..");
+}
+
+function isDirectJavaLauncher(command: string): boolean {
+  const basename = command.replaceAll("\\", "/").split("/").at(-1)?.toLowerCase();
+  return basename === "java" || basename === "java.exe";
+}
+
+function validateDynamicAttachStartup(args: {
+  startup: ProjectRuntimeStartupEntry | undefined;
+  fieldPath: string;
+  errors: string[];
+}): void {
+  if (!args.startup) return;
+  if (!isDirectJavaLauncher(args.startup.command)) {
+    args.errors.push(`${args.fieldPath}.command must invoke java or java.exe directly`);
+    return;
+  }
+  const startupArgs = args.startup.args ?? [];
+  const jarIndexes = startupArgs
+    .map((value, index) => (value === "-jar" ? index : -1))
+    .filter((index) => index >= 0);
+  if (jarIndexes.length !== 1) {
+    args.errors.push(`${args.fieldPath}.args must contain exactly one -jar option`);
+    return;
+  }
+  const jarIndex = jarIndexes[0];
+  if (jarIndex === undefined) return;
+  const jarPath = startupArgs[jarIndex + 1];
+  if (!jarPath || jarPath.startsWith("-")) {
+    args.errors.push(`${args.fieldPath}.args must provide a relative JAR path after -jar`);
+  } else if (isAbsoluteOrTraversalPath(jarPath)) {
+    args.errors.push(`${args.fieldPath}.args JAR path must be relative and stay within appdir`);
+  }
+  if (startupArgs.some((value) => value.startsWith("-javaagent:"))) {
+    args.errors.push(`${args.fieldPath}.args must not contain -javaagent for dynamic_attach_local`);
+  }
+}
+
+function normalizeSidecarLifecycle(
+  input: unknown,
+  runtimeContext: {
+    mode: ProjectRuntimeMode;
+    autoStart: boolean;
+    startups: ProjectRuntimeStartupEntry[];
+  },
+  index: number,
+  errors: string[],
+): ProjectSidecarLifecyclePolicy | undefined {
+  if (typeof input === "undefined") return undefined;
+  const fieldPath = `workspaces[].runtimeContexts[${index}].sidecarLifecycle`;
+  if (!isRecord(input)) {
+    errors.push(`${fieldPath} must be object`);
+    return undefined;
+  }
+  const activation = asTrimmedString(input.activation);
+  const targetStartupName = asTrimmedString(input.targetStartupName);
+  const probeId = asTrimmedString(input.probeId);
+  if (activation !== "dynamic_attach_local") {
+    errors.push(`${fieldPath}.activation must be dynamic_attach_local`);
+  }
+  if (!targetStartupName) errors.push(`${fieldPath}.targetStartupName is required`);
+  if (!probeId) errors.push(`${fieldPath}.probeId is required`);
+  if (runtimeContext.mode !== "terminal") {
+    errors.push(`${fieldPath} is supported only for terminal runtime contexts`);
+  }
+  if (!runtimeContext.autoStart) {
+    errors.push(`${fieldPath} requires runtime context autoStart=true`);
+  }
+  if (runtimeContext.startups.length !== 1) {
+    errors.push(`${fieldPath} requires exactly one startups[] entry`);
+  }
+  if (targetStartupName && runtimeContext.startups[0]?.name !== targetStartupName) {
+    errors.push(`${fieldPath}.targetStartupName must match the single startups[].name`);
+  }
+  validateDynamicAttachStartup({
+    startup: runtimeContext.startups[0],
+    fieldPath: `${fieldPath}.targetStartup`,
+    errors,
+  });
+  if ("verifyProbeAfterAttach" in input && input.verifyProbeAfterAttach !== true) {
+    errors.push(`${fieldPath}.verifyProbeAfterAttach must be true`);
+  }
+  if ("deactivateOnFinish" in input && input.deactivateOnFinish !== true) {
+    errors.push(`${fieldPath}.deactivateOnFinish is implied and cannot be false`);
+  }
+  if (
+    activation !== "dynamic_attach_local" ||
+    !targetStartupName ||
+    !probeId ||
+    runtimeContext.mode !== "terminal" ||
+    !runtimeContext.autoStart ||
+    runtimeContext.startups.length !== 1 ||
+    runtimeContext.startups[0]?.name !== targetStartupName ||
+    errors.some((error) => error.startsWith(`${fieldPath}.`))
+  ) {
+    return undefined;
+  }
+  return {
+    activation: "dynamic_attach_local",
+    targetStartupName,
+    probeId,
+    verifyProbeAfterAttach: true,
+  };
+}
+
+function normalizeProjectScript(
+  input: unknown,
+  index: number,
+  errors: string[],
+): ProjectScriptEntry | null {
   const commandEntry = normalizeCommandEntry(input, `workspaces[].scripts[${index}]`, errors);
   if (!commandEntry || !isRecord(input)) return null;
-  const phase = normalizeProjectScriptPhase(input.phase, `workspaces[].scripts[${index}].phase`, errors);
+  const phase = normalizeProjectScriptPhase(
+    input.phase,
+    `workspaces[].scripts[${index}].phase`,
+    errors,
+  );
   return {
     ...commandEntry,
     ...(phase ? { phase } : {}),
@@ -195,10 +328,18 @@ function normalizeRuntimeContext(
         })
         .filter((entry): entry is ProjectRuntimeStartupEntry => entry !== null)
     : [];
+  const autoStart = typeof input.autoStart === "boolean" ? input.autoStart : true;
+  const sidecarLifecycle = normalizeSidecarLifecycle(
+    input.sidecarLifecycle,
+    { mode: mode as ProjectRuntimeMode, autoStart, startups },
+    index,
+    errors,
+  );
   if (mode === "terminal") {
-    const autoStart = typeof input.autoStart === "boolean" ? input.autoStart : true;
     if (autoStart && startups.length === 0) {
-      errors.push(`workspaces[].runtimeContexts[${index}].startups[] is required for terminal autoStart`);
+      errors.push(
+        `workspaces[].runtimeContexts[${index}].startups[] is required for terminal autoStart`,
+      );
     }
   }
   if (!name || (mode !== "terminal" && mode !== "docker")) return null;
@@ -211,6 +352,7 @@ function normalizeRuntimeContext(
       ? { autoStopOnFinish: input.autoStopOnFinish }
       : {}),
     ...(startups.length > 0 ? { startups } : {}),
+    ...(sidecarLifecycle ? { sidecarLifecycle } : {}),
   };
 }
 
@@ -247,7 +389,11 @@ function normalizeExecutionProfileScriptRef(
   };
 }
 
-function normalizeHealthCheck(input: unknown, index: number, errors: string[]): ExternalHealthCheck | null {
+function normalizeHealthCheck(
+  input: unknown,
+  index: number,
+  errors: string[],
+): ExternalHealthCheck | null {
   if (!isRecord(input)) {
     errors.push(`externalSystems[].healthChecks[${index}] must be object`);
     return null;
@@ -282,7 +428,9 @@ function normalizeHealthCheck(input: unknown, index: number, errors: string[]): 
   return {
     id: id ?? `check-${index}`,
     type,
-    ...(method ? { method: method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" } : {}),
+    ...(method
+      ? { method: method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" }
+      : {}),
     url,
     ...(isRecord(input.expect) && typeof input.expect.status === "number"
       ? { expect: { status: input.expect.status } }
@@ -292,7 +440,11 @@ function normalizeHealthCheck(input: unknown, index: number, errors: string[]): 
   };
 }
 
-function normalizeExternalSystem(input: unknown, index: number, errors: string[]): ProjectExternalSystem | null {
+function normalizeExternalSystem(
+  input: unknown,
+  index: number,
+  errors: string[],
+): ProjectExternalSystem | null {
   if (!isRecord(input)) {
     errors.push(`workspaces[].externalSystems[${index}] must be object`);
     return null;
@@ -320,7 +472,11 @@ function normalizeExternalSystem(input: unknown, index: number, errors: string[]
   };
 }
 
-function normalizeRunPrerequisite(input: unknown, index: number, errors: string[]): RunPrerequisite | null {
+function normalizeRunPrerequisite(
+  input: unknown,
+  index: number,
+  errors: string[],
+): RunPrerequisite | null {
   if (!isRecord(input)) {
     errors.push(`workspaces[].runPrerequisites[${index}] must be object`);
     return null;
@@ -356,26 +512,39 @@ function normalizeRunPrerequisite(input: unknown, index: number, errors: string[
       errors.push(`workspaces[].runPrerequisites[${index}].assert.kind is invalid`);
       return null;
     }
-    if ((kind === "env_exists" || kind === "context_exists") && !asTrimmedString(input.assert.key)) {
-      errors.push(`workspaces[].runPrerequisites[${index}].assert.key is required for kind=${kind}`);
+    if (
+      (kind === "env_exists" || kind === "context_exists") &&
+      !asTrimmedString(input.assert.key)
+    ) {
+      errors.push(
+        `workspaces[].runPrerequisites[${index}].assert.key is required for kind=${kind}`,
+      );
       return null;
     }
     if (kind === "file_exists" && !asTrimmedString(input.assert.path)) {
-      errors.push(`workspaces[].runPrerequisites[${index}].assert.path is required for kind=file_exists`);
+      errors.push(
+        `workspaces[].runPrerequisites[${index}].assert.path is required for kind=file_exists`,
+      );
       return null;
     }
     if (kind === "port_reachable") {
       if (!asTrimmedString(input.assert.host) || !isPositivePort(input.assert.port)) {
-        errors.push(`workspaces[].runPrerequisites[${index}].assert host/port are required for kind=port_reachable`);
+        errors.push(
+          `workspaces[].runPrerequisites[${index}].assert host/port are required for kind=port_reachable`,
+        );
         return null;
       }
     }
     if (kind === "url_reachable" && !asTrimmedString(input.assert.url)) {
-      errors.push(`workspaces[].runPrerequisites[${index}].assert.url is required for kind=url_reachable`);
+      errors.push(
+        `workspaces[].runPrerequisites[${index}].assert.url is required for kind=url_reachable`,
+      );
       return null;
     }
     if (kind === "command_available" && !asTrimmedString(input.assert.name)) {
-      errors.push(`workspaces[].runPrerequisites[${index}].assert.name is required for kind=command_available`);
+      errors.push(
+        `workspaces[].runPrerequisites[${index}].assert.name is required for kind=command_available`,
+      );
       return null;
     }
     return {
@@ -385,13 +554,25 @@ function normalizeRunPrerequisite(input: unknown, index: number, errors: string[
       onFail: (onFail as "block" | "skip_remaining") ?? "block",
       assert: {
         kind,
-        ...(asTrimmedString(input.assert.key) ? { key: asTrimmedString(input.assert.key) as string } : {}),
-        ...(asTrimmedString(input.assert.path) ? { path: asTrimmedString(input.assert.path) as string } : {}),
-        ...(asTrimmedString(input.assert.host) ? { host: asTrimmedString(input.assert.host) as string } : {}),
+        ...(asTrimmedString(input.assert.key)
+          ? { key: asTrimmedString(input.assert.key) as string }
+          : {}),
+        ...(asTrimmedString(input.assert.path)
+          ? { path: asTrimmedString(input.assert.path) as string }
+          : {}),
+        ...(asTrimmedString(input.assert.host)
+          ? { host: asTrimmedString(input.assert.host) as string }
+          : {}),
         ...(isPositivePort(input.assert.port) ? { port: input.assert.port } : {}),
-        ...(asTrimmedString(input.assert.url) ? { url: asTrimmedString(input.assert.url) as string } : {}),
-        ...(asTrimmedString(input.assert.name) ? { name: asTrimmedString(input.assert.name) as string } : {}),
-        ...(typeof input.assert.timeoutMs === "number" ? { timeoutMs: input.assert.timeoutMs } : {}),
+        ...(asTrimmedString(input.assert.url)
+          ? { url: asTrimmedString(input.assert.url) as string }
+          : {}),
+        ...(asTrimmedString(input.assert.name)
+          ? { name: asTrimmedString(input.assert.name) as string }
+          : {}),
+        ...(typeof input.assert.timeoutMs === "number"
+          ? { timeoutMs: input.assert.timeoutMs }
+          : {}),
       },
     };
   }
@@ -450,7 +631,11 @@ function normalizeRunPrerequisite(input: unknown, index: number, errors: string[
   };
 }
 
-function normalizeExecutionProfilePlan(input: unknown, index: number, errors: string[]): ExecutionProfilePlanEntry | null {
+function normalizeExecutionProfilePlan(
+  input: unknown,
+  index: number,
+  errors: string[],
+): ExecutionProfilePlanEntry | null {
   if (!isRecord(input)) {
     errors.push(`workspaces[].executionProfiles[].plans[${index}] must be object`);
     return null;
@@ -466,7 +651,9 @@ function normalizeExecutionProfilePlan(input: unknown, index: number, errors: st
   }
   const onFail = asTrimmedString(input.onFail);
   if (onFail && onFail !== "inherit" && onFail !== "stop" && onFail !== "continue") {
-    errors.push(`workspaces[].executionProfiles[].plans[${index}].onFail must be inherit|stop|continue`);
+    errors.push(
+      `workspaces[].executionProfiles[].plans[${index}].onFail must be inherit|stop|continue`,
+    );
     return null;
   }
   const runtimeContextName = asTrimmedString(input.runtimeContextName) ?? undefined;
@@ -479,7 +666,11 @@ function normalizeExecutionProfilePlan(input: unknown, index: number, errors: st
   };
 }
 
-function normalizeExecutionProfile(input: unknown, index: number, errors: string[]): ExecutionProfileEntry | null {
+function normalizeExecutionProfile(
+  input: unknown,
+  index: number,
+  errors: string[],
+): ExecutionProfileEntry | null {
   if (!isRecord(input)) {
     errors.push(`workspaces[].executionProfiles[${index}] must be object`);
     return null;
@@ -491,12 +682,20 @@ function normalizeExecutionProfile(input: unknown, index: number, errors: string
   }
   const executionPolicy = asTrimmedString(input.executionPolicy);
   if (executionPolicy !== "stop_on_fail" && executionPolicy !== "continue_on_fail") {
-    errors.push(`workspaces[].executionProfiles[${index}].executionPolicy must be stop_on_fail|continue_on_fail`);
+    errors.push(
+      `workspaces[].executionProfiles[${index}].executionPolicy must be stop_on_fail|continue_on_fail`,
+    );
     return null;
   }
   const suiteTypeRaw = asTrimmedString(input.suiteType) ?? "regression";
-  if (suiteTypeRaw !== "regression" && suiteTypeRaw !== "performance" && suiteTypeRaw !== "security") {
-    errors.push(`workspaces[].executionProfiles[${index}].suiteType must be regression|performance|security`);
+  if (
+    suiteTypeRaw !== "regression" &&
+    suiteTypeRaw !== "performance" &&
+    suiteTypeRaw !== "security"
+  ) {
+    errors.push(
+      `workspaces[].executionProfiles[${index}].suiteType must be regression|performance|security`,
+    );
     return null;
   }
   if (!Array.isArray(input.plans) || input.plans.length === 0) {
@@ -509,7 +708,9 @@ function normalizeExecutionProfile(input: unknown, index: number, errors: string
   const orders = plans.map((entry) => entry.order).sort((a, b) => a - b);
   for (let i = 0; i < orders.length; i += 1) {
     if (orders[i] !== i + 1) {
-      errors.push(`workspaces[].executionProfiles[${index}].plans[].order must be sequential from 1..N`);
+      errors.push(
+        `workspaces[].executionProfiles[${index}].plans[].order must be sequential from 1..N`,
+      );
       break;
     }
   }
@@ -541,7 +742,11 @@ function normalizeExecutionProfile(input: unknown, index: number, errors: string
   };
 }
 
-function normalizeWorkspace(input: unknown, index: number, errors: string[]): ProjectWorkspaceEntry | null {
+function normalizeWorkspace(
+  input: unknown,
+  index: number,
+  errors: string[],
+): ProjectWorkspaceEntry | null {
   if (!isRecord(input)) {
     errors.push(`workspaces[${index}] must be object`);
     return null;
@@ -593,13 +798,19 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
         errors.push(`workspaces[${index}].variables.contextBindings must be object`);
       } else {
         const normalizedBindings: Record<string, string> = {};
-        for (const rawKey of Object.keys(input.variables.contextBindings).sort((a, b) => a.localeCompare(b))) {
+        for (const rawKey of Object.keys(input.variables.contextBindings).sort((a, b) =>
+          a.localeCompare(b),
+        )) {
           const contextKey = rawKey.trim();
           if (contextKey.length === 0) {
             errors.push(`workspaces[${index}].variables.contextBindings has empty key`);
             continue;
           }
-          if (contextKey.startsWith("runtime.") || contextKey === "probeBaseUrl" || contextKey.startsWith("probe.")) {
+          if (
+            contextKey.startsWith("runtime.") ||
+            contextKey === "probeBaseUrl" ||
+            contextKey.startsWith("probe.")
+          ) {
             errors.push(`workspaces[${index}].variables.contextBindings.${contextKey} is reserved`);
             continue;
           }
@@ -611,7 +822,9 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
           }
           const envKey = asTrimmedString(input.variables.contextBindings[rawKey]) ?? undefined;
           if (!envKey || !/^[A-Z_][A-Z0-9_]*$/.test(envKey)) {
-            errors.push(`workspaces[${index}].variables.contextBindings.${contextKey} must be ENV_KEY format`);
+            errors.push(
+              `workspaces[${index}].variables.contextBindings.${contextKey} must be ENV_KEY format`,
+            );
             continue;
           }
           normalizedBindings[contextKey] = envKey;
@@ -700,7 +913,8 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
 
   let defaults: ProjectWorkspaceEntry["defaults"] | undefined;
   const orchestratorFieldPath = `${defaultsFieldPath}.orchestrator`;
-  const orchestrator = defaultsInput && isRecord(defaultsInput.orchestrator) ? defaultsInput.orchestrator : null;
+  const orchestrator =
+    defaultsInput && isRecord(defaultsInput.orchestrator) ? defaultsInput.orchestrator : null;
   if (defaultsInput && !("orchestrator" in defaultsInput)) {
     errors.push(`${orchestratorFieldPath} is required`);
   } else if (defaultsInput && !orchestrator) {
@@ -795,20 +1009,22 @@ export function validateProjectArtifact(input: unknown): ProjectArtifactValidati
       ? "workspace_root_invalid"
       : errors.some((e) => e.includes("bearerTokenEnv"))
         ? "env_key_missing"
-        : errors.some((e) => e.includes("runtimeContexts"))
-          ? "runtime_context_unknown"
-          : errors.some(
-                (e) =>
-                  e.includes("executionProfiles") &&
-                  (e.includes("runtimeContextName must match") ||
-                    e.includes("scriptRefs") ||
-                    e.includes("plans[].planName") ||
-                    e.includes(".plans[")),
-              )
-            ? "project_reference_invalid"
-          : errors.some((e) => e.includes("externalSystems"))
-            ? "external_system_invalid"
-            : "project_artifact_invalid";
+        : errors.some((e) => e.includes("sidecarLifecycle"))
+          ? "sidecar_lifecycle_invalid"
+          : errors.some((e) => e.includes("runtimeContexts"))
+            ? "runtime_context_unknown"
+            : errors.some(
+                  (e) =>
+                    e.includes("executionProfiles") &&
+                    (e.includes("runtimeContextName must match") ||
+                      e.includes("scriptRefs") ||
+                      e.includes("plans[].planName") ||
+                      e.includes(".plans[")),
+                )
+              ? "project_reference_invalid"
+              : errors.some((e) => e.includes("externalSystems"))
+                ? "external_system_invalid"
+                : "project_artifact_invalid";
     return { ok: false, reasonCode, errors };
   }
   return { ok: true, artifact: { workspaces } };
@@ -819,10 +1035,18 @@ export async function validateProjectArtifactReferenceIntegrity(args: {
   artifact: ProjectArtifact;
 }): Promise<ProjectArtifactValidationResult> {
   const errors: string[] = [];
-  const checks: Array<{ wi: number; pi: number; pli: number; suiteType: ExecutionProfileSuiteType; planRootAbs: string }> = [];
+  const checks: Array<{
+    wi: number;
+    pi: number;
+    pli: number;
+    suiteType: ExecutionProfileSuiteType;
+    planRootAbs: string;
+  }> = [];
   const artifactRootAbs = path.dirname(args.projectsFileAbs);
   args.artifact.workspaces.forEach((workspace, wi) => {
-    const executionProfiles = Array.isArray(workspace.executionProfiles) ? workspace.executionProfiles : [];
+    const executionProfiles = Array.isArray(workspace.executionProfiles)
+      ? workspace.executionProfiles
+      : [];
     executionProfiles.forEach((profile, pi) => {
       const plans = Array.isArray(profile.plans) ? profile.plans : [];
       plans.forEach((plan, pli) => {
@@ -850,4 +1074,3 @@ export async function validateProjectArtifactReferenceIntegrity(args: {
   }
   return { ok: true, artifact: args.artifact };
 }
-

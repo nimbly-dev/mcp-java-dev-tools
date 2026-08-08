@@ -25,6 +25,12 @@ Use this Skill Workflow only with the `jvm_lifecycle` and `probe` MCP Tools. Do 
 7. When Probe check succeeds, call `probe` with `action="status"`. Use `probe` with `action="actuate"` and `action="capture"` only when the requested runtime operation requires them.
 8. If persistent Probe registration is requested, hand the returned base URL to the Probe Registry Manager Skill Workflow. Do not write a Probe Artifact directly from this workflow.
 
+## Project-declared CI lifecycle
+
+`execution_orchestration` may own a `dynamic_attach_local` lifecycle declared in `projects.json`. That path is restricted to one direct `java`/`java.exe -jar <relative-path>` startup, resolves `probeId` from the active probe registry, attaches once per `suiteRunId`, verifies the canonical Probe before the first plan, and deactivates only after a terminal suite outcome. Resume passes must not deactivate or reattach. The orchestration controller records only bounded PID/start-fence, attach, Probe, cleanup, and non-restorable-class evidence in the suite-run Artifact.
+
+Cancellation is cooperative: it stops further plan execution, enters cleanup, deactivates the Sidecar, and stops the owned JAR. A hard process kill cannot prove cleanup and must remain `cleanup_unverified`.
+
 ## Deactivation workflow
 
 1. Require an exact PID, its previously returned `processStartEpochMs`, and explicit confirmation before calling `jvm_lifecycle` with `action="deactivate"`, `expectedProcessStartEpochMs`, and `confirm=true`.

@@ -18,6 +18,7 @@ import type {
 import { executeBlackboxSecurityMode } from "../modes/blackbox/security_blackbox_mode";
 import { executeSidecarAssistedSecurityMode } from "../modes/sidecar_assisted/security_sidecar_assisted_mode";
 import { readSecuritySuiteManifest } from "../support/load_security_suite_manifest";
+import { waitForSecurityTargetReachability } from "../support/security_blackbox_request";
 
 type SecurityPlanExecution = {
   status: "executed" | "blocked";
@@ -173,6 +174,24 @@ async function executeSecurityPlan(args: {
       reasonMeta: { securityMode: "blackbox", planName: args.planName },
     };
   }
+  const targetBaseUrl = validated.contract.targetBoundary.baseUrl;
+  const targetReady =
+    typeof targetBaseUrl === "string" &&
+    (await waitForSecurityTargetReachability({
+      baseUrl: targetBaseUrl,
+      timeoutMs: 10_000,
+    }));
+  if (!targetReady) {
+    return {
+      status: "blocked",
+      runStatus: "blocked",
+      reasonCode: "security_target_unreachable",
+      requiredUserAction: [
+        `Ensure the Security target HTTP port is reachable at ${targetBaseUrl ?? "the configured base URL"}.`,
+      ],
+      reasonMeta: { securityMode: validated.contract.securityMode, planName: args.planName },
+    };
+  }
   const modeResult: SecurityModeExecutionResult =
     validated.contract.securityMode === "blackbox"
       ? await executeBlackboxSecurityMode({
@@ -263,6 +282,22 @@ export async function executeSecurityRuntimeSuite(
   const planRuns: RuntimeSuitePlanRunResult[] = (args.priorPlanRuns ?? []).map((entry) => ({
     ...entry,
   }));
+  const suiteProvidedContext: Record<string, unknown> =
+    args.priorSuiteContext && typeof args.priorSuiteContext === "object"
+      ? { ...args.priorSuiteContext }
+      : {};
+  const cancelledSuite = (): RuntimeSuiteRunResult => ({
+    executionProfile: suite.manifest.executionProfile,
+    executionPolicy: suite.manifest.executionPolicy,
+    status: "blocked",
+    reasonCode: "execution_cancelled",
+    reasonMeta: { cancellation: "cooperative_abort" },
+    planRuns,
+    suiteRunId,
+    completedPlanCount: planRuns.filter((plan) => plan.status !== "skipped").length,
+    ...(Object.keys(suiteProvidedContext).length > 0 ? { suiteContext: suiteProvidedContext } : {}),
+  });
+  if (args.signal?.aborted) return cancelledSuite();
   let processedPlans = 0;
   let stop = false;
   let hasBlocked = planRuns.some(
@@ -274,6 +309,7 @@ export async function executeSecurityRuntimeSuite(
   let lastCompletedPlan: RuntimeSuitePlanRunResult | undefined;
 
   for (const plan of orderedPlans) {
+    if (args.signal?.aborted) return cancelledSuite();
     if (plan.order < startPlanOrder) continue;
     if (stop) {
       upsertPlanRun(planRuns, { order: plan.order, planName: plan.planName, status: "skipped" });
@@ -331,6 +367,9 @@ export async function executeSecurityRuntimeSuite(
       suiteRunId,
       nextPlanOrder,
       completedPlanCount,
+      ...(Object.keys(suiteProvidedContext).length > 0
+        ? { suiteContext: suiteProvidedContext }
+        : {}),
       progressSummary: {
         progressState: "ready_for_next_plan",
         totalPlanCount: orderedPlans.length,
@@ -366,6 +405,7 @@ export async function executeSecurityRuntimeSuite(
     planRuns,
     suiteRunId,
     completedPlanCount: planRuns.filter((plan) => plan.status !== "skipped").length,
+    ...(Object.keys(suiteProvidedContext).length > 0 ? { suiteContext: suiteProvidedContext } : {}),
     progressSummary: buildProgressSummary({ totalPlanCount: orderedPlans.length, planRuns }),
   };
 }

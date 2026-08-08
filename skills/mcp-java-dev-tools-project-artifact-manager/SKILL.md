@@ -28,19 +28,21 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 7. Runtime context `mode` is restricted to `terminal` and `docker`.
 8. Runtime context supports `autoStart` and `autoStopOnFinish` booleans (default true).
 9. For `mode=terminal`, provide `startups[]` entries per app/service with `command` (+ optional `args[]`, `appdir`, `env`) when auto-start is desired.
-10. Runtime startup entries must start/stop application runtime only; token refresh, seed, validation, and env preparation belong in shared `scripts[]`.
-11. Shared scripts are referenced by `executionProfiles[].scriptRefs[]` and may declare `phase`, `command`, `args[]`, `appdir`, `env`, and `envFileArg`.
-12. Shared scripts and run-prerequisite scripts must be replayable: use relative paths only (`scriptPath`, `appdir`, and path-like `args[]`); absolute machine paths are invalid.
-13. External system checks may use only deterministic `tcp` or `http` checks in v1.
-14. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
-15. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by suite-owned runtime operations by default, including health checks, wrapped HTTP execution, and replayable bootstrap/prerequisite scripts unless a narrower timeout is set.
-16. `defaults.orchestrator.resumePollMax`, `defaults.orchestrator.resumePollIntervalMs`, and `defaults.orchestrator.resumePollTimeoutMs` are required project-owned Execution Orchestrator resiliency defaults.
-17. Keep watcher wait-policy defaults distinct from `defaults.orchestrator`; watcher polling and outer orchestration polling are separate concerns.
-18. `sessionExport` uses flat defaults for `includeRuntimeStartup` and `includeHealthcheckGate`.
-19. `sessionExport.includeResolvedSecrets` must not auto-enable secret export; resolved secrets require explicit request opt-in at export time.
-20. Before an existing project Artifact upsert, read the complete sanitized payload with `query.select=["artifact"]`, validate the proposed in-memory change, and use merge-by-default behavior.
-21. Set `replace: true` only when the operator explicitly authorizes complete replacement of the existing project Artifact.
-22. When a request concerns historical Correlation/run-state migration, SQLite rebuild/backfill, cutover, retention, or post-migration state verification, preserve and validate `projects.json` first, then hand off to `mcp-java-dev-tools-project-state-migration`.
+10. `sidecarLifecycle.activation="dynamic_attach_local"` is valid only for a terminal context with `autoStart=true`, exactly one startup, and a direct `java`/`java.exe` launcher containing exactly one `-jar` followed by a relative JAR path. Shell wrappers and `-javaagent` startup arguments are invalid for this mode.
+11. Dynamic attach cleanup is mandatory and implied by `dynamic_attach_local`; `deactivateOnFinish` is not a switch for this mode.
+12. Runtime startup entries must start/stop application runtime only; token refresh, seed, validation, and env preparation belong in shared `scripts[]`.
+13. Shared scripts are referenced by `executionProfiles[].scriptRefs[]` and may declare `phase`, `command`, `args[]`, `appdir`, `env`, and `envFileArg`.
+14. Shared scripts and run-prerequisite scripts must be replayable: use relative paths only (`scriptPath`, `appdir`, and path-like `args[]`); absolute machine paths are invalid.
+15. External system checks may use only deterministic `tcp` or `http` checks in v1.
+16. Fail closed on ambiguous discovery; do not guess ports, hosts, or auth keys.
+17. `defaults.retryMax` and `defaults.requestTimeoutMs` are used by suite-owned runtime operations by default, including health checks, wrapped HTTP execution, and replayable bootstrap/prerequisite scripts unless a narrower timeout is set.
+18. `defaults.orchestrator.resumePollMax`, `defaults.orchestrator.resumePollIntervalMs`, and `defaults.orchestrator.resumePollTimeoutMs` are required project-owned Execution Orchestrator resiliency defaults.
+19. Keep watcher wait-policy defaults distinct from `defaults.orchestrator`; watcher polling and outer orchestration polling are separate concerns.
+20. `sessionExport` uses flat defaults for `includeRuntimeStartup` and `includeHealthcheckGate`.
+21. `sessionExport.includeResolvedSecrets` must not auto-enable secret export; resolved secrets require explicit request opt-in at export time.
+22. Before an existing project Artifact upsert, read the complete sanitized payload with `query.select=["artifact"]`, validate the proposed in-memory change, and use merge-by-default behavior.
+23. Set `replace: true` only when the operator explicitly authorizes complete replacement of the existing project Artifact.
+24. When a request concerns historical Correlation/run-state migration, SQLite rebuild/backfill, cutover, retention, or post-migration state verification, preserve and validate `projects.json` first, then hand off to `mcp-java-dev-tools-project-state-migration`.
 
 ## Required Artifact Path
 
@@ -73,6 +75,12 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
           "mode": "terminal",
           "autoStart": true,
           "autoStopOnFinish": true,
+          "sidecarLifecycle": {
+            "activation": "dynamic_attach_local",
+            "targetStartupName": "customers-service",
+            "probeId": "customers-service",
+            "verifyProbeAfterAttach": true
+          },
           "startups": [
             {
               "name": "customers-service",
@@ -239,6 +247,8 @@ Resumed orchestration semantics:
 1. `execution_orchestration` returns `status="in_progress"` with a `suiteRunId` when the suite is still waiting inside the current plan.
 2. Resume with the same `suiteRunId`.
 3. Continue the persisted in-progress plan phase rather than rerunning prior completed plans.
+
+For `dynamic_attach_local`, the same `suiteRunId` owns the started JAR and Sidecar lifecycle across every resume pass. Attach occurs once, cleanup occurs only after a terminal suite result, and the bounded lifecycle Artifact is written under `.mcpjvm/<project>/suite-runs/<suiteRunId>/`; it never stores raw commands, environment values, or secrets.
 
 ## Shared Scripts
 

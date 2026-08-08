@@ -12,9 +12,13 @@ const RAW_TOOL_TIMEOUT_MS = 300_000;
 const RAW_TOOL_TIMEOUT_HEADROOM_MS = 15_000;
 const MIN_EXECUTION_PASS_BUDGET_MS = 1_000;
 
-export const EXECUTION_ORCHESTRATION_TIMEOUT_INTERCEPT_MS = RAW_TOOL_TIMEOUT_MS - RAW_TOOL_TIMEOUT_HEADROOM_MS;
+export const EXECUTION_ORCHESTRATION_TIMEOUT_INTERCEPT_MS =
+  RAW_TOOL_TIMEOUT_MS - RAW_TOOL_TIMEOUT_HEADROOM_MS;
 
-export type { ExecutionOrchestrationLoopDefaults, ExecutionOrchestrationLoopPolicy } from "../models/execution_orchestration.model";
+export type {
+  ExecutionOrchestrationLoopDefaults,
+  ExecutionOrchestrationLoopPolicy,
+} from "../models/execution_orchestration.model";
 
 function withTerminalReason(args: {
   suite: RuntimeSuiteRunResult;
@@ -109,21 +113,41 @@ export async function executeExecutionOrchestrationResiliencyLoop(args: {
   readPersistedSuite: (suiteRunId: string) => Promise<RuntimeSuiteRunResult | null>;
   sleepMs?: (ms: number) => Promise<void>;
   nowMs?: () => number;
+  signal?: AbortSignal;
 }): Promise<RuntimeSuiteRunResult | RuntimeSuiteBlockedResult> {
   const nowMs = args.nowMs ?? (() => Date.now());
-  const sleepMs = args.sleepMs ?? (async (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const sleepMs =
+    args.sleepMs ?? (async (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const policy = resolveExecutionOrchestrationLoopPolicy(args.defaults);
-  const minExecutionPassBudgetMs = Math.min(MIN_EXECUTION_PASS_BUDGET_MS, policy.effectiveTimeoutBudgetMs);
+  const minExecutionPassBudgetMs = Math.min(
+    MIN_EXECUTION_PASS_BUDGET_MS,
+    policy.effectiveTimeoutBudgetMs,
+  );
   const startedAtMs = nowMs();
 
   let state: ExecutionOrchestrationPassState = {
     ...(typeof args.initialSuiteRunId === "string" ? { suiteRunId: args.initialSuiteRunId } : {}),
     ...(args.initialPriorSuite ? { priorSuite: args.initialPriorSuite } : {}),
   };
-  let latestInProgressSuite: RuntimeSuiteRunResult | null = null;
+  let latestInProgressSuite: RuntimeSuiteRunResult | null =
+    args.initialPriorSuite?.status === "in_progress" ? args.initialPriorSuite : null;
   let noProgressOuterCycleCount = 0;
 
   for (let passIndex = 0; passIndex < policy.resumePollMax; passIndex += 1) {
+    if (args.signal?.aborted) {
+      if (latestInProgressSuite) {
+        return await persistTerminalSuite({
+          persistSuite: args.persistSuite,
+          suite: latestInProgressSuite,
+          reasonCode: "execution_cancelled",
+          reasonMeta: { cancellation: "cooperative_abort" },
+        });
+      }
+      return buildBlockedResult({
+        reasonCode: "execution_cancelled",
+        requiredUserAction: ["Resume the suite with a new execution request after cancellation."],
+      });
+    }
     const elapsedBeforePassMs = nowMs() - startedAtMs;
     const remainingBudgetBeforePassMs = policy.effectiveTimeoutBudgetMs - elapsedBeforePassMs;
     if (remainingBudgetBeforePassMs < minExecutionPassBudgetMs) {
@@ -148,6 +172,14 @@ export async function executeExecutionOrchestrationResiliencyLoop(args: {
     }
 
     const suite = await args.executePass(state, remainingBudgetBeforePassMs);
+    if (args.signal?.aborted && "suiteRunId" in suite && typeof suite.suiteRunId === "string") {
+      return await persistTerminalSuite({
+        persistSuite: args.persistSuite,
+        suite,
+        reasonCode: "execution_cancelled",
+        reasonMeta: { cancellation: "cooperative_abort" },
+      });
+    }
     if (suite.status === "blocked") {
       return suite;
     }
@@ -216,6 +248,14 @@ export async function executeExecutionOrchestrationResiliencyLoop(args: {
     } else {
       noProgressOuterCycleCount = observedNoProgressOuterCycleCount;
       await sleepMs(policy.resumePollIntervalMs);
+      if (args.signal?.aborted) {
+        return await persistTerminalSuite({
+          persistSuite: args.persistSuite,
+          suite,
+          reasonCode: "execution_cancelled",
+          reasonMeta: { cancellation: "cooperative_abort" },
+        });
+      }
     }
 
     const suiteRunId = suite.suiteRunId?.trim();

@@ -16,7 +16,7 @@ function response(structuredContent: Record<string, unknown>): JvmLifecycleRespo
   };
 }
 
-function isAllowedProbeHost(host: string): boolean {
+export function isAllowedProbeHost(host: string): boolean {
   const normalized = host.toLowerCase();
   if (normalized === "127.0.0.1" || normalized === "localhost" || normalized === "::1") {
     return true;

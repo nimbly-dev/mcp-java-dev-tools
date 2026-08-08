@@ -80,6 +80,48 @@ test("[UT][execution-orchestration][resiliency] executeExecutionOrchestrationRes
   assert.deepEqual(passStates[1], { suiteRunId: "suite-01", nextPlanOrder: 2 });
 });
 
+test("[UT][execution-orchestration][resiliency] cancellation persists a terminal suite result without executing another pass", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let executeCalls = 0;
+  let persisted: Record<string, unknown> | undefined;
+
+  const out = await executeExecutionOrchestrationResiliencyLoop({
+    projectName: "test-project",
+    executionProfile: "cancel-suite",
+    defaults: {
+      resumePollMax: 3,
+      resumePollIntervalMs: 25,
+      resumePollTimeoutMs: 120000,
+    },
+    initialPriorSuite: {
+      executionProfile: "cancel-suite",
+      executionPolicy: "stop_on_fail",
+      status: "in_progress",
+      suiteRunId: "suite-cancelled",
+      nextPlanOrder: 2,
+      planRuns: [
+        { order: 1, planName: "plan-a", status: "executed", runStatus: "pass", runId: "run-a" },
+      ],
+    },
+    executePass: async () => {
+      executeCalls += 1;
+      throw new Error("must not execute after abort");
+    },
+    persistSuite: async (suite: Record<string, unknown>) => {
+      persisted = suite;
+    },
+    readPersistedSuite: async () => null,
+    signal: controller.signal,
+  });
+
+  assert.equal(executeCalls, 0);
+  assert.equal(out.status, "blocked");
+  assert.equal(out.reasonCode, "execution_cancelled");
+  assert.equal(persisted?.status, "blocked");
+  assert.equal(persisted?.reasonCode, "execution_cancelled");
+});
+
 test("[UT][execution-orchestration][resiliency] executeExecutionOrchestrationResiliencyLoop sleeps between passes when no new completed plan progress is available", async () => {
   const persistedSuites = new Map<string, Record<string, unknown>>();
   const sleeps: number[] = [];

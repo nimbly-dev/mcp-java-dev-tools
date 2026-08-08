@@ -398,7 +398,7 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh] expo
     );
     assert.match(
       script,
-      /trap '__mcpjvm_runtime_teardown; rm -rf "\$\{__MCPJVM_EXPORT_TMP:-\}"' EXIT/,
+      /trap '__mcpjvm_exit_status=\$\?;.*__mcpjvm_runtime_teardown; rm -rf "\$\{__MCPJVM_EXPORT_TMP:-\}"; trap - EXIT; exit "\$\{__mcpjvm_exit_status\}"' EXIT/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });

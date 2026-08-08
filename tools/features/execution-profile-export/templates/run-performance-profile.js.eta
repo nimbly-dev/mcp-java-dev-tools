@@ -988,6 +988,9 @@ async function main() {
   };
   fs.writeFileSync(path.join(runDirAbs, "execution_orchestration.result.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+  if (suiteStatus !== "pass") {
+    process.exitCode = 1;
+  }
 }
 
 main().catch((error) => {
