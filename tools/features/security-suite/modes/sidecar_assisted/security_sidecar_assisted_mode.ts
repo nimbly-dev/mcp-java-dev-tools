@@ -88,31 +88,33 @@ function asProbeResult(output: {
 function asProbeSnapshot(output: { structuredContent: Record<string, unknown> }): ProbeSnapshot {
   const json = asProbeJson(output);
   const result = asProbeResult(output);
-  const runtime = isRecord(json.runtime) ? json.runtime : {};
+  const lastStatus = isRecord(result.lastStatus) ? result.lastStatus : {};
+  const status = { ...json, ...lastStatus };
+  const runtime = isRecord(status.runtime) ? status.runtime : {};
   const snapshot: ProbeSnapshot = {
-    hitCount: typeof json.hitCount === "number" ? json.hitCount : 0,
-    lastHitEpoch: typeof json.lastHitEpoch === "number" ? json.lastHitEpoch : 0,
+    hitCount: typeof status.hitCount === "number" ? status.hitCount : 0,
+    lastHitEpoch: typeof status.lastHitEpoch === "number" ? status.lastHitEpoch : 0,
   };
-  if (typeof json.hitCount !== "number" && typeof result.hitCount === "number") {
+  if (typeof status.hitCount !== "number" && typeof result.hitCount === "number") {
     snapshot.hitCount = result.hitCount;
   }
-  if (typeof json.lastHitEpoch !== "number" && typeof result.lastHitEpoch === "number") {
+  if (typeof status.lastHitEpoch !== "number" && typeof result.lastHitEpoch === "number") {
     snapshot.lastHitEpoch = result.lastHitEpoch;
   }
-  if (typeof json.lineResolvable === "boolean") {
-    snapshot.lineResolvable = json.lineResolvable;
+  if (typeof status.lineResolvable === "boolean") {
+    snapshot.lineResolvable = status.lineResolvable;
   } else if (typeof result.lineResolvable === "boolean") {
     snapshot.lineResolvable = result.lineResolvable;
   }
-  if (typeof json.lineValidation === "string") {
-    snapshot.lineValidation = json.lineValidation;
+  if (typeof status.lineValidation === "string") {
+    snapshot.lineValidation = status.lineValidation;
   } else if (typeof result.lineValidation === "string") {
     snapshot.lineValidation = result.lineValidation;
   }
   if (typeof runtime.runtimeInstanceId === "string") {
     snapshot.runtimeInstanceId = runtime.runtimeInstanceId;
-  } else if (typeof json.runtimeInstanceId === "string") {
-    snapshot.runtimeInstanceId = json.runtimeInstanceId;
+  } else if (typeof status.runtimeInstanceId === "string") {
+    snapshot.runtimeInstanceId = status.runtimeInstanceId;
   } else if (typeof result.runtimeInstanceId === "string") {
     snapshot.runtimeInstanceId = result.runtimeInstanceId;
   }

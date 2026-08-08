@@ -15,6 +15,11 @@ import type {
   PlanWatcher,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import { normalizePlaceholderSyntaxInString } from "@tools-core/placeholder_resolution";
+import {
+  DETERMINISTIC_OBJECT_PATH_GUIDANCE,
+  DETERMINISTIC_OBJECT_PATH_GRAMMAR,
+  isSupportedObjectPath,
+} from "@tools-core/object_path_read";
 
 export function hasDuplicate(values: number[]): boolean {
   return new Set(values).size !== values.length;
@@ -165,6 +170,15 @@ function validateExpectationEntries(args: {
         reasonCode: invalidReasonCode,
         requiredUserAction: [
           `Set non-empty expectation actualPath for ${args.ownerType} '${args.ownerId}' (id='${expectation.id}').`,
+        ],
+      };
+    }
+    if (!isSupportedObjectPath(expectation.actualPath)) {
+      return {
+        ok: false,
+        reasonCode: invalidReasonCode,
+        requiredUserAction: [
+          `Set ${args.ownerType} '${args.ownerId}' expectation actualPath '${expectation.actualPath}' to the supported deterministic object-path grammar: ${DETERMINISTIC_OBJECT_PATH_GRAMMAR}. ${DETERMINISTIC_OBJECT_PATH_GUIDANCE}`,
         ],
       };
     }

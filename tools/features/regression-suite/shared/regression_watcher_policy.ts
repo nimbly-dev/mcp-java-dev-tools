@@ -5,6 +5,11 @@ import type {
   PlanWatcherWaitPolicy,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import type { ResolvedWatcherWaitPolicy } from "../models/regression_watcher.model";
+import {
+  DETERMINISTIC_OBJECT_PATH_GUIDANCE,
+  DETERMINISTIC_OBJECT_PATH_GRAMMAR,
+  isSupportedObjectPath,
+} from "@tools-core/object_path_read";
 
 function hasNonBlank(value: unknown): boolean {
   return typeof value !== "undefined" && value !== null && String(value).trim() !== "";
@@ -92,6 +97,15 @@ function validateWatcherExpectationEntries(args: {
         reasonCode: "watcher_expectation_invalid",
         requiredUserAction: [
           `Set non-empty expectation actualPath for watcher '${args.ownerId}' (id='${expectation.id}').`,
+        ],
+      };
+    }
+    if (!isSupportedObjectPath(expectation.actualPath)) {
+      return {
+        ok: false,
+        reasonCode: "watcher_expectation_invalid",
+        requiredUserAction: [
+          `Set watcher '${args.ownerId}' expectation actualPath '${expectation.actualPath}' to the supported deterministic object-path grammar: ${DETERMINISTIC_OBJECT_PATH_GRAMMAR}. ${DETERMINISTIC_OBJECT_PATH_GUIDANCE}`,
         ],
       };
     }

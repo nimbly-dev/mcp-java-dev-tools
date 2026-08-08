@@ -7,6 +7,11 @@ import type {
   PlanStepExpectation,
 } from "@tools-regression-execution-plan-spec/models/regression_execution_plan_spec.model";
 import { normalizePlaceholderSyntaxInString } from "@tools-core/placeholder_resolution";
+import {
+  DETERMINISTIC_OBJECT_PATH_GUIDANCE,
+  DETERMINISTIC_OBJECT_PATH_GRAMMAR,
+  isSupportedObjectPath,
+} from "@tools-core/object_path_read";
 
 function hasNonBlank(value: unknown): boolean {
   return typeof value !== "undefined" && value !== null && String(value).trim() !== "";
@@ -111,6 +116,15 @@ function validateExternalVerificationExpectationEntries(args: {
         reasonCode: "external_verification_expectation_invalid",
         requiredUserAction: [
           `Set non-empty expectation actualPath for external verification '${args.ownerId}' (id='${expectation.id}').`,
+        ],
+      };
+    }
+    if (!isSupportedObjectPath(expectation.actualPath)) {
+      return {
+        ok: false,
+        reasonCode: "external_verification_expectation_invalid",
+        requiredUserAction: [
+          `Set external verification '${args.ownerId}' expectation actualPath '${expectation.actualPath}' to the supported deterministic object-path grammar: ${DETERMINISTIC_OBJECT_PATH_GRAMMAR}. ${DETERMINISTIC_OBJECT_PATH_GUIDANCE}`,
         ],
       };
     }
