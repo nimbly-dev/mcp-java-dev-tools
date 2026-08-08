@@ -161,6 +161,8 @@ Validation rule:
 
 - `id` (string): stable assertion id within the step
 - `actualPath` (string): deterministic dot-path read from the normalized step evaluation envelope, not directly from the persisted `execution.result.json` step row
+- `actualPath` grammar: `<segment>(.<segment>|[<non-negative integer>])*`, where `<segment>` matches `[A-Za-z0-9_-]+`; for example `response.bodyJson.records[0].type`
+- JSONPath roots (`$`), wildcards (`[*]`), and function calls such as `length()` are unsupported and fail preflight before any request is sent
 - `operator` (string): generic assertion operator
 - `expected` (any, optional): required for all operators except `field_exists`
 - `required` (boolean, optional): defaults to `true`

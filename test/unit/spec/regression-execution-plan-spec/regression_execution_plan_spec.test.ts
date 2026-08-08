@@ -93,6 +93,58 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] prefl
   assert.deepEqual(result.discoverablePending, []);
 });
 
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight rejects unsupported step expectation paths", () => {
+  for (const actualPath of [
+    "response.bodyJson.records[*].type",
+    "response.bodyJson.records.length()",
+    "$.body",
+  ]) {
+    const contract = baseContract({
+      steps: [
+        {
+          ...baseContract().steps[0],
+          expect: [{ id: "invalid_path", actualPath, operator: "field_exists" }],
+        },
+      ],
+    });
+    const result = buildReplayPreflight({
+      metadata: baseMetadata(),
+      contract,
+      providedContext: { "auth.bearer": "provided-at-runtime" },
+      targetCandidateCount: 1,
+    });
+    assert.equal(result.status, "blocked_invalid");
+    assert.equal(result.reasonCode, "step_expectation_invalid");
+    assert.ok(result.requiredUserAction[0].includes(actualPath));
+    assert.match(result.requiredUserAction[0], /supported deterministic object-path grammar/);
+  }
+});
+
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts numeric array index step expectation paths", () => {
+  const contract = baseContract({
+    steps: [
+      {
+        ...baseContract().steps[0],
+        expect: [
+          {
+            id: "record_type_exists",
+            actualPath: "response.bodyJson.records[0].type",
+            operator: "field_exists",
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "provided-at-runtime" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "ready");
+  assert.equal(result.reasonCode, "ok");
+});
+
 test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight needs_user_input when required prerequisite has no value and no default", () => {
   const contract = baseContract({
     prerequisites: [
@@ -451,6 +503,43 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] prefl
   assert.equal(result.reasonCode, "ok");
 });
 
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight rejects unsupported watcher expectation paths", () => {
+  const contract = baseContract({
+    watchers: [
+      {
+        id: "post_indexed",
+        dependency: { stepOrder: 1 },
+        provider: {
+          type: "http",
+          transport: {
+            request: {
+              method: "GET",
+              url: "http://127.0.0.1:9200/posts/${postId}",
+            },
+          },
+        },
+        expect: [
+          {
+            id: "record_type_exists",
+            actualPath: "response.bodyJson.records[*].type",
+            operator: "field_exists",
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "watcher_expectation_invalid");
+  assert.ok(result.requiredUserAction[0].includes("response.bodyJson.records[*].type"));
+  assert.match(result.requiredUserAction[0], /supported deterministic object-path grammar/);
+});
+
 test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts externalVerification http contract with canonical placeholders", () => {
   const contract = baseContract({
     externalVerification: [
@@ -487,6 +576,40 @@ test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] prefl
   });
   assert.equal(result.status, "ready");
   assert.equal(result.reasonCode, "ok");
+});
+
+test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight rejects unsupported externalVerification expectation paths", () => {
+  const contract = baseContract({
+    externalVerification: [
+      {
+        id: "verify_reindex_task_status",
+        provider: { type: "http" },
+        request: {
+          http: {
+            method: "GET",
+            pathTemplate: "/_tasks/${taskId}",
+          },
+        },
+        expect: [
+          {
+            id: "task_completed",
+            actualPath: "$.body",
+            operator: "field_exists",
+          },
+        ],
+      },
+    ],
+  });
+  const result = buildReplayPreflight({
+    metadata: baseMetadata(),
+    contract,
+    providedContext: { taskId: "task-1", "auth.bearer": "ok" },
+    targetCandidateCount: 1,
+  });
+  assert.equal(result.status, "blocked_invalid");
+  assert.equal(result.reasonCode, "external_verification_expectation_invalid");
+  assert.ok(result.requiredUserAction[0].includes("$.body"));
+  assert.match(result.requiredUserAction[0], /supported deterministic object-path grammar/);
 });
 
 test("[UT][regression-execution-plan-spec][regression_execution_plan_spec] preflight accepts externalVerification http secret-bearing header when value is placeholder-backed", () => {

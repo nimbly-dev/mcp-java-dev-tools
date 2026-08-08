@@ -147,7 +147,20 @@ test("[UT][security-sidecar] resets targets and records corroborated external ev
         }
         const action = input.action;
         if (action === "wait_for_hit") {
-          return { structuredContent: { result: { hit: true }, ...runtimeStatus("runtime-1", 1) } };
+          return {
+            structuredContent: {
+              result: {
+                hit: true,
+                lastStatus: {
+                  hitCount: 1,
+                  lastHitEpoch: Date.now(),
+                  lineResolvable: true,
+                  lineValidation: "resolvable",
+                  runtime: { runtimeInstanceId: "runtime-1" },
+                },
+              },
+            },
+          };
         }
         return { structuredContent: runtimeStatus("runtime-1", 0) };
       },

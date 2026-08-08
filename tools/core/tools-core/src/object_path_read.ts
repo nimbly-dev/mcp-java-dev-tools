@@ -6,6 +6,18 @@ function isValidPathToken(value: string): boolean {
   return /^[A-Za-z0-9_-]+$/.test(value);
 }
 
+export const DETERMINISTIC_OBJECT_PATH_GRAMMAR =
+  "<segment>(.<segment>|[<non-negative integer>])* where <segment> matches [A-Za-z0-9_-]+";
+
+export const DETERMINISTIC_OBJECT_PATH_GUIDANCE =
+  "Use a deterministic dot path with optional numeric array indexes, for example response.bodyJson.records[0].type. JSONPath roots ($), wildcards ([*]), and function calls such as length() are unsupported.";
+
+const deterministicObjectPathPattern = /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+|\[\d+\])*$/;
+
+export function isSupportedObjectPath(path: unknown): path is string {
+  return typeof path === "string" && deterministicObjectPathPattern.test(path.trim());
+}
+
 function tokenizePath(path: string): Array<string | number> | null {
   const trimmed = path.trim();
   if (trimmed.length === 0) return null;
@@ -53,4 +65,3 @@ export function readValueByPath(input: unknown, path: string): unknown {
   }
   return cursor;
 }
-
