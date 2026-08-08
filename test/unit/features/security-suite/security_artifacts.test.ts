@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -105,6 +106,44 @@ function blackboxContract(): SecurityPlanContract {
   return contract;
 }
 
+async function startReachabilityTarget(): Promise<{
+  baseUrl: string;
+  close: () => Promise<void>;
+}> {
+  const server = http.createServer((_request, response) => {
+    response.statusCode = 204;
+    response.end();
+  });
+  const port = await new Promise<number>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        reject(new Error("security_unit_target_port_unavailable"));
+        return;
+      }
+      resolve(address.port);
+    });
+  });
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    close: async () =>
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
+  };
+}
+
+function withReachableTarget(contract: SecurityPlanContract, baseUrl: string): SecurityPlanContract {
+  const resolved = JSON.parse(JSON.stringify(contract)) as SecurityPlanContract;
+  resolved.targetBoundary = {
+    ...resolved.targetBoundary,
+    baseUrl,
+    allowedPorts: [Number(new URL(baseUrl).port)],
+  };
+  return resolved;
+}
+
 test("[UT][security-contract] rejects Sidecar-only runtime fields in Black-box contracts", () => {
   for (const field of [
     "mustHitRuntimeTargets",
@@ -164,6 +203,7 @@ function writeSecurityPlanFixture(args: {
               plans: [{ order: 1, planName }],
             },
           ],
+          variables: { contextBindings: { "security.testToken": "SECURITY_TESTTOKEN" } },
         },
       ],
     }),
@@ -178,7 +218,11 @@ async function executeBlackboxFixture(args: {
   calls?: Array<Record<string, unknown>>;
   prepareWorkspace?: (args: { root: string; projectName: string }) => void;
 }): Promise<Awaited<ReturnType<typeof executeSecurityRuntimeSuite>>> {
-  writeSecurityPlanFixture({ root: args.root, contract: args.contract });
+  const target = await startReachabilityTarget();
+  writeSecurityPlanFixture({
+    root: args.root,
+    contract: withReachableTarget(args.contract, target.baseUrl),
+  });
   args.prepareWorkspace?.({ root: args.root, projectName: "demo" });
   const envName = "SECURITY_TESTTOKEN";
   const previous = process.env[envName];
@@ -212,6 +256,7 @@ async function executeBlackboxFixture(args: {
   } finally {
     if (typeof previous === "string") process.env[envName] = previous;
     else delete process.env[envName];
+    await target.close();
   }
 }
 
@@ -511,15 +556,17 @@ test("[UT][security-suite] fails closed before mode execution when project conte
 
 test("[UT][security-suite] processes ordered plan slices and resumes with prior runs", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-progress-"));
+  const target = await startReachabilityTarget();
   try {
     const projectRoot = path.join(root, ".mcpjvm", "demo");
+    const contract = withReachableTarget(securityContract(), target.baseUrl);
     for (const planName of ["plan-a", "plan-b"]) {
       const planRoot = path.join(projectRoot, "plans", "security", planName);
       fs.mkdirSync(planRoot, { recursive: true });
       fs.writeFileSync(path.join(planRoot, "metadata.json"), "{}\n", "utf8");
       fs.writeFileSync(
         path.join(planRoot, "contract.json"),
-        JSON.stringify(securityContract()),
+        JSON.stringify(contract),
         "utf8",
       );
     }
@@ -581,6 +628,7 @@ test("[UT][security-suite] processes ordered plan slices and resumes with prior 
     assert.equal(second.planRuns[1]?.planName, "plan-b");
     assert.equal(second.planRuns[1]?.runId, `${first.suiteRunId}-plan-b`);
   } finally {
+    await target.close();
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -786,7 +834,28 @@ test("[UT][security-blackbox] isolates symbolic credentials per case and never p
     ];
     contract.customCases![0]!.authenticationProfileRef = "limited-user";
     const calls: Array<Record<string, unknown>> = [];
-    const result = await executeBlackboxFixture({ root, contract, attackStatusCode: 403, calls });
+    const result = await executeBlackboxFixture({
+      root,
+      contract,
+      attackStatusCode: 403,
+      calls,
+      prepareWorkspace: ({ root: workspaceRootAbs, projectName }) => {
+        const projectsPathAbs = path.join(
+          workspaceRootAbs,
+          ".mcpjvm",
+          projectName,
+          "projects.json",
+        );
+        const projectArtifact = JSON.parse(fs.readFileSync(projectsPathAbs, "utf8")) as {
+          workspaces: Array<Record<string, unknown>>;
+        };
+        projectArtifact.workspaces[0] = {
+          ...projectArtifact.workspaces[0],
+          variables: { contextBindings: { "security.limitedUserToken": envName } },
+        };
+        fs.writeFileSync(projectsPathAbs, JSON.stringify(projectArtifact), "utf8");
+      },
+    });
     assert.equal(result.status, "pass");
     for (const call of calls) {
       const headers = (call.request as Record<string, unknown>).headers as Record<string, unknown>;
@@ -836,9 +905,29 @@ test("[UT][security-blackbox] blocks incomplete execution when a credential refe
       },
     ];
     contract.customCases![0]!.authenticationProfileRef = "limited-user";
-    const result = await executeBlackboxFixture({ root, contract, attackStatusCode: 403 });
+    const result = await executeBlackboxFixture({
+      root,
+      contract,
+      attackStatusCode: 403,
+      prepareWorkspace: ({ root: workspaceRootAbs, projectName }) => {
+        const projectsPathAbs = path.join(
+          workspaceRootAbs,
+          ".mcpjvm",
+          projectName,
+          "projects.json",
+        );
+        const projectArtifact = JSON.parse(fs.readFileSync(projectsPathAbs, "utf8")) as {
+          workspaces: Array<Record<string, unknown>>;
+        };
+        projectArtifact.workspaces[0] = {
+          ...projectArtifact.workspaces[0],
+          variables: { contextBindings: { "security.limitedUserToken": envName } },
+        };
+        fs.writeFileSync(projectsPathAbs, JSON.stringify(projectArtifact), "utf8");
+      },
+    });
     assert.equal(result.status, "blocked");
-    assert.equal(result.reasonCode, "security_blackbox_coverage_incomplete");
+    assert.equal(result.reasonCode, "security_credential_env_missing");
     assert.equal(result.planRuns[0]?.runStatus, "blocked");
   } finally {
     if (typeof previous === "string") process.env[envName] = previous;

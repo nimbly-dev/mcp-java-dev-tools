@@ -80,18 +80,8 @@ function asStringRecord(value: unknown): StringRecord {
   return output;
 }
 
-function envNames(key: string): string[] {
-  const trimmed = key.trim();
-  return [trimmed, trimmed.toUpperCase().replaceAll(/[^A-Z0-9]+/g, "_")];
-}
-
 function readRuntimeValue(key: string, context: Record<string, string>): string | undefined {
-  if (typeof context[key] === "string") return context[key];
-  for (const name of envNames(key)) {
-    const value = process.env[name];
-    if (typeof value === "string" && value.length > 0) return value;
-  }
-  return undefined;
+  return typeof context[key] === "string" ? context[key] : undefined;
 }
 
 function collectFixtureContext(

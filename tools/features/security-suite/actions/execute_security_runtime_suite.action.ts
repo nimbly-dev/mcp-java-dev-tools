@@ -175,6 +175,34 @@ async function executeSecurityPlan(args: {
       reasonMeta: { securityMode: "blackbox", planName: args.planName },
     };
   }
+  const authenticatedCredentialRefs =
+    validated.contract.securityMode === "blackbox"
+      ? validated.contract.authenticationProfiles
+          .filter((profile) => profile.kind !== "anonymous")
+          .map((profile) => profile.credentialRef)
+          .filter((credentialRef): credentialRef is string => typeof credentialRef === "string")
+      : [];
+  const credentialResolution = await resolveSecurityRuntimeCredentialContext({
+    workspaceRootAbs: args.input.workspaceRootAbs,
+    projectName: args.input.projectName,
+    executionProfile: args.input.executionProfile,
+    credentialRefs: authenticatedCredentialRefs,
+  });
+  if (credentialResolution.status === "blocked") {
+    return {
+      status: "blocked",
+      runStatus: "blocked",
+      reasonCode: credentialResolution.reasonCode,
+      requiredUserAction: credentialResolution.requiredUserAction,
+      reasonMeta: {
+        securityMode: validated.contract.securityMode,
+        planName: args.planName,
+        ...(credentialResolution.checks.length > 0
+          ? { readinessChecks: credentialResolution.checks }
+          : {}),
+      },
+    };
+  }
   const targetBaseUrl = validated.contract.targetBoundary.baseUrl;
   const targetReady =
     typeof targetBaseUrl === "string" &&
@@ -203,11 +231,7 @@ async function executeSecurityPlan(args: {
           runId: `${args.input.suiteRunId ?? "security"}-${args.planName}`,
           contract: validated.contract,
           mcpInvoke: args.input.mcpInvoke,
-          runtimeCredentialContext: await resolveSecurityRuntimeCredentialContext({
-            workspaceRootAbs: args.input.workspaceRootAbs,
-            projectName: args.input.projectName,
-            executionProfile: args.input.executionProfile,
-          }),
+          runtimeCredentialContext: credentialResolution.credentialContext,
         })
       : await executeSidecarAssistedSecurityMode({
           workspaceRootAbs: args.input.workspaceRootAbs,

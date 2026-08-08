@@ -30,9 +30,10 @@ async function writeJson(filePath: string, value: Record<string, unknown>): Prom
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-test("[IT][execution_orchestration][execute] PostgreSQL external verification uses native pg with bound values", async () => {
+test("[IT][execution_orchestration][execute] PostgreSQL external verification uses native pg with bound values", async (t) => {
   if (!(await dockerAvailable())) {
-    assert.fail("postgresql_it_docker_unavailable");
+    t.skip("postgresql_it_docker_unavailable");
+    return;
   }
 
   const tmpRoot = await fs.mkdtemp(

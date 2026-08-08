@@ -155,6 +155,7 @@ function writeSecurityFixture(args: { root: string; contract: SecurityPlanContra
               plans: [{ order: 1, planName: "authorization" }],
             },
           ],
+          variables: { contextBindings: { "security.integrationToken": "SECURITY_INTEGRATIONTOKEN" } },
         },
       ],
     }),
@@ -286,6 +287,107 @@ test("[IT][security-blackbox] resolves a credentialRef through the selected proj
     await stopServer(runtime.server);
     if (typeof previous === "string") process.env[envName] = previous;
     else delete process.env[envName];
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[IT][security-blackbox] blocks missing credential context bindings before target or request execution", async () => {
+  const runtime = await startSecurityServer({ foreignStatus: 403 });
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-missing-binding-it-"));
+  try {
+    const contract = securityContract(`http://127.0.0.1:${runtime.port}`);
+    contract.authenticationProfiles = [
+      {
+        id: "limited-user",
+        kind: "bearer",
+        role: "customer",
+        credentialRef: "security.limitedUserToken",
+      },
+    ];
+    const result = await executeAgainstWrappedTransport({ root, contract });
+
+    assert.equal(result.status, "blocked");
+    assert.equal(runtime.requests.length, 0);
+    const blockedPlanRun = result.planRuns[0];
+    assert.ok(blockedPlanRun);
+    assert.equal(blockedPlanRun.blockedReasonCode, "security_credential_context_binding_missing");
+    const blockedReasonMeta = blockedPlanRun.blockedReasonMeta as
+      | { requiredUserAction?: string[] }
+      | undefined;
+    assert.match(
+      String(blockedReasonMeta?.requiredUserAction?.[0] ?? ""),
+      /variables\.contextBindings\.security\.limitedUserToken/i,
+    );
+  } finally {
+    await stopServer(runtime.server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[IT][security-blackbox] executes prePlan refresh before resolving a credential context binding", async () => {
+  const runtime = await startSecurityServer({ foreignStatus: 403 });
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-preplan-refresh-it-"));
+  const envName = "MCP_JVM_SECURITY_REFRESHED_TOKEN";
+  try {
+    const contract = securityContract(`http://127.0.0.1:${runtime.port}`);
+    contract.authenticationProfiles = [
+      {
+        id: "limited-user",
+        kind: "bearer",
+        role: "customer",
+        credentialRef: "security.refreshedToken",
+      },
+    ];
+    const result = await executeAgainstWrappedTransport({
+      root,
+      contract,
+      prepareWorkspace: ({ root: workspaceRootAbs, projectName }) => {
+        const projectRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName);
+        const projectsPathAbs = path.join(projectRootAbs, "projects.json");
+        const envFileAbs = path.join(projectRootAbs, ".env");
+        const refreshScriptAbs = path.join(projectRootAbs, "refresh-token.cjs");
+        const projectArtifact = JSON.parse(fs.readFileSync(projectsPathAbs, "utf8")) as {
+          workspaces: Array<Record<string, unknown>>;
+        };
+        projectArtifact.workspaces[0] = {
+          ...projectArtifact.workspaces[0],
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: { contextBindings: { "security.refreshedToken": envName } },
+          scripts: [
+            {
+              name: "refresh-token",
+              command: "node",
+              args: [`.mcpjvm/${projectName}/refresh-token.cjs`],
+              env: { MCP_JVM_REPRO_ENV_FILE: envFileAbs },
+              phase: "prePlan",
+            },
+          ],
+          executionProfiles: [
+            {
+              executionProfile: "security-ci",
+              suiteType: "security",
+              executionPolicy: "stop_on_fail",
+              plans: [{ order: 1, planName: "authorization" }],
+              scriptRefs: [{ name: "refresh-token", phase: "prePlan" }],
+            },
+          ],
+        };
+        fs.writeFileSync(
+          refreshScriptAbs,
+          "require('node:fs').writeFileSync(process.env.MCP_JVM_REPRO_ENV_FILE, 'MCP_JVM_SECURITY_REFRESHED_TOKEN=refreshed-token\\n');\n",
+          "utf8",
+        );
+        fs.writeFileSync(projectsPathAbs, JSON.stringify(projectArtifact), "utf8");
+      },
+    });
+
+    assert.equal(result.status, "pass");
+    assert.deepEqual(
+      runtime.requests.map((request) => request.authorization),
+      ["Bearer refreshed-token", "Bearer refreshed-token"],
+    );
+  } finally {
+    await stopServer(runtime.server);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
