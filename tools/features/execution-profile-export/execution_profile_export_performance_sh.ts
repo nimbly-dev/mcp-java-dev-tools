@@ -18,6 +18,7 @@ import {
   type PerformanceExportBundlePlan,
 } from "./performance_jmeter_export";
 import { assertPerformanceExportProbeBindingsResolved } from "./performance_export_probe_binding";
+import { preparePerformancePortableDynamicAttach } from "./performance_dynamic_attach_export";
 import { buildShPrerequisitesSections } from "./sections/sh/prerequisites.section";
 import { prepareShExportPackage } from "./sections/sh/export_package.section";
 import { buildShHealthcheckSection } from "./sections/sh/healthcheck.section";
@@ -156,6 +157,14 @@ export async function exportExecutionProfilePerformanceSh(
     runtimeContextName: target.profile.runtimeContextName,
     includeRuntimeStartup: defaults.includeRuntimeStartup,
   });
+  const dynamicAttach = await preparePerformancePortableDynamicAttach({
+    workspaceRootAbs: input.workspaceRootAbs,
+    exportDirAbs,
+    workspace,
+    ...(target.profile.runtimeContextName
+      ? { runtimeContextName: target.profile.runtimeContextName }
+      : {}),
+  });
   const prerequisiteSections = await buildShPrerequisitesSections({
     workspaceRootAbs: input.workspaceRootAbs,
     ...(typeof input.projectName === "string" && input.projectName.trim().length > 0
@@ -216,6 +225,7 @@ export async function exportExecutionProfilePerformanceSh(
       prerequisitesSection: joinLines(prerequisiteSections.prerequisitesSection),
       preRuntimeScriptSection: joinLines(exportPackageSections.preRuntimeScriptSection),
       runtimeStartupSection: joinLines(runtimeStartupSection),
+      dynamicAttachSection: joinLines(dynamicAttach.attachShSection),
       postRuntimeScriptSection: joinLines(exportPackageSections.postRuntimeScriptSection),
       healthcheckGateSection: joinLines(healthcheckGateSection),
       postHealthcheckScriptSection: joinLines(exportPackageSections.postHealthcheckScriptSection),

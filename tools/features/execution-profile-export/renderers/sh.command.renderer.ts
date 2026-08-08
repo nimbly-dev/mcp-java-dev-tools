@@ -14,19 +14,38 @@ export function renderShRuntimeStartupSection(startups: RuntimeStartup[], includ
   const teardownCommands = startups
     .map((startup) => startup.teardownCommand)
     .filter((command): command is string => typeof command === "string" && command.trim().length > 0);
-  if (teardownCommands.length > 0) {
+  const hasBackgroundStartup = startups.some((startup) => startup.background === true);
+  const shouldStopOwnedProcesses = startups.some((startup) => startup.autoStopOnFinish === true);
+  if (teardownCommands.length > 0 || hasBackgroundStartup) {
+    if (hasBackgroundStartup) {
+      lines.push('__MCPJVM_EXPORT_TMP="${TMPDIR:-/tmp}/mcpjvm-execution-profile-$$"');
+      lines.push('mkdir -p "${__MCPJVM_EXPORT_TMP}"');
+      lines.push('__MCPJVM_OWNED_RUNTIME_PIDS=()');
+    }
     lines.push("__mcpjvm_runtime_teardown() {");
+    if (hasBackgroundStartup && shouldStopOwnedProcesses) {
+      lines.push('  for __mcpjvm_pid in "${__MCPJVM_OWNED_RUNTIME_PIDS[@]}"; do');
+      lines.push('    if kill -0 "${__mcpjvm_pid}" >/dev/null 2>&1; then kill "${__mcpjvm_pid}" >/dev/null 2>&1 || true; fi');
+      lines.push("  done");
+    }
     for (const command of teardownCommands) {
       lines.push(`  ${command} >/dev/null 2>&1 || true`);
     }
     lines.push("}");
-    lines.push("trap '__mcpjvm_runtime_teardown; rm -rf \"${__MCPJVM_EXPORT_TMP:-}\"' EXIT");
+    lines.push("trap '__mcpjvm_exit_status=$?; if declare -F __mcpjvm_dynamic_attach_cleanup >/dev/null 2>&1; then __mcpjvm_dynamic_attach_cleanup || __mcpjvm_exit_status=$?; fi; __mcpjvm_runtime_teardown; rm -rf \"${__MCPJVM_EXPORT_TMP:-}\"; trap - EXIT; exit \"${__mcpjvm_exit_status}\"' EXIT");
     lines.push("");
   }
   for (const startup of startups) {
     lines.push(`echo '[${startup.id}] ${escapeShSingleQuoted(startup.title)}'`);
-    lines.push(startup.command);
-    lines.push("if [ $? -ne 0 ]; then echo 'runtime startup failed' >&2; exit 1; fi");
+    if (startup.background) {
+      lines.push(`${startup.command} >"\${__MCPJVM_EXPORT_TMP}/runtime-${startup.id}.log" 2>&1 &`);
+      lines.push("__mcpjvm_runtime_pid=$!");
+      lines.push('if ! kill -0 "${__mcpjvm_runtime_pid}" >/dev/null 2>&1; then echo \'runtime startup failed\' >&2; exit 1; fi');
+      lines.push('__MCPJVM_OWNED_RUNTIME_PIDS+=("${__mcpjvm_runtime_pid}")');
+    } else {
+      lines.push(startup.command);
+      lines.push("if [ $? -ne 0 ]; then echo 'runtime startup failed' >&2; exit 1; fi");
+    }
     lines.push("");
   }
   return lines;

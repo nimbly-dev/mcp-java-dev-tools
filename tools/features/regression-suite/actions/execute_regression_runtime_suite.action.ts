@@ -51,6 +51,17 @@ export async function executeRegressionRuntimeSuite(
     typeof args.suiteRunId === "string" && args.suiteRunId.trim().length > 0
       ? args.suiteRunId.trim()
       : buildTimestampRunId(new Date(), 1);
+  const cancelledSuite = (): RuntimeSuiteRunResult => ({
+    executionProfile: manifest.executionProfile,
+    executionPolicy: manifest.executionPolicy,
+    status: "blocked",
+    reasonCode: "execution_cancelled",
+    reasonMeta: { cancellation: "cooperative_abort" },
+    planRuns,
+    suiteRunId,
+    completedPlanCount: countCompletedPlanRuns(planRuns),
+  });
+  if (args.signal?.aborted) return cancelledSuite();
   const correlationSessions = new Map<string, RuntimeSuiteCorrelationSession>();
   const suiteProvidedContext: Record<string, unknown> = isRecord(args.priorSuiteContext)
     ? { ...args.priorSuiteContext }
@@ -151,6 +162,7 @@ export async function executeRegressionRuntimeSuite(
   let stop = false;
   let activeInProgressExecutionResult: RegressionRunExecutionResult | undefined;
   for (const plan of orderedPlans) {
+    if (args.signal?.aborted) return cancelledSuite();
     if (plan.order < startPlanOrder) {
       continue;
     }
@@ -218,6 +230,7 @@ export async function executeRegressionRuntimeSuite(
         : {}),
       ...(resumeState ? { resumeState } : {}),
       ...(args.renewSuiteLease ? { renewSuiteLease: args.renewSuiteLease } : {}),
+      ...(args.runtimeLifecyclePrepared ? { runtimeLifecyclePrepared: true } : {}),
     });
     if (run.status === "blocked") {
       processedPlansThisCall += 1;

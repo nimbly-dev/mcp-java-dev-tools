@@ -23,6 +23,20 @@ if (-not (Test-Path -LiteralPath (Join-Path $script:McpJvmWorkspaceRoot '.mcpjvm
   throw 'workspace_root_unresolved: place export under project workspace containing .mcpjvm'
 }
 
+$script:McpJvmOwnedRuntimeProcesses = @()
+$script:McpJvmStopOwnedRuntime = $false
+function Stop-McpJvmOwnedRuntime {
+  if (-not $script:McpJvmStopOwnedRuntime) { return }
+  foreach ($process in $script:McpJvmOwnedRuntimeProcesses) {
+    if ($null -eq $process) { continue }
+    try {
+      if (-not $process.HasExited) { Stop-Process -Id $process.Id -ErrorAction Stop }
+    } catch { }
+  }
+}
+
+try {
+
 # ============================================
 # SECTION A: PREREQUISITES
 # ============================================
@@ -72,3 +86,6 @@ if (-not (Test-Path -LiteralPath (Join-Path $script:McpJvmWorkspaceRoot '.mcpjvm
 # SECTION E: SUMMARY
 # ============================================
 Write-Host 'Replay script completed.' -ForegroundColor Green
+} finally {
+  Stop-McpJvmOwnedRuntime
+}

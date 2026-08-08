@@ -33,6 +33,8 @@ export type RuntimeStartup = {
   id: string;
   title: string;
   command: string;
+  background?: boolean;
+  autoStopOnFinish?: boolean;
   teardownCommand?: string;
 };
 

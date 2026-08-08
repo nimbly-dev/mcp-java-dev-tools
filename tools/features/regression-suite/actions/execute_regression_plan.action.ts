@@ -114,6 +114,7 @@ export async function executeRegressionPlanWorkflow(
         ? { executionProfileName: args.executionProfileName }
         : {}),
       ...(args.runtimeConfigOverride ? { defaultsOverride: args.runtimeConfigOverride } : {}),
+      ...(args.runtimeLifecyclePrepared ? { runtimeLifecyclePrepared: true } : {}),
     },
   });
 

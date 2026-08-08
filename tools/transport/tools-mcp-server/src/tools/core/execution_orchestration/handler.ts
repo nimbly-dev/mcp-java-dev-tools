@@ -24,7 +24,7 @@ export function registerExecutionOrchestrationTool(
       description: EXECUTION_ORCHESTRATION_TOOL.description,
       inputSchema: EXECUTION_ORCHESTRATION_TOOL.inputSchema,
     },
-    async (rawInput) => {
+    async (rawInput, extra) => {
       const parsed = ExecutionOrchestrationRequestSchema.safeParse(rawInput);
       if (!parsed.success) {
         const issues = parsed.error.issues.map((issue) => ({
@@ -66,6 +66,7 @@ export function registerExecutionOrchestrationTool(
       return await dispatchExecutionOrchestrationAction({
         workspaceRootAbs,
         probeConfig: deps.probeConfig,
+        signal: extra.signal,
         request: parsed.data,
       });
     },

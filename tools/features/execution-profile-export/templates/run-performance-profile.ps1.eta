@@ -28,6 +28,36 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   throw 'node_runtime_missing: performance export requires node on PATH'
 }
 
+$script:McpJvmOwnedRuntimeProcesses = @()
+$script:McpJvmStopOwnedRuntime = $false
+$script:McpJvmPortableDynamicAttachActive = $false
+function Stop-McpJvmOwnedRuntime {
+  $cleanupError = $null
+  try {
+<%= it.dynamicAttachCleanupSection %>
+  } catch {
+    $cleanupError = $_
+  }
+  if ($script:McpJvmStopOwnedRuntime) {
+    foreach ($process in $script:McpJvmOwnedRuntimeProcesses) {
+      if ($null -eq $process) { continue }
+      try {
+        if (-not $process.HasExited) { Stop-Process -Id $process.Id -ErrorAction Stop }
+      } catch { }
+    }
+  }
+  if ($null -ne $cleanupError) {
+    throw $cleanupError
+  }
+}
+
+try {
+
+# ============================================
+# SECTION A: PREREQUISITES
+# ============================================
+<%= it.prerequisitesSection %>
+
 # ============================================
 # SECTION A2: PRE_RUNTIME_SCRIPTS
 # ============================================
@@ -37,6 +67,11 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 # SECTION B: RUNTIME_STARTUP
 # ============================================
 <%= it.runtimeStartupSection %>
+
+# ============================================
+# SECTION B1: PORTABLE_SIDECAR_LIFECYCLE
+# ============================================
+<%= it.dynamicAttachSection %>
 
 # ============================================
 # SECTION B2: POST_RUNTIME_SCRIPTS
@@ -54,6 +89,11 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 <%= it.postHealthcheckScriptSection %>
 
 # ============================================
+# SECTION C2: AUTH_BOOTSTRAP
+# ============================================
+<%= it.postStartupAuthSection %>
+
+# ============================================
 # SECTION C3: PRE_PLAN_SCRIPTS
 # ============================================
 <%= it.prePlanScriptSection %>
@@ -68,3 +108,6 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   '--export-dir' $script:McpJvmExportScriptDir
 
 Write-Host 'Performance replay completed.' -ForegroundColor Green
+} finally {
+  Stop-McpJvmOwnedRuntime
+}

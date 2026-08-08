@@ -1,0 +1,318 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawn } = require("node:child_process");
+
+const HELPER_TIMEOUT_MS = 15_000;
+const DISCOVERY_ATTEMPTS = 30;
+const DISCOVERY_DELAY_MS = 200;
+const PROBE_ATTEMPTS = 30;
+const PROBE_DELAY_MS = 200;
+const PROCESS_STOP_ATTEMPTS = 10;
+const PROCESS_STOP_DELAY_MS = 200;
+const MAX_HELPER_OUTPUT_CHARS = 65_536;
+
+function parseArgs(argv) {
+  const result = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    const key = argv[index];
+    if (!key.startsWith("--")) continue;
+    const value = argv[index + 1];
+    if (typeof value === "string" && !value.startsWith("--")) {
+      result[key.slice(2)] = value;
+      index += 1;
+    }
+  }
+  return result;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function safeReason(value, fallback) {
+  return typeof value === "string" && /^[a-z0-9._-]{1,128}$/iu.test(value) ? value : fallback;
+}
+
+function writeEvidence(filePath, value) {
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function readEvidence(filePath) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function runHelper(config, args) {
+  return new Promise((resolve) => {
+    const helperJar = path.resolve(path.dirname(config.__configPath), config.helperJarRel);
+    const child = spawn(process.env.MCP_JAVA_BIN || "java", ["-jar", helperJar, ...args], {
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+      shell: false,
+    });
+    let stdout = "";
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(result);
+    };
+    const timeout = setTimeout(() => {
+      child.kill();
+      finish({ reasonCode: "attach_helper_timeout" });
+    }, HELPER_TIMEOUT_MS);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      if (stdout.length < MAX_HELPER_OUTPUT_CHARS) {
+        stdout += String(chunk).slice(0, MAX_HELPER_OUTPUT_CHARS - stdout.length);
+      }
+    });
+    child.once("error", () => finish({ reasonCode: "attach_helper_spawn_failed" }));
+    child.once("close", (code) => {
+      try {
+        const parsed = JSON.parse(stdout.trim());
+        if (parsed && typeof parsed === "object") {
+          finish(parsed);
+          return;
+        }
+      } catch {
+        // Use a bounded deterministic failure below.
+      }
+      finish({ reasonCode: code === 0 ? "attach_helper_output_invalid" : "attach_helper_failed" });
+    });
+  });
+}
+
+async function discoverFence(config, pid) {
+  for (let attempt = 0; attempt < DISCOVERY_ATTEMPTS; attempt += 1) {
+    const result = await runHelper(config, ["discover"]);
+    const candidates = Array.isArray(result.candidates) ? result.candidates : [];
+    const candidate = candidates.find(
+      (entry) => entry && String(entry.pid) === pid && Number.isSafeInteger(entry.processStartEpochMs),
+    );
+    if (candidate) return Number(candidate.processStartEpochMs);
+    await sleep(DISCOVERY_DELAY_MS);
+  }
+  return undefined;
+}
+
+async function probeVerification(config) {
+  const baseUrl = `http://${config.probeHost}:${config.probePort}`;
+  const probeKey = "mcp.jvm.portable.attach#ready";
+  for (let attempt = 0; attempt < PROBE_ATTEMPTS; attempt += 1) {
+    try {
+      const reset = await fetch(`${baseUrl}${config.resetPath}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key: probeKey }),
+      });
+      const status = await fetch(`${baseUrl}${config.statusPath}?key=${encodeURIComponent(probeKey)}`);
+      const payload = await status.json().catch(() => undefined);
+      const decodedKey = payload?.probe?.key ?? payload?.key;
+      if (reset.ok && status.ok && decodedKey === probeKey) return "ok";
+    } catch {
+      // The Sidecar opens asynchronously after helper attach; retry in the bounded window.
+    }
+    await sleep(PROBE_DELAY_MS);
+  }
+  return "blocked";
+}
+
+async function stopOwnedProcess(config, startup) {
+  if (String(startup.pid) === String(process.pid)) return "unverified";
+  for (let attempt = 0; attempt < PROCESS_STOP_ATTEMPTS; attempt += 1) {
+    const discovery = await runHelper(config, ["discover"]);
+    if (discovery.operation !== "discover" || !Array.isArray(discovery.candidates)) {
+      return "unverified";
+    }
+    const candidate = discovery.candidates.find((entry) => entry && String(entry.pid) === String(startup.pid));
+    if (!candidate) return "stopped";
+    if (Number(candidate.processStartEpochMs) !== Number(startup.processStartEpochMs)) {
+      return "unverified";
+    }
+    if (attempt === 0) {
+      try {
+        process.kill(Number(startup.pid), "SIGTERM");
+      } catch {
+        return "unverified";
+      }
+    }
+    await sleep(PROCESS_STOP_DELAY_MS);
+  }
+  return "unverified";
+}
+
+function buildEvidence(config, status, attach, probe, startup, cleanup) {
+  const verification = probe?.verification ?? probe?.status ?? "blocked";
+  return {
+    version: 1,
+    runtimeContextName: config.runtimeContextName,
+    startupName: config.startupName,
+    status,
+    ...(startup ? { startup } : {}),
+    attach,
+    probe: { probeId: config.probeId, verification, ...(probe.reasonCode ? { reasonCode: probe.reasonCode } : {}) },
+    ...(cleanup ? { cleanup } : {}),
+    updatedAtEpochMs: Date.now(),
+  };
+}
+
+async function deactivate(config, evidencePath, existingEvidence) {
+  const existing = existingEvidence ?? readEvidence(evidencePath);
+  const startup = existing?.startup;
+  if (!startup || !/^\d+$/u.test(String(startup.pid)) || !Number.isSafeInteger(startup.processStartEpochMs)) {
+    const evidence = buildEvidence(
+      config,
+      "cleanup_unverified",
+      existing?.attach ?? { status: "blocked", reasonCode: "attach_evidence_missing" },
+      existing?.probe ?? { status: "blocked", reasonCode: "probe_evidence_missing" },
+      undefined,
+      { status: "unverified", reasonCode: "cleanup_unverified", nonRestorableClasses: [], processStop: "not_requested" },
+    );
+    writeEvidence(evidencePath, evidence);
+    return 1;
+  }
+  const agentJar = path.resolve(path.dirname(config.__configPath), config.agentJarRel);
+  const result = await runHelper(config, [
+    "deactivate",
+    "--pid",
+    String(startup.pid),
+    "--expected-process-start-epoch-ms",
+    String(startup.processStartEpochMs),
+    "--agent-jar",
+    agentJar,
+    "--confirm",
+    "true",
+  ]);
+  const outcome = typeof result.outcome === "string" ? result.outcome : undefined;
+  const deactivated = result.operation === "deactivate" && (outcome === "deactivated" || outcome === "partial");
+  const processStop = deactivated ? await stopOwnedProcess(config, startup) : "unverified";
+  const cleanupVerified = deactivated && processStop === "stopped";
+  const cleanup = {
+    status: cleanupVerified ? (outcome === "partial" ? "partial" : "ok") : "unverified",
+    reasonCode: cleanupVerified ? safeReason(result.reasonCode, "cleanup_unverified") : "cleanup_unverified",
+    nonRestorableClasses: Array.isArray(result.nonRestorableClasses)
+      ? result.nonRestorableClasses.filter((entry) => typeof entry === "string").slice(0, 128)
+      : [],
+    processStop,
+  };
+  const evidence = buildEvidence(
+    config,
+    cleanupVerified ? "terminal" : "cleanup_unverified",
+    existing.attach,
+    existing.probe,
+    startup,
+    cleanup,
+  );
+  writeEvidence(evidencePath, evidence);
+  return cleanupVerified ? 0 : 1;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if ((args.action !== "attach" && args.action !== "deactivate") || !args.config || !args.evidence) {
+    process.stderr.write("portable_dynamic_attach_args_invalid\n");
+    process.exitCode = 1;
+    return;
+  }
+  let config;
+  try {
+    config = JSON.parse(fs.readFileSync(args.config, "utf8"));
+  } catch {
+    process.stderr.write("portable_dynamic_attach_config_invalid\n");
+    process.exitCode = 1;
+    return;
+  }
+  config.__configPath = path.resolve(args.config);
+  if (
+    config.version !== 1 ||
+    !/^[A-Za-z0-9._-]{1,128}$/u.test(String(config.probeId)) ||
+    typeof config.probeHost !== "string" ||
+    !Number.isInteger(config.probePort) ||
+    !config.helperJarRel ||
+    !config.agentJarRel
+  ) {
+    process.stderr.write("portable_dynamic_attach_config_invalid\n");
+    process.exitCode = 1;
+    return;
+  }
+  if (args.action === "deactivate") {
+    process.exitCode = await deactivate(config, path.resolve(args.evidence));
+    return;
+  }
+  if (!/^\d+$/u.test(String(args.pid))) {
+    process.stderr.write("portable_dynamic_attach_runtime_pid_invalid\n");
+    process.exitCode = 1;
+    return;
+  }
+  const pid = String(args.pid);
+  const processStartEpochMs = await discoverFence(config, pid);
+  if (!processStartEpochMs) {
+    const evidence = buildEvidence(
+      config,
+      "terminal",
+      { status: "blocked", reasonCode: "process_start_fence_unavailable" },
+      { status: "pending" },
+    );
+    writeEvidence(path.resolve(args.evidence), evidence);
+    process.exitCode = 1;
+    return;
+  }
+  const agentJar = path.resolve(path.dirname(config.__configPath), config.agentJarRel);
+  const agentArgs = [`host=${config.probeHost}`, `port=${config.probePort}`];
+  if (typeof config.include === "string" && config.include.length > 0) agentArgs.push(`include=${config.include}`);
+  if (typeof config.exclude === "string" && config.exclude.length > 0) agentArgs.push(`exclude=${config.exclude}`);
+  const attachResult = await runHelper(config, [
+    "attach",
+    "--pid",
+    pid,
+    "--expected-process-start-epoch-ms",
+    String(processStartEpochMs),
+    "--agent-jar",
+    agentJar,
+    "--confirm",
+    "true",
+    "--agent-args",
+    agentArgs.join(";"),
+  ]);
+  const outcome = typeof attachResult.outcome === "string" ? attachResult.outcome : undefined;
+  const attached = attachResult.operation === "attach" && outcome === "active";
+  const evidencePath = path.resolve(args.evidence);
+  let evidence = buildEvidence(
+    config,
+    "terminal",
+    { status: attached ? "ok" : "blocked", reasonCode: safeReason(attachResult.reasonCode, "attach_unverified"), ...(outcome ? { outcome } : {}) },
+    { status: "pending" },
+    { pid, processStartEpochMs },
+  );
+  writeEvidence(evidencePath, evidence);
+  if (!attached) {
+    process.exitCode = 1;
+    return;
+  }
+  const verified = await probeVerification(config);
+  evidence = buildEvidence(
+    config,
+    verified === "ok" ? "attached" : "terminal",
+    evidence.attach,
+    { status: verified, ...(verified === "blocked" ? { reasonCode: "probe_verification_failed" } : {}) },
+    evidence.startup,
+  );
+  writeEvidence(evidencePath, evidence);
+  if (verified === "ok") return;
+  process.exitCode = await deactivate(config, evidencePath, evidence);
+  if (process.exitCode === 0) process.exitCode = 1;
+}
+
+main().catch(() => {
+  process.stderr.write("portable_dynamic_attach_runtime_failed\n");
+  process.exitCode = 1;
+});

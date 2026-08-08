@@ -67,6 +67,7 @@ export type PreflightReasonCode =
   | "env_key_missing"
   | "script_execution_failed"
   | "runtime_context_unknown"
+  | "sidecar_lifecycle_invalid"
   | "external_system_invalid"
   | "external_healthcheck_failed"
   | "step_condition_malformed"
@@ -359,6 +360,7 @@ export type BuildPreflightArgs = {
       | "env_key_missing"
       | "script_execution_failed"
       | "runtime_context_unknown"
+      | "sidecar_lifecycle_invalid"
       | "external_system_invalid"
       | "external_healthcheck_failed";
     requiredUserAction?: string[];

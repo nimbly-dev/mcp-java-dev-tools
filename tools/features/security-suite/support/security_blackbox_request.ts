@@ -1,3 +1,5 @@
+import net from "node:net";
+
 import type {
   SecurityAuthenticationProfile,
   SecurityAttackRequest,
@@ -6,6 +8,61 @@ import type {
 } from "@tools-security-execution-plan-spec";
 
 type StringRecord = Record<string, string>;
+
+async function isTcpReachable(args: {
+  host: string;
+  port: number;
+  timeoutMs: number;
+}): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (ok: boolean): void => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(args.timeoutMs, () => finish(false));
+    socket.once("error", () => finish(false));
+    socket.connect(args.port, args.host, () => finish(true));
+  });
+}
+
+export async function waitForSecurityTargetReachability(args: {
+  baseUrl: string;
+  timeoutMs?: number;
+}): Promise<boolean> {
+  let target: URL;
+  try {
+    target = new URL(args.baseUrl);
+  } catch {
+    return false;
+  }
+  const port = target.port
+    ? Number(target.port)
+    : target.protocol === "https:"
+      ? 443
+      : target.protocol === "http:"
+        ? 80
+        : NaN;
+  if (!target.hostname || !Number.isInteger(port) || port <= 0 || port > 65535) return false;
+  const timeoutMs = Math.max(1_000, args.timeoutMs ?? 10_000);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (
+      await isTcpReachable({
+        host: target.hostname,
+        port,
+        timeoutMs: Math.min(500, Math.max(100, timeoutMs)),
+      })
+    ) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, Math.min(250, Math.max(100, timeoutMs / 8))));
+  }
+  return false;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

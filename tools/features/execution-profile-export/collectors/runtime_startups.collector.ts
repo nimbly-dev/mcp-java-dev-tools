@@ -35,6 +35,7 @@ export function collectRuntimeStartups(input: {
       id: `R${String(startups.length + 1).padStart(2, "0")}`,
       title: `${asString(runtimeContext.name) ?? "docker-context"} compose up`,
       command: `docker compose -f ${shellDoubleQuote(composePathForShell)} up -d`,
+      ...(autoStopOnFinish ? { autoStopOnFinish: true } : {}),
       ...(autoStopOnFinish
         ? { teardownCommand: `docker compose -f ${shellDoubleQuote(composePathForShell)} down` }
         : {}),
@@ -65,16 +66,20 @@ export function collectRuntimeStartups(input: {
           .join(" ")
       : "";
     const base = [command, ...args].join(" ");
-    const withEnv = envPrefix.length > 0 ? `${envPrefix} ${base}` : base;
+    const withEnv = envPrefix.length > 0 ? `env ${envPrefix} ${base}` : base;
     const appdirForShell = appdir && input.workspaceRootAbs
       ? toWorkspaceShellPath({ workspaceRootAbs: input.workspaceRootAbs, rawPath: appdir })
       : appdir;
-    const shellCommand = appdirForShell ? `(cd ${shellDoubleQuote(appdirForShell)} && ${withEnv})` : withEnv;
+    const shellCommand = appdirForShell
+      ? `(cd ${shellDoubleQuote(appdirForShell)} && exec ${withEnv})`
+      : `exec ${withEnv}`;
     const title = asString(startup.name) ?? `startup-${idx + 1}`;
     startups.push({
       id: `R${String(startups.length + 1).padStart(2, "0")}`,
       title,
       command: shellCommand,
+      ...(mode === "terminal" ? { background: true } : {}),
+      ...(autoStopOnFinish ? { autoStopOnFinish: true } : {}),
     });
   }
   return startups;

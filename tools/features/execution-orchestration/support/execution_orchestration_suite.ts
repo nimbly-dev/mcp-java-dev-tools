@@ -19,6 +19,8 @@ export function createSuitePassExecutor(args: {
   maxPlansPerPass: number | undefined;
   mcpInvoke: ExecutionOrchestrationSuiteToolInvoker;
   renewSuiteLease: (deadlineAtEpochMs?: number) => Promise<void>;
+  runtimeLifecyclePrepared?: boolean;
+  signal?: AbortSignal;
 }): (
   state: ExecutionOrchestrationPassState,
   remainingBudgetMs: number,
@@ -35,14 +37,15 @@ export function createSuitePassExecutor(args: {
       ...(state.priorSuite && Array.isArray(state.priorSuite.planRuns)
         ? { priorPlanRuns: state.priorSuite.planRuns }
         : {}),
-      ...(state.priorSuite &&
-      typeof state.priorSuite.suiteContext === "object"
+      ...(state.priorSuite && typeof state.priorSuite.suiteContext === "object"
         ? { priorSuiteContext: state.priorSuite.suiteContext }
         : {}),
       ...(state.priorSuite && typeof state.priorSuite.nextPlanOrder === "number"
         ? { startPlanOrder: state.priorSuite.nextPlanOrder }
         : {}),
       mcpInvoke: args.mcpInvoke,
+      ...(args.runtimeLifecyclePrepared ? { runtimeLifecyclePrepared: true } : {}),
+      ...(args.signal ? { signal: args.signal } : {}),
     };
 
     if (args.suiteType === "performance") {

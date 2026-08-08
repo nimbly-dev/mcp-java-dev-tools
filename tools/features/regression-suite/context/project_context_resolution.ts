@@ -408,7 +408,12 @@ export async function resolveProjectContextForRegression(
         ? selectedRuntimeContext.autoStart
         : true
       : false;
-    if (!health.ok && selectedRuntimeContext && autoStartEnabled) {
+    if (
+      !health.ok &&
+      selectedRuntimeContext &&
+      autoStartEnabled &&
+      !args.runtimeLifecyclePrepared
+    ) {
       const starter = args.runtimeStarter ?? defaultRuntimeStarter;
       const startResult = await starter({
         runtimeContext: selectedRuntimeContext,
@@ -424,6 +429,13 @@ export async function resolveProjectContextForRegression(
           runtimeMode: selectedRuntimeContext.mode,
         });
       }
+    }
+    if (!health.ok && selectedRuntimeContext && autoStartEnabled && args.runtimeLifecyclePrepared) {
+      health = await waitForRequiredHealthChecksAfterAutoStart({
+        workspace: effectiveWorkspace,
+        skipKeys: prereqResult.dedupeKeys,
+        runtimeMode: selectedRuntimeContext.mode,
+      });
     }
     const hasPostRuntimeScripts = profileScripts.some((entry) => entry.phase === "postRuntime");
     if (health.ok && hasPostRuntimeScripts) {
@@ -486,14 +498,24 @@ export async function resolveProjectContextForRegression(
       const timeoutMs = resolveWorkspaceRequestTimeoutMs(effectiveWorkspace, 3000);
       let unreachableBases: string[] = [];
       for (const probeBase of strictProbeBases) {
-        const reachable = await httpCheck(
-          `${probeBase.replace(/\/$/, "")}/__probe/status`,
-          "GET",
-          timeoutMs,
-        );
+        let reachable = false;
+        try {
+          const parsedProbeBase = new URL(probeBase);
+          const probePort = extractProbePort(probeBase);
+          if (probePort !== null) {
+            reachable = await isPortOpen(parsedProbeBase.hostname, probePort, timeoutMs);
+          }
+        } catch {
+          reachable = false;
+        }
         if (!reachable) unreachableBases.push(probeBase);
       }
-      if (unreachableBases.length > 0 && selectedRuntimeContext && autoStartEnabled) {
+      if (
+        unreachableBases.length > 0 &&
+        selectedRuntimeContext &&
+        autoStartEnabled &&
+        !args.runtimeLifecyclePrepared
+      ) {
         const starter = args.runtimeStarter ?? defaultRuntimeStarter;
         const startResult = await starter({
           runtimeContext: selectedRuntimeContext,
@@ -507,11 +529,16 @@ export async function resolveProjectContextForRegression(
         }
         unreachableBases = [];
         for (const probeBase of strictProbeBases) {
-          const reachable = await httpCheck(
-            `${probeBase.replace(/\/$/, "")}/__probe/status`,
-            "GET",
-            timeoutMs,
-          );
+          let reachable = false;
+          try {
+            const parsedProbeBase = new URL(probeBase);
+            const probePort = extractProbePort(probeBase);
+            if (probePort !== null) {
+              reachable = await isPortOpen(parsedProbeBase.hostname, probePort, timeoutMs);
+            }
+          } catch {
+            reachable = false;
+          }
           if (!reachable) unreachableBases.push(probeBase);
         }
       }

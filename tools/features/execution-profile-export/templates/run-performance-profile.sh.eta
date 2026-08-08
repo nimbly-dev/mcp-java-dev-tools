@@ -45,6 +45,11 @@ fi
 <%= it.runtimeStartupSection %>
 
 # ============================================
+# SECTION B1: PORTABLE_SIDECAR_LIFECYCLE
+# ============================================
+<%= it.dynamicAttachSection %>
+
+# ============================================
 # SECTION B2: POST_RUNTIME_SCRIPTS
 # ============================================
 <%= it.postRuntimeScriptSection %>

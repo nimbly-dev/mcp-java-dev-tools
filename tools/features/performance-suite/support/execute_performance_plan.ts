@@ -142,6 +142,7 @@ export async function executePerformancePlanWorkflow(
     executionProfileName: args.executionProfileName,
     ...(args.runtimeContextName ? { runtimeContextName: args.runtimeContextName } : {}),
     ...(args.runtimeConfigOverride ? { defaultsOverride: args.runtimeConfigOverride } : {}),
+    ...(args.runtimeLifecyclePrepared ? { runtimeLifecyclePrepared: true } : {}),
     strictProbeVerification: true,
   });
   if (projectContext.status === "blocked") {
@@ -225,6 +226,7 @@ export async function executePerformancePlanWorkflow(
     ...(typeof args.runtimeConfigOverride?.requestTimeoutMs === "number"
       ? { requestTimeoutMs: args.runtimeConfigOverride.requestTimeoutMs }
       : {}),
+    ...(args.runtimeLifecyclePrepared ? { runtimeLifecyclePrepared: true } : {}),
     mcpInvoke: args.mcpInvoke,
   });
   logPerformancePhase({
@@ -323,9 +325,7 @@ export async function executePerformancePlanWorkflow(
   const startedAt = new Date();
   let profilerStartResult: Record<string, unknown> | undefined;
   let profilerStopResult: Record<string, unknown> | undefined;
-  let selectedProfilerProvider:
-    | { name: string; event?: string; outputFormat?: string }
-    | undefined;
+  let selectedProfilerProvider: { name: string; event?: string; outputFormat?: string } | undefined;
   if (contract.analysis?.executionTiming?.enabled === true) {
     const profilerSessionId = `${runId}-execution-timing`;
     logPerformancePhase({ runId, planName: args.planName, phase: "profiler_start_begin" });

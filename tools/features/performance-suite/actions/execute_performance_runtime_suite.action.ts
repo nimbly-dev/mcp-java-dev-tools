@@ -29,6 +29,22 @@ export async function executePerformanceRuntimeSuite(
   const planRuns: RuntimeSuiteRunResult["planRuns"] = Array.isArray(args.priorPlanRuns)
     ? args.priorPlanRuns.map((entry) => ({ ...entry }))
     : [];
+  const suiteProvidedContext: Record<string, unknown> =
+    args.priorSuiteContext && typeof args.priorSuiteContext === "object"
+      ? { ...args.priorSuiteContext }
+      : {};
+  const cancelledSuite = (): RuntimeSuiteRunResult => ({
+    executionProfile: manifest.executionProfile,
+    executionPolicy: manifest.executionPolicy,
+    status: "blocked",
+    reasonCode: "execution_cancelled",
+    reasonMeta: { cancellation: "cooperative_abort" },
+    planRuns,
+    suiteRunId,
+    completedPlanCount: planRuns.length,
+    ...(Object.keys(suiteProvidedContext).length > 0 ? { suiteContext: suiteProvidedContext } : {}),
+  });
+  if (args.signal?.aborted) return cancelledSuite();
   let hasFail = planRuns.some((entry) => entry.status === "executed" && entry.runStatus === "fail");
   let hasBlocked = planRuns.some(
     (entry) =>
@@ -61,6 +77,7 @@ export async function executePerformanceRuntimeSuite(
   let stop = false;
 
   for (const plan of orderedPlans) {
+    if (args.signal?.aborted) return cancelledSuite();
     if (plan.order < startPlanOrder) continue;
     if (stop) {
       planRuns.push({
@@ -84,6 +101,7 @@ export async function executePerformanceRuntimeSuite(
       ...(manifest.runtimeConfig ? { runtimeConfigOverride: manifest.runtimeConfig } : {}),
       ...(plan.providedContext ? { providedContext: plan.providedContext } : {}),
       mcpInvoke: args.mcpInvoke,
+      ...(args.runtimeLifecyclePrepared ? { runtimeLifecyclePrepared: true } : {}),
     });
     processedPlansThisCall += 1;
     if (run.status === "blocked") {
@@ -143,6 +161,9 @@ export async function executePerformanceRuntimeSuite(
       suiteRunId,
       nextPlanOrder,
       completedPlanCount: planRuns.length,
+      ...(Object.keys(suiteProvidedContext).length > 0
+        ? { suiteContext: suiteProvidedContext }
+        : {}),
     };
   }
 
@@ -161,5 +182,6 @@ export async function executePerformanceRuntimeSuite(
     planRuns,
     suiteRunId,
     completedPlanCount: planRuns.length,
+    ...(Object.keys(suiteProvidedContext).length > 0 ? { suiteContext: suiteProvidedContext } : {}),
   };
 }
