@@ -953,7 +953,7 @@ test("[UT][performance-suite][execute_performance_runtime_suite] executePerforma
         {
           projectRoot: root,
           envFile: `.mcpjvm/${projectName}/.env`,
-          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" } },
           executionProfiles: [
             {
               executionProfile,
@@ -1477,7 +1477,8 @@ test("[UT][performance-suite][execute_performance_runtime_suite] executePerforma
   }
 });
 
-test("[UT][performance-suite][execute_performance_runtime_suite] buildPerformanceMstaSummary consumes profiler.WallClockSample events for MSTA anchoring",
+test(
+  "[UT][performance-suite][execute_performance_runtime_suite] buildPerformanceMstaSummary consumes profiler.WallClockSample events for MSTA anchoring",
   { concurrency: false },
   async () => {
     const root = createTestTempDir("performance-msta-wall-clock");

@@ -767,31 +767,11 @@ function normalizeWorkspace(
   }
   let variables: ProjectWorkspaceEntry["variables"] | undefined;
   if (isRecord(input.variables)) {
-    const envFields = [
-      "bearerTokenEnv",
-      "keycloakClientIdEnv",
-      "keycloakClientSecretEnv",
-      "keycloakUsernameEnv",
-      "keycloakPasswordEnv",
-    ] as const;
-    const allowedEnvFields = new Set<string>(envFields);
     const normalizedVariables: NonNullable<ProjectWorkspaceEntry["variables"]> = {};
     for (const key of Object.keys(input.variables)) {
-      if (!allowedEnvFields.has(key) && key !== "bearerToken" && key !== "contextBindings") {
+      if (key !== "contextBindings") {
         errors.push(`workspaces[${index}].variables.${key} is unsupported`);
       }
-    }
-    for (const field of envFields) {
-      const envKey = asTrimmedString(input.variables[field]) ?? undefined;
-      if (envKey && !/^[A-Z_][A-Z0-9_]*$/.test(envKey)) {
-        errors.push(`workspaces[${index}].variables.${field} must be ENV_KEY format`);
-      }
-      if (envKey) {
-        normalizedVariables[field] = envKey;
-      }
-    }
-    if ("bearerToken" in input.variables) {
-      errors.push(`workspaces[${index}].variables.bearerToken is forbidden; use bearerTokenEnv`);
     }
     if ("contextBindings" in input.variables) {
       if (!isRecord(input.variables.contextBindings)) {
@@ -828,11 +808,6 @@ function normalizeWorkspace(
             continue;
           }
           normalizedBindings[contextKey] = envKey;
-        }
-        if (normalizedBindings["auth.bearer"] && normalizedVariables.bearerTokenEnv) {
-          errors.push(
-            `workspaces[${index}].variables.contextBindings.auth.bearer duplicates bearerTokenEnv; use one auth mapping only`,
-          );
         }
         if (Object.keys(normalizedBindings).length > 0) {
           normalizedVariables.contextBindings = normalizedBindings;
@@ -1007,24 +982,22 @@ export function validateProjectArtifact(input: unknown): ProjectArtifactValidati
   if (errors.length > 0) {
     const reasonCode = errors.some((e) => e.includes("projectRoot"))
       ? "workspace_root_invalid"
-      : errors.some((e) => e.includes("bearerTokenEnv"))
-        ? "env_key_missing"
-        : errors.some((e) => e.includes("sidecarLifecycle"))
-          ? "sidecar_lifecycle_invalid"
-          : errors.some((e) => e.includes("runtimeContexts"))
-            ? "runtime_context_unknown"
-            : errors.some(
-                  (e) =>
-                    e.includes("executionProfiles") &&
-                    (e.includes("runtimeContextName must match") ||
-                      e.includes("scriptRefs") ||
-                      e.includes("plans[].planName") ||
-                      e.includes(".plans[")),
-                )
-              ? "project_reference_invalid"
-              : errors.some((e) => e.includes("externalSystems"))
-                ? "external_system_invalid"
-                : "project_artifact_invalid";
+      : errors.some((e) => e.includes("sidecarLifecycle"))
+        ? "sidecar_lifecycle_invalid"
+        : errors.some((e) => e.includes("runtimeContexts"))
+          ? "runtime_context_unknown"
+          : errors.some(
+                (e) =>
+                  e.includes("executionProfiles") &&
+                  (e.includes("runtimeContextName must match") ||
+                    e.includes("scriptRefs") ||
+                    e.includes("plans[].planName") ||
+                    e.includes(".plans[")),
+              )
+            ? "project_reference_invalid"
+            : errors.some((e) => e.includes("externalSystems"))
+              ? "external_system_invalid"
+              : "project_artifact_invalid";
     return { ok: false, reasonCode, errors };
   }
   return { ok: true, artifact: { workspaces } };

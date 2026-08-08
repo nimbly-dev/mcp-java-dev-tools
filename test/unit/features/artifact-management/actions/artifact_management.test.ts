@@ -626,7 +626,6 @@ test("[UT][artifact-management][artifact_management] artifact_management project
               {
                 projectRoot: root,
                 variables: {
-                  bearerTokenEnv: "AUTH_BEARER_TOKEN",
                   tenantIdEnv: "TENANT_ID",
                   baseUrlEnv: "BASE_URL",
                 },

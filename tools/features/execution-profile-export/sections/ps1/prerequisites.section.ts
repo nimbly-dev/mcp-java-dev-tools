@@ -63,7 +63,10 @@ async function collectPlanRequiredInputs(input: {
   executionProfile: string;
   planRuns: ExecutionProfileExportPlanRun[];
 }): Promise<RequiredInput[]> {
-  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs, input.projectName);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(
+    input.workspaceRootAbs,
+    input.projectName,
+  );
   const planBaseUrls = await resolvePlanBaseUrls({
     workspaceRootAbs: input.workspaceRootAbs,
     workspace: input.workspace,
@@ -77,13 +80,17 @@ async function collectPlanRequiredInputs(input: {
     for (const prerequisite of contract.prerequisites) {
       if (prerequisite.required !== true && typeof prerequisite.default === "undefined") continue;
       const envKey = toShellEnvKey(prerequisite.key);
-      const resolvedPlanBaseUrl = envKey === "TARGET_BASE_URL" || prerequisite.key === "targetBaseUrl"
-        ? planBaseUrls[plan.planName]
-        : undefined;
+      const resolvedPlanBaseUrl =
+        envKey === "TARGET_BASE_URL" || prerequisite.key === "targetBaseUrl"
+          ? planBaseUrls[plan.planName]
+          : undefined;
       const defaultValue = prerequisite.secret
         ? undefined
         : (resolvedPlanBaseUrl ?? stringifyDefault(prerequisite.default));
-      mergeRequiredInput(inputs, { envKey, ...(typeof defaultValue === "string" ? { defaultValue } : {}) });
+      mergeRequiredInput(inputs, {
+        envKey,
+        ...(typeof defaultValue === "string" ? { defaultValue } : {}),
+      });
     }
   }
   return [...inputs.values()];
@@ -97,42 +104,40 @@ function renderProjectEnvHelpers(workspace: Record<string, unknown> | undefined)
   lines.push("    $line = $_.Trim()");
   lines.push("    if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith('#')) { return }");
   lines.push("    $pair = $line -split '=', 2");
-  lines.push("    if ($pair.Count -ne 2 -or $pair[0] -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { return }");
+  lines.push(
+    "    if ($pair.Count -ne 2 -or $pair[0] -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { return }",
+  );
   lines.push("    $value = $pair[1]");
-  lines.push("    if ($value.StartsWith('\"') -and $value.EndsWith('\"') -and $value.Length -ge 2) { $value = $value.Substring(1, $value.Length - 2) }");
-  lines.push("    if ([string]::IsNullOrWhiteSpace($value) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($pair[0], 'Process'))) { return }");
+  lines.push(
+    "    if ($value.StartsWith('\"') -and $value.EndsWith('\"') -and $value.Length -ge 2) { $value = $value.Substring(1, $value.Length - 2) }",
+  );
+  lines.push(
+    "    if ([string]::IsNullOrWhiteSpace($value) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($pair[0], 'Process'))) { return }",
+  );
   lines.push("    [Environment]::SetEnvironmentVariable($pair[0], $value, 'Process')");
   lines.push("  }");
   lines.push("}");
   lines.push("function Reload-WorkspaceEnv {");
-  lines.push("  param([switch]$SkipAuthBearerFallback)");
   lines.push("  Import-ProjectEnv");
-  lines.push("  if (-not $SkipAuthBearerFallback -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER', 'Process')) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER_TOKEN', 'Process'))) {");
-  lines.push("    [Environment]::SetEnvironmentVariable('AUTH_BEARER', [Environment]::GetEnvironmentVariable('AUTH_BEARER_TOKEN', 'Process'), 'Process')");
-  lines.push("  }");
   const vars = workspace?.variables;
   if (vars && typeof vars === "object" && !Array.isArray(vars)) {
     const varsRecord = vars as Record<string, unknown>;
-    const bearerTokenEnv = typeof varsRecord.bearerTokenEnv === "string"
-      ? varsRecord.bearerTokenEnv.trim()
-      : "";
-    if (bearerTokenEnv.length > 0) {
-      lines.push("  if (-not $SkipAuthBearerFallback -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER', 'Process')) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('" + bearerTokenEnv.replace(/'/g, "''") + "', 'Process'))) {");
-      lines.push("    [Environment]::SetEnvironmentVariable('AUTH_BEARER', [Environment]::GetEnvironmentVariable('" + bearerTokenEnv.replace(/'/g, "''") + "', 'Process'), 'Process')");
-      lines.push("  }");
-    }
-    const mappings: Array<{ sourceKey: string; targetVar: string }> = [
-      { sourceKey: "keycloakClientIdEnv", targetVar: "KEYCLOAK_CLIENT_ID" },
-      { sourceKey: "keycloakClientSecretEnv", targetVar: "KEYCLOAK_CLIENT_SECRET" },
-      { sourceKey: "keycloakUsernameEnv", targetVar: "KEYCLOAK_USERNAME" },
-      { sourceKey: "keycloakPasswordEnv", targetVar: "KEYCLOAK_PASSWORD" },
-    ];
-    for (const mapping of mappings) {
-      const sourceEnv = typeof varsRecord[mapping.sourceKey] === "string" ? String(varsRecord[mapping.sourceKey]).trim() : "";
-      if (!sourceEnv) continue;
-      lines.push(`  if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${mapping.targetVar}', 'Process')) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${sourceEnv}', 'Process'))) {`);
-      lines.push(`    [Environment]::SetEnvironmentVariable('${mapping.targetVar}', [Environment]::GetEnvironmentVariable('${sourceEnv}', 'Process'), 'Process')`);
-      lines.push("  }");
+    const contextBindings = varsRecord.contextBindings;
+    if (contextBindings && typeof contextBindings === "object" && !Array.isArray(contextBindings)) {
+      for (const [contextKey, sourceEnv] of Object.entries(contextBindings).sort(
+        ([left], [right]) => left.localeCompare(right),
+      )) {
+        if (typeof sourceEnv !== "string" || sourceEnv.trim().length === 0) continue;
+        const targetVar = toShellEnvKey(contextKey);
+        const sourceEnvKey = sourceEnv.trim();
+        lines.push(
+          `  if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${targetVar}', 'Process')) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${sourceEnvKey.replace(/'/g, "''")}', 'Process'))) {`,
+        );
+        lines.push(
+          `    [Environment]::SetEnvironmentVariable('${targetVar}', [Environment]::GetEnvironmentVariable('${sourceEnvKey.replace(/'/g, "''")}', 'Process'), 'Process')`,
+        );
+        lines.push("  }");
+      }
     }
   }
   lines.push("}");
@@ -178,7 +183,7 @@ function renderJsonAndAuthHelpers(): string[] {
     "}",
     "function Refresh-AuthBearer {",
     "  param([switch]$Force)",
-    "  Reload-WorkspaceEnv -SkipAuthBearerFallback:$Force",
+    "  Reload-WorkspaceEnv",
     "  $existing = [Environment]::GetEnvironmentVariable('AUTH_BEARER', 'Process')",
     "  if (-not $Force -and -not [string]::IsNullOrWhiteSpace($existing) -and $existing -ne 'REDACTED_TOKEN') { Write-Host 'auth_bootstrap_succeeded: AUTH_BEARER'; return }",
     "  $realm = [Environment]::GetEnvironmentVariable('KEYCLOAK_REALM', 'Process')",
@@ -204,7 +209,6 @@ function renderJsonAndAuthHelpers(): string[] {
     "    $response = Invoke-RestMethod -Method Post -Uri \"$baseUrl/realms/$realm/protocol/openid-connect/token\" -ContentType 'application/x-www-form-urlencoded' -Body $body",
     "    if ($response.access_token) {",
     "      [Environment]::SetEnvironmentVariable('AUTH_BEARER', [string]$response.access_token, 'Process')",
-    "      [Environment]::SetEnvironmentVariable('AUTH_BEARER_TOKEN', [string]$response.access_token, 'Process')",
     "      Write-Host 'auth_bootstrap_succeeded: AUTH_BEARER'",
     "    }",
     "  } catch {",
@@ -225,19 +229,24 @@ function renderRequiredInputsSection(requiredInputs: RequiredInput[]): string[] 
   for (const input of requiredInputs) {
     const key = input.envKey;
     if (key === "AUTH_BEARER") {
-      lines.push("if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER', 'Process')) -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('AUTH_BEARER_TOKEN', 'Process'))) { [Environment]::SetEnvironmentVariable('AUTH_BEARER', [Environment]::GetEnvironmentVariable('AUTH_BEARER_TOKEN', 'Process'), 'Process') }");
       continue;
     }
     if (key.endsWith("BASE_URL") && typeof input.defaultValue !== "string") {
-      lines.push(`if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${key}', 'Process'))) { throw 'missing_required_input: ${key} (set ${key} or provide plan providedContext/probe-config runtime.port)' }`);
+      lines.push(
+        `if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${key}', 'Process'))) { throw 'missing_required_input: ${key} (set ${key} or provide plan providedContext/probe-config runtime.port)' }`,
+      );
       continue;
     }
     const defaultValue = defaultValueForEnvVar(key, input.defaultValue);
     if (key === "RUN_ID" && typeof input.defaultValue !== "string") {
-      lines.push(`if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${key}', 'Process'))) { [Environment]::SetEnvironmentVariable('${key}', (Get-Date -Format 'yyyyMMddHHmmss'), 'Process'); Write-Warning 'auto_input_defaulted: ${key}' }`);
+      lines.push(
+        `if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${key}', 'Process'))) { [Environment]::SetEnvironmentVariable('${key}', (Get-Date -Format 'yyyyMMddHHmmss'), 'Process'); Write-Warning 'auto_input_defaulted: ${key}' }`,
+      );
       continue;
     }
-    lines.push(`if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${key}', 'Process'))) { [Environment]::SetEnvironmentVariable('${key}', ${psSingleQuoted(defaultValue)}, 'Process'); Write-Warning 'auto_input_defaulted: ${key}' }`);
+    lines.push(
+      `if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('${key}', 'Process'))) { [Environment]::SetEnvironmentVariable('${key}', ${psSingleQuoted(defaultValue)}, 'Process'); Write-Warning 'auto_input_defaulted: ${key}' }`,
+    );
   }
   return lines;
 }

@@ -2952,7 +2952,9 @@ test("[UT][regression-suite][execute_regression_plan] executeRegressionPlanWorkf
         {
           projectRoot: root,
           envFile: `.mcpjvm/${projectName}/.env`,
-          variables: { bearerTokenEnv: "MCP_JVM_TEST_RESUME_AUTH_BEARER_TOKEN" },
+          variables: {
+            contextBindings: { "auth.bearer": "MCP_JVM_TEST_RESUME_AUTH_BEARER_TOKEN" },
+          },
           defaults: { requestTimeoutMs: 100, retryMax: 3 },
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
         },

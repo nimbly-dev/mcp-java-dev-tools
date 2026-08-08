@@ -28,7 +28,12 @@ export type CommandExportPackage = {
   bundledScripts: CommandExportBundledScript[];
 };
 
-const SCRIPT_PHASES: CommandExportScriptPhase[] = ["preRuntime", "postRuntime", "postHealthcheck", "prePlan"];
+const SCRIPT_PHASES: CommandExportScriptPhase[] = [
+  "preRuntime",
+  "postRuntime",
+  "postHealthcheck",
+  "prePlan",
+];
 const SCRIPT_FILE_EXTENSIONS = new Set([".ps1", ".sh", ".bash", ".js", ".mjs", ".cjs", ".py"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -74,32 +79,13 @@ function isSensitiveEnvKey(key: string): boolean {
 function collectDeclaredEnvKeys(workspace: Record<string, unknown> | undefined): Set<string> {
   const keys = new Set<string>();
   const vars = isRecord(workspace?.variables) ? workspace.variables : undefined;
-  if (vars) {
-    for (const candidate of [
-      vars.bearerTokenEnv,
-      vars.keycloakClientIdEnv,
-      vars.keycloakClientSecretEnv,
-      vars.keycloakUsernameEnv,
-      vars.keycloakPasswordEnv,
-    ]) {
-      if (typeof candidate === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(candidate.trim())) {
-        keys.add(candidate.trim());
+  const contextBindings = vars && isRecord(vars.contextBindings) ? vars.contextBindings : undefined;
+  if (contextBindings) {
+    for (const envKey of Object.values(contextBindings)) {
+      if (typeof envKey === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(envKey.trim())) {
+        keys.add(envKey.trim());
       }
     }
-  }
-  for (const key of [
-    "AUTH_BEARER",
-    "AUTH_BEARER_TOKEN",
-    "AUTH_BEARER_TOKEN_ENV_KEY",
-    "KEYCLOAK_BASE_URL",
-    "KEYCLOAK_REALM",
-    "KEYCLOAK_SCOPE",
-    "KEYCLOAK_CLIENT_ID",
-    "KEYCLOAK_CLIENT_SECRET",
-    "KEYCLOAK_USERNAME",
-    "KEYCLOAK_PASSWORD",
-  ]) {
-    keys.add(key);
   }
   return keys;
 }
@@ -108,9 +94,12 @@ async function readWorkspaceEnvText(input: {
   workspaceRootAbs: string;
   workspace: Record<string, unknown> | undefined;
 }): Promise<string> {
-  const envFile = typeof input.workspace?.envFile === "string" ? input.workspace.envFile.trim() : "";
+  const envFile =
+    typeof input.workspace?.envFile === "string" ? input.workspace.envFile.trim() : "";
   if (!envFile) return "";
-  const envFileAbs = path.isAbsolute(envFile) ? envFile : path.resolve(input.workspaceRootAbs, envFile);
+  const envFileAbs = path.isAbsolute(envFile)
+    ? envFile
+    : path.resolve(input.workspaceRootAbs, envFile);
   return await fs.readFile(envFileAbs, "utf8").catch(() => "");
 }
 
@@ -132,14 +121,18 @@ async function writeProjectEnv(input: {
       ? "# SENSITIVE EXPORT: includeResolvedSecrets=true."
       : "# Secret-like values are blanked because includeResolvedSecrets=false.",
   ];
-  for (const [key, rawValue] of [...sourceValues.entries()].sort((left, right) => left[0].localeCompare(right[0]))) {
+  for (const [key, rawValue] of [...sourceValues.entries()].sort((left, right) =>
+    left[0].localeCompare(right[0]),
+  )) {
     const value = !input.includeResolvedSecrets && isSensitiveEnvKey(key) ? "" : rawValue;
     lines.push(`${key}=${stringifyDotEnvValue(value)}`);
   }
   await fs.writeFile(path.join(input.exportDirAbs, "project.env"), `${lines.join("\n")}\n`, "utf8");
 }
 
-function normalizeScripts(workspace: Record<string, unknown> | undefined): Map<string, CommandExportScriptEntry> {
+function normalizeScripts(
+  workspace: Record<string, unknown> | undefined,
+): Map<string, CommandExportScriptEntry> {
   const scripts = new Map<string, CommandExportScriptEntry>();
   const rawScripts = Array.isArray(workspace?.scripts) ? workspace.scripts : [];
   for (const rawScript of rawScripts) {
@@ -148,17 +141,22 @@ function normalizeScripts(workspace: Record<string, unknown> | undefined): Map<s
     const command = typeof rawScript.command === "string" ? rawScript.command.trim() : "";
     if (!name || !command) continue;
     const args = Array.isArray(rawScript.args)
-      ? rawScript.args.filter((arg): arg is string => typeof arg === "string" && arg.trim().length > 0)
+      ? rawScript.args.filter(
+          (arg): arg is string => typeof arg === "string" && arg.trim().length > 0,
+        )
       : undefined;
     const phase =
-      typeof rawScript.phase === "string" && SCRIPT_PHASES.includes(rawScript.phase as CommandExportScriptPhase)
+      typeof rawScript.phase === "string" &&
+      SCRIPT_PHASES.includes(rawScript.phase as CommandExportScriptPhase)
         ? (rawScript.phase as CommandExportScriptPhase)
         : undefined;
     scripts.set(name, {
       name,
       command,
       ...(args && args.length > 0 ? { args } : {}),
-      ...(typeof rawScript.appdir === "string" && rawScript.appdir.trim() ? { appdir: rawScript.appdir } : {}),
+      ...(typeof rawScript.appdir === "string" && rawScript.appdir.trim()
+        ? { appdir: rawScript.appdir }
+        : {}),
       ...(typeof rawScript.envFileArg === "string" && rawScript.envFileArg.trim()
         ? { envFileArg: rawScript.envFileArg.trim() }
         : {}),
@@ -169,14 +167,25 @@ function normalizeScripts(workspace: Record<string, unknown> | undefined): Map<s
   return scripts;
 }
 
-function resolveProfile(workspace: Record<string, unknown> | undefined, executionProfile: string | undefined): Record<string, unknown> | null {
+function resolveProfile(
+  workspace: Record<string, unknown> | undefined,
+  executionProfile: string | undefined,
+): Record<string, unknown> | null {
   const profiles = Array.isArray(workspace?.executionProfiles) ? workspace.executionProfiles : [];
-  return profiles.find((entry): entry is Record<string, unknown> => {
-    return isRecord(entry) && typeof entry.executionProfile === "string" && entry.executionProfile === executionProfile;
-  }) ?? null;
+  return (
+    profiles.find((entry): entry is Record<string, unknown> => {
+      return (
+        isRecord(entry) &&
+        typeof entry.executionProfile === "string" &&
+        entry.executionProfile === executionProfile
+      );
+    }) ?? null
+  );
 }
 
-function normalizeScriptRefs(profile: Record<string, unknown> | null): Array<{ name: string; phase?: CommandExportScriptPhase }> {
+function normalizeScriptRefs(
+  profile: Record<string, unknown> | null,
+): Array<{ name: string; phase?: CommandExportScriptPhase }> {
   const refs: Array<{ name: string; phase?: CommandExportScriptPhase }> = [];
   const rawRefs = Array.isArray(profile?.scriptRefs) ? profile.scriptRefs : [];
   for (const rawRef of rawRefs) {
@@ -186,7 +195,8 @@ function normalizeScriptRefs(profile: Record<string, unknown> | null): Array<{ n
     }
     if (!isRecord(rawRef) || typeof rawRef.name !== "string" || !rawRef.name.trim()) continue;
     const phase =
-      typeof rawRef.phase === "string" && SCRIPT_PHASES.includes(rawRef.phase as CommandExportScriptPhase)
+      typeof rawRef.phase === "string" &&
+      SCRIPT_PHASES.includes(rawRef.phase as CommandExportScriptPhase)
         ? (rawRef.phase as CommandExportScriptPhase)
         : undefined;
     refs.push({ name: rawRef.name.trim(), ...(phase ? { phase } : {}) });
@@ -198,7 +208,9 @@ function resolvePathArgAbs(workspaceRootAbs: string, arg: string): string | null
   const trimmed = arg.trim();
   if (!trimmed) return null;
   if (!SCRIPT_FILE_EXTENSIONS.has(path.extname(trimmed).toLowerCase())) return null;
-  return path.isAbsolute(trimmed) ? path.normalize(trimmed) : path.resolve(workspaceRootAbs, trimmed);
+  return path.isAbsolute(trimmed)
+    ? path.normalize(trimmed)
+    : path.resolve(workspaceRootAbs, trimmed);
 }
 
 async function copyScriptPath(input: {

@@ -143,6 +143,7 @@ async function executeCase(args: {
   entrypoint: SecurityPlanContract["entrypoints"][number];
   authenticationProfile: SecurityAuthenticationProfile;
   attackAuthenticationProfile?: SecurityAuthenticationProfile;
+  runtimeCredentialContext?: Record<string, string>;
   rule: SecurityBlackboxKnowledgeRule;
   mcpInvoke: SecurityMcpToolInvoker;
   requestGate: SecurityRequestGate;
@@ -154,6 +155,9 @@ async function executeCase(args: {
       entrypoint: args.entrypoint,
       attackRequest: args.attack.baseline,
       authenticationProfile: args.authenticationProfile,
+      ...(args.runtimeCredentialContext
+        ? { runtimeCredentialContext: args.runtimeCredentialContext }
+        : {}),
     });
     await args.requestGate.wait();
     const baselineOut = await args.mcpInvoke({
@@ -175,6 +179,9 @@ async function executeCase(args: {
       entrypoint: args.entrypoint,
       attackRequest: args.attack.attack,
       authenticationProfile: args.attackAuthenticationProfile ?? args.authenticationProfile,
+      ...(args.runtimeCredentialContext
+        ? { runtimeCredentialContext: args.runtimeCredentialContext }
+        : {}),
     });
     await args.requestGate.wait();
     const attackOut = await args.mcpInvoke({
@@ -375,6 +382,7 @@ export async function executeBlackboxSecurityMode(args: {
   runId?: string;
   contract?: BlackboxSecurityPlanContract;
   mcpInvoke?: SecurityMcpToolInvoker;
+  runtimeCredentialContext?: Record<string, string>;
 }): Promise<SecurityModeExecutionResult> {
   const contract = args.contract;
   if (
@@ -709,6 +717,9 @@ export async function executeBlackboxSecurityMode(args: {
       rule: generated.rule,
       mcpInvoke: args.mcpInvoke,
       requestGate,
+      ...(args.runtimeCredentialContext
+        ? { runtimeCredentialContext: args.runtimeCredentialContext }
+        : {}),
     });
     cases.push(result.coverage);
     findings.push(...result.findings);

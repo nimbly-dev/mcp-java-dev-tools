@@ -165,8 +165,10 @@ function writeSecurityFixture(args: { root: string; contract: SecurityPlanContra
 async function executeAgainstWrappedTransport(args: {
   root: string;
   contract: SecurityPlanContract;
+  prepareWorkspace?: (args: { root: string; projectName: string }) => void;
 }): Promise<Awaited<ReturnType<typeof executeSecurityRuntimeSuite>>> {
   writeSecurityFixture(args);
+  args.prepareWorkspace?.({ root: args.root, projectName: "demo" });
   return executeSecurityRuntimeSuite({
     workspaceRootAbs: args.root,
     projectName: "demo",
@@ -218,6 +220,68 @@ test("[IT][security-blackbox] executes real HTTP baseline and attack requests th
     assert.equal(artifact.artifact.coverage.complete, true);
     assert.equal(artifact.artifact.coverage.passedCount, 1);
     assert.equal(JSON.stringify(artifact.artifact).includes("integration-token"), false);
+  } finally {
+    await stopServer(runtime.server);
+    if (typeof previous === "string") process.env[envName] = previous;
+    else delete process.env[envName];
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[IT][security-blackbox] resolves a credentialRef through the selected project context binding", async () => {
+  const runtime = await startSecurityServer({ foreignStatus: 403 });
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-project-credential-it-"));
+  const envName = "MCP_JVM_SECURITY_IT_AUTH_BEARER";
+  const previous = process.env[envName];
+  delete process.env[envName];
+  try {
+    const contract = securityContract(`http://127.0.0.1:${runtime.port}`);
+    contract.authenticationProfiles = [
+      {
+        id: "limited-user",
+        kind: "bearer",
+        role: "customer",
+        credentialRef: "security.limitedUserToken",
+      },
+    ];
+    const result = await executeAgainstWrappedTransport({
+      root,
+      contract,
+      prepareWorkspace: ({ root: workspaceRootAbs, projectName }) => {
+        const projectRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName);
+        const projectsPathAbs = path.join(projectRootAbs, "projects.json");
+        const projectArtifact = JSON.parse(fs.readFileSync(projectsPathAbs, "utf8")) as {
+          workspaces: Array<Record<string, unknown>>;
+        };
+        projectArtifact.workspaces[0] = {
+          ...projectArtifact.workspaces[0],
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: { contextBindings: { "security.limitedUserToken": envName } },
+        };
+        fs.writeFileSync(projectsPathAbs, JSON.stringify(projectArtifact), "utf8");
+        fs.writeFileSync(
+          path.join(projectRootAbs, ".env"),
+          `${envName}=integration-bearer-token\n`,
+          "utf8",
+        );
+      },
+    });
+
+    assert.equal(result.status, "pass");
+    assert.deepEqual(
+      runtime.requests.map((request) => request.authorization),
+      ["Bearer integration-bearer-token", "Bearer integration-bearer-token"],
+    );
+    const planRun = result.planRuns[0];
+    assert.ok(planRun?.runId);
+    const artifact = await readSecurityRunArtifact({
+      workspaceRootAbs: root,
+      projectName: "demo",
+      planName: "authorization",
+      runId: planRun.runId,
+    });
+    assert.ok(artifact.ok);
+    assert.equal(JSON.stringify(artifact.artifact).includes("integration-bearer-token"), false);
   } finally {
     await stopServer(runtime.server);
     if (typeof previous === "string") process.env[envName] = previous;

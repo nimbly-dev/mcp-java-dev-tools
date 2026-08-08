@@ -1648,7 +1648,7 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
         {
           projectRoot: root,
           envFile: ".env",
-          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" } },
           scripts: [
             {
               name: "setup-js",
@@ -1725,7 +1725,7 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
         {
           projectRoot: root,
           envFile: ".env",
-          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" } },
           sessionExport: { includeResolvedSecrets: true },
           scripts: [
             {
@@ -1791,7 +1791,7 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
   }
 });
 
-test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves required auth.bearer via contextBindings env key mapping", async () => {
+test("[UT][execution-profile-export][export_execution_profile] executionProfileExportDomain resolves required auth.bearer through the project context binding", async () => {
   const root = createTestTempDir("execution-profile-export-domain-postman-binding-map");
   try {
     const projectName = "test-project";
@@ -1800,6 +1800,7 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
         {
           projectRoot: root,
           envFile: ".env",
+          variables: { contextBindings: { "auth.bearer": "TOKEN_KEY" } },
           scripts: [
             {
               name: "setup-js",
@@ -1855,7 +1856,7 @@ test("[UT][execution-profile-export][export_execution_profile] executionProfileE
       workspaceRootAbs: root,
       executionProfile: "regression-test-run",
       mode: "postman",
-      contextBindings: { "auth.bearer": "TOKEN_KEY" },
+      includeResolvedSecrets: true,
     });
     assert.equal(out.structuredContent.status, "ok");
     const environment = readJson(String(out.structuredContent.output?.environmentPathAbs));

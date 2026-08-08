@@ -657,23 +657,6 @@ export async function resolveProjectContextForRegression(
   effectiveEnv = prePlanScripts.env;
   profileScriptChecks = [...profileScriptChecks, ...prePlanScripts.checks];
 
-  const bearerKey = effectiveWorkspace.variables?.bearerTokenEnv;
-  if (bearerKey) {
-    const bearer = effectiveEnv[bearerKey];
-    if (!bearer || bearer.trim().length === 0) {
-      return {
-        status: "blocked",
-        reasonCode: "env_key_missing",
-        missing: [bearerKey],
-        checks: profileScriptChecks,
-        nextAction: `Set ${bearerKey} in .env or environment and retry.`,
-        requiredUserAction: [`Set env key '${bearerKey}' before running regression.`],
-      };
-    }
-    contextPatch["auth.bearer"] = bearer;
-    secretContextKeys.add("auth.bearer");
-  }
-
   const contextBindings = effectiveWorkspace.variables?.contextBindings;
   if (contextBindings) {
     const missingEnvKeys: string[] = [];

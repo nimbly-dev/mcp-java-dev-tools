@@ -4,8 +4,8 @@
       "projectRoot": "<workspace-root>",
       "envFile": ".mcpjvm/example-project/.env",
       "variables": {
-        "bearerTokenEnv": "EXAMPLE_BEARER_TOKEN",
         "contextBindings": {
+          "auth.bearer": "EXAMPLE_BEARER_TOKEN",
           "apiBaseUrl": "EXAMPLE_API_BASE_URL",
           "sql.connection.analytics.kind": "EXAMPLE_SQL_KIND",
           "sql.connection.analytics.host": "EXAMPLE_SQL_HOST",

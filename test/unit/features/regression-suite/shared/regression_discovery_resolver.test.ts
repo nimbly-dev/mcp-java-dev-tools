@@ -351,7 +351,7 @@ test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflight
       workspaces: [
         {
           projectRoot: root,
-          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" } },
         },
       ],
     });
@@ -408,7 +408,7 @@ test("[UT][regression-suite][regression_discovery_resolver] buildReplayPreflight
       workspaces: [
         {
           projectRoot: root,
-          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" } },
         },
       ],
     });

@@ -65,7 +65,7 @@ test("[UT][regression-suite][project_context] resolveProjectContextForRegression
   }
 });
 
-test("[UT][regression-suite][project_context] resolveProjectContextForRegression resolves auth.bearer from env key reference", async () => {
+test("[UT][regression-suite][project_context] resolveProjectContextForRegression resolves auth.bearer from a context binding", async () => {
   const root = createTestTempDir("project-context-auth");
   try {
     const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
@@ -74,7 +74,7 @@ test("[UT][regression-suite][project_context] resolveProjectContextForRegression
         {
           projectRoot: root,
           variables: {
-            bearerTokenEnv: "AUTH_BEARER_TOKEN",
+            contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" },
           },
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
         },
@@ -217,7 +217,7 @@ test("[UT][regression-suite][project_context] resolveProjectContextForRegression
         {
           projectRoot: root,
           variables: {
-            bearerTokenEnv: "AUTH_BEARER_TOKEN",
+            contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" },
           },
         },
       ],
