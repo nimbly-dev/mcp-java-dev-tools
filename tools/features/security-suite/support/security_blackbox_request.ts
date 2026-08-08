@@ -59,7 +59,9 @@ export async function waitForSecurityTargetReachability(args: {
     ) {
       return true;
     }
-    await new Promise((resolve) => setTimeout(resolve, Math.min(250, Math.max(100, timeoutMs / 8))));
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(250, Math.max(100, timeoutMs / 8))),
+    );
   }
   return false;
 }
@@ -201,6 +203,7 @@ export function buildBlackboxHttpRequest(args: {
   entrypoint: SecurityEntrypoint;
   attackRequest: SecurityAttackRequest;
   authenticationProfile: SecurityAuthenticationProfile;
+  runtimeCredentialContext?: Record<string, string>;
 }): Record<string, unknown> {
   const transport = httpTransport(args.entrypoint);
   if (!transport) {
@@ -239,7 +242,7 @@ export function buildBlackboxHttpRequest(args: {
     throw new Error(`security_target_boundary_violation:${args.entrypoint.id}`);
   }
   for (const [key, value] of Object.entries(queryParameters)) url.searchParams.set(key, value);
-  const credentialContext = { ...fixtureContext };
+  const credentialContext = { ...fixtureContext, ...(args.runtimeCredentialContext ?? {}) };
   const resolvedHeaders = asStringRecord(
     resolveUnknown(
       httpRequestTransport?.headers ?? args.attackRequest.headers ?? {},

@@ -4,14 +4,14 @@
       "projectRoot": "C:\\workspace\\spring-petclinic-microservices",
       "envFile": ".env",
       "variables": {
-        "bearerTokenEnv": "AUTH_BEARER_TOKEN",
-        "keycloakClientIdEnv": "KEYCLOAK_CLIENT_ID",
-        "keycloakClientSecretEnv": "KEYCLOAK_CLIENT_SECRET",
-        "keycloakUsernameEnv": "KEYCLOAK_USERNAME",
-        "keycloakPasswordEnv": "KEYCLOAK_PASSWORD",
         "contextBindings": {
+          "auth.bearer": "AUTH_BEARER_TOKEN",
           "apiBaseUrl": "BASE_URL",
-          "tenantId": "TENANT_ID"
+          "tenantId": "TENANT_ID",
+          "KEYCLOAK_CLIENT_ID": "KEYCLOAK_CLIENT_ID",
+          "KEYCLOAK_CLIENT_SECRET": "KEYCLOAK_CLIENT_SECRET",
+          "KEYCLOAK_USERNAME": "KEYCLOAK_USERNAME",
+          "KEYCLOAK_PASSWORD": "KEYCLOAK_PASSWORD"
         }
       },
       "runtimeContexts": [
@@ -24,11 +24,7 @@
             {
               "name": "config-server",
               "command": "java",
-              "args": [
-                "-jar",
-                "target\\spring-petclinic-config-server.jar",
-                "--server.port=8888"
-              ],
+              "args": ["-jar", "target\\spring-petclinic-config-server.jar", "--server.port=8888"],
               "appdir": "spring-petclinic-config-server"
             },
             {
@@ -76,9 +72,7 @@
             "requestTimeoutMs": 10000,
             "retryMax": 1
           },
-          "scriptRefs": [
-            "keycloak-token-bootstrap"
-          ],
+          "scriptRefs": ["keycloak-token-bootstrap"],
           "plans": [
             {
               "order": 1,

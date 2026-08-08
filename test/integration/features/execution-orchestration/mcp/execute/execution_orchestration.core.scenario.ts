@@ -1592,7 +1592,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration continue_on
       {
         projectRoot: projectRootAbs,
         variables: {
-          bearerTokenEnv: "AUTH_BEARER_TOKEN",
+          contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" },
         },
         executionProfiles: [
           {

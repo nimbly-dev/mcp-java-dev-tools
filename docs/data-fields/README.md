@@ -418,8 +418,8 @@ Postman variable normalization policy:
 - Exporter normalizes `${var}` placeholders to `{{var}}` for URL, headers, and body fields.
 - Exporter emits referenced Postman variables into `environment.values` deterministically so Runner can resolve them.
 - Exporter applies contract prerequisite string defaults into `environment.values` when keys are referenced.
-- When `includeResolvedSecrets=true`, exporter resolves `auth.bearer` from workspace env via `variables.bearerTokenEnv` when available.
-- Exporter supports `contextBindings` (prerequisite key -> env key) and uses it with highest precedence for value resolution.
+- Exporter resolves project-managed values only through `variables.contextBindings` (context key -> env key); this includes secret values when `includeResolvedSecrets=true`.
+- Exporter supports caller-supplied `contextBindings` (prerequisite key -> env key), which override the project mapping for that export.
 - Exporter supports `contextValues` (direct key -> value) with highest precedence for run-scoped export context.
 - Referenced required prerequisites that remain unresolved fail closed (`postman_export_blocked` with `reasonMeta.cause=required_prerequisite_unresolved`).
 

@@ -1178,11 +1178,13 @@ test("[UT][regression-suite][regression_execution_profile_export_writer_sh] expo
           projectRoot: root,
           envFile: ".mcpjvm/test-project/.env",
           variables: {
-            bearerTokenEnv: "AUTH_BEARER_TOKEN",
-            keycloakClientIdEnv: "KEYCLOAK_CLIENT_ID",
-            keycloakClientSecretEnv: "KEYCLOAK_CLIENT_SECRET",
-            keycloakUsernameEnv: "KEYCLOAK_USERNAME",
-            keycloakPasswordEnv: "KEYCLOAK_PASSWORD",
+            contextBindings: {
+              "auth.bearer": "AUTH_BEARER_TOKEN",
+              KEYCLOAK_CLIENT_ID: "KEYCLOAK_CLIENT_ID",
+              KEYCLOAK_CLIENT_SECRET: "KEYCLOAK_CLIENT_SECRET",
+              KEYCLOAK_USERNAME: "KEYCLOAK_USERNAME",
+              KEYCLOAK_PASSWORD: "KEYCLOAK_PASSWORD",
+            },
           },
           scripts: [
             {

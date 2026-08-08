@@ -80,6 +80,7 @@ test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact fail
   assert.equal(result.ok, false);
   if (!result.ok) {
     assert.equal(result.reasonCode, "project_artifact_invalid");
+    assert.match(result.errors.join("\n"), /variables\.bearerTokenEnv is unsupported/);
     assert.match(result.errors.join("\n"), /variables\.tenantIdEnv is unsupported/);
     assert.match(result.errors.join("\n"), /variables\.baseUrlEnv is unsupported/);
   }
@@ -91,7 +92,6 @@ test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact acce
       withRequiredDefaults({
         projectRoot: "C:\\workspace\\spring",
         variables: {
-          bearerTokenEnv: "AUTH_BEARER_TOKEN",
           contextBindings: {
             apiBaseUrl: "BASE_URL",
             tenantId: "TENANT_ID",
@@ -390,11 +390,13 @@ test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact acce
         projectRoot: "C:\\workspace\\spring",
         envFile: ".mcpjvm/test-project/.env",
         variables: {
-          bearerTokenEnv: "AUTH_BEARER_TOKEN",
-          keycloakClientIdEnv: "KEYCLOAK_CLIENT_ID",
-          keycloakClientSecretEnv: "KEYCLOAK_CLIENT_SECRET",
-          keycloakUsernameEnv: "KEYCLOAK_USERNAME",
-          keycloakPasswordEnv: "KEYCLOAK_PASSWORD",
+          contextBindings: {
+            "auth.bearer": "AUTH_BEARER_TOKEN",
+            KEYCLOAK_CLIENT_ID: "KEYCLOAK_CLIENT_ID",
+            KEYCLOAK_CLIENT_SECRET: "KEYCLOAK_CLIENT_SECRET",
+            KEYCLOAK_USERNAME: "KEYCLOAK_USERNAME",
+            KEYCLOAK_PASSWORD: "KEYCLOAK_PASSWORD",
+          },
         },
         runtimeContexts: [
           {
@@ -434,7 +436,7 @@ test("[UT][project-artifact-spec][project_artifact] validateProjectArtifact acce
   assert.equal(result.ok, true);
   if (result.ok) {
     const workspace = result.artifact.workspaces[0];
-    assert.equal(workspace.variables?.keycloakClientIdEnv, "KEYCLOAK_CLIENT_ID");
+    assert.equal(workspace.variables?.contextBindings?.KEYCLOAK_CLIENT_ID, "KEYCLOAK_CLIENT_ID");
     assert.equal(workspace.scripts?.[0].envFileArg, "-EnvFile");
     assert.equal(workspace.executionProfiles?.[0].scriptRefs?.[0].name, "keycloak-token-bootstrap");
   }

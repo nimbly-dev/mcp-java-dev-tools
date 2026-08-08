@@ -19,6 +19,7 @@ import { executeBlackboxSecurityMode } from "../modes/blackbox/security_blackbox
 import { executeSidecarAssistedSecurityMode } from "../modes/sidecar_assisted/security_sidecar_assisted_mode";
 import { readSecuritySuiteManifest } from "../support/load_security_suite_manifest";
 import { waitForSecurityTargetReachability } from "../support/security_blackbox_request";
+import { resolveSecurityRuntimeCredentialContext } from "../support/security_runtime_credentials";
 
 type SecurityPlanExecution = {
   status: "executed" | "blocked";
@@ -202,6 +203,11 @@ async function executeSecurityPlan(args: {
           runId: `${args.input.suiteRunId ?? "security"}-${args.planName}`,
           contract: validated.contract,
           mcpInvoke: args.input.mcpInvoke,
+          runtimeCredentialContext: await resolveSecurityRuntimeCredentialContext({
+            workspaceRootAbs: args.input.workspaceRootAbs,
+            projectName: args.input.projectName,
+            executionProfile: args.input.executionProfile,
+          }),
         })
       : await executeSidecarAssistedSecurityMode({
           workspaceRootAbs: args.input.workspaceRootAbs,

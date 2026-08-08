@@ -50,7 +50,7 @@ test("[IT][execution_orchestration][execute] execution_orchestration blocks non-
     workspaces: [
       {
         projectRoot: projectRootAbs,
-        variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+        variables: { contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" } },
         executionProfiles: [
           {
             executionProfile: "env-prereq-alias-run",

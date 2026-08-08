@@ -187,7 +187,7 @@ test("[UT][regression-suite][execute_regression_runtime_suite_correlation] execu
         {
           projectRoot: root,
           envFile: `.mcpjvm/${projectName}/.env`,
-          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" } },
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
           executionProfiles: [
             {
@@ -425,7 +425,7 @@ test("[UT][regression-suite][execute_regression_runtime_suite_correlation] execu
         {
           projectRoot: root,
           envFile: `.mcpjvm/${projectName}/.env`,
-          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" } },
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
           executionProfiles: [
             {
@@ -554,7 +554,7 @@ test("[UT][regression-suite][execute_regression_runtime_suite_correlation] execu
         {
           projectRoot: root,
           envFile: `.mcpjvm/${projectName}/.env`,
-          variables: { bearerTokenEnv: "AUTH_BEARER_TOKEN" },
+          variables: { contextBindings: { "auth.bearer": "AUTH_BEARER_TOKEN" } },
           runtimeContexts: [{ name: "terminal-cli", mode: "terminal", autoStart: false }],
           executionProfiles: [
             {

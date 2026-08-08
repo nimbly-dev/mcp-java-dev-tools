@@ -59,14 +59,14 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
       "executionRoot": "C:\\workspace\\example",
       "envFile": ".env",
       "variables": {
-        "bearerTokenEnv": "AUTH_BEARER_TOKEN",
-        "keycloakClientIdEnv": "KEYCLOAK_CLIENT_ID",
-        "keycloakClientSecretEnv": "KEYCLOAK_CLIENT_SECRET",
-        "keycloakUsernameEnv": "KEYCLOAK_USERNAME",
-        "keycloakPasswordEnv": "KEYCLOAK_PASSWORD",
         "contextBindings": {
+          "auth.bearer": "AUTH_BEARER_TOKEN",
           "apiBaseUrl": "BASE_URL",
-          "tenantId": "TENANT_ID"
+          "tenantId": "TENANT_ID",
+          "KEYCLOAK_CLIENT_ID": "KEYCLOAK_CLIENT_ID",
+          "KEYCLOAK_CLIENT_SECRET": "KEYCLOAK_CLIENT_SECRET",
+          "KEYCLOAK_USERNAME": "KEYCLOAK_USERNAME",
+          "KEYCLOAK_PASSWORD": "KEYCLOAK_PASSWORD"
         }
       },
       "runtimeContexts": [

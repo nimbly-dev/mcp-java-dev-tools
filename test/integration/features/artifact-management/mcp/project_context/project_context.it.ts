@@ -338,7 +338,6 @@ test("[IT][artifact_management][project_context] artifact_management project_con
             withRequiredDefaults({
               projectRoot: workspaceRootAbs,
               variables: {
-                bearerTokenEnv: "AUTH_BEARER_TOKEN",
                 tenantIdEnv: "TENANT_ID",
                 baseUrlEnv: "BASE_URL",
               },

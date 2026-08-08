@@ -63,45 +63,63 @@ function requiresAuthBearer(requiredInputs: RequiredInput[]): boolean {
   return requiredInputs.some((input) => input.envKey === "AUTH_BEARER");
 }
 
-function renderAuthRefreshFunction(input: {
-  reloadWorkspaceEnvCommand: string;
-}): string[] {
+function renderAuthRefreshFunction(input: { reloadWorkspaceEnvCommand: string }): string[] {
   const lines: string[] = [];
   lines.push("can_refresh_auth_bearer() {");
-  lines.push("  if [ -n \"${KEYCLOAK_CLIENT_ID:-}\" ] && [ -n \"${KEYCLOAK_USERNAME:-}\" ] && [ -n \"${KEYCLOAK_PASSWORD:-}\" ]; then return 0; fi");
-  lines.push("  if [ -n \"${KEYCLOAK_CLIENT_ID:-}\" ] && [ -n \"${KEYCLOAK_CLIENT_SECRET:-}\" ]; then return 0; fi");
+  lines.push(
+    '  if [ -n "${KEYCLOAK_CLIENT_ID:-}" ] && [ -n "${KEYCLOAK_USERNAME:-}" ] && [ -n "${KEYCLOAK_PASSWORD:-}" ]; then return 0; fi',
+  );
+  lines.push(
+    '  if [ -n "${KEYCLOAK_CLIENT_ID:-}" ] && [ -n "${KEYCLOAK_CLIENT_SECRET:-}" ]; then return 0; fi',
+  );
   lines.push("  return 1");
   lines.push("}");
   lines.push("");
   lines.push("refresh_auth_bearer() {");
-  lines.push("  local force_refresh=\"${1:-}\"");
+  lines.push('  local force_refresh="${1:-}"');
   lines.push(`  ${input.reloadWorkspaceEnvCommand} "\${force_refresh}"`);
-  lines.push("  if [ \"${force_refresh}\" != \"force\" ] && [ -n \"${AUTH_BEARER:-}\" ] && [ \"${AUTH_BEARER}\" != \"REDACTED_TOKEN\" ]; then");
+  lines.push(
+    '  if [ "${force_refresh}" != "force" ] && [ -n "${AUTH_BEARER:-}" ] && [ "${AUTH_BEARER}" != "REDACTED_TOKEN" ]; then',
+  );
   lines.push("    export AUTH_BEARER");
-  lines.push("    echo \"auth_bootstrap_succeeded: AUTH_BEARER\"");
+  lines.push('    echo "auth_bootstrap_succeeded: AUTH_BEARER"');
   lines.push("    return 0");
   lines.push("  fi");
-  lines.push("  KC_BASE_URL=\"${KEYCLOAK_BASE_URL:-http://127.0.0.1:8081}\"");
-  lines.push("  KC_REALM=\"${KEYCLOAK_REALM:-}\"");
-  lines.push("  KC_SCOPE=\"${KEYCLOAK_SCOPE:-openid}\"");
-  lines.push("  if [ \"${force_refresh}\" = \"force\" ] && { [ -z \"${KC_REALM}\" ] || ! can_refresh_auth_bearer; }; then");
-  lines.push("    echo \"auth_refresh_unavailable: missing KEYCLOAK_* refresh prerequisites\" >&2");
+  lines.push('  KC_BASE_URL="${KEYCLOAK_BASE_URL:-http://127.0.0.1:8081}"');
+  lines.push('  KC_REALM="${KEYCLOAK_REALM:-}"');
+  lines.push('  KC_SCOPE="${KEYCLOAK_SCOPE:-openid}"');
+  lines.push(
+    '  if [ "${force_refresh}" = "force" ] && { [ -z "${KC_REALM}" ] || ! can_refresh_auth_bearer; }; then',
+  );
+  lines.push('    echo "auth_refresh_unavailable: missing KEYCLOAK_* refresh prerequisites" >&2');
   lines.push("    return 2");
   lines.push("  fi");
-  lines.push("  if [ -n \"${KC_REALM}\" ] && can_refresh_auth_bearer; then");
-  lines.push("    KC_TOKEN_ARGS=(--data-urlencode \"client_id=${KEYCLOAK_CLIENT_ID}\" --data-urlencode \"scope=${KC_SCOPE}\")");
-  lines.push("    if [ -n \"${KEYCLOAK_USERNAME:-}\" ] && [ -n \"${KEYCLOAK_PASSWORD:-}\" ]; then");
-  lines.push("      KC_TOKEN_ARGS+=(--data-urlencode \"grant_type=password\" --data-urlencode \"username=${KEYCLOAK_USERNAME}\" --data-urlencode \"password=${KEYCLOAK_PASSWORD}\")");
-  lines.push("      if [ -n \"${KEYCLOAK_CLIENT_SECRET:-}\" ]; then KC_TOKEN_ARGS+=(--data-urlencode \"client_secret=${KEYCLOAK_CLIENT_SECRET}\"); fi");
+  lines.push('  if [ -n "${KC_REALM}" ] && can_refresh_auth_bearer; then');
+  lines.push(
+    '    KC_TOKEN_ARGS=(--data-urlencode "client_id=${KEYCLOAK_CLIENT_ID}" --data-urlencode "scope=${KC_SCOPE}")',
+  );
+  lines.push('    if [ -n "${KEYCLOAK_USERNAME:-}" ] && [ -n "${KEYCLOAK_PASSWORD:-}" ]; then');
+  lines.push(
+    '      KC_TOKEN_ARGS+=(--data-urlencode "grant_type=password" --data-urlencode "username=${KEYCLOAK_USERNAME}" --data-urlencode "password=${KEYCLOAK_PASSWORD}")',
+  );
+  lines.push(
+    '      if [ -n "${KEYCLOAK_CLIENT_SECRET:-}" ]; then KC_TOKEN_ARGS+=(--data-urlencode "client_secret=${KEYCLOAK_CLIENT_SECRET}"); fi',
+  );
   lines.push("    else");
-  lines.push("      KC_TOKEN_ARGS+=(--data-urlencode \"grant_type=client_credentials\" --data-urlencode \"client_secret=${KEYCLOAK_CLIENT_SECRET}\")");
+  lines.push(
+    '      KC_TOKEN_ARGS+=(--data-urlencode "grant_type=client_credentials" --data-urlencode "client_secret=${KEYCLOAK_CLIENT_SECRET}")',
+  );
   lines.push("    fi");
-  lines.push("    KC_TOKEN_RESPONSE=\"$(curl -sS -X POST \"${KC_BASE_URL}/realms/${KC_REALM}/protocol/openid-connect/token\" -H \"Content-Type: application/x-www-form-urlencoded\" \"${KC_TOKEN_ARGS[@]}\" || true)\"");
-  lines.push("    AUTH_BEARER=\"$(extract_json_field \"${KC_TOKEN_RESPONSE}\" \"access_token\")\"");
-  lines.push("    if [ -n \"${AUTH_BEARER:-}\" ]; then AUTH_BEARER_TOKEN=\"${AUTH_BEARER}\"; export AUTH_BEARER AUTH_BEARER_TOKEN; echo \"auth_bootstrap_succeeded: AUTH_BEARER\"; fi");
+  lines.push(
+    '    KC_TOKEN_RESPONSE="$(curl -sS -X POST "${KC_BASE_URL}/realms/${KC_REALM}/protocol/openid-connect/token" -H "Content-Type: application/x-www-form-urlencoded" "${KC_TOKEN_ARGS[@]}" || true)"',
+  );
+  lines.push('    AUTH_BEARER="$(extract_json_field "${KC_TOKEN_RESPONSE}" "access_token")"');
+  lines.push(
+    '    if [ -n "${AUTH_BEARER:-}" ]; then export AUTH_BEARER; echo "auth_bootstrap_succeeded: AUTH_BEARER"; fi',
+  );
   lines.push("  fi");
-  lines.push("  if [ \"${force_refresh}\" = \"force\" ] && [ -z \"${AUTH_BEARER:-}\" ]; then");
-  lines.push("    echo \"auth_refresh_failed: no access_token returned from token endpoint\" >&2");
+  lines.push('  if [ "${force_refresh}" = "force" ] && [ -z "${AUTH_BEARER:-}" ]; then');
+  lines.push('    echo "auth_refresh_failed: no access_token returned from token endpoint" >&2');
   lines.push("    return 3");
   lines.push("  fi");
   lines.push("  return 0");
@@ -112,10 +130,10 @@ function renderAuthRefreshFunction(input: {
 function renderJsonHelperSection(): string[] {
   return [
     "extract_json_field() {",
-    "  local json=\"$1\"",
-    "  local path=\"$2\"",
+    '  local json="$1"',
+    '  local path="$2"',
     "  if command -v python3 >/dev/null 2>&1; then",
-    "    python3 - \"$json\" \"$path\" <<'PY'",
+    '    python3 - "$json" "$path" <<\'PY\'',
     "import json, re, sys",
     "raw = sys.argv[1]",
     "path_raw = sys.argv[2]",
@@ -161,8 +179,8 @@ function renderJsonHelperSection(): string[] {
     "    echo 'extract_json_field_requires_python3_or_node_for_complex_path' >&2",
     "    return 1",
     "  fi",
-    "  local key=\"${path##*.}\"",
-    "  printf '%s' \"$json\" | sed -n \"s/.*\\\"$key\\\"[[:space:]]*:[[:space:]]*\\\"\\{0,1\\}\\([^\\\",}]*\\).*/\\1/p\" | head -n 1",
+    '  local key="${path##*.}"',
+    '  printf \'%s\' "$json" | sed -n "s/.*\\"$key\\"[[:space:]]*:[[:space:]]*\\"\\{0,1\\}\\([^\\",}]*\\).*/\\1/p" | head -n 1',
     "}",
     "",
   ];
@@ -178,17 +196,20 @@ function renderRequiredInputsSection(requiredInputs: RequiredInput[]): string[] 
   for (const input of requiredInputs) {
     const key = input.envKey;
     if (key === "AUTH_BEARER") {
-      lines.push("if [ -z \"${AUTH_BEARER:-}\" ] && [ -n \"${AUTH_BEARER_TOKEN:-}\" ]; then AUTH_BEARER=\"${AUTH_BEARER_TOKEN}\"; fi");
       lines.push("export AUTH_BEARER");
       continue;
     }
     if (key.endsWith("BASE_URL") && typeof input.defaultValue !== "string") {
-      lines.push(`if [ -z "\${${key}:-}" ]; then echo "missing_required_input: ${key} (set ${key} or provide plan providedContext/probe-config runtime.port)" >&2; exit 1; fi`);
+      lines.push(
+        `if [ -z "\${${key}:-}" ]; then echo "missing_required_input: ${key} (set ${key} or provide plan providedContext/probe-config runtime.port)" >&2; exit 1; fi`,
+      );
       lines.push(`export ${key}`);
       continue;
     }
     const defaultValue = defaultValueForEnvVar(key, input.defaultValue).replace(/"/g, '\\"');
-    lines.push(`if [ -z "\${${key}:-}" ]; then ${key}="${defaultValue}"; echo "auto_input_defaulted: ${key}" >&2; fi`);
+    lines.push(
+      `if [ -z "\${${key}:-}" ]; then ${key}="${defaultValue}"; echo "auto_input_defaulted: ${key}" >&2; fi`,
+    );
     lines.push(`export ${key}`);
   }
   return lines;
@@ -200,58 +221,75 @@ function renderPostStartupAuthSection(requiredInputs: RequiredInput[]): string[]
   }
   return [
     "echo '[A01] refreshing auth after runtime health gate'",
-    "if { [ -z \"${AUTH_BEARER:-}\" ] || [ \"${AUTH_BEARER}\" = \"REDACTED_TOKEN\" ]; } && can_refresh_auth_bearer; then",
+    'if { [ -z "${AUTH_BEARER:-}" ] || [ "${AUTH_BEARER}" = "REDACTED_TOKEN" ]; } && can_refresh_auth_bearer; then',
     "  refresh_auth_bearer",
     "fi",
-    "if [ -z \"${AUTH_BEARER:-}\" ] || [ \"${AUTH_BEARER}\" = \"REDACTED_TOKEN\" ]; then echo \"missing_required_input: AUTH_BEARER (set AUTH_BEARER or KEYCLOAK_* bootstrap vars)\" >&2; exit 1; fi",
+    'if [ -z "${AUTH_BEARER:-}" ] || [ "${AUTH_BEARER}" = "REDACTED_TOKEN" ]; then echo "missing_required_input: AUTH_BEARER (set AUTH_BEARER or KEYCLOAK_* bootstrap vars)" >&2; exit 1; fi',
     "export AUTH_BEARER",
   ];
 }
 
-function renderWorkspaceBootstrapSection(input: { workspace: Record<string, unknown> | undefined }): WorkspaceEnvBinding {
+function renderWorkspaceBootstrapSection(input: {
+  workspace: Record<string, unknown> | undefined;
+}): WorkspaceEnvBinding {
   const lines: string[] = [];
   const reloadLines: string[] = [];
-  reloadLines.push("  local force_refresh=\"${1:-}\"");
-  reloadLines.push("  local preserved_auth_bearer=\"${AUTH_BEARER:-}\"");
-  reloadLines.push("  local preserved_auth_bearer_token=\"${AUTH_BEARER_TOKEN:-}\"");
-  reloadLines.push("  local preserved_keycloak_base_url=\"${KEYCLOAK_BASE_URL:-}\"");
-  reloadLines.push("  local preserved_keycloak_client_id=\"${KEYCLOAK_CLIENT_ID:-}\"");
-  reloadLines.push("  local preserved_keycloak_client_secret=\"${KEYCLOAK_CLIENT_SECRET:-}\"");
-  reloadLines.push("  local preserved_keycloak_password=\"${KEYCLOAK_PASSWORD:-}\"");
-  reloadLines.push("  local preserved_keycloak_realm=\"${KEYCLOAK_REALM:-}\"");
-  reloadLines.push("  local preserved_keycloak_scope=\"${KEYCLOAK_SCOPE:-}\"");
-  reloadLines.push("  local preserved_keycloak_username=\"${KEYCLOAK_USERNAME:-}\"");
-  reloadLines.push("  local preserved_target_base_url=\"${TARGET_BASE_URL:-}\"");
-  reloadLines.push("  if [ -f \"${__MCPJVM_PROJECT_ENV}\" ]; then set -a; . \"${__MCPJVM_PROJECT_ENV}\"; set +a; fi");
-  reloadLines.push("  if [ -n \"${preserved_auth_bearer}\" ]; then AUTH_BEARER=\"${preserved_auth_bearer}\"; fi");
-  reloadLines.push("  if [ -n \"${preserved_auth_bearer_token}\" ]; then AUTH_BEARER_TOKEN=\"${preserved_auth_bearer_token}\"; fi");
-  reloadLines.push("  if [ -n \"${preserved_keycloak_base_url}\" ]; then KEYCLOAK_BASE_URL=\"${preserved_keycloak_base_url}\"; fi");
-  reloadLines.push("  if [ -n \"${preserved_keycloak_client_id}\" ]; then KEYCLOAK_CLIENT_ID=\"${preserved_keycloak_client_id}\"; fi");
-  reloadLines.push("  if [ -n \"${preserved_keycloak_client_secret}\" ]; then KEYCLOAK_CLIENT_SECRET=\"${preserved_keycloak_client_secret}\"; fi");
-  reloadLines.push("  if [ -n \"${preserved_keycloak_password}\" ]; then KEYCLOAK_PASSWORD=\"${preserved_keycloak_password}\"; fi");
-  reloadLines.push("  if [ -n \"${preserved_keycloak_realm}\" ]; then KEYCLOAK_REALM=\"${preserved_keycloak_realm}\"; fi");
-  reloadLines.push("  if [ -n \"${preserved_keycloak_scope}\" ]; then KEYCLOAK_SCOPE=\"${preserved_keycloak_scope}\"; fi");
-  reloadLines.push("  if [ -n \"${preserved_keycloak_username}\" ]; then KEYCLOAK_USERNAME=\"${preserved_keycloak_username}\"; fi");
-  reloadLines.push("  if [ -n \"${preserved_target_base_url}\" ]; then TARGET_BASE_URL=\"${preserved_target_base_url}\"; fi");
+  reloadLines.push('  local force_refresh="${1:-}"');
+  reloadLines.push('  local preserved_auth_bearer="${AUTH_BEARER:-}"');
+  reloadLines.push('  local preserved_keycloak_base_url="${KEYCLOAK_BASE_URL:-}"');
+  reloadLines.push('  local preserved_keycloak_client_id="${KEYCLOAK_CLIENT_ID:-}"');
+  reloadLines.push('  local preserved_keycloak_client_secret="${KEYCLOAK_CLIENT_SECRET:-}"');
+  reloadLines.push('  local preserved_keycloak_password="${KEYCLOAK_PASSWORD:-}"');
+  reloadLines.push('  local preserved_keycloak_realm="${KEYCLOAK_REALM:-}"');
+  reloadLines.push('  local preserved_keycloak_scope="${KEYCLOAK_SCOPE:-}"');
+  reloadLines.push('  local preserved_keycloak_username="${KEYCLOAK_USERNAME:-}"');
+  reloadLines.push('  local preserved_target_base_url="${TARGET_BASE_URL:-}"');
+  reloadLines.push(
+    '  if [ -f "${__MCPJVM_PROJECT_ENV}" ]; then set -a; . "${__MCPJVM_PROJECT_ENV}"; set +a; fi',
+  );
+  reloadLines.push(
+    '  if [ -n "${preserved_auth_bearer}" ]; then AUTH_BEARER="${preserved_auth_bearer}"; fi',
+  );
+  reloadLines.push(
+    '  if [ -n "${preserved_keycloak_base_url}" ]; then KEYCLOAK_BASE_URL="${preserved_keycloak_base_url}"; fi',
+  );
+  reloadLines.push(
+    '  if [ -n "${preserved_keycloak_client_id}" ]; then KEYCLOAK_CLIENT_ID="${preserved_keycloak_client_id}"; fi',
+  );
+  reloadLines.push(
+    '  if [ -n "${preserved_keycloak_client_secret}" ]; then KEYCLOAK_CLIENT_SECRET="${preserved_keycloak_client_secret}"; fi',
+  );
+  reloadLines.push(
+    '  if [ -n "${preserved_keycloak_password}" ]; then KEYCLOAK_PASSWORD="${preserved_keycloak_password}"; fi',
+  );
+  reloadLines.push(
+    '  if [ -n "${preserved_keycloak_realm}" ]; then KEYCLOAK_REALM="${preserved_keycloak_realm}"; fi',
+  );
+  reloadLines.push(
+    '  if [ -n "${preserved_keycloak_scope}" ]; then KEYCLOAK_SCOPE="${preserved_keycloak_scope}"; fi',
+  );
+  reloadLines.push(
+    '  if [ -n "${preserved_keycloak_username}" ]; then KEYCLOAK_USERNAME="${preserved_keycloak_username}"; fi',
+  );
+  reloadLines.push(
+    '  if [ -n "${preserved_target_base_url}" ]; then TARGET_BASE_URL="${preserved_target_base_url}"; fi',
+  );
   const vars = input.workspace?.variables;
   if (vars && typeof vars === "object" && !Array.isArray(vars)) {
     const varsRecord = vars as Record<string, unknown>;
-    const bearerTokenEnv = typeof varsRecord.bearerTokenEnv === "string" ? String(varsRecord.bearerTokenEnv).trim() : "";
-    if (bearerTokenEnv.length > 0) {
-      reloadLines.push(`  if [ "\${force_refresh}" != "force" ] && [ -z "\${AUTH_BEARER:-}" ] && [ -n "\${${bearerTokenEnv}:-}" ]; then AUTH_BEARER="\${${bearerTokenEnv}}"; fi`);
-      reloadLines.push("  export AUTH_BEARER");
-    }
-    const keycloakMap: Array<{ sourceKey: string; targetVar: string }> = [
-      { sourceKey: "keycloakClientIdEnv", targetVar: "KEYCLOAK_CLIENT_ID" },
-      { sourceKey: "keycloakClientSecretEnv", targetVar: "KEYCLOAK_CLIENT_SECRET" },
-      { sourceKey: "keycloakUsernameEnv", targetVar: "KEYCLOAK_USERNAME" },
-      { sourceKey: "keycloakPasswordEnv", targetVar: "KEYCLOAK_PASSWORD" },
-    ];
-    for (const mapping of keycloakMap) {
-      const envKeyRef = typeof varsRecord[mapping.sourceKey] === "string" ? String(varsRecord[mapping.sourceKey]).trim() : "";
-      if (envKeyRef.length === 0) continue;
-      reloadLines.push(`  if [ -z "\${${mapping.targetVar}:-}" ] && [ -n "\${${envKeyRef}:-}" ]; then ${mapping.targetVar}="\${${envKeyRef}}"; fi`);
-      reloadLines.push(`  export ${mapping.targetVar}`);
+    const contextBindings = varsRecord.contextBindings;
+    if (contextBindings && typeof contextBindings === "object" && !Array.isArray(contextBindings)) {
+      for (const [contextKey, sourceEnv] of Object.entries(contextBindings).sort(
+        ([left], [right]) => left.localeCompare(right),
+      )) {
+        if (typeof sourceEnv !== "string" || sourceEnv.trim().length === 0) continue;
+        const targetVar = toShellEnvKey(contextKey);
+        const sourceEnvKey = sourceEnv.trim();
+        reloadLines.push(
+          `  if [ -z "\${${targetVar}:-}" ] && [ -n "\${${sourceEnvKey}:-}" ]; then ${targetVar}="\${${sourceEnvKey}}"; fi`,
+        );
+        reloadLines.push(`  export ${targetVar}`);
+      }
     }
   }
   lines.push("reload_workspace_env() {");
@@ -265,12 +303,17 @@ function shellQuote(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-function resolveScriptCommand(input: { command: string; scriptPathAbs: string; args: string[] }): string {
+function resolveScriptCommand(input: {
+  command: string;
+  scriptPathAbs: string;
+  args: string[];
+}): string {
   const argText = input.args.map((arg) => shellQuote(arg)).join(" ");
   const scriptArg = shellQuote(input.scriptPathAbs);
   if (input.command === "python") return `python ${scriptArg}${argText ? ` ${argText}` : ""}`;
   if (input.command === "node") return `node ${scriptArg}${argText ? ` ${argText}` : ""}`;
-  if (input.command === "ps") return `powershell -NoProfile -ExecutionPolicy Bypass -File ${scriptArg}${argText ? ` ${argText}` : ""}`;
+  if (input.command === "ps")
+    return `powershell -NoProfile -ExecutionPolicy Bypass -File ${scriptArg}${argText ? ` ${argText}` : ""}`;
   return `bash ${scriptArg}${argText ? ` ${argText}` : ""}`;
 }
 
@@ -292,7 +335,11 @@ function renderEmbeddedScriptAsset(input: {
   scriptText: string | null;
 }): { assetPathExpr: string; lines: string[] } {
   const extension = input.command === "ps" ? ".ps1" : "";
-  const assetName = sanitizeAssetName(`${String(input.order).padStart(2, "0")}-${input.id}`, `script-${input.order}`) + extension;
+  const assetName =
+    sanitizeAssetName(
+      `${String(input.order).padStart(2, "0")}-${input.id}`,
+      `script-${input.order}`,
+    ) + extension;
   const assetPathExpr = `"${"$"}__MCPJVM_EXPORT_TMP/${assetName}"`;
   if (input.scriptText === null) {
     return {
@@ -314,7 +361,8 @@ function renderEmbeddedScriptAsset(input: {
 }
 
 function renderPrerequisiteFailure(onFail: string, id: string): string[] {
-  if (onFail === "skip_remaining") return [`echo "prerequisite_failed_skip_remaining: ${id}" >&2`, "exit 0"];
+  if (onFail === "skip_remaining")
+    return [`echo "prerequisite_failed_skip_remaining: ${id}" >&2`, "exit 0"];
   return [`echo "prerequisite_failed_block: ${id}" >&2`, "exit 1"];
 }
 
@@ -324,16 +372,25 @@ async function renderRunPrerequisitesSection(input: {
 }): Promise<string[]> {
   if (!input.workspace || !Array.isArray(input.workspace.runPrerequisites)) return [];
   const entries = input.workspace.runPrerequisites
-    .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null && !Array.isArray(row))
+    .filter(
+      (row): row is Record<string, unknown> =>
+        typeof row === "object" && row !== null && !Array.isArray(row),
+    )
     .sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
   const lines: string[] = [];
   let needsTempDir = false;
   for (const entry of entries) {
-    const id = typeof entry.id === "string" && entry.id.trim().length > 0 ? entry.id.trim() : "prerequisite";
+    const id =
+      typeof entry.id === "string" && entry.id.trim().length > 0 ? entry.id.trim() : "prerequisite";
     const onFail = typeof entry.onFail === "string" ? entry.onFail : "block";
     const type = typeof entry.type === "string" ? entry.type : "";
     lines.push(`echo "[PR] ${id}"`);
-    if (type === "assert" && typeof entry.assert === "object" && entry.assert !== null && !Array.isArray(entry.assert)) {
+    if (
+      type === "assert" &&
+      typeof entry.assert === "object" &&
+      entry.assert !== null &&
+      !Array.isArray(entry.assert)
+    ) {
       const assertObj = entry.assert as Record<string, unknown>;
       const kind = typeof assertObj.kind === "string" ? assertObj.kind : "";
       if (kind === "env_exists" || kind === "context_exists") {
@@ -346,7 +403,12 @@ async function renderRunPrerequisitesSection(input: {
       lines.push("");
       continue;
     }
-    if (type === "script" && typeof entry.script === "object" && entry.script !== null && !Array.isArray(entry.script)) {
+    if (
+      type === "script" &&
+      typeof entry.script === "object" &&
+      entry.script !== null &&
+      !Array.isArray(entry.script)
+    ) {
       const scriptObj = entry.script as Record<string, unknown>;
       const command = typeof scriptObj.command === "string" ? scriptObj.command : "sh";
       const scriptPath = typeof scriptObj.scriptPath === "string" ? scriptObj.scriptPath : "";
@@ -355,10 +417,16 @@ async function renderRunPrerequisitesSection(input: {
         workspaceRootAbs: input.workspaceRootAbs,
         rawPath: scriptPath,
       });
-      const args = Array.isArray(scriptObj.args) ? scriptObj.args.filter((a): a is string => typeof a === "string") : [];
-      const cwd = typeof scriptObj.cwd === "string" && scriptObj.cwd.trim().length > 0
-        ? toWorkspaceShellPath({ workspaceRootAbs: input.workspaceRootAbs, rawPath: scriptObj.cwd })
-        : "";
+      const args = Array.isArray(scriptObj.args)
+        ? scriptObj.args.filter((a): a is string => typeof a === "string")
+        : [];
+      const cwd =
+        typeof scriptObj.cwd === "string" && scriptObj.cwd.trim().length > 0
+          ? toWorkspaceShellPath({
+              workspaceRootAbs: input.workspaceRootAbs,
+              rawPath: scriptObj.cwd,
+            })
+          : "";
       const scriptText = await fs.readFile(scriptPathAbs, "utf8").catch(() => null);
       const embedded = renderEmbeddedScriptAsset({
         id,
@@ -382,10 +450,10 @@ async function renderRunPrerequisitesSection(input: {
       lines.push("fi");
       lines.push("while IFS= read -r __line; do");
       lines.push("  if printf '%s' \"$__line\" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*='; then");
-      lines.push("    __key=\"${__line%%=*}\"");
-      lines.push("    __value=\"${__line#*=}\"");
-      lines.push("    export \"${__key}=${__value}\"");
-      lines.push("    echo \"prerequisite_exported: ${__key}\"");
+      lines.push('    __key="${__line%%=*}"');
+      lines.push('    __value="${__line#*=}"');
+      lines.push('    export "${__key}=${__value}"');
+      lines.push('    echo "prerequisite_exported: ${__key}"');
       lines.push("  fi");
       lines.push("done <<__PR_EOF__");
       lines.push("${PR_OUT}");
@@ -396,7 +464,7 @@ async function renderRunPrerequisitesSection(input: {
   if (needsTempDir) {
     lines.unshift('mkdir -p "${__MCPJVM_EXPORT_TMP}"');
     lines.unshift('__MCPJVM_EXPORT_TMP="${TMPDIR:-/tmp}/mcpjvm-execution-profile-$$"');
-    lines.unshift('trap \'rm -rf "${__MCPJVM_EXPORT_TMP:-}"\' EXIT');
+    lines.unshift("trap 'rm -rf \"${__MCPJVM_EXPORT_TMP:-}\"' EXIT");
   }
   return lines;
 }
@@ -414,7 +482,10 @@ async function collectPlanRequiredInputs(input: {
   executionProfile: string;
   planRuns: ExecutionProfileExportPlanRun[];
 }): Promise<RequiredInput[]> {
-  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs, input.projectName);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(
+    input.workspaceRootAbs,
+    input.projectName,
+  );
   const planBaseUrls = await resolvePlanBaseUrls({
     workspaceRootAbs: input.workspaceRootAbs,
     workspace: input.workspace,
@@ -428,13 +499,17 @@ async function collectPlanRequiredInputs(input: {
     for (const prerequisite of contract.prerequisites) {
       if (prerequisite.required !== true && typeof prerequisite.default === "undefined") continue;
       const envKey = toShellEnvKey(prerequisite.key);
-      const resolvedPlanBaseUrl = envKey === "TARGET_BASE_URL" || prerequisite.key === "targetBaseUrl"
-        ? planBaseUrls[plan.planName]
-        : undefined;
+      const resolvedPlanBaseUrl =
+        envKey === "TARGET_BASE_URL" || prerequisite.key === "targetBaseUrl"
+          ? planBaseUrls[plan.planName]
+          : undefined;
       const defaultValue = prerequisite.secret
         ? undefined
         : (resolvedPlanBaseUrl ?? stringifyDefault(prerequisite.default));
-      mergeRequiredInput(inputs, { envKey, ...(typeof defaultValue === "string" ? { defaultValue } : {}) });
+      mergeRequiredInput(inputs, {
+        envKey,
+        ...(typeof defaultValue === "string" ? { defaultValue } : {}),
+      });
     }
   }
   return [...inputs.values()];
@@ -469,7 +544,10 @@ export async function buildShPrerequisitesSections(input: {
   );
   const prerequisitesSection = [
     ...workspaceEnvBinding.lines,
-    ...(await renderRunPrerequisitesSection({ workspaceRootAbs: input.workspaceRootAbs, workspace: input.workspace })),
+    ...(await renderRunPrerequisitesSection({
+      workspaceRootAbs: input.workspaceRootAbs,
+      workspace: input.workspace,
+    })),
     ...renderJsonHelperSection(),
     ...renderAuthRefreshFunction({
       reloadWorkspaceEnvCommand: workspaceEnvBinding.reloadCommand,

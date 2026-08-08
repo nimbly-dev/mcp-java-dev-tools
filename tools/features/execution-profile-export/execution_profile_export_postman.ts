@@ -22,11 +22,20 @@ export type ExportExecutionProfilePostmanResult = {
   environmentPathAbs: string;
 };
 
-type ScriptRef = { name: string; phase?: "preRuntime" | "postRuntime" | "postHealthcheck" | "prePlan" };
-type WorkspaceScript = { name: string; command: string; args?: string[]; appdir?: string; envFileArg?: string };
-type WorkspaceVariables = { bearerTokenEnv?: string };
+type ScriptRef = {
+  name: string;
+  phase?: "preRuntime" | "postRuntime" | "postHealthcheck" | "prePlan";
+};
+type WorkspaceScript = {
+  name: string;
+  command: string;
+  args?: string[];
+  appdir?: string;
+  envFileArg?: string;
+};
 type PlanPrerequisite = { key: string; required: boolean; secret: boolean; default?: unknown };
-const PROVISIONING_TOKEN_PATTERN = /\b(docker|compose|podman|kubectl|helm|terraform|ansible|vagrant|minikube)\b/i;
+const PROVISIONING_TOKEN_PATTERN =
+  /\b(docker|compose|podman|kubectl|helm|terraform|ansible|vagrant|minikube)\b/i;
 const POSTMAN_API_TOKEN_PATTERN = /\b(pm|postman)\s*\./;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -43,7 +52,11 @@ function normalizePlaceholders(value: string): string {
   return value.replace(/\$\{([^}]+)\}/g, (_full, key: string) => `{{${key.trim()}}}`);
 }
 
-function resolvePostmanRuntimeDefault(args: { key: string; value: string; exportId: string }): string {
+function resolvePostmanRuntimeDefault(args: {
+  key: string;
+  value: string;
+  exportId: string;
+}): string {
   const value = args.value.trim();
   if (args.key !== "runId") return args.value;
   if (!/\$\(\s*date\b/i.test(value)) return args.value;
@@ -62,7 +75,8 @@ function parseDotEnvText(input: string): Record<string, string> {
     const key = line.slice(0, idx).trim();
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
     let value = line.slice(idx + 1);
-    if (value.length >= 2 && value.startsWith("\"") && value.endsWith("\"")) value = value.slice(1, -1);
+    if (value.length >= 2 && value.startsWith('"') && value.endsWith('"'))
+      value = value.slice(1, -1);
     out[key] = value;
   }
   return out;
@@ -72,9 +86,12 @@ async function loadWorkspaceEnv(input: {
   workspaceRootAbs: string;
   workspace: Record<string, unknown> | undefined;
 }): Promise<Record<string, string>> {
-  const envFile = typeof input.workspace?.envFile === "string" ? input.workspace.envFile.trim() : "";
+  const envFile =
+    typeof input.workspace?.envFile === "string" ? input.workspace.envFile.trim() : "";
   if (!envFile) return {};
-  const envFileAbs = path.isAbsolute(envFile) ? envFile : path.resolve(input.workspaceRootAbs, envFile);
+  const envFileAbs = path.isAbsolute(envFile)
+    ? envFile
+    : path.resolve(input.workspaceRootAbs, envFile);
   const text = await fs.readFile(envFileAbs, "utf8").catch(() => "");
   return text ? parseDotEnvText(text) : {};
 }
@@ -100,7 +117,10 @@ function isSecretLikeKey(key: string): boolean {
   return /(?:^|[._-])(auth|bearer|token|secret|password|credential)(?:$|[._-])/i.test(key);
 }
 
-function resolveProfileProvidedContext(workspace: Record<string, unknown> | undefined, executionProfile: string): Map<string, string> {
+function resolveProfileProvidedContext(
+  workspace: Record<string, unknown> | undefined,
+  executionProfile: string,
+): Map<string, string> {
   const out = new Map<string, string>();
   const profiles = Array.isArray(workspace?.executionProfiles) ? workspace.executionProfiles : [];
   const selected = profiles.find((entry): entry is Record<string, unknown> => {
@@ -131,7 +151,10 @@ function isPostmanRunnableUrl(url: string): boolean {
   return false;
 }
 
-function normalizeScriptRefs(workspace: Record<string, unknown> | undefined, executionProfile: string): ScriptRef[] {
+function normalizeScriptRefs(
+  workspace: Record<string, unknown> | undefined,
+  executionProfile: string,
+): ScriptRef[] {
   const profiles = Array.isArray(workspace?.executionProfiles) ? workspace.executionProfiles : [];
   const selected = profiles.find((entry): entry is Record<string, unknown> => {
     return isRecord(entry) && asString(entry.executionProfile) === executionProfile;
@@ -147,7 +170,12 @@ function normalizeScriptRefs(workspace: Record<string, unknown> | undefined, exe
     const name = asString(item.name);
     if (!name) continue;
     const phase = asString(item.phase);
-    if (phase === "preRuntime" || phase === "postRuntime" || phase === "postHealthcheck" || phase === "prePlan") {
+    if (
+      phase === "preRuntime" ||
+      phase === "postRuntime" ||
+      phase === "postHealthcheck" ||
+      phase === "prePlan"
+    ) {
       refs.push({ name, phase });
     } else {
       refs.push({ name });
@@ -156,7 +184,9 @@ function normalizeScriptRefs(workspace: Record<string, unknown> | undefined, exe
   return refs;
 }
 
-function normalizeWorkspaceScripts(workspace: Record<string, unknown> | undefined): Map<string, WorkspaceScript> {
+function normalizeWorkspaceScripts(
+  workspace: Record<string, unknown> | undefined,
+): Map<string, WorkspaceScript> {
   const out = new Map<string, WorkspaceScript>();
   const raw = Array.isArray(workspace?.scripts) ? workspace.scripts : [];
   for (const item of raw) {
@@ -264,7 +294,9 @@ async function executePrerequisiteScripts(input: {
       }
     }
     const cwd = script.appdir
-      ? (path.isAbsolute(script.appdir) ? script.appdir : path.resolve(input.workspaceRootAbs, script.appdir))
+      ? path.isAbsolute(script.appdir)
+        ? script.appdir
+        : path.resolve(input.workspaceRootAbs, script.appdir)
       : input.workspaceRootAbs;
 
     await new Promise<void>((resolve, reject) => {
@@ -281,7 +313,11 @@ async function executePrerequisiteScripts(input: {
         stderr += String(chunk);
       });
       child.on("error", (error) => {
-        reject(new Error(`postman_export_blocked:prerequisite_script_failed:${ref.name}:${error.message}`));
+        reject(
+          new Error(
+            `postman_export_blocked:prerequisite_script_failed:${ref.name}:${error.message}`,
+          ),
+        );
       });
       child.on("close", (code) => {
         if (code === 0) {
@@ -399,7 +435,10 @@ export async function exportExecutionProfilePostman(
     executionProfile: manifest.executionProfile,
   });
 
-  const plansRootAbs = await resolveRegressionPlansRootAbs(input.workspaceRootAbs, input.projectName);
+  const plansRootAbs = await resolveRegressionPlansRootAbs(
+    input.workspaceRootAbs,
+    input.projectName,
+  );
   const planBaseUrls = await resolvePlanBaseUrls({
     workspaceRootAbs: input.workspaceRootAbs,
     workspace,
@@ -418,8 +457,10 @@ export async function exportExecutionProfilePostman(
     workspaceRootAbs: input.workspaceRootAbs,
     workspace,
   });
-  const profileProvidedContext = resolveProfileProvidedContext(workspace, manifest.executionProfile);
-  const vars = isRecord(workspace?.variables) ? (workspace.variables as WorkspaceVariables) : {};
+  const profileProvidedContext = resolveProfileProvidedContext(
+    workspace,
+    manifest.executionProfile,
+  );
   const orderedPlans = [...manifest.planRuns].sort((a, b) => a.order - b.order);
   for (const plan of orderedPlans) {
     planItemsByName.set(plan.planName, []);
@@ -446,14 +487,20 @@ export async function exportExecutionProfilePostman(
     for (const step of [...contract.steps].sort((a, b) => a.order - b.order)) {
       let resolvedHttp: Record<string, unknown> | undefined;
       try {
-        const resolved = resolveStepTransport(step, planBaseUrls[plan.planName] ? { apiBaseUrl: planBaseUrls[plan.planName] } : {});
+        const resolved = resolveStepTransport(
+          step,
+          planBaseUrls[plan.planName] ? { apiBaseUrl: planBaseUrls[plan.planName] } : {},
+        );
         resolvedHttp = isRecord(resolved.http) ? resolved.http : undefined;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (!message.startsWith("missing_context:")) {
           throw error;
         }
-        const fallbackHttp = isRecord(step.transport) && isRecord(step.transport.http) ? step.transport.http : undefined;
+        const fallbackHttp =
+          isRecord(step.transport) && isRecord(step.transport.http)
+            ? step.transport.http
+            : undefined;
         resolvedHttp = fallbackHttp;
       }
       const http = resolvedHttp;
@@ -467,11 +514,11 @@ export async function exportExecutionProfilePostman(
       const rawUrl =
         directUrl ??
         (pathTemplate
-          ? (/^https?:\/\//i.test(pathTemplate)
+          ? /^https?:\/\//i.test(pathTemplate)
             ? pathTemplate
-            : (/^\{\{[^}]+\}\}(?:\/|$)/.test(normalizePlaceholders(pathTemplate))
+            : /^\{\{[^}]+\}\}(?:\/|$)/.test(normalizePlaceholders(pathTemplate))
               ? pathTemplate
-              : `${baseUrl.replace(/\/$/, "")}${pathTemplate.startsWith("/") ? "" : "/"}${pathTemplate}`))
+              : `${baseUrl.replace(/\/$/, "")}${pathTemplate.startsWith("/") ? "" : "/"}${pathTemplate}`
           : undefined);
       if (!rawUrl) {
         throw new Error(`postman_export_blocked:url_unresolved:${plan.planName}:${step.id}`);
@@ -483,18 +530,17 @@ export async function exportExecutionProfilePostman(
       collectUrlAuthorityVariables(normalizedUrl, urlAuthorityVariables);
       const stepVariables = new Set<string>();
       const extractMappings = Array.isArray(step.extract) ? step.extract : [];
-      const requestItem =
-        buildRequestItem({
-          planName: plan.planName,
-          stepOrder: step.order,
-          stepId: step.id,
-          method,
-          rawUrl,
-          headers: isRecord(http.headers) ? http.headers : undefined,
-          body: http.body,
-          variables: stepVariables,
-          ...(extractMappings.length > 0 ? { extract: extractMappings } : {}),
-        });
+      const requestItem = buildRequestItem({
+        planName: plan.planName,
+        stepOrder: step.order,
+        stepId: step.id,
+        method,
+        rawUrl,
+        headers: isRecord(http.headers) ? http.headers : undefined,
+        body: http.body,
+        variables: stepVariables,
+        ...(extractMappings.length > 0 ? { extract: extractMappings } : {}),
+      });
       const bucket = planItemsByName.get(plan.planName);
       if (bucket) {
         bucket.push(requestItem);
@@ -550,6 +596,15 @@ export async function exportExecutionProfilePostman(
   await fs.writeFile(collectionPathAbs, `${JSON.stringify(collection, null, 2)}\n`, "utf8");
 
   const normalizedBindings = new Map<string, string>();
+  const projectContextBindings =
+    isRecord(workspace?.variables) && isRecord(workspace.variables.contextBindings)
+      ? workspace.variables.contextBindings
+      : {};
+  for (const [key, envKey] of Object.entries(projectContextBindings)) {
+    const k = key.trim();
+    const v = asString(envKey);
+    if (k.length > 0 && v) normalizedBindings.set(k, v);
+  }
   if (isRecord(input.contextBindings)) {
     for (const [key, envKey] of Object.entries(input.contextBindings)) {
       const k = key.trim();
@@ -573,17 +628,18 @@ export async function exportExecutionProfilePostman(
     } else {
       const bindingEnvKey = normalizedBindings.get(key);
       if (bindingEnvKey) {
-        const bound = workspaceEnv[bindingEnvKey];
-        if (typeof bound !== "string" || bound.trim().length === 0) {
-          throw new Error(`postman_export_blocked:binding_env_missing:${key}:${bindingEnvKey}`);
+        const secretBinding = prerequisiteSecretKeys.has(key) || isSecretLikeKey(key);
+        if (!secretBinding || defaults.includeResolvedSecrets) {
+          const bound = workspaceEnv[bindingEnvKey];
+          if (typeof bound !== "string" || bound.trim().length === 0) {
+            throw new Error(`postman_export_blocked:binding_env_missing:${key}:${bindingEnvKey}`);
+          }
+          value = bound;
         }
-        value = bound;
       } else if (profileProvidedContext.has(key)) {
         value = profileProvidedContext.get(key) ?? "";
       } else if (key === "API_BASE_URL") {
         value = asString(planBaseUrls[orderedPlans[0]?.planName ?? ""]) ?? "";
-      } else if (key === "auth.bearer" && defaults.includeResolvedSecrets) {
-        value = workspaceEnv[asString(vars.bearerTokenEnv ?? "") ?? ""] ?? prerequisiteDefaults.get(key) ?? "";
       } else {
         value = resolvePostmanRuntimeDefault({
           key,
@@ -617,9 +673,7 @@ export async function exportExecutionProfilePostman(
         key,
         value: resolvedVariableValues.get(key) ?? "",
         type:
-          (allPrerequisites.get(key)?.secret === true) || isSecretLikeKey(key)
-            ? "secret"
-            : "default",
+          allPrerequisites.get(key)?.secret === true || isSecretLikeKey(key) ? "secret" : "default",
       })),
     _postman_variable_scope: "environment",
     _postman_exported_using: "mcp-java-dev-tools",

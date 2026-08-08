@@ -176,8 +176,10 @@ async function executeBlackboxFixture(args: {
   contract: SecurityPlanContract;
   attackStatusCode: number;
   calls?: Array<Record<string, unknown>>;
+  prepareWorkspace?: (args: { root: string; projectName: string }) => void;
 }): Promise<Awaited<ReturnType<typeof executeSecurityRuntimeSuite>>> {
   writeSecurityPlanFixture({ root: args.root, contract: args.contract });
+  args.prepareWorkspace?.({ root: args.root, projectName: "demo" });
   const envName = "SECURITY_TESTTOKEN";
   const previous = process.env[envName];
   const usesDefaultTestToken = args.contract.authenticationProfiles.some(
@@ -838,6 +840,75 @@ test("[UT][security-blackbox] blocks incomplete execution when a credential refe
     assert.equal(result.status, "blocked");
     assert.equal(result.reasonCode, "security_blackbox_coverage_incomplete");
     assert.equal(result.planRuns[0]?.runStatus, "blocked");
+  } finally {
+    if (typeof previous === "string") process.env[envName] = previous;
+    else delete process.env[envName];
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[UT][security-blackbox] resolves a credentialRef through the selected project context binding", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-project-credential-"));
+  const envName = "MCP_JVM_SECURITY_AUTH_BEARER";
+  const previous = process.env[envName];
+  delete process.env[envName];
+  try {
+    const contract = blackboxContract();
+    contract.authenticationProfiles = [
+      {
+        id: "limited-user",
+        kind: "bearer",
+        credentialRef: "security.limitedUserToken",
+      },
+    ];
+    contract.customCases![0]!.authenticationProfileRef = "limited-user";
+    const calls: Array<Record<string, unknown>> = [];
+    const result = await executeBlackboxFixture({
+      root,
+      contract,
+      attackStatusCode: 403,
+      calls,
+      prepareWorkspace: ({ root: workspaceRootAbs, projectName }) => {
+        const projectRootAbs = path.join(workspaceRootAbs, ".mcpjvm", projectName);
+        const projectsPathAbs = path.join(projectRootAbs, "projects.json");
+        const projectArtifact = JSON.parse(fs.readFileSync(projectsPathAbs, "utf8")) as {
+          workspaces: Array<Record<string, unknown>>;
+        };
+        projectArtifact.workspaces[0] = {
+          ...projectArtifact.workspaces[0],
+          envFile: `.mcpjvm/${projectName}/.env`,
+          variables: { contextBindings: { "security.limitedUserToken": envName } },
+        };
+        fs.writeFileSync(projectsPathAbs, JSON.stringify(projectArtifact), "utf8");
+        fs.writeFileSync(
+          path.join(projectRootAbs, ".env"),
+          `${envName}=test-bearer-token\n`,
+          "utf8",
+        );
+      },
+    });
+
+    assert.equal(result.status, "pass");
+    assert.equal(calls.length, 2);
+    for (const call of calls) {
+      const headers = (call.request as Record<string, unknown>).headers as Record<string, unknown>;
+      assert.equal(headers.Authorization, "Bearer test-bearer-token");
+    }
+    const executionResult = fs.readFileSync(
+      path.join(
+        root,
+        ".mcpjvm",
+        "demo",
+        "plans",
+        "security",
+        "authorization",
+        "runs",
+        result.planRuns[0]?.runId ?? "",
+        "execution.result.json",
+      ),
+      "utf8",
+    );
+    assert.equal(executionResult.includes("test-bearer-token"), false);
   } finally {
     if (typeof previous === "string") process.env[envName] = previous;
     else delete process.env[envName];
