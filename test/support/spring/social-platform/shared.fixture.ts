@@ -231,6 +231,8 @@ export const kclProcessorSourceFileAbs = path.join(
 );
 
 const LOG_TAIL_LIMIT = 200;
+const SPRING_BOOT_STARTUP_TIMEOUT_MS = 60_000;
+const MAX_AUTOMATIC_SPRING_BOOT_STARTUP_ATTEMPTS = 2;
 
 type RunningApp = {
   apiBaseUrl: string;
@@ -362,7 +364,7 @@ function compareSemanticVersions(left: string, right: string): number {
 
 async function waitFor(
   check: () => Promise<boolean>,
-  args: { timeoutMs: number; intervalMs?: number; failureMessage: string },
+  args: { timeoutMs: number; intervalMs?: number; failureMessage: string | (() => string) },
 ): Promise<void> {
   const timeoutAt = Date.now() + args.timeoutMs;
   const intervalMs = args.intervalMs ?? 500;
@@ -370,7 +372,9 @@ async function waitFor(
     if (await check()) return;
     await delay(intervalMs);
   }
-  throw new Error(args.failureMessage);
+  throw new Error(
+    typeof args.failureMessage === "function" ? args.failureMessage() : args.failureMessage,
+  );
 }
 
 async function isHttpOk(url: string): Promise<boolean> {
@@ -527,70 +531,91 @@ async function startSpringBootAppWithAgent(args: {
   await assertFileExists(agentJarAbs, "java agent jar");
   await assertFileExists(appJarAbs, args.appJarLabel);
 
-  const appPort = args.appPort ?? (await allocateFreePort());
-  const probePort = args.probePort ?? (await allocateFreePort());
-  const apiBaseUrl = `http://127.0.0.1:${appPort}`;
-  const probeBaseUrl = `http://127.0.0.1:${probePort}`;
-  const logBuffer: string[] = [];
-
   const agentInclude =
     args.agentInclude?.trim() ?? args.defaultAgentInclude ?? "com.example.social.**";
   const agentExclude = args.agentExclude?.trim() ?? args.defaultAgentExclude ?? "**.config.**";
-  const agentOptions = [`host=127.0.0.1`, `port=${probePort}`];
-  agentOptions.push(`probeId=${args.appLabel}`);
-  if (agentInclude.length > 0) agentOptions.push(`include=${agentInclude}`);
-  if (agentExclude.length > 0) agentOptions.push(`exclude=${agentExclude}`);
-  const javaAgentArg = `-javaagent:${agentJarAbs}=` + agentOptions.join(";");
+  const attemptCount =
+    args.appPort === undefined && args.probePort === undefined
+      ? MAX_AUTOMATIC_SPRING_BOOT_STARTUP_ATTEMPTS
+      : 1;
+  let lastStartupError: unknown;
 
-  const javaArgs = [javaAgentArg];
-  if (typeof args.actuateAuthToken === "string" && args.actuateAuthToken.trim().length > 0) {
-    javaArgs.push(`-Dmcp.probe.auth.actuate.token=${args.actuateAuthToken.trim()}`);
-  }
-  if (Array.isArray(args.extraJavaArgs) && args.extraJavaArgs.length > 0) {
-    javaArgs.push(...args.extraJavaArgs);
-  }
-  javaArgs.push("-jar", appJarAbs, `--server.port=${appPort}`);
+  for (let attempt = 1; attempt <= attemptCount; attempt += 1) {
+    const appPort = args.appPort ?? (await allocateFreePort());
+    const probePort = args.probePort ?? (await allocateFreePort());
+    const apiBaseUrl = `http://127.0.0.1:${appPort}`;
+    const probeBaseUrl = `http://127.0.0.1:${probePort}`;
+    const logBuffer: string[] = [];
+    let launchError: Error | undefined;
+    const agentOptions = [`host=127.0.0.1`, `port=${probePort}`];
+    agentOptions.push(`probeId=${args.appLabel}`);
+    if (agentInclude.length > 0) agentOptions.push(`include=${agentInclude}`);
+    if (agentExclude.length > 0) agentOptions.push(`exclude=${agentExclude}`);
+    const javaAgentArg = `-javaagent:${agentJarAbs}=` + agentOptions.join(";");
 
-  const child = spawn("java", javaArgs, {
-    cwd: args.appProjectRootAbs,
-    env: { ...process.env },
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-  });
+    const javaArgs = [javaAgentArg];
+    if (typeof args.actuateAuthToken === "string" && args.actuateAuthToken.trim().length > 0) {
+      javaArgs.push(`-Dmcp.probe.auth.actuate.token=${args.actuateAuthToken.trim()}`);
+    }
+    if (Array.isArray(args.extraJavaArgs) && args.extraJavaArgs.length > 0) {
+      javaArgs.push(...args.extraJavaArgs);
+    }
+    javaArgs.push("-jar", appJarAbs, `--server.port=${appPort}`);
 
-  child.stdout?.on("data", (chunk) => appendLog(logBuffer, chunk));
-  child.stderr?.on("data", (chunk) => appendLog(logBuffer, chunk));
+    const child = spawn("java", javaArgs, {
+      cwd: args.appProjectRootAbs,
+      env: { ...process.env },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
 
-  try {
-    await waitFor(
-      async () => {
-        if (child.exitCode !== null) return false;
-        const appReady = await isHttpOk(`${apiBaseUrl}/actuator/health`);
-        if (!appReady) return false;
-        return await isHttpOk(`${probeBaseUrl}/__probe/status?key=fixture.health.Check#noop:1`);
-      },
-      {
-        timeoutMs: 60_000,
-        intervalMs: 750,
-        failureMessage:
-          `${args.appLabel} failed to become ready. apiBaseUrl=${apiBaseUrl} probeBaseUrl=${probeBaseUrl}\n` +
-          logBuffer.join(""),
-      },
-    );
-  } catch (error) {
-    await forceStop(child);
-    throw error;
-  }
+    child.stdout?.on("data", (chunk) => appendLog(logBuffer, chunk));
+    child.stderr?.on("data", (chunk) => appendLog(logBuffer, chunk));
+    child.once("error", (error) => {
+      launchError = error;
+    });
 
-  return {
-    apiBaseUrl,
-    probeBaseUrl,
-    pid: child.pid ?? 0,
-    stop: async () => {
+    try {
+      await waitFor(
+        async () => {
+          if (launchError || child.exitCode !== null) return false;
+          const appReady = await isHttpOk(`${apiBaseUrl}/actuator/health`);
+          if (!appReady) return false;
+          return await isHttpOk(`${probeBaseUrl}/__probe/status?key=fixture.health.Check#noop:1`);
+        },
+        {
+          timeoutMs: SPRING_BOOT_STARTUP_TIMEOUT_MS,
+          intervalMs: 750,
+          failureMessage: () =>
+            `${args.appLabel} failed to become ready. attempt=${attempt}/${attemptCount} ` +
+            `apiBaseUrl=${apiBaseUrl} probeBaseUrl=${probeBaseUrl}` +
+            (launchError ? ` launchError=${launchError.message}` : "") +
+            `\n${logBuffer.join("")}`,
+        },
+      );
+    } catch (error) {
+      const retrySilentlyStalledStartup =
+        attempt < attemptCount && child.exitCode === null && !launchError && logBuffer.length === 0;
       await forceStop(child);
-    },
-    logs: () => logBuffer.join(""),
-  };
+      lastStartupError = error;
+      if (retrySilentlyStalledStartup) continue;
+      throw error;
+    }
+
+    return {
+      apiBaseUrl,
+      probeBaseUrl,
+      pid: child.pid ?? 0,
+      stop: async () => {
+        await forceStop(child);
+      },
+      logs: () => logBuffer.join(""),
+    };
+  }
+
+  throw lastStartupError instanceof Error
+    ? lastStartupError
+    : new Error(`${args.appLabel} failed to become ready.`);
 }
 
 export async function resolveJavaAgentJar(): Promise<string> {

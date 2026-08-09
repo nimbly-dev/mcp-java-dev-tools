@@ -6,13 +6,12 @@ import { CONFIG_DEFAULTS } from "@tools-core/probe_defaults";
 import { loadProbeRegistry } from "@tools-core/probe-registry";
 import { isAllowedProbeHost } from "@tools-feature-jvm-lifecycle";
 
-import { asString, escapePsSingleQuoted, escapeShSingleQuoted, isRecord } from "./common";
+import { asString, isRecord } from "./common";
 
 const HELPER_ARTIFACT_ENV = "MCP_JAVA_ATTACH_HELPER_JAR";
 const AGENT_ARTIFACT_ENV = "MCP_JAVA_AGENT_JAR";
 const CONFIG_FILE_NAME = "portable-sidecar-attach.config.json";
 const RUNNER_FILE_NAME = "run-portable-sidecar-lifecycle.js";
-const EVIDENCE_FILE_NAME = "portable-sidecar.lifecycle.json";
 const MAX_PATTERN_LENGTH = 2_048;
 
 export type PortableDynamicAttachExport = {
