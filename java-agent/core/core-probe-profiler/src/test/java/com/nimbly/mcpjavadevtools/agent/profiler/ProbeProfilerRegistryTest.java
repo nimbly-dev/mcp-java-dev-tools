@@ -42,4 +42,18 @@ class ProbeProfilerRegistryTest {
     assertTrue(state.supported());
     ProbeProfilerRegistry.active().stop(new ProfilerStopRequest("explicit-jfr", null, "jfr"));
   }
+
+  @Test
+  void implicitStartUsesTheProviderReportedAsReady() {
+    ProbeProfilerRegistry.configureDefault(tempDirectory);
+
+    ProfilerStateSnapshot beforeStart = ProbeProfilerRegistry.active().state();
+    ProfilerStateSnapshot started = ProbeProfilerRegistry.start(
+        new ProfilerStartRequest(null, "implicit", "cpu", null, null, "jfr")
+    );
+
+    assertEquals(beforeStart.provider(), started.provider());
+    assertEquals(beforeStart.supported(), started.supported());
+    ProbeProfilerRegistry.active().stop(new ProfilerStopRequest("implicit", null, "jfr"));
+  }
 }

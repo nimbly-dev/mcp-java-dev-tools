@@ -12,9 +12,16 @@ import {
 } from "@tools-feature-security-suite";
 import type { SecurityPlanContract } from "@tools-security-execution-plan-spec";
 
-function startServer(): Promise<{ server: http.Server; port: number }> {
+function startServer(): Promise<{
+  server: http.Server;
+  port: number;
+  requests: Array<{ authorization?: string }>;
+}> {
   return new Promise((resolve, reject) => {
-    const server = http.createServer((_request, response) => {
+    const requests: Array<{ authorization?: string }> = [];
+    const server = http.createServer((request, response) => {
+      const authorization = request.headers.authorization;
+      requests.push({ ...(typeof authorization === "string" ? { authorization } : {}) });
       response.statusCode = 403;
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({ status: 403 }));
@@ -26,7 +33,7 @@ function startServer(): Promise<{ server: http.Server; port: number }> {
         reject(new Error("security sidecar integration server did not expose a TCP address"));
         return;
       }
-      resolve({ server, port: address.port });
+      resolve({ server, port: address.port, requests });
     });
   });
 }
@@ -218,6 +225,95 @@ test("[IT][security-sidecar] routes a validated plan through real HTTP transport
     assert.equal(artifact.artifact.coverage.complete, true);
     assert.ok(artifact.artifact.evidence.some((entry) => entry.kind === "probe"));
     assert.ok(artifact.artifact.evidence.some((entry) => entry.kind === "runtime"));
+  } finally {
+    await stopServer(runtime.server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("[IT][security-sidecar] resolves project-bound credentials for Sidecar HTTP requests", async () => {
+  const runtime = await startServer();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-jvm-security-sidecar-credential-it-"));
+  try {
+    const contract = sidecarContract(`http://127.0.0.1:${runtime.port}`) as Extract<
+      SecurityPlanContract,
+      { securityMode: "sidecar_assisted" }
+    >;
+    contract.authenticationProfiles = [
+      {
+        id: "limited-user",
+        kind: "bearer",
+        role: "customer",
+        credentialRef: "security.limitedUserToken",
+      },
+    ];
+    contract.attackProfiles[0]!.authenticationProfileRef = "limited-user";
+    writeFixture(root, contract);
+
+    const projectRootAbs = path.join(root, ".mcpjvm", "demo");
+    const projectsPathAbs = path.join(projectRootAbs, "projects.json");
+    const projectArtifact = JSON.parse(fs.readFileSync(projectsPathAbs, "utf8")) as {
+      workspaces: Array<Record<string, unknown>>;
+    };
+    projectArtifact.workspaces[0] = {
+      ...projectArtifact.workspaces[0],
+      envFile: ".mcpjvm/demo/.env",
+      variables: { contextBindings: { "security.limitedUserToken": "MCP_JVM_SIDECAR_AUTH" } },
+    };
+    fs.writeFileSync(projectsPathAbs, JSON.stringify(projectArtifact), "utf8");
+    fs.writeFileSync(
+      path.join(projectRootAbs, ".env"),
+      "MCP_JVM_SIDECAR_AUTH=sidecar-integration-token\n",
+      "utf8",
+    );
+
+    const result = await executeSecurityRuntimeSuite({
+      workspaceRootAbs: root,
+      projectName: "demo",
+      executionProfile: "security-ci",
+      mcpInvoke: async ({ toolName, input }) => {
+        if (toolName === "transport_execute") {
+          const transport = await dispatchTransportExecutionAction({
+            protocol: "http",
+            request: input.request as Record<string, unknown>,
+            wrappedOnly: true,
+            allowNonWrappedExecutable: false,
+          });
+          return { structuredContent: transport.structuredContent };
+        }
+        if (input.action === "wait_for_hit") {
+          return {
+            structuredContent: {
+              result: { hit: true },
+              response: {
+                status: 200,
+                json: { lastHitEpoch: Date.now(), runtime: { runtimeInstanceId: "runtime-1" } },
+              },
+            },
+          };
+        }
+        return {
+          structuredContent: {
+            response: {
+              status: 200,
+              json: {
+                hitCount: 0,
+                lastHitEpoch: 0,
+                lineResolvable: true,
+                lineValidation: "resolvable",
+                runtime: { runtimeInstanceId: "runtime-1" },
+              },
+            },
+          },
+        };
+      },
+    });
+
+    assert.equal(result.status, "pass");
+    assert.deepEqual(runtime.requests, [
+      { authorization: "Bearer sidecar-integration-token" },
+      { authorization: "Bearer sidecar-integration-token" },
+    ]);
   } finally {
     await stopServer(runtime.server);
     fs.rmSync(root, { recursive: true, force: true });

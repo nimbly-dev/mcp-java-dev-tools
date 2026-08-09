@@ -43,7 +43,7 @@ public final class ProbeProfilerRegistry {
 
   private static String providerIntent(ProfilerStartRequest request) {
     if (request == null || request.provider() == null || request.provider().isBlank()) {
-      return PROVIDER_ASYNC;
+      return PROVIDER_AUTO;
     }
     return request.provider().trim().toLowerCase();
   }

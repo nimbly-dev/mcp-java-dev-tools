@@ -175,13 +175,10 @@ async function executeSecurityPlan(args: {
       reasonMeta: { securityMode: "blackbox", planName: args.planName },
     };
   }
-  const authenticatedCredentialRefs =
-    validated.contract.securityMode === "blackbox"
-      ? validated.contract.authenticationProfiles
-          .filter((profile) => profile.kind !== "anonymous")
-          .map((profile) => profile.credentialRef)
-          .filter((credentialRef): credentialRef is string => typeof credentialRef === "string")
-      : [];
+  const authenticatedCredentialRefs = validated.contract.authenticationProfiles
+    .filter((profile) => profile.kind !== "anonymous")
+    .map((profile) => profile.credentialRef)
+    .filter((credentialRef): credentialRef is string => typeof credentialRef === "string");
   const credentialResolution = await resolveSecurityRuntimeCredentialContext({
     workspaceRootAbs: args.input.workspaceRootAbs,
     projectName: args.input.projectName,
@@ -241,6 +238,7 @@ async function executeSecurityPlan(args: {
           runId: `${args.input.suiteRunId ?? "security"}-${args.planName}`,
           contract: validated.contract,
           mcpInvoke: args.input.mcpInvoke,
+          runtimeCredentialContext: credentialResolution.credentialContext,
         });
   return {
     status: modeResult.status,

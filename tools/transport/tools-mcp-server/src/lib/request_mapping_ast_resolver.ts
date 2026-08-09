@@ -36,10 +36,41 @@ async function fileExists(fileAbs: string): Promise<boolean> {
   }
 }
 
-async function looksLikeRepoRoot(dirAbs: string): Promise<boolean> {
+async function configuredClasspathExists(configuredClasspath: string): Promise<boolean> {
+  const entries = configuredClasspath
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  if (entries.length === 0) return false;
+  for (const entry of entries) {
+    if (entry.includes("*") || entry.includes("?")) return true;
+    if (!(await fileExists(entry))) return false;
+  }
+  return true;
+}
+
+async function looksLikeResolverRoot(dirAbs: string): Promise<boolean> {
   const packageJsonAbs = path.join(dirAbs, "package.json");
   const javaAgentPomAbs = path.join(dirAbs, "java-agent", "pom.xml");
-  return (await fileExists(packageJsonAbs)) && (await fileExists(javaAgentPomAbs));
+  const bundledCoreMapperTargetAbs = path.join(
+    dirAbs,
+    "java-agent",
+    "core",
+    "core-entrypoint-mapper",
+    "target",
+  );
+  const bundledLegacyMapperTargetAbs = path.join(
+    dirAbs,
+    "java-agent",
+    "request-mapping-resolver",
+    "target",
+  );
+  if (!(await fileExists(packageJsonAbs))) return false;
+  return (
+    (await fileExists(javaAgentPomAbs)) ||
+    (await fileExists(bundledCoreMapperTargetAbs)) ||
+    (await fileExists(bundledLegacyMapperTargetAbs))
+  );
 }
 
 async function findRepoRoots(): Promise<string[]> {
@@ -50,7 +81,7 @@ async function findRepoRoots(): Promise<string[]> {
     const normalized = path.resolve(candidateAbs);
     if (seen.has(normalized)) return;
     seen.add(normalized);
-    if (await looksLikeRepoRoot(normalized)) {
+    if (await looksLikeResolverRoot(normalized)) {
       out.push(normalized);
     }
   };
@@ -147,7 +178,7 @@ async function collectVersionedJarCandidates(
 
 async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
   const configuredClasspath = process.env[AST_RESOLVER_CLASSPATH_ENV]?.trim();
-  if (configuredClasspath) {
+  if (configuredClasspath && (await configuredClasspathExists(configuredClasspath))) {
     return {
       args: ["-cp", configuredClasspath, CORE_REQUEST_MAPPER_MAIN_CLASS],
       evidence: [`envClasspath=${configuredClasspath}`],
@@ -155,7 +186,7 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
   }
 
   const configured = process.env[AST_RESOLVER_JAR_ENV]?.trim();
-  if (configured) {
+  if (configured && (await fileExists(configured))) {
     return {
       args: ["-jar", configured],
       evidence: [`envJarPath=${configured}`],

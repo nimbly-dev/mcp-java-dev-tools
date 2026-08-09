@@ -419,6 +419,7 @@ async function executeCase(args: {
   attack: SecurityAttackProfile;
   mcpInvoke: SecurityMcpToolInvoker;
   activeRuntimeByProbe: Map<string, string>;
+  runtimeCredentialContext?: Record<string, string>;
   rule?: SecurityBlackboxKnowledgeRule;
 }): Promise<SidecarCaseResult> {
   const targets = linkedTargets(args.contract, args.attack);
@@ -451,6 +452,9 @@ async function executeCase(args: {
       entrypoint,
       attackRequest: args.attack.baseline,
       authenticationProfile,
+      ...(args.runtimeCredentialContext
+        ? { runtimeCredentialContext: args.runtimeCredentialContext }
+        : {}),
     });
     const baselineOut = await args.mcpInvoke({
       toolName: "transport_execute",
@@ -490,6 +494,9 @@ async function executeCase(args: {
       entrypoint,
       attackRequest: args.attack.attack,
       authenticationProfile,
+      ...(args.runtimeCredentialContext
+        ? { runtimeCredentialContext: args.runtimeCredentialContext }
+        : {}),
     });
     const attackOut = await args.mcpInvoke({
       toolName: "transport_execute",
@@ -637,6 +644,7 @@ export async function executeSidecarAssistedSecurityMode(args: {
   runId?: string;
   contract?: SidecarSecurityPlanContract;
   mcpInvoke?: SecurityMcpToolInvoker;
+  runtimeCredentialContext?: Record<string, string>;
 }): Promise<SecurityModeExecutionResult> {
   if (
     !args.contract ||
@@ -736,6 +744,9 @@ export async function executeSidecarAssistedSecurityMode(args: {
         mcpInvoke: args.mcpInvoke,
         activeRuntimeByProbe,
       };
+      if (args.runtimeCredentialContext) {
+        executeArgs.runtimeCredentialContext = args.runtimeCredentialContext;
+      }
       const rule = selectedPacks
         ? findApplicableSecurityBlackboxRule({
             packs: selectedPacks,

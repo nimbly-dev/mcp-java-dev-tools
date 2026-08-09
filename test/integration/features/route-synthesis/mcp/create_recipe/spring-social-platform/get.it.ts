@@ -17,6 +17,10 @@ test.before(async () => {
   mcp = await startMcpClient({
     workspaceRootAbs: socialPlatformRootAbs,
     probeBaseUrl: runtime.probeBaseUrl,
+    extraEnv: {
+      MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR: "C:\\stale\\request-mapping-resolver.jar",
+      MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH: "C:\\stale\\request-mapping-resolver.jar",
+    },
   });
 });
 
@@ -25,7 +29,7 @@ test.after(async () => {
   await runtime?.stop();
 });
 
-test("[IT][route_synthesis][create_recipe] listPosts recipe is synthesized and executable", async () => {
+test("[IT][route_synthesis][create_recipe] listPosts falls back from stale resolver overrides", async () => {
   if (!runtime || !mcp) throw new Error("runtime/mcp not initialized");
 
   const recipe = (await mcp.client.callTool({
