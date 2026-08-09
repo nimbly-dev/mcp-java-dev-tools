@@ -1,0 +1,24 @@
+{
+  "defaultProfile": "dev",
+  "profiles": {
+    "dev": {
+      "probes": {
+        "post-app": {
+          "baseUrl": "http://127.0.0.1:62411",
+          "include": [
+            "com.example.social.**"
+          ],
+          "exclude": [
+            "**.config.**"
+          ]
+        }
+      }
+    }
+  },
+  "workspaces": [
+    {
+      "root": "C:\\Users\\Altheo\\repository\\mcp-jvm-debugger\\test\\fixtures\\spring-apps\\social-platform\\post-service\\post-app",
+      "profile": "dev"
+    }
+  ]
+}
