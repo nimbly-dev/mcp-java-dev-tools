@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 
 import { getContractVersion } from "@/config/contract-version";
 import type {
@@ -8,16 +8,29 @@ import type {
   JvmAstRequestMappingResult,
 } from "@tools-registry/models/synthesis/request_mapping_ast.model";
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_INITIAL_TIMEOUT_MS = 15_000;
+const DEFAULT_RECONCILIATION_TIMEOUT_MS = 15_000;
 const AST_RESOLVER_JAR_ENV = "MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR";
 const AST_RESOLVER_CLASSPATH_ENV = "MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH";
 const JAVA_BIN_ENV = "MCP_JAVA_BIN";
 const CORE_REQUEST_MAPPER_MAIN_CLASS =
   "com.nimbly.mcpjavadevtools.requestmapping.RequestMappingResolverMain";
 
-type ResolverLaunch = {
+export type ResolverLaunch = {
   args: string[];
   evidence: string[];
+};
+
+export type RequestMappingResolverRunOptions = {
+  initialTimeoutMs?: number;
+  reconciliationTimeoutMs?: number;
+  spawnResolver?: (javaBin: string, args: string[]) => RequestMappingResolverChild;
+};
+
+export type RequestMappingResolverChild = Pick<ChildProcess, "kill" | "on"> & {
+  stdin: NonNullable<ChildProcess["stdin"]>;
+  stdout: NonNullable<ChildProcess["stdout"]>;
+  stderr: NonNullable<ChildProcess["stderr"]>;
 };
 
 type VersionedJarCandidate = {
@@ -414,42 +427,47 @@ function buildUnavailableFailure(reason: string, evidence: string[]): JvmAstRequ
   };
 }
 
-async function runRequestMappingResolver(input: object): Promise<unknown> {
-  const launch = await resolveLaunch();
-  if (!launch) {
-    const repoRoots = await findRepoRoots();
-    return buildUnavailableFailure("resolver_jar_missing=true", [
-      `envJarPath=${process.env[AST_RESOLVER_JAR_ENV] ?? "(unset)"}`,
-      `envClasspath=${process.env[AST_RESOLVER_CLASSPATH_ENV] ?? "(unset)"}`,
-      `cwd=${process.cwd()}`,
-      `resolverDir=${__dirname}`,
-      `detectedRepoRoots=${repoRoots.length > 0 ? repoRoots.join("|") : "(none)"}`,
-    ]);
-  }
-
+export async function runRequestMappingResolverProcess(
+  launch: ResolverLaunch,
+  input: object,
+  options: RequestMappingResolverRunOptions = {},
+): Promise<unknown> {
   const javaBin = process.env[JAVA_BIN_ENV]?.trim() || "java";
-
   return await new Promise<unknown>((resolve) => {
-    const child = spawn(javaBin, launch.args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    const child =
+      options.spawnResolver?.(javaBin, launch.args) ??
+      spawn(javaBin, launch.args, {
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+      });
 
     let stdout = "";
     let stderr = "";
     let settled = false;
-    const timeout = setTimeout(() => {
+    let reconciliationTimeout: NodeJS.Timeout | undefined;
+    const initialTimeoutMs = options.initialTimeoutMs ?? DEFAULT_INITIAL_TIMEOUT_MS;
+    const reconciliationTimeoutMs =
+      options.reconciliationTimeoutMs ?? DEFAULT_RECONCILIATION_TIMEOUT_MS;
+    const finish = (result: JvmAstRequestMappingResult): void => {
       if (settled) return;
       settled = true;
-      child.kill();
-      resolve(
-        buildUnavailableFailure("resolver_process_timeout=true", [
-          `launchArgs=${launch.args.join(" ")}`,
-          `timeoutMs=${DEFAULT_TIMEOUT_MS}`,
-          ...launch.evidence,
-        ]),
-      );
-    }, DEFAULT_TIMEOUT_MS);
+      clearTimeout(initialTimeout);
+      if (reconciliationTimeout) clearTimeout(reconciliationTimeout);
+      resolve(result);
+    };
+    const initialTimeout = setTimeout(() => {
+      reconciliationTimeout = setTimeout(() => {
+        child.kill();
+        finish(
+          buildUnavailableFailure("resolver_process_timeout=true", [
+            `launchArgs=${launch.args.join(" ")}`,
+            `timeoutMs=${initialTimeoutMs}`,
+            `reconciliationTimeoutMs=${reconciliationTimeoutMs}`,
+            ...launch.evidence,
+          ]),
+        );
+      }, reconciliationTimeoutMs);
+    }, initialTimeoutMs);
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
@@ -462,10 +480,7 @@ async function runRequestMappingResolver(input: object): Promise<unknown> {
     });
 
     child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      resolve(
+      finish(
         buildUnavailableFailure("resolver_process_spawn_failed=true", [
           `javaBin=${javaBin}`,
           `launchArgs=${launch.args.join(" ")}`,
@@ -477,10 +492,8 @@ async function runRequestMappingResolver(input: object): Promise<unknown> {
 
     child.on("close", (code) => {
       if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
       if (code !== 0) {
-        resolve(
+        finish(
           buildUnavailableFailure("resolver_process_nonzero_exit=true", [
             `exitCode=${String(code)}`,
             `launchArgs=${launch.args.join(" ")}`,
@@ -493,9 +506,9 @@ async function runRequestMappingResolver(input: object): Promise<unknown> {
 
       try {
         const parsed = JSON.parse(stdout.trim()) as unknown;
-        resolve(parsed);
+        finish(parsed as JvmAstRequestMappingResult);
       } catch (err) {
-        resolve(
+        finish(
           buildUnavailableFailure("resolver_output_invalid_json=true", [
             `launchArgs=${launch.args.join(" ")}`,
             `stdout=${stdout.trim() || "(empty)"}`,
@@ -509,6 +522,21 @@ async function runRequestMappingResolver(input: object): Promise<unknown> {
 
     child.stdin.end(JSON.stringify(input));
   });
+}
+
+async function runRequestMappingResolver(input: object): Promise<unknown> {
+  const launch = await resolveLaunch();
+  if (!launch) {
+    const repoRoots = await findRepoRoots();
+    return buildUnavailableFailure("resolver_jar_missing=true", [
+      `envJarPath=${process.env[AST_RESOLVER_JAR_ENV] ?? "(unset)"}`,
+      `envClasspath=${process.env[AST_RESOLVER_CLASSPATH_ENV] ?? "(unset)"}`,
+      `cwd=${process.cwd()}`,
+      `resolverDir=${__dirname}`,
+      `detectedRepoRoots=${repoRoots.length > 0 ? repoRoots.join("|") : "(none)"}`,
+    ]);
+  }
+  return await runRequestMappingResolverProcess(launch, input);
 }
 
 export async function resolveRequestMappingAst(
