@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.nimbly</groupId>
+    <artifactId>mcp-java-dev-tools-server-parent</artifactId>
+    <version>0.1.9</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>mcp-java-dev-tools-server-core</artifactId>
+  <packaging>jar</packaging>
+  <name>mcp-java-dev-tools-server-core</name>
+  <description>Spring-independent product behavior for the Java MCP server.</description>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>enforce-core-transport-independence</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <searchTransitive>true</searchTransitive>
+                  <excludes>
+                    <exclude>org.springframework.boot:*</exclude>
+                    <exclude>org.springframework.ai:*</exclude>
+                    <exclude>io.modelcontextprotocol.sdk:*</exclude>
+                  </excludes>
+                  <message>The core module must remain independent of Spring Boot, Spring AI, and MCP transport types.</message>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
