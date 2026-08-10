@@ -27,6 +27,10 @@
       <artifactId>spring-ai-starter-mcp-server</artifactId>
     </dependency>
     <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
       <scope>test</scope>
@@ -42,6 +46,10 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <properties>
+    <java.checkstyle.config>${maven.multiModuleProjectDirectory}/config/application-checkstyle.xml</java.checkstyle.config>
+  </properties>
 
   <build>
     <finalName>mcp-java-dev-tools-server-${project.version}</finalName>
