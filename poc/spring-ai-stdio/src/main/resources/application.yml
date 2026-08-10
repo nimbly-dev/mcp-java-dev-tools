@@ -1,0 +1,18 @@
+spring:
+  main:
+    banner-mode: "off"
+    web-application-type: "none"
+  ai:
+    mcp:
+      server:
+        name: "mcp-java-dev-tools"
+        version: "0.1.0-poc"
+        type: "SYNC"
+        stdio: true
+        capabilities:
+          prompt: false
+          completion: false
+
+logging:
+  level:
+    root: INFO
