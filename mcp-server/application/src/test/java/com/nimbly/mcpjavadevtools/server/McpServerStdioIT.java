@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.fail;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,6 +25,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 class McpServerStdioIT {
 
@@ -34,7 +37,8 @@ class McpServerStdioIT {
 
     @Test
     void executableJarStartsInStdioModeWithoutContaminatingStdout() throws Exception {
-        try (McpServerProcess server = McpServerProcess.start(jarPath())) {
+        Path workspaceRoot = workspaceRoot();
+        try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
             server.send(initializeRequest());
 
             JsonNode initialize = server.responseFor(1);
@@ -43,7 +47,32 @@ class McpServerStdioIT {
 
             server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
             server.send(request(2, "tools/list", Map.of()));
-            assertThat(server.responseFor(2).path("result").path("tools").isArray()).isTrue();
+            JsonNode tools = server.responseFor(2).path("result").path("tools");
+            assertThat(tools.isArray()).isTrue();
+            assertThat(tools).extracting(node -> node.path("name").asText()).containsExactly("debug_check");
+
+            server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
+            JsonNode debugCheck = server.responseFor(3);
+            JsonNode debugCheckPayload = toolPayload(debugCheck);
+            JsonNode structuredDebugCheck = debugCheck.path("result").path("structuredContent");
+            assertThat(debugCheckPayload.path("ok").asBoolean()).isTrue();
+            assertThat(debugCheckPayload.path("version").asText()).isEqualTo("0.1.9");
+            assertThat(debugCheckPayload.path("workspaceRoot").asText()).isEqualTo(workspaceRoot.toString());
+            assertThat(structuredDebugCheck.isObject()).isTrue();
+            assertThat(structuredDebugCheck.path("ok").asBoolean()).isTrue();
+            assertThat(structuredDebugCheck.path("workspaceRoot").asText()).isEqualTo(workspaceRoot.toString());
+
+            server.send(request(4, "resources/list", Map.of()));
+            JsonNode resources = server.responseFor(4).path("result").path("resources");
+            assertThat(resources).extracting(node -> node.path("uri").asText())
+                    .contains("mcp-java-dev-tools://status");
+
+            server.send(request(5, "resources/read", Map.of("uri", "mcp-java-dev-tools://status")));
+            JsonNode status = server.responseFor(5);
+            JsonNode statusPayload = resourcePayload(status);
+            assertThat(statusPayload.path("ok").asBoolean()).isTrue();
+            assertThat(statusPayload.path("workspaceRootSource").asText()).isEqualTo("roots");
+            assertThat(statusPayload.path("rootsDiscoveryStatus").asText()).isEqualTo("available");
 
             server.closeInputAndAwaitTermination();
             assertThat(server.stdoutLines()).allSatisfy(this::assertJsonRpcMessage);
@@ -51,10 +80,36 @@ class McpServerStdioIT {
         }
     }
 
+    @Test
+    void executableJarReportsStartupFailureWithoutLeakingConfiguration() throws Exception {
+        Path workspaceRoot = workspaceRoot();
+        try (McpServerProcess server = McpServerProcess.start(
+                jarPath(), workspaceRoot, "--spring.ai.mcp.server.stdio=not-a-boolean")) {
+            server.awaitStartupFailure();
+
+            assertThat(server.stdoutLines()).isEmpty();
+            assertThat(server.stderrText())
+                    .contains("mcp_java_dev_tools_startup_failed reasonCode=startup_failed")
+                    .doesNotContain("not-a-boolean");
+        }
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void executableJarStopsAfterSigint() throws Exception {
+        assertPosixSignalStopsExecutable("INT");
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void executableJarStopsAfterSigterm() throws Exception {
+        assertPosixSignalStopsExecutable("TERM");
+    }
+
     private static Map<String, Object> initializeRequest() {
         return request(1, "initialize", Map.of(
                 "protocolVersion", PROTOCOL_VERSION,
-                "capabilities", Map.of(),
+                "capabilities", Map.of("roots", Map.of("listChanged", true)),
                 "clientInfo", Map.of("name", "mcp-server-foundation-it", "version", "1.0")));
     }
 
@@ -70,6 +125,29 @@ class McpServerStdioIT {
         return Path.of(configured).toAbsolutePath();
     }
 
+    private static Path workspaceRoot() {
+        return Path.of(System.getProperty("java.io.tmpdir"), "mcp-java-dev-tools-stdio-it-workspace");
+    }
+
+    private void assertPosixSignalStopsExecutable(String signal) throws Exception {
+        try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot())) {
+            server.send(initializeRequest());
+            server.responseFor(1);
+            server.sendPosixSignal(signal);
+            assertThat(server.stdoutLines()).allSatisfy(this::assertJsonRpcMessage);
+        }
+    }
+
+    private static JsonNode toolPayload(JsonNode response) throws IOException {
+        String text = response.path("result").path("content").get(0).path("text").asText();
+        return JSON.readTree(text);
+    }
+
+    private static JsonNode resourcePayload(JsonNode response) throws IOException {
+        String text = response.path("result").path("contents").get(0).path("text").asText();
+        return JSON.readTree(text);
+    }
+
     private void assertJsonRpcMessage(String line) {
         try {
             JsonNode message = JSON.readTree(line);
@@ -79,7 +157,7 @@ class McpServerStdioIT {
         }
     }
 
-    private static final class McpServerProcess implements AutoCloseable {
+    private static class McpServerProcess implements AutoCloseable {
 
         private final Process process;
         private final OutputStream stdin;
@@ -87,23 +165,34 @@ class McpServerStdioIT {
         private final List<String> stdoutLines = Collections.synchronizedList(new ArrayList<>());
         private final StringBuilder stderr = new StringBuilder();
         private final ExecutorService readers = Executors.newFixedThreadPool(2);
+        private final String workspaceRootUri;
         private boolean closed;
 
-        private McpServerProcess(Process process) {
+        private McpServerProcess(Process process, Path workspaceRoot) {
             this.process = process;
             this.stdin = process.getOutputStream();
+            this.workspaceRootUri = workspaceRoot.toUri().toString();
             readers.submit(() -> collectStdout(process.getInputStream()));
             readers.submit(() -> collectStderr(process.getErrorStream()));
         }
 
-        static McpServerProcess start(Path jar) throws IOException {
-            Process process = new ProcessBuilder(javaBinary(), "-jar", jar.toString())
+        static McpServerProcess start(Path jar, Path workspaceRoot, String... applicationArguments)
+                throws IOException {
+            List<String> command = new ArrayList<>(List.of(javaBinary(), "-jar", jar.toString()));
+            command.addAll(List.of(applicationArguments));
+            Process process = new ProcessBuilder(command)
                     .redirectErrorStream(false)
                     .start();
-            return new McpServerProcess(process);
+            return new McpServerProcess(process, workspaceRoot);
         }
 
         void send(Map<String, Object> message) throws IOException {
+            stdin.write(JSON.writeValueAsBytes(message));
+            stdin.write('\n');
+            stdin.flush();
+        }
+
+        void send(JsonNode message) throws IOException {
             stdin.write(JSON.writeValueAsBytes(message));
             stdin.write('\n');
             stdin.flush();
@@ -117,11 +206,27 @@ class McpServerStdioIT {
                     continue;
                 }
                 JsonNode message = JSON.readTree(line);
+                if ("roots/list".equals(message.path("method").asText())) {
+                    respondToRootsRequest(message);
+                    continue;
+                }
                 if (message.path("id").asInt(-1) == id) {
                     return message;
                 }
             }
             throw new AssertionError("Timed out waiting for JSON-RPC response " + id + ". stderr=" + stderrText());
+        }
+
+        private void respondToRootsRequest(JsonNode request) throws IOException {
+            ObjectNode response = JSON.createObjectNode();
+            response.put("jsonrpc", "2.0");
+            response.set("id", request.path("id"));
+            response.putObject("result")
+                    .putArray("roots")
+                    .addObject()
+                    .put("uri", workspaceRootUri)
+                    .put("name", "stdio-integration-workspace");
+            send(response);
         }
 
         List<String> stdoutLines() {
@@ -147,7 +252,28 @@ class McpServerStdioIT {
                 process.waitFor(2, TimeUnit.SECONDS);
                 fail("MCP process did not terminate after stdin closed within " + SHUTDOWN_TIMEOUT);
             }
+            awaitReaders();
             assertThat(process.exitValue()).isZero();
+        }
+
+        void awaitStartupFailure() throws Exception {
+            if (!process.waitFor(SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
+                process.waitFor(2, TimeUnit.SECONDS);
+                fail("MCP process did not terminate after startup failure within " + SHUTDOWN_TIMEOUT);
+            }
+            closed = true;
+            awaitReaders();
+            assertThat(process.exitValue()).isNotZero();
+        }
+
+        void sendPosixSignal(String signal) throws Exception {
+            Process signalProcess = new ProcessBuilder("kill", "-" + signal, Long.toString(process.pid()))
+                    .redirectErrorStream(true)
+                    .start();
+            assertThat(signalProcess.waitFor(RESPONSE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)).isTrue();
+            assertThat(signalProcess.exitValue()).isZero();
+            awaitSignalTermination(signal);
         }
 
         @Override
@@ -155,9 +281,27 @@ class McpServerStdioIT {
             try {
                 closeInputAndAwaitTermination();
             } finally {
+                awaitReaders();
+            }
+        }
+
+        private void awaitReaders() throws InterruptedException {
+            readers.shutdown();
+            if (!readers.awaitTermination(RESPONSE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
                 readers.shutdownNow();
                 readers.awaitTermination(2, TimeUnit.SECONDS);
+                fail("MCP output readers did not drain within " + RESPONSE_TIMEOUT);
             }
+        }
+
+        private void awaitSignalTermination(String signal) throws Exception {
+            if (!process.waitFor(SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
+                process.waitFor(2, TimeUnit.SECONDS);
+                fail("MCP process did not terminate after SIG" + signal + " within " + SHUTDOWN_TIMEOUT);
+            }
+            closed = true;
+            awaitReaders();
         }
 
         private void collectStdout(InputStream stream) {

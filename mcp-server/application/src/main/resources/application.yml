@@ -9,7 +9,11 @@ spring:
         version: "0.1.9"
         type: "SYNC"
         stdio: true
+        annotation-scanner:
+          enabled: true
         capabilities:
+          resource: true
+          tool: true
           prompt: false
           completion: false
 

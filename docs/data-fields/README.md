@@ -153,11 +153,37 @@ verified. No raw command lines, arguments, environment values, or JVM system pro
 
 ## debug_check
 
-| fieldName    | fieldDesc                                        | toolUsedBy    | required | exampleValue                 |
-| ------------ | ------------------------------------------------ | ------------- | -------- | ---------------------------- |
-| `ok`         | Basic service health flag.                       | `debug_check` | true     | `true`                       |
-| `serverTime` | Server timestamp when ping response is produced. | `debug_check` | true     | `"2026-03-07T04:00:00.000Z"` |
-| `version`    | MCP server version.                              | `debug_check` | true     | `"0.1.0"`                    |
+| fieldName          | fieldDesc                                                                 | toolUsedBy    | required | exampleValue                                |
+| ------------------ | ------------------------------------------------------------------------- | ------------- | -------- | ------------------------------------------- |
+| `ok`               | Basic service health flag.                                                | `debug_check` | true     | `true`                                      |
+| `serverTime`       | Server timestamp when ping response is produced.                          | `debug_check` | true     | `"2026-03-07T04:00:00.000Z"`                |
+| `version`          | MCP server version.                                                       | `debug_check` | true     | `"0.1.0"`                                   |
+| `buildFingerprint` | Safe identifier for the running server build.                             | `debug_check` | true     | `"implementation-version:0.1.9"`            |
+| `pid`              | Process identifier of the MCP server.                                     | `debug_check` | true     | `12345`                                     |
+| `ppid`             | Parent-process identifier when the operating system exposes one.          | `debug_check` | false    | `6789`                                      |
+| `workspaceRoot`    | Current selected workspace root, or `null` when context is not available. | `debug_check` | false    | `"C:\\repo\\mcp-java-dev-tools"`           |
+
+## `mcp-java-dev-tools://status` Resource
+
+The required status Resource exposes only safe server metadata. The Java v0.1.9
+runtime reports deterministic `not_migrated` status and reason-code values for
+Probe routing and registry data until the owning Core Feature migration lands;
+it does not advertise a placeholder MCP Tool.
+
+| fieldName                | fieldDesc                                                               | required | exampleValue                              |
+| ------------------------ | ----------------------------------------------------------------------- | -------- | ----------------------------------------- |
+| `name`                   | MCP server identity.                                                    | true     | `"mcp-java-dev-tools"`                    |
+| `version`                | MCP server version.                                                     | true     | `"0.1.9"`                                 |
+| `buildFingerprint`       | Safe identifier for the running server build.                           | true     | `"implementation-version:0.1.9"`          |
+| `pid`                    | MCP server process identifier.                                           | true     | `12345`                                   |
+| `ppid`                   | Parent-process identifier when the operating system exposes one.         | false    | `6789`                                    |
+| `workspaceRoot`          | Current selected workspace root.                                        | false    | `"C:\\repo\\mcp-java-dev-tools"`         |
+| `workspaceRootSource`    | Selection source: `roots`, `arg`, `env`, `session`, `cwd`, `missing`, or `ambiguous`. | true     | `"roots"`                                 |
+| `workspaceReasonCode`    | Deterministic workspace context failure reason when no root is selected: `workspace_context_missing`, `workspace_context_ambiguous`, or `workspace_context_invalid`. | false    | `"workspace_context_ambiguous"`            |
+| `rootsDiscoveryStatus`   | `available`, `unavailable`, or `not_requested`.                         | true     | `"available"`                             |
+| `probe` / `registry`     | Safe migration state or, after migration, safe runtime metadata.        | true     | `{"status":"not_migrated"}`              |
+| `auth.credentialDiscovery` | Credential-discovery state; no credential values are exposed.         | true     | `"disabled"`                              |
+| `time`                   | Status Resource timestamp.                                              | true     | `"2026-03-07T04:00:00.000Z"`               |
 
 > Canonical live Probe MCP Tool: `probe`. Action mapping for the sections below: `check`, `actuate`, `status`, `capture`, `reset`, `wait_for_hit`.
 

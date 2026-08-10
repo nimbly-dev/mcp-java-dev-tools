@@ -9,4 +9,7 @@
   <root level="INFO">
     <appender-ref ref="STDERR"/>
   </root>
+
+  <logger name="org.springframework.boot.SpringApplication" level="OFF"/>
+  <logger name="org.springframework.boot.diagnostics" level="OFF"/>
 </configuration>
