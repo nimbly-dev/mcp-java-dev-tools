@@ -1,0 +1,200 @@
+{
+  "contract": "typescript-probe-action-parity-v1",
+  "success": [
+    {
+      "name": "check",
+      "kind": "check",
+      "assertions": {
+        "/resultType": "report",
+        "/status": "ok",
+        "/reasonCode": "success",
+        "/details/request/probeId": "orders",
+        "/details/request/timeoutMs": 2000,
+        "/details/config/authConfigured": true,
+        "/details/config/authHeaderNames/0": "Authorization",
+        "/details/checks/reset/ok": true,
+        "/details/checks/reset/status": 200,
+        "/details/checks/status/ok": true,
+        "/details/checks/status/keyDecodingOk": true,
+        "/details/recommendations/0": "rerun status after the next request",
+        "/result/reset/status": "AVAILABLE",
+        "/result/status/responseKey": "mcp.jvm.diagnose#key"
+      }
+    },
+    {
+      "name": "status single",
+      "kind": "status_single",
+      "assertions": {
+        "/resultType": "report",
+        "/status": "ok",
+        "/details/request/key": "example.Work#doIt:17",
+        "/details/request/timeoutMs": 2000,
+        "/details/targetKey": "example.Work#doIt:17",
+        "/details/executionHit": "line_hit",
+        "/details/apiOutcome": "ok",
+        "/details/response/status": 200,
+        "/details/response/json/key": "example.Work#doIt:17",
+        "/details/response/json/hitCount": 3,
+        "/details/response/json/lineValidation": "resolvable",
+        "/result/entries/0/key": "example.Work#doIt:17",
+        "/result/entries/0/hitCount": 3
+      }
+    },
+    {
+      "name": "status batch",
+      "kind": "status_batch",
+      "assertions": {
+        "/details/mode": "probe_batch",
+        "/details/operation": "status",
+        "/details/summary/total": 2,
+        "/details/summary/ok": 1,
+        "/details/summary/failed": 1,
+        "/details/results/0/key": "example.Work#doIt:17",
+        "/details/results/0/apiOutcome": "ok",
+        "/details/results/1/key": "example.Work#save:21",
+        "/details/results/1/apiOutcome": "error",
+        "/result/entries/1/lineValidation": "invalid_line_target"
+      }
+    },
+    {
+      "name": "reset single",
+      "kind": "reset_single",
+      "assertions": {
+        "/details/request/key": "example.Work#doIt:17",
+        "/details/response/status": 200,
+        "/result/entries/0/key": "example.Work#doIt:17",
+        "/result/entries/0/reset": true,
+        "/result/entries/0/httpStatus": 200
+      }
+    },
+    {
+      "name": "reset batch",
+      "kind": "reset_batch",
+      "assertions": {
+        "/details/mode": "probe_batch",
+        "/details/operation": "reset",
+        "/details/summary/total": 2,
+        "/details/summary/ok": 1,
+        "/details/summary/failed": 1,
+        "/details/results/0/key": "example.Work#doIt:17",
+        "/details/results/0/apiOutcome": "ok",
+        "/details/results/1/key": "example.Work#save:21",
+        "/details/results/1/apiOutcome": "error",
+        "/result/entries/1/lineValidation": "invalid_line_target"
+      }
+    },
+    {
+      "name": "reset class",
+      "kind": "reset_class",
+      "assertions": {
+        "/details/request/className": "example.Work",
+        "/details/mode": "probe_batch",
+        "/details/operation": "reset",
+        "/details/summary/total": 1,
+        "/details/summary/ok": 1,
+        "/result/selector": "className",
+        "/result/entries/0/key": "example.Work#doIt:17"
+      }
+    },
+    {
+      "name": "wait for hit",
+      "kind": "wait",
+      "assertions": {
+        "/details/request/key": "example.Work#doIt:17",
+        "/details/request/timeoutMs": 2000,
+        "/details/request/pollIntervalMs": 100,
+        "/details/request/maxRetries": 2,
+        "/details/targetKey": "example.Work#doIt:17",
+        "/details/executionHit": "line_hit",
+        "/details/apiOutcome": "ok",
+        "/details/reproStatus": "line_hit",
+        "/details/probeHit": "hitCount=3",
+        "/result/outcome": "LINE_HIT",
+        "/result/attempts": 2,
+        "/result/observedHitCount": 3
+      }
+    },
+    {
+      "name": "capture",
+      "kind": "capture",
+      "assertions": {
+        "/details/request/captureId": "capture-1",
+        "/details/request/timeoutMs": 2000,
+        "/details/targetKey": "example.Work#doIt",
+        "/result/found": true,
+        "/result/capture/captureId": "capture-1",
+        "/result/capture/methodKey": "example.Work#doIt",
+        "/result/capture/argsCount": 2,
+        "/result/capture/hasReturnValue": true,
+        "/result/capture/hasThrownValue": false,
+        "/result/capture/executionPaths/0": "example.Work#doIt()#17"
+      }
+    },
+    {
+      "name": "actuate",
+      "kind": "actuate",
+      "assertions": {
+        "/details/request/action": "arm",
+        "/details/request/sessionId": "session-1",
+        "/details/request/targetKey": "example.Work#doIt:17",
+        "/details/response/json/action": "arm",
+        "/details/response/json/scopeState": "armed",
+        "/details/apiOutcome": "ok",
+        "/result/actuated": true,
+        "/result/command": "arm",
+        "/result/sessionId": "session-1",
+        "/result/targetKey": "example.Work#doIt:17",
+        "/result/returnBoolean": true,
+        "/result/ttlMs": 15000
+      }
+    },
+    {
+      "name": "profiler",
+      "kind": "profiler",
+      "assertions": {
+        "/details/request/action": "status",
+        "/details/request/provider": "auto",
+        "/details/response/json/action": "status",
+        "/details/response/json/status": "idle",
+        "/details/apiOutcome": "ok",
+        "/result/command": "status",
+        "/result/status": "idle",
+        "/result/supported": true,
+        "/result/provider": "auto"
+      }
+    }
+  ],
+  "failure": [
+    {
+      "name": "malformed MCP input",
+      "kind": "invalid_request",
+      "assertions": {
+        "/resultType": "report",
+        "/status": "invalid_request",
+        "/reasonCode": "invalid_request",
+        "/nextActionCode": "invalid_request",
+        "/reasonMeta/failedStep": "input_validation"
+      }
+    },
+    {
+      "name": "strict line key required",
+      "kind": "line_key_required",
+      "assertions": {
+        "/status": "line_key_required",
+        "/reasonCode": "line_key_required",
+        "/nextActionCode": "provide_strict_line_key",
+        "/reasonMeta/failedStep": "probe_status"
+      }
+    },
+    {
+      "name": "Probe unreachable",
+      "kind": "probe_unreachable",
+      "assertions": {
+        "/status": "probe_unreachable",
+        "/reasonCode": "probe_unreachable",
+        "/nextActionCode": "verify_probe_connectivity",
+        "/reasonMeta/failedStep": "probe_status"
+      }
+    }
+  ]
+}

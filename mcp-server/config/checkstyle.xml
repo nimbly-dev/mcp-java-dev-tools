@@ -22,12 +22,12 @@
     </module>
     <module name="OneStatementPerLine"/>
     <module name="MethodLength">
-      <property name="max" value="120"/>
+      <property name="max" value="45"/>
       <property name="countEmpty" value="false"/>
       <property name="tokens" value="METHOD_DEF,CTOR_DEF"/>
     </module>
     <module name="ParameterNumber">
-      <property name="max" value="12"/>
+      <property name="max" value="6"/>
       <property name="ignoreOverriddenMethods" value="true"/>
       <property name="tokens" value="METHOD_DEF"/>
     </module>
