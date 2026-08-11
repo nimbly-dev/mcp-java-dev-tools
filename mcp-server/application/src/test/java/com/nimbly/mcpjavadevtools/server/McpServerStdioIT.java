@@ -6,11 +6,15 @@ import static org.assertj.core.api.Assertions.fail;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -24,6 +28,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -49,7 +56,7 @@ class McpServerStdioIT {
             server.send(request(2, "tools/list", Map.of()));
             JsonNode tools = server.responseFor(2).path("result").path("tools");
             assertThat(tools.isArray()).isTrue();
-            assertThat(tools).extracting(node -> node.path("name").asText()).containsExactly("debug_check");
+            assertThat(tools).extracting(node -> node.path("name").asText()).containsExactly("debug_check", "probe");
 
             server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
             JsonNode debugCheck = server.responseFor(3);
@@ -61,6 +68,26 @@ class McpServerStdioIT {
             assertThat(structuredDebugCheck.isObject()).isTrue();
             assertThat(structuredDebugCheck.path("ok").asBoolean()).isTrue();
             assertThat(structuredDebugCheck.path("workspaceRoot").asText()).isEqualTo(workspaceRoot.toString());
+
+            server.send(request(6, "tools/call", Map.of(
+                    "name", "probe",
+                    "arguments", Map.of("action", "capture", "input", Map.of("captureId", "capture-1")))));
+            JsonNode probe = toolPayload(server.responseFor(6));
+            assertThat(probe.path("status").asText()).isEqualTo("probe_selection_failed");
+            assertThat(probe.path("reasonCode").asText()).isEqualTo("probe_id_required");
+            assertThat(probe.path("nextActionCode").asText()).isEqualTo("provide_probe_id");
+
+            assertMissingProbeTarget(server, 7, "check", Map.of());
+            assertMissingProbeTarget(server, 8, "status", Map.of("key", "example.Work#doIt:17"));
+            assertMissingProbeTarget(server, 9, "reset", Map.of("className", "example.Work"));
+            assertMissingProbeTarget(server, 10, "wait_for_hit", Map.of("key", "example.Work#doIt:17"));
+            assertMissingProbeTarget(server, 11, "actuate", Map.of(
+                    "action", "arm",
+                    "sessionId", "session-1",
+                    "targetKey", "example.Work#doIt:17",
+                    "returnBoolean", true,
+                    "ttlMs", 1000));
+            assertMissingProbeTarget(server, 12, "profiler", Map.of("action", "status"));
 
             server.send(request(4, "resources/list", Map.of()));
             JsonNode resources = server.responseFor(4).path("result").path("resources");
@@ -91,6 +118,134 @@ class McpServerStdioIT {
             assertThat(server.stderrText())
                     .contains("mcp_java_dev_tools_startup_failed reasonCode=startup_failed")
                     .doesNotContain("not-a-boolean");
+        }
+    }
+
+    @Test
+    void executableJarInvokesARegisteredProbeThroughStdio() throws Exception {
+        AtomicBoolean resetCalled = new AtomicBoolean();
+        AtomicReference<String> statusQuery = new AtomicReference<>();
+        HttpServer sidecar = HttpServer.create(new InetSocketAddress(0), 0);
+        sidecar.createContext("/__probe/reset", exchange -> {
+            resetCalled.set(true);
+            respondProbe(exchange, "{\"ok\":true}");
+        });
+        sidecar.createContext("/__probe/status", exchange -> {
+            statusQuery.set(exchange.getRequestURI().getRawQuery());
+            respondProbe(exchange, "{\"probe\":{\"key\":\"mcp.jvm.diagnose#key\",\"hitCount\":0}}");
+        });
+        sidecar.start();
+        try (McpServerProcess server = McpServerProcess.start(
+                jarPath(),
+                workspaceRoot(),
+                "--mcpjvm.probe.registry.registrations[0].id=orders",
+                "--mcpjvm.probe.registry.registrations[0].base-url=http://127.0.0.1:" + sidecar.getAddress().getPort())) {
+            server.send(initializeRequest());
+            server.responseFor(1);
+            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
+            server.send(request(13, "tools/call", Map.of(
+                    "name", "probe",
+                    "arguments", Map.of("action", "check", "input", Map.of("probeId", "orders")))));
+
+            JsonNode response = toolPayload(server.responseFor(13));
+            assertThat(response.path("status").asText()).isEqualTo("ok");
+            assertThat(response.path("reasonCode").asText()).isEqualTo("success");
+            assertThat(response.path("nextActionCode").isMissingNode()).isTrue();
+            assertThat(resetCalled).isTrue();
+            assertThat(statusQuery.get()).isEqualTo("key=mcp.jvm.diagnose%23key");
+        } finally {
+            sidecar.stop(0);
+        }
+    }
+
+    @Test
+    void executableJarInvokesEveryProbeActionThroughStdio() throws Exception {
+        AtomicInteger statusCalls = new AtomicInteger();
+        HttpServer sidecar = HttpServer.create(new InetSocketAddress(0), 0);
+        sidecar.createContext("/__probe/reset", exchange -> {
+            String key = JSON.readTree(exchange.getRequestBody()).path("key").asText();
+            respondProbe(exchange, """
+                    {"key":"%s","ok":true,"lineResolvable":true,"lineValidation":"resolvable"}
+                    """.formatted(key));
+        });
+        sidecar.createContext("/__probe/status", exchange -> {
+            int call = statusCalls.incrementAndGet();
+            String key = queryValue(exchange.getRequestURI().getRawQuery(), "key");
+            long hitCount = call > 3 ? 1 : 0;
+            long lastHitEpoch = hitCount == 0 ? 0 : System.currentTimeMillis();
+            respondProbe(exchange, """
+                    {"probe":{"key":"%s","hitCount":%d,"lastHitEpoch":%d,
+                    "lineResolvable":true,"lineValidation":"resolvable"}}
+                    """.formatted(key, hitCount, lastHitEpoch));
+        });
+        sidecar.createContext("/__probe/capture", exchange -> respondProbe(exchange, """
+                {"capture":{"captureId":"capture-1","methodKey":"example.Work#doIt",
+                "capturedAtEpoch":1,"args":[],"executionPaths":[]}}
+                """));
+        sidecar.createContext("/__probe/actuate", exchange -> respondProbe(exchange, """
+                {"ok":true,"action":"arm","sessionId":"session-1","targetKey":"example.Work#doIt:17",
+                "returnBoolean":true,"ttlMs":1000,"scopeState":"armed","mode":"actuate"}
+                """));
+        sidecar.createContext("/__probe/profiler", exchange -> respondProbe(exchange, """
+                {"ok":true,"profiler":{"status":"idle","supported":true}}
+                """));
+        sidecar.start();
+        try (McpServerProcess server = McpServerProcess.start(
+                jarPath(),
+                workspaceRoot(),
+                "--mcpjvm.probe.registry.registrations[0].id=orders",
+                "--mcpjvm.probe.registry.registrations[0].base-url=http://127.0.0.1:" + sidecar.getAddress().getPort())) {
+            server.send(initializeRequest());
+            server.responseFor(1);
+            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
+
+            server.send(request(20, "tools/call", Map.of(
+                    "name", "probe",
+                    "arguments", Map.of("action", "check", "input", Map.of("probeId", "orders")))));
+            assertSuccessfulProbe(server.responseFor(20), "check");
+
+            server.send(request(21, "tools/call", Map.of(
+                    "name", "probe",
+                    "arguments", Map.of("action", "status", "input", Map.of(
+                            "probeId", "orders", "key", "example.Work#doIt:17")))));
+            assertSuccessfulProbe(server.responseFor(21), "status");
+
+            server.send(request(22, "tools/call", Map.of(
+                    "name", "probe",
+                    "arguments", Map.of("action", "reset", "input", Map.of(
+                            "probeId", "orders", "key", "example.Work#doIt:17")))));
+            assertSuccessfulProbe(server.responseFor(22), "reset");
+
+            server.send(request(23, "tools/call", Map.of(
+                    "name", "probe",
+                    "arguments", Map.of("action", "wait_for_hit", "input", Map.of(
+                            "probeId", "orders", "key", "example.Work#doIt:17",
+                            "timeoutMs", 1000, "pollIntervalMs", 100, "maxRetries", 1)))));
+            assertSuccessfulProbe(server.responseFor(23), "wait_for_hit");
+
+            server.send(request(24, "tools/call", Map.of(
+                    "name", "probe",
+                    "arguments", Map.of("action", "capture", "input", Map.of(
+                            "probeId", "orders", "captureId", "capture-1")))));
+            assertSuccessfulProbe(server.responseFor(24), "capture");
+
+            server.send(request(25, "tools/call", Map.of(
+                    "name", "probe",
+                    "arguments", Map.of("action", "actuate", "input", Map.of(
+                            "probeId", "orders", "action", "arm", "sessionId", "session-1",
+                            "targetKey", "example.Work#doIt:17", "returnBoolean", true, "ttlMs", 1000)))));
+            assertSuccessfulProbe(server.responseFor(25), "actuate");
+
+            server.send(request(26, "tools/call", Map.of(
+                    "name", "probe",
+                    "arguments", Map.of("action", "profiler", "input", Map.of(
+                            "probeId", "orders", "action", "status")))));
+            assertSuccessfulProbe(server.responseFor(26), "profiler");
+
+            server.closeInputAndAwaitTermination();
+            assertThat(server.stdoutLines()).allSatisfy(this::assertJsonRpcMessage);
+        } finally {
+            sidecar.stop(0);
         }
     }
 
@@ -140,12 +295,115 @@ class McpServerStdioIT {
 
     private static JsonNode toolPayload(JsonNode response) throws IOException {
         String text = response.path("result").path("content").get(0).path("text").asText();
-        return JSON.readTree(text);
+        try {
+            return JSON.readTree(text);
+        } catch (IOException exception) {
+            throw new AssertionError("Probe Tool payload was not JSON: " + text, exception);
+        }
     }
 
     private static JsonNode resourcePayload(JsonNode response) throws IOException {
         String text = response.path("result").path("contents").get(0).path("text").asText();
         return JSON.readTree(text);
+    }
+
+    private static void respondProbe(HttpExchange exchange, String payload) throws IOException {
+        byte[] body = payload.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("content-type", "application/json");
+        exchange.sendResponseHeaders(200, body.length);
+        exchange.getResponseBody().write(body);
+        exchange.close();
+    }
+
+    private static String queryValue(String query, String key) {
+        if (query == null) {
+            return "";
+        }
+        for (String parameter : query.split("&")) {
+            String[] pair = parameter.split("=", 2);
+            if (pair.length == 2 && key.equals(pair[0])) {
+                return URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
+            }
+        }
+        return "";
+    }
+
+    private static void assertSuccessfulProbe(JsonNode response, String action) throws IOException {
+        JsonNode payload = toolPayload(response);
+        assertThat(payload.path("status").asText()).as("status for %s", action).isEqualTo("ok");
+        assertThat(payload.path("reasonCode").asText()).as("reason code for %s", action).isEqualTo("success");
+        assertThat(payload.path("resultType").asText()).as("result type for %s", action).isEqualTo("report");
+        assertThat(payload.path("request").isObject()).as("request details for %s", action).isTrue();
+        JsonNode details = payload.path("details");
+        assertThat(details.isObject()).as("details envelope for %s", action).isTrue();
+        assertThat(details.path("request").isObject()).as("nested request for %s", action).isTrue();
+        switch (action) {
+            case "check" -> assertCheckCompatibility(details);
+            case "status" -> assertStatusCompatibility(details);
+            case "reset" -> assertResetCompatibility(details, payload);
+            case "wait_for_hit" -> assertWaitCompatibility(details);
+            case "capture" -> assertCaptureCompatibility(details, payload);
+            case "actuate" -> assertActuateCompatibility(details, payload);
+            case "profiler" -> assertProfilerCompatibility(details, payload);
+            default -> fail("Unknown Probe action in compatibility matrix: " + action);
+        }
+    }
+
+    private static void assertCheckCompatibility(JsonNode details) {
+        assertThat(details.path("config").isObject()).isTrue();
+        assertThat(details.path("checks").path("reset").isObject()).isTrue();
+        assertThat(details.path("checks").path("status").isObject()).isTrue();
+        assertThat(details.path("recommendations").isArray()).isTrue();
+    }
+
+    private static void assertStatusCompatibility(JsonNode details) {
+        assertThat(details.path("targetKey").asText()).isEqualTo("example.Work#doIt:17");
+        assertThat(details.path("executionHit").asText()).isEqualTo("not_hit");
+        assertThat(details.path("response").path("json").path("key").asText())
+                .isEqualTo("example.Work#doIt:17");
+    }
+
+    private static void assertResetCompatibility(JsonNode details, JsonNode payload) {
+        assertThat(details.path("response").path("status").asInt()).isEqualTo(200);
+        assertThat(payload.path("result").path("entries").isArray()).isTrue();
+    }
+
+    private static void assertWaitCompatibility(JsonNode details) {
+        assertThat(details.path("targetKey").asText()).isEqualTo("example.Work#doIt:17");
+        assertThat(details.path("executionHit").asText()).isEqualTo("line_hit");
+        assertThat(details.path("probeHit").asText()).startsWith("hitCount=");
+    }
+
+    private static void assertCaptureCompatibility(JsonNode details, JsonNode payload) {
+        assertThat(details.path("request").path("captureId").asText()).isEqualTo("capture-1");
+        assertThat(details.path("targetKey").asText()).isEqualTo("example.Work#doIt");
+        assertThat(payload.path("result").path("found").asBoolean()).isTrue();
+    }
+
+    private static void assertActuateCompatibility(JsonNode details, JsonNode payload) {
+        assertThat(details.path("response").path("json").path("action").asText()).isEqualTo("arm");
+        assertThat(details.path("apiOutcome").asText()).isEqualTo("ok");
+        assertThat(payload.path("result").path("actuated").asBoolean()).isTrue();
+    }
+
+    private static void assertProfilerCompatibility(JsonNode details, JsonNode payload) {
+        assertThat(details.path("response").path("json").path("status").asText()).isEqualTo("idle");
+        assertThat(details.path("apiOutcome").asText()).isEqualTo("ok");
+        assertThat(payload.path("result").path("status").asText()).isEqualTo("idle");
+    }
+
+    private static void assertMissingProbeTarget(
+            McpServerProcess server,
+            int requestId,
+            String action,
+            Map<String, Object> input) throws Exception {
+        server.send(request(requestId, "tools/call", Map.of(
+                "name", "probe",
+                "arguments", Map.of("action", action, "input", input))));
+        JsonNode response = toolPayload(server.responseFor(requestId));
+        assertThat(response.path("status").asText()).isEqualTo("probe_selection_failed");
+        assertThat(response.path("reasonCode").asText()).isEqualTo("probe_id_required");
+        assertThat(response.path("nextActionCode").asText()).isEqualTo("provide_probe_id");
     }
 
     private void assertJsonRpcMessage(String line) {

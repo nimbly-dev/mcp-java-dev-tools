@@ -32,3 +32,4 @@ test/*.test.d.ts
 test/*.test.d.ts.map
 AGENTS.md
 test/.tmp/
+.idea

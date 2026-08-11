@@ -1,31 +1,25 @@
 package com.nimbly.mcpjavadevtools.server.mcp.resource.status;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.lifecycle.ServerRuntimeMetadata;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceSnapshot;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
-import tools.jackson.databind.json.JsonMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.mcp.annotation.McpResource;
 import org.springframework.stereotype.Component;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Component
+@RequiredArgsConstructor
+@Slf4j
 public class StatusMcpResource {
 
-    private static final JsonMapper JSON_MAPPER = JsonMapper.shared();
-    private static final Logger LOGGER = LoggerFactory.getLogger(StatusMcpResource.class);
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
     private static final String INTERNAL_ERROR_RESPONSE = "{\"ok\":false,\"reasonCode\":\"internal_error\"}";
 
     private final ServerRuntimeMetadata runtimeMetadata;
     private final WorkspaceContext workspaceContext;
-
-    public StatusMcpResource(
-            ServerRuntimeMetadata runtimeMetadata,
-            WorkspaceContext workspaceContext) {
-        this.runtimeMetadata = runtimeMetadata;
-        this.workspaceContext = workspaceContext;
-    }
 
     @McpResource(
             name = "status",
@@ -37,7 +31,7 @@ public class StatusMcpResource {
             workspaceContext.refreshFrom(exchange);
             return JSON_MAPPER.writeValueAsString(response());
         } catch (Exception exception) {
-            LOGGER.error("mcp_java_dev_tools_status_failed reasonCode=internal_error");
+            log.error("mcp_java_dev_tools_status_failed reasonCode=internal_error");
             return INTERNAL_ERROR_RESPONSE;
         }
     }

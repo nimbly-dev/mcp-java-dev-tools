@@ -3,20 +3,17 @@ package com.nimbly.mcpjavadevtools.server.mcp.tools.debugcheck;
 import com.nimbly.mcpjavadevtools.server.lifecycle.ServerRuntimeMetadata;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceSnapshot;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class DebugCheckMcpTool {
 
     private final ServerRuntimeMetadata runtimeMetadata;
     private final WorkspaceContext workspaceContext;
-
-    public DebugCheckMcpTool(ServerRuntimeMetadata runtimeMetadata, WorkspaceContext workspaceContext) {
-        this.runtimeMetadata = runtimeMetadata;
-        this.workspaceContext = workspaceContext;
-    }
 
     @McpTool(
             name = "debug_check",

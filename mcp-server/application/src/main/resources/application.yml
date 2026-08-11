@@ -20,3 +20,18 @@ spring:
 logging:
   level:
     root: INFO
+
+mcpjvm:
+  probe:
+    endpoint:
+      timeout-ms: 15000
+      poll-interval-ms: 500
+      max-retries: 1
+      unreachable-retry-enabled: false
+      unreachable-max-retries: 3
+      maximum-response-payload-bytes: 1048576
+    capture:
+      response:
+        include-execution-paths: false
+        max-string-length: 256
+        max-execution-paths: 32
