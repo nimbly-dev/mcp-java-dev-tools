@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -56,7 +57,8 @@ class McpServerStdioIT {
             server.send(request(2, "tools/list", Map.of()));
             JsonNode tools = server.responseFor(2).path("result").path("tools");
             assertThat(tools.isArray()).isTrue();
-            assertThat(tools).extracting(node -> node.path("name").asText()).containsExactly("debug_check", "probe");
+            assertThat(tools).extracting(node -> node.path("name").asText())
+                    .containsExactly("debug_check", "jvm_lifecycle", "probe");
 
             server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
             JsonNode debugCheck = server.responseFor(3);
@@ -118,6 +120,100 @@ class McpServerStdioIT {
             assertThat(server.stderrText())
                     .contains("mcp_java_dev_tools_startup_failed reasonCode=startup_failed")
                     .doesNotContain("not-a-boolean");
+        }
+    }
+
+    @Test
+    void executableJarReachesAllJvmLifecycleActionsThroughStdio() throws Exception {
+        Path workspaceRoot = workspaceRoot();
+        try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
+            server.send(initializeRequest());
+            server.responseFor(1);
+            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
+
+            server.send(request(2, "tools/call", Map.of(
+                    "name", "jvm_lifecycle",
+                    "arguments", Map.of("action", "list_jvms", "input", Map.of()))));
+            JsonNode discovery = toolPayload(server.responseFor(2));
+            assertThat(discovery.path("status").asText()).isIn("ok", "blocked");
+            assertThat(discovery.path("reasonCode").asText()).isNotBlank();
+
+            Map<String, Object> fencedInput = Map.of(
+                    "pid", Long.toString(server.pid()),
+                    "expectedProcessStartEpochMs", server.processStartEpochMs(),
+                    "confirm", true);
+            server.send(request(3, "tools/call", Map.of(
+                    "name", "jvm_lifecycle",
+                    "arguments", Map.of("action", "attach", "input", fencedInput))));
+            assertThat(toolPayload(server.responseFor(3)).path("reasonCode").asText())
+                    .isEqualTo("mcp_server_attach_forbidden");
+
+            server.send(request(4, "tools/call", Map.of(
+                    "name", "jvm_lifecycle",
+                    "arguments", Map.of("action", "deactivate", "input", fencedInput))));
+            assertThat(toolPayload(server.responseFor(4)).path("reasonCode").asText())
+                    .isEqualTo("mcp_server_attach_forbidden");
+        }
+    }
+
+    @Test
+    void executableJarPerformsRealAttachAndDeactivateAgainstSurvivingTarget() throws Exception {
+        Path serverJar = jarPath();
+        assertThat(serverJar.getParent().resolve("sidecar/jvm-attach-helper.jar"))
+                .isRegularFile();
+        assertThat(serverJar.getParent().resolve("sidecar/sidecar-agent.jar"))
+                .isRegularFile();
+        try (LifecycleTargetProcess target = LifecycleTargetProcess.start();
+                McpServerProcess server = McpServerProcess.start(serverJar, workspaceRoot())) {
+            server.send(initializeRequest());
+            server.responseFor(1);
+            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
+
+            server.send(request(2, "tools/call", Map.of(
+                    "name", "jvm_lifecycle",
+                    "arguments", Map.of("action", "list_jvms", "input", Map.of()))));
+            JsonNode discovery = toolPayload(server.responseFor(2));
+            JsonNode selected = null;
+            for (JsonNode candidate : discovery.path("jvms")) {
+                if (Long.toString(target.pid()).equals(candidate.path("pid").asText())) {
+                    selected = candidate;
+                    break;
+                }
+            }
+            assertThat(selected).isNotNull();
+            assertThat(selected.path("processStartEpochMs").asLong())
+                    .isEqualTo(target.processStartEpochMs());
+            assertThat(selected.path("attachmentState").asText()).isEqualTo("unverified");
+            assertThat(selected.path("probeState").asText()).isEqualTo("unverified");
+
+            int probePort = freePort();
+            Map<String, Object> attachInput = Map.of(
+                    "pid", Long.toString(target.pid()),
+                    "expectedProcessStartEpochMs", target.processStartEpochMs(),
+                    "confirm", true,
+                    "probeHost", "127.0.0.1",
+                    "probePort", probePort);
+            server.send(request(3, "tools/call", Map.of(
+                    "name", "jvm_lifecycle",
+                    "arguments", Map.of("action", "attach", "input", attachInput))));
+            JsonNode attach = toolPayload(server.responseFor(3));
+            assertThat(attach.path("status").asText()).isEqualTo("ok");
+            assertThat(attach.path("reasonCode").asText()).isEqualTo("active");
+            assertThat(attach.path("lifecycle").path("outcome").asText()).isEqualTo("active");
+            assertThat(target.isAlive()).isTrue();
+
+            server.send(request(4, "tools/call", Map.of(
+                    "name", "jvm_lifecycle",
+                    "arguments", Map.of("action", "deactivate", "input", Map.of(
+                            "pid", Long.toString(target.pid()),
+                            "expectedProcessStartEpochMs", target.processStartEpochMs(),
+                            "confirm", true)))));
+            JsonNode deactivate = toolPayload(server.responseFor(4));
+            assertThat(deactivate.path("status").asText()).isEqualTo("ok");
+            assertThat(deactivate.path("reasonCode").asText()).isEqualTo("deactivated");
+            assertThat(deactivate.path("lifecycle").path("outcome").asText())
+                    .isEqualTo("deactivated");
+            assertThat(target.isAlive()).isTrue();
         }
     }
 
@@ -284,6 +380,12 @@ class McpServerStdioIT {
         return Path.of(System.getProperty("java.io.tmpdir"), "mcp-java-dev-tools-stdio-it-workspace");
     }
 
+    private static int freePort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
     private void assertPosixSignalStopsExecutable(String signal) throws Exception {
         try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot())) {
             server.send(initializeRequest());
@@ -415,6 +517,47 @@ class McpServerStdioIT {
         }
     }
 
+    private static final class LifecycleTargetProcess implements AutoCloseable {
+
+        private final Process process;
+
+        private LifecycleTargetProcess(Process process) {
+            this.process = process;
+        }
+
+        static LifecycleTargetProcess start() throws IOException {
+            Process process = new ProcessBuilder(
+                    McpServerProcess.javaBinary(),
+                    "-cp", System.getProperty("java.class.path"),
+                    LifecycleTargetMain.class.getName())
+                    .redirectErrorStream(true)
+                    .start();
+            return new LifecycleTargetProcess(process);
+        }
+
+        long pid() {
+            return process.pid();
+        }
+
+        long processStartEpochMs() {
+            return process.toHandle().info().startInstant().orElseThrow().toEpochMilli();
+        }
+
+        boolean isAlive() {
+            return process.isAlive();
+        }
+
+        @Override
+        public void close() throws Exception {
+            process.destroy();
+            if (!process.waitFor(SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
+                process.waitFor(2, TimeUnit.SECONDS);
+            }
+            assertThat(process.isAlive()).isFalse();
+        }
+    }
+
     private static class McpServerProcess implements AutoCloseable {
 
         private final Process process;
@@ -473,6 +616,14 @@ class McpServerStdioIT {
                 }
             }
             throw new AssertionError("Timed out waiting for JSON-RPC response " + id + ". stderr=" + stderrText());
+        }
+
+        long pid() {
+            return process.pid();
+        }
+
+        long processStartEpochMs() {
+            return process.toHandle().info().startInstant().orElseThrow().toEpochMilli();
         }
 
         private void respondToRootsRequest(JsonNode request) throws IOException {

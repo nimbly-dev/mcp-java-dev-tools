@@ -49,6 +49,8 @@
 
   <properties>
     <java.checkstyle.config>${maven.multiModuleProjectDirectory}/config/application-checkstyle.xml</java.checkstyle.config>
+    <mcp.sidecar.helper.source>${project.basedir}/../../java-agent/core/core-jvm-attach/target/mcp-java-dev-tools-core-jvm-attach-0.1.8.jar</mcp.sidecar.helper.source>
+    <mcp.sidecar.agent.source>${project.basedir}/../../java-agent/core/core-probe/target/mcp-java-dev-tools-agent-0.1.8-all.jar</mcp.sidecar.agent.source>
   </properties>
 
   <build>
@@ -72,6 +74,36 @@
             <goals>
               <goal>repackage</goal>
             </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>package-sidecar-artifacts</id>
+            <phase>package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <available file="${mcp.sidecar.helper.source}" property="mcp.sidecar.helper.present" />
+                <available file="${mcp.sidecar.agent.source}" property="mcp.sidecar.agent.present" />
+                <fail unless="mcp.sidecar.helper.present"
+                      message="Missing helper artifact: ${mcp.sidecar.helper.source}. Build java-agent core-jvm-attach first." />
+                <fail unless="mcp.sidecar.agent.present"
+                      message="Missing agent artifact: ${mcp.sidecar.agent.source}. Build java-agent core-probe first." />
+                <mkdir dir="${project.build.directory}/sidecar" />
+                <copy file="${mcp.sidecar.helper.source}"
+                      tofile="${project.build.directory}/sidecar/jvm-attach-helper.jar"
+                      preservelastmodified="true" />
+                <copy file="${mcp.sidecar.agent.source}"
+                      tofile="${project.build.directory}/sidecar/sidecar-agent.jar"
+                      preservelastmodified="true" />
+              </target>
+            </configuration>
           </execution>
         </executions>
       </plugin>

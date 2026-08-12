@@ -1,0 +1,67 @@
+{
+  "success": [
+    {
+      "name": "list jvms",
+      "kind": "list_jvms",
+      "assertions": {
+        "/resultType": "jvm_list",
+        "/status": "ok",
+        "/reasonCode": "jvm_discovery_unverified",
+        "/details/jvms/0/pid": "1234",
+        "/details/jvms/0/identityHint": "orders.jar",
+        "/details/jvms/0/identitySource": "sanitized_attach_descriptor",
+        "/details/jvms/0/frameworkHint": "spring_boot_candidate",
+        "/details/jvms/0/frameworkEvidence/0": "executable_jar_name",
+        "/details/jvms/0/processStartEpochMs": 1720000000000,
+        "/details/jvms/0/attachmentState": "unverified",
+        "/details/jvms/0/probeState": "unverified"
+      }
+    },
+    {
+      "name": "attach active",
+      "kind": "attach_active",
+      "assertions": {
+        "/resultType": "jvm_lifecycle",
+        "/status": "ok",
+        "/reasonCode": "active",
+        "/details/selectedJvm/pid": "1234",
+        "/details/lifecycle/operation": "attach",
+        "/details/lifecycle/outcome": "active",
+        "/details/probe/verification": "pending"
+      }
+    },
+    {
+      "name": "deactivate deactivated",
+      "kind": "deactivate_deactivated",
+      "assertions": {
+        "/resultType": "jvm_lifecycle",
+        "/status": "ok",
+        "/reasonCode": "deactivated",
+        "/details/selectedJvm/pid": "1234",
+        "/details/lifecycle/operation": "deactivate",
+        "/details/lifecycle/outcome": "deactivated",
+        "/details/nonRestorableClasses": []
+      }
+    }
+  ],
+  "failure": [
+    {
+      "name": "invalid request",
+      "kind": "invalid_request",
+      "assertions": {
+        "/resultType": "report",
+        "/status": "blocked",
+        "/reasonCode": "jvm_lifecycle_request_invalid"
+      }
+    },
+    {
+      "name": "probe host blocked",
+      "kind": "probe_host_blocked",
+      "assertions": {
+        "/resultType": "report",
+        "/status": "blocked",
+        "/reasonCode": "probe_host_not_allowed"
+      }
+    }
+  ]
+}

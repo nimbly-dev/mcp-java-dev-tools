@@ -50,21 +50,23 @@ The Java 21 lifecycle helper is packaged separately at
 
 ### Opt-in Java MCP server foundation
 
-`mcp-server/` is an opt-in Java 21, Spring Boot, and Spring AI MCP server
-foundation for the `v0.1.9` migration path. It is not the default runtime and
-does not yet migrate a product MCP Tool, Artifact behavior, or Sidecar Agent
-capability. The existing TypeScript MCP server at `dist/server.js` remains the
+`mcp-server/` is an opt-in Java 21, Spring Boot, and Spring AI MCP server for
+the `v0.1.9` migration path. It exposes the migrated Probe and JVM lifecycle
+MCP Tools; the existing TypeScript MCP server at `dist/server.js` remains the
 production default.
 
 Build and verify the foundation independently:
 
 ```powershell
-mvn -f mcp-server\pom.xml verify
+bash ./scripts/package-java-mcp-server.sh
+# Windows PowerShell: .\scripts\package-java-mcp-server.ps1
 ```
 
 The executable JAR is
-`mcp-server/application/target/mcp-java-dev-tools-server-0.1.9.jar`; it uses
-STDIO only, reserving stdout for MCP JSON-RPC and sending diagnostics to stderr.
+`mcp-server/application/target/mcp-java-dev-tools-server-0.1.9.jar`. Its
+adjacent `sidecar/` directory contains the packaged helper and agent artifacts;
+it uses STDIO only, reserving stdout for MCP JSON-RPC and sending diagnostics to
+stderr.
 See [mcp-server/README.md](./mcp-server/README.md) for its module boundaries and
 deferred migration scope.
 

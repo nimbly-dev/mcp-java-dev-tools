@@ -23,13 +23,13 @@ Only `application` may depend on Spring Boot, Spring AI, or MCP transport
 types. `core` must never depend on `application`; Maven Enforcer makes the
 Spring and MCP transport dependency restriction explicit.
 
-No production Core Feature, Artifact schema, storage implementation,
-integration, reporting workflow, suite execution behavior, reason-code
-catalog, parity contract, or optional HTTP transport is defined by the runtime.
-The first real `application -> core` Transport Adapter is owned by the first
-completed Feature-migration Story, expected to be Probe Story #571. A
-test-scope fake Feature may prove injection and delegation in that Story, but
-must never ship in the executable JAR or be exposed as an MCP Tool.
+Other than the completed `jvm_lifecycle` and Probe migrations, no production Core Feature,
+Artifact schema, storage implementation, integration, reporting workflow, suite
+execution behavior, reason-code catalog, parity contract, or optional HTTP
+transport is defined by the runtime. The real `application -> core` Transport
+Adapters are owned by the completed Probe (#571) and JVM lifecycle (#572)
+Feature migrations. Future migrations may add further adapters, but test-scope
+fake Features must never ship in the executable JAR or be exposed as MCP Tools.
 
 ## MCP adapter destinations
 
@@ -41,8 +41,8 @@ ready without registering unsupported placeholder MCP Tools.
 | --- | --- | --- |
 | `debug_check` | `mcp/tools/debugcheck` | registered; application-only |
 | `mcp-java-dev-tools://status` | `mcp/resource/status` | registered |
-| `jvm_lifecycle` | `mcp/tools/jvmlifecycle` | Feature migration required |
-| `probe` | `mcp/tools/probe` | #571 registration story |
+| `jvm_lifecycle` | `mcp/tools/jvmlifecycle` | registered; #572 |
+| `probe` | `mcp/tools/probe` | registered; #571 |
 | `route_synthesis` | `mcp/tools/routesynthesis` | Feature migration required |
 | `failure_analysis` | `mcp/tools/failureanalysis` | Feature migration required |
 | `transport_execute` | `mcp/tools/transportexecute` | Feature migration required |
@@ -62,14 +62,17 @@ The application uses Spring AI's non-web MCP server starter. It runs with
 `spring.main.web-application-type=none`. Logback writes diagnostics only to
 stderr; stdout is reserved for MCP JSON-RPC messages.
 
-The initial public surface is deliberately small:
+The current public surface is deliberately small:
 
 - `debug_check` is application-only and reports reachability, process
   metadata, version, build fingerprint, and the selected workspace.
 - `mcp-java-dev-tools://status` reports safe server, workspace, Probe-routing,
-  registry, and credential-discovery metadata. Unmigrated Probe and registry
-  behavior is identified with deterministic status and reason-code values;
-  the Resource never exposes configuration secrets.
+  registry, and credential-discovery metadata. Unmigrated registry behavior is
+  identified with deterministic status and reason-code values; the Resource
+  never exposes configuration secrets.
+- `jvm_lifecycle` discovers local JVMs and safely attaches or deactivates the
+  repository-owned Sidecar Agent.
+- `probe` exposes the migrated bounded Sidecar Probe actions.
 
 Workspace selection initially uses `--workspace-root`, then
 `MCP_WORKSPACE_ROOT`, then `INIT_CWD` or `PWD`, followed by the current
@@ -94,6 +97,8 @@ The executable artifact is:
 
 ```text
 application/target/mcp-java-dev-tools-server-0.1.9.jar
+application/target/sidecar/jvm-attach-helper.jar
+application/target/sidecar/sidecar-agent.jar
 ```
 
 Opt in from an MCP host with Java 21 installed:
@@ -113,7 +118,14 @@ Java runtime does not launch, proxy, supervise, or fall back to TypeScript.
 
 ## Build and verification
 
-From this directory:
+From the repository root, package the agent artifacts and the server together:
+
+```text
+bash ./scripts/package-java-mcp-server.sh
+# Windows PowerShell: .\scripts\package-java-mcp-server.ps1
+```
+
+After packaging, from this directory:
 
 ```text
 mvn -B verify
@@ -122,11 +134,11 @@ java -jar application/target/mcp-java-dev-tools-server-0.1.9.jar
 ```
 
 `mvn verify` applies Maven Enforcer, Checkstyle, PMD, unit-test discovery, and
-the focused executable-JAR STDIO integration test. That test initializes the
-server, reads the status Resource, invokes `debug_check`, verifies JSON-RPC-only
-stdout, confirms bounded termination after stdin closes, and proves the
-sanitized nonzero startup-failure boundary. Parent-exit monitoring has focused
-unit coverage for its deterministic shutdown decision.
+the focused executable-JAR STDIO integration tests. Those tests initialize the
+server, exercise both migrated Tools, perform a real attach/deactivate against a
+separate target JVM, verify target survival, confirm JSON-RPC-only stdout, and
+prove the sanitized startup-failure boundary. Parent-exit monitoring has
+focused unit coverage for its deterministic shutdown decision.
 
 ## Initial maintainability baseline
 
