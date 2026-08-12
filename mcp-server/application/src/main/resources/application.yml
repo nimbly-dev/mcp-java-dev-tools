@@ -22,6 +22,12 @@ logging:
     root: INFO
 
 mcpjvm:
+  jvm-lifecycle:
+    artifacts:
+      helper-jar: ${MCP_JAVA_ATTACH_HELPER_JAR:}
+      agent-jar: ${MCP_JAVA_AGENT_JAR:}
+    java-bin: ${MCP_JAVA_BIN:java}
+    allowed-probe-hosts: ${MCP_JVM_LIFECYCLE_ALLOWED_PROBE_HOSTS:}
   probe:
     endpoint:
       timeout-ms: 15000
