@@ -217,7 +217,7 @@ async function main() {
   let shutdownStarted = false;
   let startupComplete = false;
   let parentMonitor: NodeJS.Timeout | undefined;
-  const shutdown = (reason: string) => {
+  const shutdown = (reason: string, exitCode = 0) => {
     if (shutdownStarted) {
       return;
     }
@@ -226,7 +226,7 @@ async function main() {
     registryWatch?.close();
     if (parentMonitor) clearInterval(parentMonitor);
     console.error(`mcp-java-dev-tools shutdown: ${reason}`);
-    setImmediate(() => process.exit(0));
+    setImmediate(() => process.exit(exitCode));
   };
 
   const parentPid =
@@ -394,7 +394,15 @@ async function main() {
     },
   });
 
-  const transport = new StdioServerTransport();
+  const transport = new StdioServerTransport(process.stdin, process.stdout, {
+    maxBufferSize: cfg.stdioMaxBufferSize,
+  });
+  transport.onerror = (error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    const boundedMessage = message.length > 512 ? `${message.slice(0, 509)}...` : message;
+    console.error(`mcp-java-dev-tools stdio transport error: ${boundedMessage}`);
+    shutdown("stdio_transport_error", 1);
+  };
   await server.connect(transport);
   const refreshRoots = async () => {
     const capabilities = server.server.getClientCapabilities();
@@ -419,7 +427,7 @@ async function main() {
   startupComplete = true;
   setupRegistryWatcher();
   console.error(
-    `mcp-java-dev-tools ${serverVersion} running (stdio). workspaceRoot=${cfg.workspaceRootAbs} probeBaseUrl=${currentBaseUrl()} build=${buildFingerprint} pid=${process.pid}${typeof parentPid === "number" ? ` ppid=${parentPid}` : ""}`,
+    `mcp-java-dev-tools ${serverVersion} running (stdio). workspaceRoot=${cfg.workspaceRootAbs} probeBaseUrl=${currentBaseUrl()} stdioMaxBufferSize=${cfg.stdioMaxBufferSize} build=${buildFingerprint} pid=${process.pid}${typeof parentPid === "number" ? ` ppid=${parentPid}` : ""}`,
   );
 }
 
