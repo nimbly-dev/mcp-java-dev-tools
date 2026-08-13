@@ -369,6 +369,104 @@ test("[IT][tools-mcp-server][stdio] stdio server exits after stdin closes", asyn
   }
 });
 
+test("[IT][tools-mcp-server][stdio] reports oversized frames on stderr without contaminating stdout", async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-stdio-frame-limit-it-"));
+  const stdoutChunks: string[] = [];
+  const stderrChunks: string[] = [];
+  const child = spawn(process.execPath, [mcpServerEntryAbs], {
+    cwd: repoRootAbs,
+    env: {
+      ...process.env,
+      MCP_WORKSPACE_ROOT: tmpRoot,
+      MCP_STDIO_MAX_BUFFER_SIZE: String(1 * 1024 * 1024),
+    },
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+
+  child.stdin?.on("error", () => undefined);
+  child.stdout?.on("data", (chunk) => stdoutChunks.push(String(chunk)));
+  child.stderr?.on("data", (chunk) => stderrChunks.push(String(chunk)));
+
+  try {
+    const initialize = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-03-26",
+        capabilities: {},
+        clientInfo: { name: "stdio-frame-limit-it", version: "1.0.0" },
+      },
+    });
+    child.stdin?.write(`${initialize}\n`);
+
+    await waitFor(
+      () =>
+        getNonEmptyLines(stdoutChunks.join("")).some((line) => {
+          try {
+            return (JSON.parse(line) as { id?: number }).id === 1;
+          } catch {
+            return false;
+          }
+        }),
+      {
+        timeoutMs: 10_000,
+        failureMessage: `server did not acknowledge initialize.\nSTDOUT:\n${stdoutChunks.join("")}\nSTDERR:\n${stderrChunks.join("")}`,
+      },
+    );
+
+    const oversizedRequest =
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: {
+          name: "transport_execute",
+          arguments: {
+            protocol: "http",
+            request: {
+              method: "GET",
+              url: "http://127.0.0.1:1/oversized-frame",
+              headers: { Authorization: `Bearer ${"x".repeat(1_100_000)}` },
+            },
+            options: { wrappedOnly: true },
+          },
+        },
+      }) + "\n";
+    assert.equal(Buffer.byteLength(oversizedRequest) > 1 * 1024 * 1024, true);
+    child.stdin?.write(oversizedRequest);
+
+    await waitFor(
+      () =>
+        stderrChunks
+          .join("")
+          .includes(
+            "mcp-java-dev-tools stdio transport error: ReadBuffer exceeded maximum size of 1048576 bytes",
+          ),
+      {
+        timeoutMs: 10_000,
+        failureMessage: `oversized frame diagnostic missing.\nSTDERR:\n${stderrChunks.join("")}`,
+      },
+    );
+
+    for (const line of getNonEmptyLines(stdoutChunks.join(""))) {
+      assert.equal((JSON.parse(line) as { jsonrpc?: string }).jsonrpc, "2.0");
+    }
+
+    await waitFor(() => child.exitCode !== null, {
+      timeoutMs: 10_000,
+      failureMessage: `server did not terminate after oversized frame.\nSTDERR:\n${stderrChunks.join("")}`,
+    });
+    assert.equal(child.exitCode, 1);
+    assert.equal(stderrChunks.join("").includes("shutdown: stdio_transport_error"), true);
+  } finally {
+    child.stdin?.end();
+    await forceStop(child);
+    await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});
+
 test("[IT][tools-mcp-server][stdio] Roots bind workspace context and expose ambiguity across Roots changes", async () => {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-roots-context-it-"));
   const firstRoot = path.join(tmpRoot, "first");

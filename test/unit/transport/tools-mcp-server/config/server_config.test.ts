@@ -42,9 +42,32 @@ test("[UT][transport][server_config] loads from probe-config.json and applies fi
     assert.equal(cfg.probeStatusPath, CONFIG_DEFAULTS.PROBE_STATUS_PATH);
     assert.equal(cfg.probeResetPath, CONFIG_DEFAULTS.PROBE_RESET_PATH);
     assert.equal(cfg.probeCapturePath, CONFIG_DEFAULTS.PROBE_CAPTURE_PATH);
+    assert.equal(cfg.stdioMaxBufferSize, CONFIG_DEFAULTS.STDIO_MAX_BUFFER_SIZE);
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
+});
+
+test("[UT][transport][server_config] bounds the MCP stdio frame buffer override", () => {
+  withEnv(
+    {
+      [MCP_ENV.STDIO_MAX_BUFFER_SIZE]: String(CONFIG_DEFAULTS.STDIO_MAX_BUFFER_SIZE_MAX + 1),
+    },
+    () => {
+      const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", process.cwd()]);
+      assert.equal(cfg.stdioMaxBufferSize, CONFIG_DEFAULTS.STDIO_MAX_BUFFER_SIZE_MAX);
+    },
+  );
+
+  withEnv(
+    {
+      [MCP_ENV.STDIO_MAX_BUFFER_SIZE]: String(CONFIG_DEFAULTS.STDIO_MAX_BUFFER_SIZE_MIN - 1),
+    },
+    () => {
+      const cfg = loadConfigFromEnvAndArgs(["node", "server", "--workspace-root", process.cwd()]);
+      assert.equal(cfg.stdioMaxBufferSize, CONFIG_DEFAULTS.STDIO_MAX_BUFFER_SIZE_MIN);
+    },
+  );
 });
 
 test("[UT][transport][server_config] missing probe-config keeps the server startable without environment probe routing", () => {

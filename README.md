@@ -260,18 +260,24 @@ Default is `3`. Increase this if you need deeper capture history for a single pr
 
 #### Optional
 
-| Variable                                      | Default | Notes                                                                                                                                      |
-| --------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR`       | â€”     | Optional single-jar override. A missing path falls back to packaged or repository-built Request Mapper artifacts.                          |
-| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH` | â€”     | Optional classpath override for a Request Mapper and external adapters. Missing paths fall back to packaged or repository-built artifacts. |
-| `MCP_JAVA_BIN`                                | â€”     |                                                                                                                                            |
-| `MCP_JAVA_ATTACH_HELPER_JAR`                  | â€”     | Optional absolute path to the packaged Java 21 lifecycle helper; the MCP Tool otherwise resolves the repository-built helper artifact.     |
-| `MCP_JVM_LIFECYCLE_ALLOWED_PROBE_HOSTS`       | â€”     | Comma-separated non-loopback Probe hosts allowed for dynamic attach. Loopback is always allowed.                                           |
-| `MCP_PROBE_LINE_SELECTION_MAX_SCAN_LINES`     | `120`   | Range: 10â€“2000                                                                                                                           |
-| `MCP_PROBE_WAIT_MAX_RETRIES`                  | `1`     | Max: 10                                                                                                                                    |
-| `MCP_PROBE_WAIT_UNREACHABLE_RETRY_ENABLED`    | `false` |                                                                                                                                            |
-| `MCP_PROBE_WAIT_UNREACHABLE_MAX_RETRIES`      | `3`     | Max: 10                                                                                                                                    |
-| `MCP_PROBE_INCLUDE_EXECUTION_PATHS`           | `false` | Set `true` to include `executionPaths` arrays in probe payloads                                                                            |
+| Variable                                      | Default    | Notes                                                                                                                                      |
+| --------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR`       | â€”        | Optional single-jar override. A missing path falls back to packaged or repository-built Request Mapper artifacts.                          |
+| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH` | â€”        | Optional classpath override for a Request Mapper and external adapters. Missing paths fall back to packaged or repository-built artifacts. |
+| `MCP_JAVA_BIN`                                | â€”        |                                                                                                                                            |
+| `MCP_JAVA_ATTACH_HELPER_JAR`                  | â€”        | Optional absolute path to the packaged Java 21 lifecycle helper; the MCP Tool otherwise resolves the repository-built helper artifact.     |
+| `MCP_JVM_LIFECYCLE_ALLOWED_PROBE_HOSTS`       | â€”        | Comma-separated non-loopback Probe hosts allowed for dynamic attach. Loopback is always allowed.                                           |
+| `MCP_PROBE_LINE_SELECTION_MAX_SCAN_LINES`     | `120`      | Range: 10â€“2000                                                                                                                           |
+| `MCP_PROBE_WAIT_MAX_RETRIES`                  | `1`        | Max: 10                                                                                                                                    |
+| `MCP_PROBE_WAIT_UNREACHABLE_RETRY_ENABLED`    | `false`    |                                                                                                                                            |
+| `MCP_PROBE_WAIT_UNREACHABLE_MAX_RETRIES`      | `3`        | Max: 10                                                                                                                                    |
+| `MCP_PROBE_INCLUDE_EXECUTION_PATHS`           | `false`    | Set `true` to include `executionPaths` arrays in probe payloads                                                                            |
+| `MCP_STDIO_MAX_BUFFER_SIZE`                   | `33554432` | Maximum newline-delimited MCP JSON-RPC frame size in bytes. Range: 1048576–67108864.                                                       |
+
+`MCP_STDIO_MAX_BUFFER_SIZE` controls the MCP stdio input frame limit used by the
+TypeScript compatibility server. It is bounded to protect the process from
+unbounded input; increasing it does not override HTTP target or proxy header-size
+limits.
 
 ### Configuration Scope Matrix
 

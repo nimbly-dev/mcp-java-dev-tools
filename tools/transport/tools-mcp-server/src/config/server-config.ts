@@ -91,6 +91,12 @@ export class ServerConfigLoader {
       CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES_MIN,
       CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES_MAX,
     );
+    const stdioMaxBufferSize = this.parseIntFlag(
+      this.env(MCP_ENV.STDIO_MAX_BUFFER_SIZE),
+      CONFIG_DEFAULTS.STDIO_MAX_BUFFER_SIZE,
+      CONFIG_DEFAULTS.STDIO_MAX_BUFFER_SIZE_MIN,
+      CONFIG_DEFAULTS.STDIO_MAX_BUFFER_SIZE_MAX,
+    );
 
     const implicitProbeBaseUrl = this.registryImplicitBaseUrl(probeRegistry);
     const probeBaseUrl = implicitProbeBaseUrl || "";
@@ -109,6 +115,7 @@ export class ServerConfigLoader {
       probeWaitMaxRetries,
       probeWaitUnreachableRetryEnabled,
       probeWaitUnreachableMaxRetries,
+      stdioMaxBufferSize,
       ...(probeRegistry ? { probeRegistry } : {}),
     };
   }

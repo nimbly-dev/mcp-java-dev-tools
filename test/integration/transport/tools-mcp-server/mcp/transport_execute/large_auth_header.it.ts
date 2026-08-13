@@ -22,8 +22,9 @@ async function callTool(
 
 async function listenEphemeralServer(
   handler: (req: http.IncomingMessage, res: http.ServerResponse) => void,
+  options: http.ServerOptions = {},
 ): Promise<{ server: http.Server; url: string; close: () => Promise<void> }> {
-  const server = http.createServer(handler);
+  const server = http.createServer(options, handler);
   await new Promise<void>((resolve) => {
     server.listen(0, "127.0.0.1", () => resolve());
   });
@@ -91,6 +92,55 @@ test("[IT][transport_execute] transport_execute preserves large Authorization he
       exactMatch?: boolean;
     };
     assert.equal(payload.expectedLength, expectedLength);
+    assert.equal(payload.observedLength, expectedLength);
+    assert.equal(payload.exactMatch, true);
+  } finally {
+    await mcp?.close();
+    await echo.close();
+  }
+});
+
+test("[IT][transport_execute] accepts an Authorization header in a frame larger than the SDK default", async () => {
+  const authorization = `Bearer eyJ.${"A".repeat(10_600_000)}.sig`;
+  const expectedLength = authorization.length;
+
+  const echo = await listenEphemeralServer(
+    (req, res) => {
+      const observed = String(req.headers.authorization ?? "");
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          observedLength: observed.length,
+          exactMatch: observed === authorization,
+        }),
+      );
+    },
+    { maxHeaderSize: 16 * 1024 * 1024 },
+  );
+
+  let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
+  try {
+    mcp = await startMcpClient({
+      workspaceRootAbs: process.cwd(),
+      probeBaseUrl: "http://127.0.0.1:9191",
+    });
+
+    const out = await callTool(mcp, "transport_execute", {
+      protocol: "http",
+      request: {
+        method: "GET",
+        url: `${echo.url}/large-auth-check`,
+        headers: { Authorization: authorization },
+      },
+      options: { wrappedOnly: true },
+    });
+
+    assert.equal(out.structuredContent?.status, "pass");
+    assert.equal(out.structuredContent?.statusCode, 200);
+    const payload = JSON.parse(String(out.structuredContent?.bodyPreview ?? "{}")) as {
+      observedLength?: number;
+      exactMatch?: boolean;
+    };
     assert.equal(payload.observedLength, expectedLength);
     assert.equal(payload.exactMatch, true);
   } finally {
