@@ -43,7 +43,7 @@ ready without registering unsupported placeholder MCP Tools.
 | `mcp-java-dev-tools://status` | `mcp/resource/status` | registered |
 | `jvm_lifecycle` | `mcp/tools/jvmlifecycle` | registered; #572 |
 | `probe` | `mcp/tools/probe` | registered; #571 |
-| `route_synthesis` | `mcp/tools/routesynthesis` | Feature migration required |
+| `route_synthesis` | `mcp/tools/routesynthesis` | registered; #573 |
 | `failure_analysis` | `mcp/tools/failureanalysis` | Feature migration required |
 | `transport_execute` | `mcp/tools/transportexecute` | Feature migration required |
 | `artifact_management` | `mcp/tools/artifactmanagement` | Feature migration required |

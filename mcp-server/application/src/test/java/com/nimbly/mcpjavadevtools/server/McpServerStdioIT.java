@@ -17,6 +17,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -46,6 +47,17 @@ class McpServerStdioIT {
     @Test
     void executableJarStartsInStdioModeWithoutContaminatingStdout() throws Exception {
         Path workspaceRoot = workspaceRoot();
+        writeStdioFixture(workspaceRoot);
+        HttpServer routeProbe = HttpServer.create(new InetSocketAddress(0), 0);
+        routeProbe.createContext("/__probe/status", exchange -> respondProbe(exchange, """
+                {"probe":{"key":"example.StdioController#run:7","hitCount":0,
+                "lineResolvable":true,"lineValidation":"resolvable"}}
+                """));
+        routeProbe.createContext("/actuator/mappings", exchange -> respondProbe(exchange, """
+                {"handler":"example.StdioController#run()",
+                "predicate":"{GET [/stdio/run]}"}
+                """));
+        routeProbe.start();
         try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
             server.send(initializeRequest());
 
@@ -58,7 +70,45 @@ class McpServerStdioIT {
             JsonNode tools = server.responseFor(2).path("result").path("tools");
             assertThat(tools.isArray()).isTrue();
             assertThat(tools).extracting(node -> node.path("name").asText())
-                    .containsExactly("debug_check", "jvm_lifecycle", "probe");
+                    .containsExactlyInAnyOrder("debug_check", "jvm_lifecycle", "probe", "route_synthesis");
+            JsonNode routeTool = null;
+            for (JsonNode tool : tools) {
+                if ("route_synthesis".equals(tool.path("name").asText())) {
+                    routeTool = tool;
+                    break;
+                }
+            }
+            assertThat(routeTool).isNotNull();
+            JsonNode routeSchema = routeTool.path("inputSchema");
+            assertThat(routeSchema.path("oneOf").isArray())
+                    .as("route_synthesis schema: %s", routeSchema)
+                    .isTrue();
+            assertThat(routeSchema.path("oneOf").size()).isEqualTo(4);
+            JsonNode targetInputSchema = routeSchema.path("oneOf").get(0).path("properties").path("input");
+            JsonNode recipeInputSchema = routeSchema.path("oneOf").get(3).path("properties").path("input");
+            assertThat(routeSchema.path("oneOf").get(0).path("properties").path("action").path("const").asText())
+                    .isEqualTo("infer_target");
+            assertThat(routeSchema.path("oneOf").get(1).path("properties").path("action").path("const").asText())
+                    .isEqualTo("class_methods");
+            assertThat(routeSchema.path("oneOf").get(2).path("properties").path("action").path("const").asText())
+                    .isEqualTo("discover_handlers");
+            assertThat(routeSchema.path("oneOf").get(3).path("properties").path("action").path("const").asText())
+                    .isEqualTo("create_recipe");
+            assertThat(targetInputSchema.path("required"))
+                    .isEqualTo(JSON.readTree("[\"projectRootAbs\"]"));
+            assertThat(recipeInputSchema.path("required"))
+                    .isEqualTo(JSON.readTree(
+                            "[\"projectRootAbs\",\"classHint\",\"methodHint\",\"intentMode\"]"));
+            assertThat(recipeInputSchema.path("properties").path("intentMode").path("enum"))
+                    .isEqualTo(JSON.readTree("[\"line_probe\",\"regression\"]"));
+            assertThat(recipeInputSchema.path("properties").path("discoveryPreference").path("enum"))
+                    .isEqualTo(JSON.readTree("[\"static_only\",\"runtime_first\",\"runtime_only\"]"));
+            assertThat(targetInputSchema.path("properties").path("lineHint").path("minimum").asInt())
+                    .isEqualTo(1);
+            assertThat(targetInputSchema.path("properties").path("additionalSourceRoots").path("maxItems").asInt())
+                    .isEqualTo(10);
+            assertThat(targetInputSchema.path("properties").path("maxCandidates").path("minimum").asInt())
+                    .isEqualTo(1);
 
             server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
             JsonNode debugCheck = server.responseFor(3);
@@ -91,6 +141,43 @@ class McpServerStdioIT {
                     "ttlMs", 1000));
             assertMissingProbeTarget(server, 12, "profiler", Map.of("action", "status"));
 
+            server.send(request(13, "tools/call", Map.of(
+                    "name", "route_synthesis",
+                    "arguments", Map.of("action", "infer_target", "input", Map.of(
+                            "projectRootAbs", workspaceRoot.toString(), "classHint", "example.Missing")))));
+            JsonNode routeSynthesis = toolPayload(server.responseFor(13));
+            assertThat(routeSynthesis.path("resultType").asText()).isEqualTo("report");
+            assertThat(routeSynthesis.path("reasonCode").asText()).isNotBlank();
+            Map<String, Object> routeInput = Map.of(
+                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.Missing");
+            assertRouteSynthesisReport(server, 14, "class_methods", routeInput);
+            assertRouteSynthesisReport(server, 15, "discover_handlers", routeInput);
+            Map<String, Object> recipeFailureInput = Map.of(
+                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.Missing",
+                    "methodHint", "missing", "intentMode", "regression");
+            assertRouteSynthesisReport(server, 16, "create_recipe", recipeFailureInput);
+            Map<String, Object> successfulInferInput = Map.of(
+                    "projectRootAbs", workspaceRoot.toString(),
+                    "classHint", "example.StdioController", "methodHint", "run",
+                    "probeBaseUrl", "http://127.0.0.1:" + routeProbe.getAddress().getPort());
+            assertRouteSynthesisSuccess(server, 17, "infer_target", successfulInferInput, "ranked_candidates");
+            Map<String, Object> successfulClassInput = Map.of(
+                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.StdioController");
+            assertRouteSynthesisSuccess(server, 18, "class_methods", successfulClassInput, "class_methods");
+            assertRouteSynthesisSuccess(server, 19, "discover_handlers", successfulClassInput, "handler_inventory");
+            Map<String, Object> successfulRecipeInput = Map.of(
+                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.StdioController",
+                    "methodHint", "run", "lineHint", 7, "intentMode", "line_probe",
+                    "discoveryPreference", "static_only",
+                    "probeBaseUrl", "http://127.0.0.1:" + routeProbe.getAddress().getPort());
+            assertRouteSynthesisSuccess(server, 20, "create_recipe", successfulRecipeInput, "recipe");
+            Map<String, Object> runtimeRecipeInput = Map.of(
+                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.StdioController",
+                    "methodHint", "run", "intentMode", "regression", "discoveryPreference", "runtime_only",
+                    "mappingsBaseUrl", "http://127.0.0.1:" + routeProbe.getAddress().getPort()
+                            + "/actuator/mappings");
+            assertRuntimeRouteSynthesisSuccess(server, 21, runtimeRecipeInput);
+
             server.send(request(4, "resources/list", Map.of()));
             JsonNode resources = server.responseFor(4).path("result").path("resources");
             assertThat(resources).extracting(node -> node.path("uri").asText())
@@ -106,6 +193,8 @@ class McpServerStdioIT {
             server.closeInputAndAwaitTermination();
             assertThat(server.stdoutLines()).allSatisfy(this::assertJsonRpcMessage);
             assertThat(server.stderrText()).isNotBlank();
+        } finally {
+            routeProbe.stop(0);
         }
     }
 
@@ -380,6 +469,23 @@ class McpServerStdioIT {
         return Path.of(System.getProperty("java.io.tmpdir"), "mcp-java-dev-tools-stdio-it-workspace");
     }
 
+    private static void writeStdioFixture(Path workspaceRoot) throws IOException {
+        Path sourceRoot = workspaceRoot.resolve("src/main/java/example");
+        Files.createDirectories(sourceRoot);
+        Files.writeString(sourceRoot.resolve("StdioController.java"), """
+                package example;
+                import org.springframework.web.bind.annotation.GetMapping;
+                import org.springframework.web.bind.annotation.RestController;
+                @RestController
+                public class StdioController {
+                    @GetMapping("/stdio/run")
+                    public String run() {
+                        return "ok";
+                    }
+                }
+                """);
+    }
+
     private static int freePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
@@ -428,6 +534,68 @@ class McpServerStdioIT {
             }
         }
         return "";
+    }
+
+    private static void assertRouteSynthesisReport(
+            McpServerProcess server,
+            int requestId,
+            String action,
+            Map<String, Object> input) throws Exception {
+        server.send(request(requestId, "tools/call", Map.of(
+                "name", "route_synthesis",
+                "arguments", Map.of("action", action, "input", input))));
+        JsonNode payload = toolPayload(server.responseFor(requestId));
+        assertThat(payload.path("resultType").asText()).as("result type for %s", action)
+                .isNotBlank();
+        assertThat(payload.path("status").asText()).as("status for %s", action).isNotBlank();
+        assertThat(payload.path("reasonCode").asText()).as("reason code for %s", action).isNotBlank();
+    }
+
+    private static void assertRouteSynthesisSuccess(
+            McpServerProcess server,
+            int requestId,
+            String action,
+            Map<String, Object> input,
+            String resultType) throws Exception {
+        server.send(request(requestId, "tools/call", Map.of(
+                "name", "route_synthesis",
+                "arguments", Map.of("action", action, "input", input))));
+        JsonNode payload = toolPayload(server.responseFor(requestId));
+        assertThat(payload.path("resultType").asText()).as("result type for %s payload=%s", action, payload)
+                .isEqualTo(resultType);
+        assertThat(payload.path("status").asText()).as("status for %s", action)
+                .isIn("ok", "ready", "partial");
+        JsonNode details = payload.path("details");
+        assertThat(details.isObject()).as("details for %s", action).isTrue();
+        if ("recipe".equals(resultType)) {
+            assertThat(details.path("requestCandidates").isArray()).isTrue();
+            assertThat(details.path("requestCandidates")).isNotEmpty();
+            assertThat(details.path("requestCandidates").get(0).path("path").asText())
+                    .isEqualTo("/stdio/run");
+            assertThat(details.path("executionPlan").isObject()).isTrue();
+            assertThat(details.path("executionPlan").path("selectedMode").asText())
+                    .isEqualTo("single_line_probe");
+            assertThat(details.path("runtimeCapture").path("status").asText())
+                    .isEqualTo("available");
+        }
+    }
+
+    private static void assertRuntimeRouteSynthesisSuccess(
+            McpServerProcess server,
+            int requestId,
+            Map<String, Object> input) throws Exception {
+        server.send(request(requestId, "tools/call", Map.of(
+                "name", "route_synthesis",
+                "arguments", Map.of("action", "create_recipe", "input", input))));
+        JsonNode payload = toolPayload(server.responseFor(requestId));
+        assertThat(payload.path("resultType").asText()).isEqualTo("recipe");
+        assertThat(payload.path("status").asText()).isEqualTo("ready");
+        JsonNode details = payload.path("details");
+        assertThat(details.path("requestCandidates").get(0).path("path").asText())
+                .isEqualTo("/stdio/run");
+        assertThat(details.path("executionPlan").path("selectedMode").asText())
+                .isEqualTo("regression");
+        assertThat(payload.toString()).doesNotContain("mappingsBaseUrl");
     }
 
     private static void assertSuccessfulProbe(JsonNode response, String action) throws IOException {
