@@ -1,0 +1,454 @@
+{
+  "contract": "typescript-route-synthesis-action-parity-v1",
+  "sourceReferences": [
+    "tools/contracts/tools-contracts/src/inputs/route_synthesis/route_synthesis.input.model.ts",
+    "tools/features/route-synthesis/actions/infer_target.action.ts",
+    "tools/features/route-synthesis/actions/discover_handlers.action.ts",
+    "tools/features/route-synthesis/actions/create_recipe.action.ts",
+    "tools/features/route-synthesis/models/recipe_output_model.ts",
+    "tools/core/tools-core/src/recipe_execution_plan.util.ts",
+    "tools/core/tools-registry/src/plugin.loader.ts",
+    "tools/core/tools-registry/src/models/synthesis/synthesizer_failure.model.ts"
+  ],
+  "cases": [
+    {
+      "name": "infer_target success",
+      "action": "infer_target",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.Work",
+        "methodHint": "run"
+      },
+      "defaults": {
+        "discoveryMode": "ranked_candidates",
+        "maxCandidates": 8
+      },
+      "expected": {
+        "resultType": "ranked_candidates",
+        "status": "ok",
+        "shapeAssertions": [
+          { "path": "candidates", "size": 1 },
+          { "path": "candidates.0.fqcn", "equals": "example.Work" },
+          { "path": "candidates.0.methodName", "equals": "run" },
+          { "path": "candidates.0.lineSelectionStatus", "equals": "validated" }
+        ]
+      },
+      "ordering": "score descending, then class identity, method identity, line, and file"
+    },
+    {
+      "name": "infer_target missing target",
+      "action": "infer_target",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.Missing",
+        "methodHint": "run"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "target_not_found",
+        "reasonCode": "target_not_found",
+        "failedStep": "target_inference",
+        "nextActionCode": "refine_target_hints"
+      }
+    },
+    {
+      "name": "infer_target ambiguity",
+      "action": "infer_target",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "additionalSourceRoots": ["fixture-project/secondary-src"],
+        "classHint": "example.Work",
+        "methodHint": "run"
+      },
+      "expected": {
+        "resultType": "disambiguation",
+        "status": "target_ambiguous",
+        "reasonCode": "target_ambiguous",
+        "failedStep": "target_selection",
+        "nextActionCode": "disambiguate_target"
+      },
+      "ordering": "class identity, method identity, line, and file"
+    },
+    {
+      "name": "infer_target line-resolution failure",
+      "action": "infer_target",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.Work",
+        "methodHint": "run"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "target_not_found",
+        "reasonCode": "runtime_line_unresolved",
+        "failedStep": "line_validation",
+        "nextActionCode": "select_resolvable_line"
+      }
+    },
+    {
+      "name": "infer_target workspace failure",
+      "action": "infer_target",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.Work"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "workspace_context_missing",
+        "reasonCode": "workspace_context_missing",
+        "failedStep": "workspace_resolution",
+        "nextActionCode": "bind_workspace_root"
+      }
+    },
+    {
+      "name": "class_methods success with stable ordering",
+      "action": "class_methods",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.Work"
+      },
+      "defaults": {
+        "discoveryMode": "class_methods"
+      },
+      "expected": {
+        "resultType": "class_methods",
+        "status": "ok",
+        "shapeAssertions": [
+          { "path": "target.fqcn", "equals": "example.Work" },
+          { "path": "target.methods.0.methodName", "equals": "before" },
+          { "path": "target.methods.1.methodName", "equals": "run" },
+          { "path": "target.methods", "size": 2 }
+        ]
+      },
+      "ordering": "method declaration line, then method name"
+    },
+    {
+      "name": "class_methods missing hint",
+      "action": "class_methods",
+      "input": {
+        "projectRootAbs": "fixture-project"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "class_hint_required",
+        "reasonCode": "class_hint_required",
+        "failedStep": "input_validation",
+        "nextActionCode": "provide_class_hint"
+      }
+    },
+    {
+      "name": "class_methods missing class",
+      "action": "class_methods",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.Missing"
+      },
+      "expected": {
+        "resultType": "class_methods",
+        "status": "class_not_found",
+        "reasonCode": "class_not_found",
+        "failedStep": "target_inference",
+        "nextActionCode": "class_not_found"
+      }
+    },
+    {
+      "name": "class_methods ambiguous class",
+      "action": "class_methods",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "additionalSourceRoots": ["fixture-project/secondary-src"],
+        "classHint": "example.Work"
+      },
+      "expected": {
+        "resultType": "disambiguation",
+        "status": "class_ambiguous",
+        "reasonCode": "class_ambiguous",
+        "failedStep": "target_selection",
+        "nextActionCode": "class_ambiguous"
+      },
+      "ordering": "fully qualified class name, then file"
+    },
+    {
+      "name": "discover_handlers success",
+      "action": "discover_handlers",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "probeBaseUrl": "http://probe.example"
+      },
+      "expected": {
+        "resultType": "handler_inventory",
+        "status": "ready",
+        "framework": "spring_http",
+        "shapeAssertions": [
+          { "path": "handlers.0.httpMethod", "equals": "GET" },
+          { "path": "handlers.0.path", "equals": "/work/run" },
+          { "path": "handlers.0.methodName", "equals": "run" },
+          { "path": "handlers.0.lineSelectionStatus", "equals": "validated" },
+          { "path": "handlers.1.httpMethod", "equals": "POST" },
+          { "path": "handlers.1.path", "equals": "/work/save" },
+          { "path": "handlers.1.methodName", "equals": "save" },
+          { "path": "handlers", "size": 2 }
+        ]
+      },
+      "ordering": "resolver handler order is preserved; runtime line metadata is appended"
+    },
+    {
+      "name": "discover_handlers unsupported framework",
+      "action": "discover_handlers",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.UnsupportedController"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "blocked",
+        "reasonCode": "mapper_plugin_unavailable",
+        "failedStep": "request_mapping_resolver_bootstrap"
+      }
+    },
+    {
+      "name": "discover_handlers partial line validation",
+      "action": "discover_handlers",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "probeBaseUrl": "http://probe.example"
+      },
+      "expected": {
+        "resultType": "handler_inventory",
+        "status": "partial",
+        "reasonCode": "handler_line_validation_partial"
+      },
+      "ordering": "handler order is preserved"
+    },
+    {
+      "name": "discover_handlers missing workspace",
+      "action": "discover_handlers",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "workspace_context_missing",
+        "reasonCode": "workspace_context_missing",
+        "failedStep": "workspace_resolution",
+        "nextActionCode": "bind_workspace_root"
+      }
+    },
+    {
+      "name": "create_recipe Spring HTTP success",
+      "action": "create_recipe",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "methodHint": "run",
+        "lineHint": 10,
+        "intentMode": "line_probe",
+        "discoveryPreference": "static_only"
+      },
+      "expected": {
+        "resultType": "recipe",
+        "status": "ready",
+        "shapeAssertions": [
+          { "path": "requestCandidates.0.method", "equals": "GET" },
+          { "path": "requestCandidates.0.path", "equals": "/work/run" },
+          { "path": "requestCandidates.0.queryTemplate", "equals": "" },
+          { "path": "requestCandidates.0.fullUrlHint", "equals": "/work/run" },
+          { "path": "requestCandidates.0.assumptions.0", "equals": "spring_mapping_annotation" },
+          { "path": "requestCandidates.0.needsConfirmation", "size": 0 },
+          { "path": "requestCandidates.0.rationale.0", "equals": "spring_http_handler_annotation" },
+          { "path": "selectedHandler.httpMethod", "equals": "GET" },
+          { "path": "selectedHandler.path", "equals": "/work/run" },
+          { "path": "applicationType", "equals": "spring_http" },
+          { "path": "synthesizerUsed", "equals": "spring_http" },
+          { "path": "executionReadiness", "equals": "ready" },
+          { "path": "intentMode", "equals": "line_probe" },
+          { "path": "executionPlan.selectedMode", "equals": "single_line_probe" },
+          { "path": "executionPlan.routingReason", "equals": "intent_mode_line_probe" },
+          { "path": "executionPlan.steps.0.title", "equals": "Reset probe baseline" },
+          { "path": "executionPlan.steps.1.title", "equals": "Execute probe trigger request" },
+          { "path": "executionPlan.steps.2.title", "equals": "Verify single-line probe hit" },
+          { "path": "executionPlan.probeCallPlan.total", "equals": 2 },
+          { "path": "executionPlan.probeCallPlan.byTool.probe_reset", "equals": 1 },
+          { "path": "executionPlan.probeCallPlan.byTool.probe_wait_for_hit", "equals": 1 },
+          { "path": "auth.status", "equals": "not_required" },
+          { "path": "auth.strategy", "equals": "none" },
+          { "path": "runtimeCapture.status", "equals": "unavailable" }
+        ]
+      },
+      "ordering": "request candidates and execution steps retain TypeScript order"
+    },
+    {
+      "name": "create_recipe missing or ambiguous target",
+      "action": "create_recipe",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.Missing",
+        "methodHint": "run",
+        "intentMode": "regression"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "target_not_inferred",
+        "reasonCode": "target_candidate_missing",
+        "failedStep": "target_inference",
+        "nextActionCode": "refine_target_hints"
+      }
+    },
+    {
+      "name": "create_recipe unresolved runtime line",
+      "action": "create_recipe",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "methodHint": "run",
+        "lineHint": 10,
+        "intentMode": "line_probe",
+        "discoveryPreference": "runtime_first"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "target_not_inferred",
+        "reasonCode": "runtime_line_unresolved",
+        "failedStep": "line_validation",
+        "nextActionCode": "select_resolvable_line"
+      }
+    },
+    {
+      "name": "create_recipe no compatible Synthesizer",
+      "action": "create_recipe",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "methodHint": "run",
+        "intentMode": "regression"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "report",
+        "reasonCode": "synthesizer_not_installed",
+        "failedStep": "plugin_selection",
+        "nextActionCode": "synthesizer_not_installed"
+      }
+    },
+    {
+      "name": "create_recipe external-plugin blocker",
+      "action": "create_recipe",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "methodHint": "run",
+        "intentMode": "line_probe"
+      },
+      "typedConfiguration": {
+        "externalSynthesizerModuleCount": 2
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "report",
+        "reasonCode": "synthesizer_not_installed",
+        "failedStep": "plugin_bootstrap",
+        "attemptedStrategies": ["registry_plugin_bootstrap"]
+      },
+      "evidence": ["configuredModuleCount=2"]
+    },
+    {
+      "name": "create_recipe authentication redaction",
+      "action": "create_recipe",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "methodHint": "run",
+        "intentMode": "regression",
+        "authToken": "fixture-secret-token",
+        "authUsername": "fixture-user",
+        "authPassword": "fixture-secret-password"
+      },
+      "expected": {
+        "resultType": "recipe",
+        "status": "ready",
+        "auth.status": "auto_resolved",
+        "auth.strategy": "bearer",
+        "shapeAssertions": [
+          { "path": "requestCandidates.0.method", "equals": "GET" },
+          { "path": "requestCandidates.0.path", "equals": "/work/run" },
+          { "path": "executionPlan.selectedMode", "equals": "regression" },
+          { "path": "executionPlan.steps.0.title", "equals": "Execute regression API check" },
+          { "path": "executionPlan.steps.1.title", "equals": "Verify API regression outcome" },
+          { "path": "auth.missing", "size": 0 },
+          { "path": "auth.headers.0", "equals": "Authorization" }
+        ]
+      },
+      "redaction": {
+        "forbiddenValues": ["fixture-secret-token", "fixture-secret-password"],
+        "publicMetadataOnly": true,
+        "allowedPublicFields": ["auth.status", "auth.strategy", "auth.missing", "auth.source", "auth.headers"]
+      }
+    },
+    {
+      "name": "create_recipe actuation and output template",
+      "action": "create_recipe",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "methodHint": "run",
+        "lineHint": 10,
+        "intentMode": "line_probe",
+        "discoveryPreference": "static_only",
+        "actuationEnabled": true,
+        "actuationReturnBoolean": false,
+        "actuationActuatorId": "fixture-actuator",
+        "outputTemplate": "{{http.method}} {{http.path}} | {{recipe.mode}} | {{auth.status}}",
+        "probeId": "fixture-probe",
+        "probeBaseUrl": "http://probe.example"
+      },
+      "expected": {
+        "resultType": "recipe",
+        "status": "ready",
+        "shapeAssertions": [
+          { "path": "executionPlan.steps.0.title", "equals": "Enable branch actuation" },
+          { "path": "executionPlan.steps.4.title", "equals": "Disable branch actuation" },
+          { "path": "executionPlan.steps", "size": 5 },
+          { "path": "executionPlan.probeCallPlan.total", "equals": 4 },
+          { "path": "executionPlan.probeCallPlan.actuated", "equals": true },
+          { "path": "executionPlan.probeCallPlan.byTool.probe_enable", "equals": 2 },
+          { "path": "rendered", "equals": "GET /work/run | single_line_probe | not_required" }
+        ]
+      }
+    },
+    {
+      "name": "create_recipe missing method hint",
+      "action": "create_recipe",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "intentMode": "regression"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "blocked_invalid",
+        "reasonCode": "method_hint_required",
+        "failedStep": "input_validation",
+        "nextActionCode": "provide_method_hint"
+      }
+    },
+    {
+      "name": "create_recipe missing intent mode",
+      "action": "create_recipe",
+      "input": {
+        "projectRootAbs": "fixture-project",
+        "classHint": "example.WorkController",
+        "methodHint": "run"
+      },
+      "expected": {
+        "resultType": "report",
+        "status": "blocked_invalid",
+        "reasonCode": "intent_mode_required",
+        "failedStep": "input_validation",
+        "nextActionCode": "provide_intent_mode"
+      }
+    }
+  ]
+}

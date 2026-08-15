@@ -41,3 +41,11 @@ mcpjvm:
         include-execution-paths: false
         max-string-length: 256
         max-execution-paths: 32
+  route-synthesis:
+    synthesizer:
+      external-modules: ${MCP_SYNTHESIZER_PLUGIN_MODULES:}
+    runtime-mappings-allowed-hosts:
+      - 127.0.0.1
+      - localhost
+      - ::1
+    runtime-mappings-max-response-bytes: 1048576
