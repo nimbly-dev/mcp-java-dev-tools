@@ -1,0 +1,50 @@
+{
+  "cases": [
+    {
+      "name": "analyzed trace",
+      "kind": "analyzed",
+      "assertions": {
+        "status": "analyzed",
+        "reasonCode": "ok",
+        "details.outcome": "ANALYZED",
+        "details.diagnosisClaimed": false
+      }
+    },
+    {
+      "name": "reproduced runtime evidence",
+      "kind": "reproduced",
+      "assertions": {
+        "status": "reproduced",
+        "reasonCode": "ok",
+        "details.outcome": "REPRODUCED",
+        "details.diagnosisClaimed": true,
+        "details.cleanupStatus": "external_workflow_owned"
+      }
+    },
+    {
+      "name": "not reproduced runtime evidence",
+      "kind": "not_reproduced",
+      "assertions": {
+        "status": "not_reproduced",
+        "reasonCode": "different_exception",
+        "details.outcome": "NOT_REPRODUCED",
+        "details.diagnosisClaimed": false
+      }
+    },
+    {
+      "name": "terminal blocked outcome",
+      "kind": "terminal",
+      "assertions": {
+        "status": "blocked",
+        "reasonCode": "missing_auth",
+        "details.outcome": "BLOCKED_MISSING_AUTH",
+        "details.diagnosisClaimed": false,
+        "details.cleanupStatus": "cleanup_confirmed",
+        "details.attemptEvidence.attemptCount": 1
+      }
+    }
+  ],
+  "redaction": {
+    "forbiddenValues": ["Bearer parity-secret", "parity-secret"]
+  }
+}
