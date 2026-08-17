@@ -57,6 +57,17 @@ class McpServerStdioIT {
                 {"handler":"example.StdioController#run()",
                 "predicate":"{GET [/stdio/run]}"}
                 """));
+        routeProbe.createContext("/__probe/failure/analyze", exchange -> respondProbe(exchange, """
+                {"fingerprint":{"exceptionType":"java.lang.IllegalStateException",
+                "rootCauseType":"java.lang.IllegalArgumentException",
+                "nearestApplicationMethodKey":"example.StdioController#run:7",
+                "complete":true,"normalizedMessage":"safe failure"}}
+                """));
+        routeProbe.createContext("/__probe/failure/verify", exchange -> respondProbe(exchange, """
+                {"outcome":"matched","observedFingerprint":{"exceptionType":"java.lang.IllegalStateException",
+                "rootCauseType":"java.lang.IllegalArgumentException",
+                "nearestApplicationMethodKey":"example.StdioController#run:7","complete":true}}
+                """));
         routeProbe.start();
         try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
             server.send(initializeRequest());
@@ -70,7 +81,8 @@ class McpServerStdioIT {
             JsonNode tools = server.responseFor(2).path("result").path("tools");
             assertThat(tools.isArray()).isTrue();
             assertThat(tools).extracting(node -> node.path("name").asText())
-                    .containsExactlyInAnyOrder("debug_check", "jvm_lifecycle", "probe", "route_synthesis");
+                    .containsExactlyInAnyOrder(
+                            "debug_check", "jvm_lifecycle", "probe", "route_synthesis", "failure_analysis");
             JsonNode routeTool = null;
             for (JsonNode tool : tools) {
                 if ("route_synthesis".equals(tool.path("name").asText())) {
@@ -109,6 +121,20 @@ class McpServerStdioIT {
                     .isEqualTo(10);
             assertThat(targetInputSchema.path("properties").path("maxCandidates").path("minimum").asInt())
                     .isEqualTo(1);
+            JsonNode failureTool = null;
+            for (JsonNode tool : tools) {
+                if ("failure_analysis".equals(tool.path("name").asText())) {
+                    failureTool = tool;
+                    break;
+                }
+            }
+            assertThat(failureTool).isNotNull();
+            JsonNode failureSchema = failureTool.path("inputSchema");
+            assertThat(failureSchema.path("oneOf")).hasSize(2);
+            assertThat(failureSchema.path("oneOf").get(0).path("properties").path("action").path("const").asText())
+                    .isEqualTo("analyze_trace");
+            JsonNode verifySchema = failureSchema.path("oneOf").get(1).path("properties").path("input");
+            assertThat(verifySchema.path("oneOf")).hasSize(2);
 
             server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
             JsonNode debugCheck = server.responseFor(3);
@@ -177,6 +203,56 @@ class McpServerStdioIT {
                     "mappingsBaseUrl", "http://127.0.0.1:" + routeProbe.getAddress().getPort()
                             + "/actuator/mappings");
             assertRuntimeRouteSynthesisSuccess(server, 21, runtimeRecipeInput);
+            String sidecarBaseUrl = "http://127.0.0.1:" + routeProbe.getAddress().getPort();
+            server.send(request(22, "tools/call", Map.of(
+                    "name", "failure_analysis",
+                    "arguments", Map.of(
+                            "action", "analyze_trace",
+                            "input", Map.of(
+                                    "trace", "java.lang.IllegalStateException: secret-token\\n"
+                                            + "    at example.StdioController.run(StdioController.java:7)",
+                                    "sidecarBaseUrl", sidecarBaseUrl,
+                                    "sidecarAuthorization", "Bearer stdio-secret",
+                                    "timeoutMs", 15000)))));
+            JsonNode analyzedFailure = toolPayload(server.responseFor(22));
+            assertThat(analyzedFailure.path("outcome").asText()).isEqualTo("ANALYZED");
+            assertThat(analyzedFailure.path("fingerprint").path("exceptionType").asText())
+                    .isEqualTo("java.lang.IllegalStateException");
+            assertThat(analyzedFailure.toString()).doesNotContain("secret-token", "stdio-secret");
+
+            server.send(request(23, "tools/call", Map.of(
+                    "name", "failure_analysis",
+                    "arguments", Map.of(
+                            "action", "verify_reproduction",
+                            "input", Map.of(
+                                    "captureId", "capture-stdio",
+                                    "expectedFingerprint", Map.of(
+                                            "exceptionType", "java.lang.IllegalStateException",
+                                            "rootCauseType", "java.lang.IllegalArgumentException",
+                                            "nearestApplicationMethodKey", "example.StdioController#run:7"),
+                                    "lineHit", Map.of(
+                                            "strictLineKey", "example.StdioController#run:7", "hitCount", 1),
+                                    "sidecarBaseUrl", sidecarBaseUrl,
+                                    "sidecarAuthorization", "Bearer stdio-secret",
+                                    "timeoutMs", 15000)))));
+            JsonNode reproducedFailure = toolPayload(server.responseFor(23));
+            assertThat(reproducedFailure.path("outcome").asText()).isEqualTo("REPRODUCED");
+            assertThat(reproducedFailure.path("reasonCode").asText()).isEqualTo("ok");
+            assertThat(reproducedFailure.path("lineHit").path("hitCount").asInt()).isEqualTo(1);
+            assertThat(reproducedFailure.toString()).doesNotContain("stdio-secret");
+
+            server.send(request(24, "tools/call", Map.of(
+                    "name", "failure_analysis",
+                    "arguments", Map.of(
+                            "action", "verify_reproduction",
+                            "input", Map.of("terminalState", Map.of(
+                                    "outcome", "BLOCKED_MISSING_AUTH",
+                                    "reasonCode", "missing_auth",
+                                    "cleanupStatus", "cleanup_confirmed",
+                                    "attemptCount", 1))))));
+            JsonNode failureAnalysis = toolPayload(server.responseFor(24));
+            assertThat(failureAnalysis.path("outcome").asText()).isEqualTo("BLOCKED_MISSING_AUTH");
+            assertThat(failureAnalysis.path("reasonCode").asText()).isEqualTo("missing_auth");
 
             server.send(request(4, "resources/list", Map.of()));
             JsonNode resources = server.responseFor(4).path("result").path("resources");

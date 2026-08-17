@@ -49,3 +49,11 @@ mcpjvm:
       - localhost
       - ::1
     runtime-mappings-max-response-bytes: 1048576
+  failure-analysis:
+    endpoint:
+      timeout-ms: 15000
+      maximum-trace-characters: 200000
+      maximum-response-payload-bytes: 1048576
+      maximum-string-length: 256
+      maximum-frames: 32
+      maximum-sections: 16
