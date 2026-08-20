@@ -82,7 +82,8 @@ class McpServerStdioIT {
             assertThat(tools.isArray()).isTrue();
             assertThat(tools).extracting(node -> node.path("name").asText())
                     .containsExactlyInAnyOrder(
-                            "debug_check", "jvm_lifecycle", "probe", "route_synthesis", "failure_analysis");
+                            "debug_check", "jvm_lifecycle", "probe", "route_synthesis", "failure_analysis",
+                            "artifact_management");
             JsonNode routeTool = null;
             for (JsonNode tool : tools) {
                 if ("route_synthesis".equals(tool.path("name").asText())) {
@@ -135,6 +136,15 @@ class McpServerStdioIT {
                     .isEqualTo("analyze_trace");
             JsonNode verifySchema = failureSchema.path("oneOf").get(1).path("properties").path("input");
             assertThat(verifySchema.path("oneOf")).hasSize(2);
+            JsonNode artifactTool = null;
+            for (JsonNode tool : tools) {
+                if ("artifact_management".equals(tool.path("name").asText())) {
+                    artifactTool = tool;
+                    break;
+                }
+            }
+            assertThat(artifactTool).isNotNull();
+            assertThat(artifactTool.path("inputSchema").path("oneOf")).hasSize(30);
 
             server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
             JsonNode debugCheck = server.responseFor(3);
@@ -253,6 +263,48 @@ class McpServerStdioIT {
             JsonNode failureAnalysis = toolPayload(server.responseFor(24));
             assertThat(failureAnalysis.path("outcome").asText()).isEqualTo("BLOCKED_MISSING_AUTH");
             assertThat(failureAnalysis.path("reasonCode").asText()).isEqualTo("missing_auth");
+
+            server.send(request(25, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "probe_config",
+                            "action", "read",
+                            "input", Map.of()))));
+            JsonNode artifactRead = toolPayload(server.responseFor(25));
+            assertThat(artifactRead.path("status").asText()).isEqualTo("not_configured");
+            assertThat(artifactRead.path("reasonCode").asText()).isEqualTo("probe_registry_not_configured");
+            assertThat(artifactRead.path("artifactType").asText()).isEqualTo("probe_config");
+            assertThat(artifactRead.path("nextActionCode").asText()).isEqualTo("set_probe_registry_config");
+
+            server.send(request(26, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "probe_config",
+                            "action", "upsert",
+                            "input", Map.of("payload", Map.of())))));
+            JsonNode artifactUpserted = toolPayload(server.responseFor(26));
+            assertThat(artifactUpserted.path("status").asText()).isEqualTo("ok");
+            assertThat(artifactUpserted.path("artifactType").asText()).isEqualTo("probe_config");
+
+            server.send(request(27, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "project_context",
+                            "action", "list",
+                            "input", Map.of()))));
+            JsonNode projectList = toolPayload(server.responseFor(27));
+            assertThat(projectList.path("status").asText()).isEqualTo("ok");
+            assertThat(projectList.path("projectNames").isArray()).isTrue();
+
+            server.send(request(28, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "performance_plan",
+                            "action", "list",
+                            "input", Map.of("projectName", "demo")))));
+            JsonNode performanceList = toolPayload(server.responseFor(28));
+            assertThat(performanceList.path("status").asText()).isEqualTo("ok");
+            assertThat(performanceList.path("planNames").isArray()).isTrue();
 
             server.send(request(4, "resources/list", Map.of()));
             JsonNode resources = server.responseFor(4).path("result").path("resources");
@@ -546,6 +598,7 @@ class McpServerStdioIT {
     }
 
     private static void writeStdioFixture(Path workspaceRoot) throws IOException {
+        Files.deleteIfExists(workspaceRoot.resolve(".mcpjvm/probe-config.json"));
         Path sourceRoot = workspaceRoot.resolve("src/main/java/example");
         Files.createDirectories(sourceRoot);
         Files.writeString(sourceRoot.resolve("StdioController.java"), """
