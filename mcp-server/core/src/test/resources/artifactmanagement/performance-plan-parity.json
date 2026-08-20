@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "specVersion": "1.0.0",
+    "suiteType": "performance",
+    "execution": { "intent": "performance" }
+  },
+  "contract": {
+    "suiteType": "performance",
+    "entrypoints": [
+      {
+        "transport": { "protocol": "http", "baseUrl": "http://localhost" },
+        "request": { "method": "GET", "path": "/health" }
+      }
+    ],
+    "workloadProvider": { "type": "builtin" },
+    "loadModel": {
+      "mode": "concurrency",
+      "concurrency": 2,
+      "rampUpSeconds": 0,
+      "durationSeconds": 1
+    },
+    "successCriteria": {
+      "maxErrorRatePct": 0,
+      "minThroughputPerSec": 1,
+      "p95LatencyMs": 1000
+    }
+  },
+  "plan": "performance plan"
+}

@@ -3,6 +3,7 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.registry.ProbeRegistryInput;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistry;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryProvider;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryReloader;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryResolver;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceSnapshot;
@@ -17,7 +18,7 @@ import org.springframework.stereotype.Component;
  * Reads external workspace/configuration input for the Core Probe registry resolver.
  */
 @Component
-public final class WorkspaceProbeRegistrySource implements ProbeRegistryProvider {
+public final class WorkspaceProbeRegistrySource implements ProbeRegistryProvider, ProbeRegistryReloader {
 
     private static final String REGISTRY_DIRECTORY = ".mcpjvm";
     private static final String REGISTRY_FILE = "probe-config.json";
@@ -25,6 +26,8 @@ public final class WorkspaceProbeRegistrySource implements ProbeRegistryProvider
     private final WorkspaceContext workspaceContext;
     private final ProbeConfigurationProperties properties;
     private final ProbeRegistryResolver resolver;
+    private volatile ProbeRegistry activeRegistry;
+    private volatile Path activeWorkspaceRoot;
 
     /**
      * Creates the external registry source.
@@ -49,10 +52,24 @@ public final class WorkspaceProbeRegistrySource implements ProbeRegistryProvider
     public ProbeRegistry current() {
         WorkspaceSnapshot snapshot = workspaceContext.snapshot();
         Path workspaceRoot = snapshot == null ? null : snapshot.root();
+        if (activeRegistry == null || !java.util.Objects.equals(activeWorkspaceRoot, workspaceRoot)) {
+            return reload();
+        }
+        return activeRegistry;
+    }
+
+    /** Re-reads the canonical source and atomically replaces the active registry. */
+    @Override
+    public synchronized ProbeRegistry reload() {
+        WorkspaceSnapshot snapshot = workspaceContext.snapshot();
+        Path workspaceRoot = snapshot == null ? null : snapshot.root();
         Path canonicalPath = canonicalPath(workspaceRoot);
         boolean canonicalPresent = canonicalPath != null && Files.isRegularFile(canonicalPath);
         String canonicalJson = canonicalPresent ? read(canonicalPath) : null;
-        return resolver.resolve(canonicalJson, canonicalPresent, workspaceRoot, fallback());
+        ProbeRegistry resolved = resolver.resolve(canonicalJson, canonicalPresent, workspaceRoot, fallback());
+        activeWorkspaceRoot = workspaceRoot;
+        activeRegistry = resolved;
+        return resolved;
     }
 
     private static Path canonicalPath(Path workspaceRoot) {
