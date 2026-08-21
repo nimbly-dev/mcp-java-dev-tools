@@ -45,7 +45,7 @@ ready without registering unsupported placeholder MCP Tools.
 | `probe` | `mcp/tools/probe` | registered; #571 |
 | `route_synthesis` | `mcp/tools/routesynthesis` | registered; #573 |
 | `failure_analysis` | `mcp/tools/failureanalysis` | registered; #574 |
-| `transport_execute` | `mcp/tools/transportexecute` | Feature migration required |
+| `transport_execute` | `mcp/tools/transportexecute` | registered; #576 |
 | `artifact_management` | `mcp/tools/artifactmanagement` | Feature migration required |
 | `execution_profile_export` | `mcp/tools/executionprofileexport` | Feature migration required |
 | `execution_orchestration` | `mcp/tools/executionorchestration` | Feature migration required |

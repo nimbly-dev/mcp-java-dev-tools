@@ -66,7 +66,12 @@ public final class WorkspaceProbeRegistrySource implements ProbeRegistryProvider
         Path canonicalPath = canonicalPath(workspaceRoot);
         boolean canonicalPresent = canonicalPath != null && Files.isRegularFile(canonicalPath);
         String canonicalJson = canonicalPresent ? read(canonicalPath) : null;
-        ProbeRegistry resolved = resolver.resolve(canonicalJson, canonicalPresent, workspaceRoot, fallback());
+        ProbeRegistry resolved = resolver.resolve(
+                canonicalJson,
+                canonicalPresent,
+                workspaceRoot,
+                fallback(),
+                properties.getRegistry().isAllowNonWrappedExecutable());
         activeWorkspaceRoot = workspaceRoot;
         activeRegistry = resolved;
         return resolved;

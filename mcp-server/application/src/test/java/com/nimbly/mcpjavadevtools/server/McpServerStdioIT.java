@@ -15,6 +15,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -26,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -68,6 +70,9 @@ class McpServerStdioIT {
                 "rootCauseType":"java.lang.IllegalArgumentException",
                 "nearestApplicationMethodKey":"example.StdioController#run:7","complete":true}}
                 """));
+        routeProbe.createContext("/transport", exchange -> respondProbe(exchange, """
+                {"safe":"transport-ok","authorization":"Bearer should-not-escape"}
+                """));
         routeProbe.start();
         try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
             server.send(initializeRequest());
@@ -83,7 +88,7 @@ class McpServerStdioIT {
             assertThat(tools).extracting(node -> node.path("name").asText())
                     .containsExactlyInAnyOrder(
                             "debug_check", "jvm_lifecycle", "probe", "route_synthesis", "failure_analysis",
-                            "artifact_management");
+                            "artifact_management", "transport_execute");
             JsonNode routeTool = null;
             for (JsonNode tool : tools) {
                 if ("route_synthesis".equals(tool.path("name").asText())) {
@@ -145,6 +150,21 @@ class McpServerStdioIT {
             }
             assertThat(artifactTool).isNotNull();
             assertThat(artifactTool.path("inputSchema").path("oneOf")).hasSize(30);
+            JsonNode transportTool = null;
+            for (JsonNode tool : tools) {
+                if ("transport_execute".equals(tool.path("name").asText())) {
+                    transportTool = tool;
+                    break;
+                }
+            }
+            assertThat(transportTool).isNotNull();
+            JsonNode transportSchema = transportTool.path("inputSchema");
+            assertThat(transportSchema.path("properties").has("action")).isFalse();
+            assertThat(transportSchema.path("properties").has("protocol")).isTrue();
+            assertThat(transportSchema.path("properties").path("protocol").path("enum"))
+                    .isEqualTo(JSON.readTree("[\"http\",\"grpc\",\"kafka\",\"custom\"]"));
+            assertThat(transportSchema.path("properties").has("request")).isTrue();
+            assertThat(transportSchema.path("properties").has("options")).isTrue();
 
             server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
             JsonNode debugCheck = server.responseFor(3);
@@ -306,6 +326,35 @@ class McpServerStdioIT {
             assertThat(performanceList.path("status").asText()).isEqualTo("ok");
             assertThat(performanceList.path("planNames").isArray()).isTrue();
 
+            writeTransportPolicyFixture(workspaceRoot, routeProbe.getAddress().getPort());
+            server.send(request(29, "tools/call", Map.of(
+                    "name", "transport_execute",
+                    "arguments", Map.of(
+                            "protocol", "http",
+                            "request", Map.of(
+                                    "method", "GET",
+                                    "url", "http://127.0.0.1:" + routeProbe.getAddress().getPort() + "/transport"),
+                            "options", Map.of("wrappedOnly", false)))));
+            JsonNode transport = toolPayload(server.responseFor(29));
+            assertThat(transport.path("status").asText()).isEqualTo("pass");
+            assertThat(transport.path("statusCode").asInt()).isEqualTo(200);
+            assertThat(transport.path("bodyPreview").asText()).contains("transport-ok");
+            assertThat(transport.toString()).doesNotContain("should-not-escape");
+
+            server.send(request(30, "tools/call", Map.of(
+                    "name", "transport_execute",
+                    "arguments", Map.of(
+                            "protocol", "http",
+                            "request", Map.of(
+                                    "method", "GET",
+                                    "url", "http://127.0.0.1:1/should-not-run")))));
+            JsonNode transportFailure = toolPayload(server.responseFor(30));
+            assertThat(transportFailure.path("status").asText()).isEqualTo("blocked_invalid");
+            assertThat(transportFailure.path("reasonCode").asText()).isEqualTo("wrapper_policy_violation");
+            assertThat(transportFailure.path("reasonMeta").path("failedStep").asText())
+                    .isEqualTo("transport_execute_policy");
+            assertThat(transportFailure.path("reasonMeta").path("protocol").asText()).isEqualTo("http");
+
             server.send(request(4, "resources/list", Map.of()));
             JsonNode resources = server.responseFor(4).path("result").path("resources");
             assertThat(resources).extracting(node -> node.path("uri").asText())
@@ -338,6 +387,16 @@ class McpServerStdioIT {
                     .contains("mcp_java_dev_tools_startup_failed reasonCode=startup_failed")
                     .doesNotContain("not-a-boolean");
         }
+    }
+
+    @Test
+    void executableJarPreservesLargeAuthorizationHeaderValues() throws Exception {
+        assertLargeAuthorizationHeader(1536, "POST");
+    }
+
+    @Test
+    void executableJarAcceptsAuthorizationHeaderLargerThanSdkDefault() throws Exception {
+        assertLargeAuthorizationHeader(10_600_000, "GET");
     }
 
     @Test
@@ -615,9 +674,61 @@ class McpServerStdioIT {
                 """);
     }
 
+    private static void writeTransportPolicyFixture(Path workspaceRoot, int probePort) throws IOException {
+        Path registryDirectory = workspaceRoot.resolve(".mcpjvm");
+        Files.createDirectories(registryDirectory);
+        Files.writeString(registryDirectory.resolve("probe-config.json"), """
+                {
+                  "defaultProfile": "stdio",
+                  "profiles": {
+                    "stdio": {
+                      "global": {"allowNonWrappedExecutable": true},
+                      "probes": {
+                        "stdio-a": {"baseUrl": "http://127.0.0.1:%d"},
+                        "stdio-b": {"baseUrl": "http://127.0.0.1:%d"}
+                      }
+                    }
+                  }
+                }
+                """.formatted(probePort, probePort));
+    }
+
     private static int freePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
+        }
+    }
+
+    private void assertLargeAuthorizationHeader(int tokenCharacters, String method) throws Exception {
+        Path workspaceRoot = workspaceRoot();
+        writeStdioFixture(workspaceRoot);
+        String authorization = "Bearer eyJ." + "A".repeat(tokenCharacters) + ".sig";
+        try (LargeAuthorizationServer upstream = new LargeAuthorizationServer(authorization);
+                McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
+            server.send(initializeRequest());
+            server.responseFor(1);
+            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
+            int requestId = tokenCharacters > 2_000 ? 32 : 31;
+            server.send(request(requestId, "tools/call", Map.of(
+                    "name", "transport_execute",
+                    "arguments", Map.of(
+                            "protocol", "http",
+                            "request", Map.of(
+                                    "method", method,
+                                    "url", upstream.url(),
+                                    "headers", Map.of("Authorization", authorization)),
+                            "options", Map.of("wrappedOnly", true)))));
+
+            JsonNode response = server.responseFor(requestId);
+            JsonNode payload = toolPayload(response);
+            assertThat(payload.path("status").asText()).isEqualTo("pass");
+            assertThat(payload.path("statusCode").asInt()).isEqualTo(200);
+            JsonNode observed = JSON.readTree(payload.path("bodyPreview").asText());
+            assertThat(observed.path("observedLength").asInt()).isEqualTo(authorization.length());
+            assertThat(observed.path("expectedLength").asInt()).isEqualTo(authorization.length());
+            assertThat(observed.path("exactMatch").asBoolean()).isTrue();
+            assertThat(response.toString()).doesNotContain(authorization);
+            upstream.awaitRequest();
         }
     }
 
@@ -852,6 +963,73 @@ class McpServerStdioIT {
                 process.waitFor(2, TimeUnit.SECONDS);
             }
             assertThat(process.isAlive()).isFalse();
+        }
+    }
+
+    private static final class LargeAuthorizationServer implements AutoCloseable {
+
+        private final ServerSocket serverSocket;
+        private final String expectedAuthorization;
+        private final CountDownLatch requestObserved = new CountDownLatch(1);
+        private final AtomicReference<Throwable> failure = new AtomicReference<>();
+        private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        private LargeAuthorizationServer(String expectedAuthorization) throws IOException {
+            this.expectedAuthorization = expectedAuthorization;
+            serverSocket = new ServerSocket();
+            serverSocket.bind(new InetSocketAddress("127.0.0.1", 0));
+            executor.submit(this::serve);
+        }
+
+        String url() {
+            return "http://127.0.0.1:" + serverSocket.getLocalPort() + "/authorization-check";
+        }
+
+        void awaitRequest() throws Exception {
+            assertThat(requestObserved.await(RESPONSE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)).isTrue();
+            Throwable observedFailure = failure.get();
+            if (observedFailure != null) {
+                throw new AssertionError("Large Authorization server failed", observedFailure);
+            }
+        }
+
+        private void serve() {
+            try (Socket socket = serverSocket.accept();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(
+                            socket.getInputStream(), StandardCharsets.ISO_8859_1))) {
+                String authorization = null;
+                String line;
+                while ((line = reader.readLine()) != null && !line.isEmpty()) {
+                    if (line.regionMatches(true, 0, "Authorization:", 0, "Authorization:".length())) {
+                        authorization = line.substring("Authorization:".length()).trim();
+                    }
+                }
+                String observed = authorization == null ? "" : authorization;
+                byte[] body = JSON.writeValueAsBytes(Map.of(
+                        "observedLength", observed.length(),
+                        "expectedLength", expectedAuthorization.length(),
+                        "exactMatch", expectedAuthorization.equals(observed)));
+                OutputStream output = socket.getOutputStream();
+                output.write(("HTTP/1.1 200 OK\r\n"
+                        + "Content-Type: application/json\r\n"
+                        + "Content-Length: " + body.length + "\r\n"
+                        + "Connection: close\r\n\r\n").getBytes(StandardCharsets.ISO_8859_1));
+                output.write(body);
+                output.flush();
+            } catch (Throwable throwable) {
+                if (!serverSocket.isClosed()) {
+                    failure.set(throwable);
+                }
+            } finally {
+                requestObserved.countDown();
+            }
+        }
+
+        @Override
+        public void close() throws Exception {
+            serverSocket.close();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(RESPONSE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)).isTrue();
         }
     }
 

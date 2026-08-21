@@ -629,6 +629,10 @@ Correlation diagnostics notes:
 
 HTTP transport diagnostics notes:
 
+- `transport_execute` preserves the public input shape `{protocol, request, options?}`; protocol discriminators accept only the exact lowercase values `http`, `grpc`, `kafka`, and `custom`; `options.wrappedOnly` defaults to `true`; and the public schema does not expose the internal `EXECUTE` action.
+- Java parity is bounded to the approved HTTP safety envelope: `http`/`https`, loopback hosts by default, explicitly configured exact hosts, the allowlisted HTTP methods, one 1–300000 ms timeout budget across the complete redirect operation, five revalidated redirects, and 4 MiB request/response bodies. Inputs outside that envelope fail closed with deterministic reason codes.
+- `transport_execute` returns `status`, `protocol`, `statusCode`, `headers`, `bodyPreview`, and `durationMs`; blocked outcomes additionally return `reasonCode`, `nextActionCode`, `errorMessage`, and bounded `reasonMeta`.
+- Authorization is forwarded unchanged to the target within the 16 MiB total-header ceiling, but authorization, cookie, token, secret, password, credential, and API-key values are redacted from returned headers, valid or malformed/embedded JSON previews, URL metadata, errors, and diagnostics. Body previews are capped at 2048 characters.
 - `http_payload_invalid` may include `reasonMeta.missingFields` with one or more missing required transport fields.
 - `http_payload_invalid` may include `reasonMeta.cause` for deterministic URL-assembly failures such as `url_missing`, `api_base_url_missing_for_path_template`, `api_base_url_missing_for_path`, `absolute_path_template_not_promoted`, or `absolute_path_not_promoted`.
 - When present, `reasonMeta.pathTemplate` or `reasonMeta.path` identifies the authored relative or absolute request target involved in URL synthesis failure.

@@ -1,0 +1,61 @@
+{
+  "cases": [
+    {
+      "name": "http success",
+      "kind": "success",
+      "assertions": {
+        "/resultType": "report",
+        "/status": "pass",
+        "/protocol": "http",
+        "/statusCode": 200,
+        "/bodyPreview": "{\"safe\":\"parity-ok\"}"
+      }
+    },
+    {
+      "name": "wrapper policy blocking",
+      "kind": "wrapper_blocked",
+      "assertions": {
+        "/status": "blocked_invalid",
+        "/reasonCode": "wrapper_policy_violation",
+        "/nextActionCode": "wrapper_policy_violation",
+        "/reasonMeta/failedStep": "transport_execute_policy",
+        "/reasonMeta/protocol": "http",
+        "/protocol": "http"
+      }
+    },
+    {
+      "name": "unsupported provider",
+      "kind": "unsupported_protocol",
+      "assertions": {
+        "/status": "blocked_invalid",
+        "/reasonCode": "transport_not_supported",
+        "/nextActionCode": "transport_not_supported",
+        "/reasonMeta/failedStep": "transport_execute_protocol",
+        "/reasonMeta/protocol": "grpc",
+        "/protocol": "grpc"
+      }
+    },
+    {
+      "name": "invalid HTTP payload",
+      "kind": "invalid_http_payload",
+      "assertions": {
+        "/status": "blocked_invalid",
+        "/reasonCode": "http_payload_invalid",
+        "/nextActionCode": "http_payload_invalid",
+        "/reasonMeta/failedStep": "transport_execute_http_payload",
+        "/protocol": "http"
+      }
+    },
+    {
+      "name": "HTTP runtime failure",
+      "kind": "runtime_failure",
+      "assertions": {
+        "/status": "blocked_runtime",
+        "/reasonCode": "transport_request_failed",
+        "/nextActionCode": "transport_request_failed",
+        "/reasonMeta/failedStep": "transport_execute_http",
+        "/protocol": "http"
+      }
+    }
+  ]
+}

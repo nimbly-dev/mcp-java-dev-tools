@@ -14,6 +14,7 @@ import java.util.Optional;
 public class ProbeRegistry {
 
     private final Map<String, ProbeRegistration> registrations;
+    private final boolean allowNonWrappedExecutable;
 
     /**
      * Creates a registry with unique registration identifiers.
@@ -21,12 +22,25 @@ public class ProbeRegistry {
      * @param registrations configured registrations
      */
     public ProbeRegistry(Collection<ProbeRegistration> registrations) {
+        this(registrations, false);
+    }
+
+    /**
+     * Creates a registry with its active profile execution policy.
+     *
+     * @param registrations configured registrations
+     * @param allowNonWrappedExecutable whether transport execution may bypass wrapper enforcement
+     */
+    public ProbeRegistry(
+            Collection<ProbeRegistration> registrations,
+            boolean allowNonWrappedExecutable) {
         Objects.requireNonNull(registrations, "registrations must not be null");
         Map<String, ProbeRegistration> values = new LinkedHashMap<>();
         for (ProbeRegistration registration : registrations) {
             addRegistration(values, registration);
         }
         this.registrations = Map.copyOf(values);
+        this.allowNonWrappedExecutable = allowNonWrappedExecutable;
     }
 
     /**
@@ -58,6 +72,15 @@ public class ProbeRegistry {
      */
     public int size() {
         return registrations.size();
+    }
+
+    /**
+     * Returns the active profile's wrapper bypass policy.
+     *
+     * @return true only when the active profile explicitly enables the bypass
+     */
+    public boolean allowNonWrappedExecutable() {
+        return allowNonWrappedExecutable;
     }
 
     private static void addRegistration(

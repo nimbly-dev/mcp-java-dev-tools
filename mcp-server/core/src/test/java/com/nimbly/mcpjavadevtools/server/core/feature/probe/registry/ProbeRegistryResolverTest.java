@@ -23,7 +23,10 @@ class ProbeRegistryResolverTest {
                   ],
                   "profiles": {
                     "dev": {"probes": {"orders": {"baseUrl": "http://dev.example"}}},
-                    "ci": {"probes": {"orders": {"baseUrl": "http://ci.example"}}}
+                    "ci": {
+                      "global": {"allowNonWrappedExecutable": true},
+                      "probes": {"orders": {"baseUrl": "http://ci.example"}}
+                    }
                   }
                 }
                 """.formatted(root);
@@ -32,6 +35,7 @@ class ProbeRegistryResolverTest {
 
         assertThat(registry.findById("orders")).get().extracting("baseUrl")
                 .isEqualTo("http://ci.example");
+        assertThat(registry.allowNonWrappedExecutable()).isTrue();
     }
 
     @Test
@@ -54,5 +58,18 @@ class ProbeRegistryResolverTest {
                 List.of(new ProbeRegistryInput("fallback", "http://fallback.example")));
 
         assertThat(registry.findById("fallback")).isPresent();
+        assertThat(registry.allowNonWrappedExecutable()).isFalse();
     }
+
+    @Test
+    void defaultsCanonicalWrapperPolicyToFalseWhenGlobalSectionIsAbsent() {
+        ProbeRegistry registry = resolver.resolve(
+                "{\"profiles\":{\"dev\":{\"probes\":{\"live\":{\"baseUrl\":\"http://probe.example\"}}}}}",
+                true,
+                Path.of("C:/workspace"),
+                List.of());
+
+        assertThat(registry.allowNonWrappedExecutable()).isFalse();
+    }
+
 }
