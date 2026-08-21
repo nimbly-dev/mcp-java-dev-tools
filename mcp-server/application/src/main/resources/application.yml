@@ -29,6 +29,8 @@ mcpjvm:
     java-bin: ${MCP_JAVA_BIN:java}
     allowed-probe-hosts: ${MCP_JVM_LIFECYCLE_ALLOWED_PROBE_HOSTS:}
   probe:
+    registry:
+      allow-non-wrapped-executable: false
     endpoint:
       timeout-ms: 15000
       poll-interval-ms: 500
@@ -41,6 +43,9 @@ mcpjvm:
         include-execution-paths: false
         max-string-length: 256
         max-execution-paths: 32
+  transport-execution:
+    http:
+      allowed-hosts: []
   route-synthesis:
     synthesizer:
       external-modules: ${MCP_SYNTHESIZER_PLUGIN_MODULES:}

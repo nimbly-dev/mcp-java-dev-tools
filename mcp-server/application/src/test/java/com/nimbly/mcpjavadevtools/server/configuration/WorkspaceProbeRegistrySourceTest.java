@@ -29,7 +29,10 @@ class WorkspaceProbeRegistrySourceTest {
                   "workspaces": [{"root": "%s", "profile": "ci"}],
                   "profiles": {
                     "dev": {"probes": {"orders": {"baseUrl": "http://dev.example"}}},
-                    "ci": {"probes": {"orders": {"baseUrl": "http://ci.example"}}}
+                    "ci": {
+                      "global": {"allowNonWrappedExecutable": true},
+                      "probes": {"orders": {"baseUrl": "http://ci.example"}}
+                    }
                   }
                 }
                 """.formatted(workspaceRoot));
@@ -43,6 +46,7 @@ class WorkspaceProbeRegistrySourceTest {
         ProbeRegistry registry = provider.current();
 
         assertThat(registry.findById("orders")).get().extracting("baseUrl").isEqualTo("http://ci.example");
+        assertThat(registry.allowNonWrappedExecutable()).isTrue();
     }
 
     @Test
@@ -57,6 +61,7 @@ class WorkspaceProbeRegistrySourceTest {
         registration.setBaseUrl("http://fallback.example");
         ProbeConfigurationProperties.Registry configured = new ProbeConfigurationProperties.Registry();
         configured.setRegistrations(List.of(registration));
+        configured.setAllowNonWrappedExecutable(true);
         ProbeConfigurationProperties properties = new ProbeConfigurationProperties();
         properties.setRegistry(configured);
 
@@ -64,8 +69,10 @@ class WorkspaceProbeRegistrySourceTest {
                 context,
                 properties);
 
-        assertThat(provider.current().findById("orders")).get().extracting("baseUrl")
+        ProbeRegistry registry = provider.current();
+        assertThat(registry.findById("orders")).get().extracting("baseUrl")
                 .isEqualTo("http://fallback.example");
+        assertThat(registry.allowNonWrappedExecutable()).isTrue();
     }
 
     @Test

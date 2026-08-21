@@ -43,10 +43,29 @@ public final class ProbeRegistryResolver {
             boolean canonicalPresent,
             Path workspaceRoot,
             Collection<ProbeRegistryInput> fallback) {
+        return resolve(canonicalJson, canonicalPresent, workspaceRoot, fallback, false);
+    }
+
+    /**
+     * Resolves canonical content with an application-bound fallback policy.
+     *
+     * @param canonicalJson canonical registry content, when readable
+     * @param canonicalPresent whether the canonical source exists
+     * @param workspaceRoot active workspace root
+     * @param fallback property-backed raw inputs used only when source is absent
+     * @param fallbackAllowNonWrappedExecutable property-backed wrapper policy
+     * @return resolved registry, or {@code null} when no valid registry exists
+     */
+    public ProbeRegistry resolve(
+            String canonicalJson,
+            boolean canonicalPresent,
+            Path workspaceRoot,
+            Collection<ProbeRegistryInput> fallback,
+            boolean fallbackAllowNonWrappedExecutable) {
         if (canonicalPresent) {
             return readCanonical(canonicalJson, workspaceRoot);
         }
-        return fallback(fallback);
+        return fallback(fallback, fallbackAllowNonWrappedExecutable);
     }
 
     private ProbeRegistry readCanonical(String canonicalJson, Path workspaceRoot) {
@@ -120,10 +139,15 @@ public final class ProbeRegistryResolver {
             }
             values.add(new ProbeRegistration(field.getKey(), baseUrl));
         }
-        return values.isEmpty() ? null : new ProbeRegistry(values);
+        boolean allowNonWrappedExecutable = profile.path("global")
+                .path("allowNonWrappedExecutable")
+                .asBoolean(false);
+        return values.isEmpty() ? null : new ProbeRegistry(values, allowNonWrappedExecutable);
     }
 
-    private ProbeRegistry fallback(Collection<ProbeRegistryInput> inputs) {
+    private ProbeRegistry fallback(
+            Collection<ProbeRegistryInput> inputs,
+            boolean allowNonWrappedExecutable) {
         if (inputs == null || inputs.isEmpty()) {
             return null;
         }
@@ -133,6 +157,6 @@ public final class ProbeRegistryResolver {
         }
         return registrations.isEmpty()
                 ? null
-                : new ProbeRegistry(registrations);
+                : new ProbeRegistry(registrations, allowNonWrappedExecutable);
     }
 }

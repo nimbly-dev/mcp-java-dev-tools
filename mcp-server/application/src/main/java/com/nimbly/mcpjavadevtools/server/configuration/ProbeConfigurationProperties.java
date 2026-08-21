@@ -76,6 +76,7 @@ public class ProbeConfigurationProperties {
     public static class Registry {
 
         private List<Registration> registrations = new ArrayList<>();
+        private boolean allowNonWrappedExecutable;
     }
 
     /**
