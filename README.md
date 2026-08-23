@@ -335,7 +335,7 @@ Start there before opening a large pull request or changing public tool contract
 | `probe`                    |                                                                 |
 | `route_synthesis`          |                                                                 |
 | `failure_analysis`         | Failure Lens trace analysis and runtime reproduction comparison |
-| `execution_profile_export` |                                                                 |
+| `execution_profile_export` | Deterministic PowerShell, shell, Postman, and performance replay export |
 | `execution_orchestration`  |                                                                 |
 | `jvm_lifecycle`            | Local JVM discovery and Sidecar Agent lifecycle operations      |
 

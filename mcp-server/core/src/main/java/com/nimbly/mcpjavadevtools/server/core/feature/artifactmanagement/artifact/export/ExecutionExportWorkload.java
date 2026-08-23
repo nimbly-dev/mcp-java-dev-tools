@@ -1,6 +1,8 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactJsonStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactOperationException;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactPathPolicy;
@@ -11,12 +13,13 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Resolves a selected project execution profile into concrete HTTP workload requests. */
-final class ExecutionExportWorkload {
+public final class ExecutionExportWorkload {
 
     private static final List<String> SUITE_TYPES = List.of("regression", "performance", "security");
     private static final Pattern TEMPLATE = Pattern.compile("\\$\\{([^}]+)}");
@@ -24,7 +27,7 @@ final class ExecutionExportWorkload {
     private ExecutionExportWorkload() {
     }
 
-    static Workload resolve(
+    public static Workload resolve(
             ArtifactJsonStore store,
             ArtifactPathPolicy policy,
             String projectName,
@@ -59,7 +62,8 @@ final class ExecutionExportWorkload {
                 throw new ArtifactOperationException(
                         "execution_export_workload_empty", "Selected plan contains no executable workload steps");
             }
-            plans.add(new PlanWorkload(planSelection.order(), suiteType, planSelection.planName(), requests));
+            plans.add(new PlanWorkload(
+                    planSelection.order(), suiteType, planSelection.planName(), requests, contract));
         }
         plans.sort(Comparator.comparingInt(PlanWorkload::order));
         return new Workload(profileName, plans);
@@ -180,8 +184,7 @@ final class ExecutionExportWorkload {
             JsonNode entrypoint, String planName, int index, Map<String, String> contextBindings) {
         JsonNode transport = entrypoint.path("transport");
         JsonNode request = entrypoint.path("request");
-        com.fasterxml.jackson.databind.node.ObjectNode http =
-                com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode()
+        ObjectNode http = JsonNodeFactory.instance.objectNode()
                 .put("method", text(request, "method").orElse("GET"))
                 .put("pathTemplate", text(request, "path").orElse(text(request, "pathTemplate").orElse("")))
                 .put("baseUrl", text(transport, "baseUrl").orElse(""));
@@ -222,7 +225,7 @@ final class ExecutionExportWorkload {
                     ? normalizeTemplate(http.get("body").textValue(), contextBindings)
                     : http.get("body").toString();
         }
-        String method = text(http, "method").orElse("GET").toUpperCase(java.util.Locale.ROOT);
+        String method = text(http, "method").orElse("GET").toUpperCase(Locale.ROOT);
         return new WorkloadRequest(planName, stepId, method, url, headers, body);
     }
 
@@ -245,7 +248,7 @@ final class ExecutionExportWorkload {
     }
 
     private static String headerValue(String name, String value, Map<String, String> contextBindings) {
-        String normalizedName = name.toLowerCase(java.util.Locale.ROOT);
+        String normalizedName = name.toLowerCase(Locale.ROOT);
         if (normalizedName.contains("authorization") || normalizedName.contains("cookie")
                 || normalizedName.contains("token") || normalizedName.contains("secret")
                 || normalizedName.contains("password") || normalizedName.contains("credential")) {
@@ -261,7 +264,7 @@ final class ExecutionExportWorkload {
         if (bound != null && !bound.isBlank()) {
             return bound;
         }
-        return value.toUpperCase(java.util.Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
+        return value.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
     }
 
     private static String normalizeTemplate(String value, Map<String, String> contextBindings) {
@@ -285,13 +288,18 @@ final class ExecutionExportWorkload {
                 ? Optional.of(value.asText().trim()) : Optional.empty();
     }
 
-    record Workload(String executionProfile, List<PlanWorkload> plans) {
+    public record Workload(String executionProfile, List<PlanWorkload> plans) {
     }
 
-    record PlanWorkload(int order, String suiteType, String planName, List<WorkloadRequest> requests) {
+    public record PlanWorkload(
+            int order,
+            String suiteType,
+            String planName,
+            List<WorkloadRequest> requests,
+            JsonNode contract) {
     }
 
-    record WorkloadRequest(
+    public record WorkloadRequest(
             String planName,
             String stepId,
             String method,
@@ -300,7 +308,7 @@ final class ExecutionExportWorkload {
             String body) {
     }
 
-    record WorkloadSelection(
+    public record WorkloadSelection(
             String requestedProfile,
             String requestedPlan,
             Map<String, String> contextBindings) {

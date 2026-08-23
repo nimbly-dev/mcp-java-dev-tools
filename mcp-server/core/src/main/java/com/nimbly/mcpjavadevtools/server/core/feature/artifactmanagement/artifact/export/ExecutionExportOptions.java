@@ -3,12 +3,14 @@ package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifa
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactOperationException;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 /** Resolves the published execution-export options and workspace context bindings. */
-record ExecutionExportOptions(
+public record ExecutionExportOptions(
         boolean includeRuntimeStartup,
         boolean includeHealthcheckGate,
         boolean includeResolvedSecrets,
@@ -36,7 +38,13 @@ record ExecutionExportOptions(
         Map<String, String> values = new LinkedHashMap<>();
         copyValues(request.input().path("contextValues"), values);
         return new ExecutionExportOptions(startup, healthcheck, secrets,
-                request.text("when").orElse(null), Map.copyOf(bindings), Map.copyOf(values), workspace);
+                request.text("when").orElse(null), deterministic(bindings), deterministic(values), workspace);
+    }
+
+    private static Map<String, String> deterministic(Map<String, String> values) {
+        return values.isEmpty()
+                ? Map.of()
+                : Collections.unmodifiableMap(new TreeMap<>(values));
     }
 
     private static boolean booleanValue(ArtifactManagementRequest request, String field, boolean fallback) {

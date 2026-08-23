@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.io.IOException;
 import java.util.Map;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -184,34 +185,7 @@ class ArtifactManagementOperationsTest {
 
     @Test
     void executionExportsAreRunnableArtifactsForAllPublishedModes() throws Exception {
-        ObjectNode project = validProject();
-        ((ObjectNode) project.path("workspaces").get(0)).putArray("executionProfiles").addObject()
-                .put("executionProfile", "smoke")
-                .put("executionPolicy", "stop_on_fail")
-                .put("suiteType", "regression")
-                .putArray("plans").addObject().put("order", 1).put("planName", "health");
-        ((ObjectNode) project.path("workspaces").get(0).path("executionProfiles").get(0)
-                .path("plans").get(0)).put("onFail", "inherit");
-        ArtifactManagementResult projectUpsert = operations.upsertProjectContext(request(
-                ArtifactType.PROJECT_CONTEXT, ArtifactAction.UPSERT,
-                Map.of("projectName", "demo", "payload", project)));
-        assertThat(projectUpsert.status()).as(projectUpsert.reasonCode() + ": " + projectUpsert.reason())
-                .isEqualTo("ok");
-        JsonNode persistedProject = mapper.readTree(Files.readString(
-                workspace.resolve(".mcpjvm/demo/projects.json")));
-        assertThat(persistedProject.path("workspaces").get(0).path("executionProfiles").get(0)
-                .path("executionProfile").asText()).isEqualTo("smoke");
-        ObjectNode contract = mapper.createObjectNode();
-        contract.putArray("targets").addObject();
-        contract.putArray("steps").addObject()
-                .put("order", 1).put("id", "health")
-                .put("protocol", "http")
-                .putObject("transport").putObject("http")
-                .put("method", "GET").put("url", "http://127.0.0.1:9196/health");
-        operations.upsertPlan(request(
-                ArtifactType.REGRESSION_PLAN, ArtifactAction.UPSERT,
-                Map.of("projectName", "demo", "planName", "health",
-                        "payload", Map.of("metadata", Map.of(), "contract", contract))), "regression");
+        seedBasicExecutionExportFixture();
         for (String mode : List.of("ps1", "sh", "postman")) {
             ArtifactManagementResult generated = operations.generateExport(request(
                     ArtifactType.EXECUTION_EXPORT,
@@ -237,6 +211,60 @@ class ArtifactManagementOperationsTest {
             }
             if (mode.equals("postman")) assertThat(content).contains("collection/v2.1.0");
         }
+    }
+
+    @Test
+    void executionExportPreservesValidatedIdsAndRejectsUnsafeIds() throws Exception {
+        seedBasicExecutionExportFixture();
+        ArtifactManagementResult explicitId = operations.generateExport(request(
+                ArtifactType.EXECUTION_EXPORT,
+                ArtifactAction.GENERATE,
+                Map.of("projectName", "demo", "mode", "sh", "planName", "health",
+                        "executionProfile", "smoke", "exportId", "caller-label")));
+        assertThat(explicitId.status()).isEqualTo("ok");
+        assertThat(explicitId.details()).containsEntry("exportId", "caller-label");
+        JsonNode explicitManifest = mapper.readTree(Files.readString(
+                workspace.resolve(".mcpjvm/demo/exports/caller-label/manifest.json")));
+        assertThat(explicitManifest.path("exportId").asText()).isEqualTo("caller-label");
+        ArtifactManagementResult invalidId = operations.generateExport(request(
+                ArtifactType.EXECUTION_EXPORT,
+                ArtifactAction.GENERATE,
+                Map.of("projectName", "demo", "mode", "sh", "planName", "health",
+                        "executionProfile", "smoke", "exportId", "../escape")));
+        assertThat(invalidId.reasonCode()).isEqualTo("export_id_invalid");
+    }
+
+    @Test
+    void performanceExportWritesPortableBundleDocumentationAndJmeterArtifacts() throws Exception {
+        ObjectNode project = validProject();
+        ((ObjectNode) project.path("workspaces").get(0)).putArray("executionProfiles").addObject()
+                .put("executionProfile", "load-suite")
+                .put("executionPolicy", "continue_on_fail")
+                .put("suiteType", "performance")
+                .putArray("plans").addObject().put("order", 1).put("planName", "load");
+        assertThat(operations.upsertProjectContext(request(
+                ArtifactType.PROJECT_CONTEXT, ArtifactAction.UPSERT,
+                Map.of("projectName", "demo", "payload", project))).status()).isEqualTo("ok");
+        ObjectNode payload = performancePlan();
+        ((ObjectNode) payload.path("contract").path("workloadProvider")).put("type", "jmeter");
+        assertThat(operations.upsertPlan(request(
+                ArtifactType.PERFORMANCE_PLAN, ArtifactAction.UPSERT,
+                Map.of("projectName", "demo", "planName", "load", "payload", payload)), "performance")
+                .status()).isEqualTo("ok");
+
+        ArtifactManagementResult generated = operations.generateExport(request(
+                ArtifactType.EXECUTION_EXPORT, ArtifactAction.GENERATE,
+                Map.of("projectName", "demo", "executionProfile", "load-suite", "mode", "sh",
+                        "exportId", "load-export")));
+        assertThat(generated.status()).isEqualTo("ok");
+        Path export = workspace.resolve(".mcpjvm/demo/exports/load-export");
+        assertThat(Files.isRegularFile(export.resolve("performance-export.bundle.json"))).isTrue();
+        assertThat(Files.isRegularFile(export.resolve("run-performance-profile.js"))).isTrue();
+        assertThat(Files.isRegularFile(export.resolve("README.performance.sh.md"))).isTrue();
+        Path jmx = export.resolve("artifacts/jmeter/load.workload.jmeter.jmx");
+        assertThat(Files.isRegularFile(jmx)).isTrue();
+        assertThat(Files.readString(jmx)).contains("<jmeterTestPlan", "GET http://localhost/health");
+        assertThat(generated.details().get("output").toString()).contains("run-performance-profile.sh");
     }
 
     @Test
@@ -301,6 +329,20 @@ class ArtifactManagementOperationsTest {
         ArtifactManagementResult redacted = operations.generateExport(request(
                 ArtifactType.EXECUTION_EXPORT, ArtifactAction.GENERATE, common));
         assertThat(redacted.status()).as(redacted.reasonCode() + ": " + redacted.reason()).isEqualTo("ok");
+        Map<String, String> reversedBindings = new LinkedHashMap<>();
+        reversedBindings.put("apiBaseUrl", "CUSTOM_BASE");
+        reversedBindings.put("auth.bearer", "CUSTOM_TOKEN");
+        Map<String, String> reversedValues = new LinkedHashMap<>();
+        reversedValues.put("apiBaseUrl", "http://request");
+        reversedValues.put("auth.bearer", "request-secret");
+        Map<String, Object> equivalent = new LinkedHashMap<>(common);
+        equivalent.put("contextBindings", reversedBindings);
+        equivalent.put("contextValues", reversedValues);
+        ArtifactManagementResult equivalentOrder = operations.generateExport(request(
+                ArtifactType.EXECUTION_EXPORT, ArtifactAction.GENERATE, equivalent));
+        assertThat(equivalentOrder.status()).isEqualTo("ok");
+        assertThat(equivalentOrder.details().get("exportId"))
+                .isEqualTo(redacted.details().get("exportId"));
         Path redactedExport = workspace.resolve(".mcpjvm/demo/exports")
                 .resolve(String.valueOf(redacted.details().get("exportId")));
         String redactedReplay = Files.readString(redactedExport.resolve("replay.sh"));
@@ -403,6 +445,37 @@ class ArtifactManagementOperationsTest {
         } catch (IOException exception) {
             throw new AssertionError("performance parity fixture could not be read", exception);
         }
+    }
+
+    private void seedBasicExecutionExportFixture() throws IOException {
+        ObjectNode project = validProject();
+        ((ObjectNode) project.path("workspaces").get(0)).putArray("executionProfiles").addObject()
+                .put("executionProfile", "smoke")
+                .put("executionPolicy", "stop_on_fail")
+                .put("suiteType", "regression")
+                .putArray("plans").addObject().put("order", 1).put("planName", "health");
+        ((ObjectNode) project.path("workspaces").get(0).path("executionProfiles").get(0)
+                .path("plans").get(0)).put("onFail", "inherit");
+        ArtifactManagementResult projectUpsert = operations.upsertProjectContext(request(
+                ArtifactType.PROJECT_CONTEXT, ArtifactAction.UPSERT,
+                Map.of("projectName", "demo", "payload", project)));
+        assertThat(projectUpsert.status()).as(projectUpsert.reasonCode() + ": " + projectUpsert.reason())
+                .isEqualTo("ok");
+        JsonNode persistedProject = mapper.readTree(Files.readString(
+                workspace.resolve(".mcpjvm/demo/projects.json")));
+        assertThat(persistedProject.path("workspaces").get(0).path("executionProfiles").get(0)
+                .path("executionProfile").asText()).isEqualTo("smoke");
+        ObjectNode contract = mapper.createObjectNode();
+        contract.putArray("targets").addObject();
+        contract.putArray("steps").addObject()
+                .put("order", 1).put("id", "health")
+                .put("protocol", "http")
+                .putObject("transport").putObject("http")
+                .put("method", "GET").put("url", "http://127.0.0.1:9196/health");
+        operations.upsertPlan(request(
+                ArtifactType.REGRESSION_PLAN, ArtifactAction.UPSERT,
+                Map.of("projectName", "demo", "planName", "health",
+                        "payload", Map.of("metadata", Map.of(), "contract", contract))), "regression");
     }
 
     private ObjectNode validProject() {
