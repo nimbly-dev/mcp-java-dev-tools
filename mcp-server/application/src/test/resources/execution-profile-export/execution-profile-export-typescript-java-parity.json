@@ -1,0 +1,33 @@
+{
+  "cases": [
+    {
+      "name": "success_preserves_explicit_export_id",
+      "kind": "success",
+      "input": {
+        "projectName": "demo",
+        "exportId": "parity-export",
+        "executionProfile": "smoke",
+        "mode": "sh"
+      },
+      "assertions": {
+        "/resultType": "execution_profile_export",
+        "/status": "ok",
+        "/details/exportId": "parity-export",
+        "/details/mode": "sh",
+        "/details/executionProfile": "smoke"
+      }
+    },
+    {
+      "name": "missing_project_fails_closed",
+      "kind": "missing_project",
+      "input": {
+        "projectName": "missing",
+        "mode": "sh"
+      },
+      "assertions": {
+        "/status": "artifact_missing",
+        "/reasonCode": "artifact_missing"
+      }
+    }
+  ]
+}

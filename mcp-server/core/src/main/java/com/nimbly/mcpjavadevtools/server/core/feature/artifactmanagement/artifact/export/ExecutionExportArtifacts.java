@@ -1,24 +1,32 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactOperationException;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactPathPolicy;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
+import java.util.Optional;
+import java.util.regex.Pattern;
 
 /** Purpose-owned execution export Artifact boundary used by export actions. */
-public final class ExecutionExportArtifacts {
+public final class ExecutionExportArtifacts implements ExecutionExportArtifactGateway {
+    private static final Pattern EXPORT_ID = Pattern.compile("[A-Za-z0-9._-]+");
     private final ArtifactManagementSupport support;
 
     /** Creates the export owner. */
@@ -112,7 +120,7 @@ public final class ExecutionExportArtifacts {
             String mode,
             ExecutionExportWorkload.Workload workload,
             ExecutionExportOptions options) {
-        String exportId = "export-" + stableExportId(projectName, request.input().toString());
+        String exportId = resolveExportId(request, projectName);
         Path export = workspace.paths().resolve(".mcpjvm", projectName, "exports", exportId);
         JsonNode profile = selectedProfile(options.workspace(), workload.executionProfile());
         ExportContext context = new ExportContext(
@@ -152,8 +160,15 @@ public final class ExecutionExportArtifacts {
         writeProjectEnv(context.workspace(), context.projectName(), context.exportId(), context.options());
         List<ScriptInvocation> scripts = prepareScripts(
                 context.workspace(), context.projectName(), context.exportId(), context.profile(), context.options());
+        List<String> jmeterPaths = writePerformanceArtifacts(context);
+        ExecutionExportPortableSidecar.writeIfRequired(
+                context.export(), context.workspace().root(), context.options().workspace(), context.profile(),
+                support.mapper());
         String content = renderReplay(
                 context.mode(), context.workload(), context.options(), context.profile(), scripts);
+        if (isPerformance(context.workload())) {
+            content += performanceRunner(context.mode());
+        }
         writeReplayFile(context.workspace().paths().resolve(
                 ".mcpjvm", context.projectName(), "exports", context.exportId(),
                 replayFileName(context.mode())), content);
@@ -163,10 +178,53 @@ public final class ExecutionExportArtifacts {
                     "run-execution-profile." + context.mode()), content);
             if ("performance".equals(context.workload().plans().getFirst().suiteType())) {
                 writeReplayFile(context.workspace().paths().resolve(
-                        ".mcpjvm", context.projectName(), "exports", context.exportId(),
-                        "run-performance-profile." + context.mode()), content);
+                    ".mcpjvm", context.projectName(), "exports", context.exportId(),
+                    "run-performance-profile." + context.mode()), content);
             }
         }
+        writeReadme(context, jmeterPaths);
+    }
+
+    private List<String> writePerformanceArtifacts(ExportContext context) {
+        if (!isPerformance(context.workload())) {
+            return List.of();
+        }
+        String policy = context.profile() == null
+                ? "stop_on_fail" : context.profile().path("executionPolicy").asText("stop_on_fail");
+        return new ExecutionExportPerformanceArtifacts(support.mapper()).write(
+                context.export(), context.exportId(), policy, context.workload());
+    }
+
+    private void writeReadme(ExportContext context, List<String> jmeterPaths) {
+        if ("postman".equals(context.mode())) {
+            return;
+        }
+        List<String> plans = context.workload().plans().stream()
+                .sorted(Comparator.comparingInt(ExecutionExportWorkload.PlanWorkload::order))
+                .map(plan -> "[" + plan.order() + "] " + plan.planName() + " (source_status=blocked)")
+                .toList();
+        ExecutionExportReadme.write(context.export(), new ExecutionExportReadme.ReadmeInput(
+                context.mode(), context.exportId(), context.workload().plans().getFirst().suiteType(),
+                context.workload().executionProfile() == null ? "ad-hoc" : context.workload().executionProfile(),
+                context.options(), plans, jmeterPaths));
+    }
+
+    private boolean isPerformance(ExecutionExportWorkload.Workload workload) {
+        return workload.plans().stream().anyMatch(plan -> "performance".equals(plan.suiteType()));
+    }
+
+    private String performanceRunner(String mode) {
+        if ("ps1".equals(mode)) {
+            return "\n& node (Join-Path $PSScriptRoot 'run-performance-profile.js') "
+                    + "--bundle (Join-Path $PSScriptRoot 'performance-export.bundle.json') "
+                    + "--env-file (Join-Path $PSScriptRoot 'project.env') "
+                    + "--export-dir $PSScriptRoot\n";
+        }
+        if ("sh".equals(mode)) {
+            return "\nnode \"$PWD/run-performance-profile.js\" --bundle \"$PWD/performance-export.bundle.json\" "
+                    + "--env-file \"$PWD/project.env\" --export-dir \"$PWD\"\n";
+        }
+        return "";
     }
 
     private ArtifactManagementResult exportResult(
@@ -183,18 +241,41 @@ public final class ExecutionExportArtifacts {
         details.put("exportDirAbs", context.export().toString());
         details.put("path", context.workspace().paths().relative(context.export()));
         details.put("files", support.jsonStore().files(context.export()));
-        details.put("output", exportOutput(context.export(), context.mode()));
+        details.put("output", exportOutput(
+                context.export(), context.mode(), context.workload().plans().getFirst().suiteType()));
         return new ArtifactManagementResult(
                 "execution_profile_export", "ok", "success", null, null, "", Map.of(), details);
     }
 
-    private Map<String, Object> exportOutput(Path export, String mode) {
+    private Map<String, Object> exportOutput(Path export, String mode, String suiteType) {
         String replayName = replayFileName(mode);
         if ("postman".equals(mode)) {
             return Map.of("collectionPathAbs", export.resolve(replayName).toString(),
                     "environmentPathAbs", export.resolve("project.env").toString());
         }
-        return Map.of("scriptPathAbs", export.resolve("run-execution-profile." + mode).toString());
+        String prefix = "performance".equals(suiteType) ? "performance" : "execution";
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("scriptPathAbs", export.resolve("run-" + prefix + "-profile." + mode).toString());
+        String readmeName = "performance".equals(suiteType)
+                ? "README.performance." + mode + ".md" : "README." + mode + ".md";
+        Path readme = export.resolve(readmeName);
+        if (Files.isRegularFile(readme)) {
+            output.put("readmePathAbs", readme.toString());
+        }
+        List<String> jmx = listJmeterArtifacts(export);
+        if (!jmx.isEmpty()) {
+            output.put("jmeterArtifactPathsAbs", jmx);
+        }
+        return output;
+    }
+
+    private List<String> listJmeterArtifacts(Path export) {
+        try (var paths = Files.walk(export.resolve("artifacts/jmeter"))) {
+            return paths.filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".jmx"))
+                    .sorted().map(Path::toString).toList();
+        } catch (IOException exception) {
+            return List.of();
+        }
     }
 
     private JsonNode readProjectArtifact(ArtifactManagementSupport.Workspace workspace, String projectName) {
@@ -432,7 +513,7 @@ public final class ExecutionExportArtifacts {
                 invocations.add(invocation);
             }
         }
-        invocations.sort(java.util.Comparator.comparingInt(value -> phaseOrder(value.phase())));
+        invocations.sort(Comparator.comparingInt(value -> phaseOrder(value.phase())));
         return invocations;
     }
 
@@ -526,7 +607,7 @@ public final class ExecutionExportArtifacts {
             String exportId,
             String scriptRoot,
             String value) {
-        String extension = value.toLowerCase(java.util.Locale.ROOT);
+        String extension = value.toLowerCase(Locale.ROOT);
         if (!(extension.endsWith(".ps1") || extension.endsWith(".sh") || extension.endsWith(".bash")
                 || extension.endsWith(".js") || extension.endsWith(".mjs") || extension.endsWith(".py"))) {
             return value;
@@ -551,7 +632,7 @@ public final class ExecutionExportArtifacts {
                         "execution_export_script_too_large",
                         "Referenced execution-profile script exceeds the read limit");
             }
-        } catch (java.io.IOException exception) {
+        } catch (IOException exception) {
             throw new ArtifactOperationException(
                     "execution_export_script_read_failed", "Referenced execution-profile script could not be read");
         }
@@ -800,7 +881,7 @@ public final class ExecutionExportArtifacts {
     }
 
     private static String environmentKey(String value) {
-        return value.toUpperCase(java.util.Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
+        return value.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
     }
 
     private static String safeFileSegment(String value) {
@@ -828,10 +909,10 @@ public final class ExecutionExportArtifacts {
             JsonNode profile) {
     }
 
-    private static java.util.Optional<String> optionalText(JsonNode node, String field) {
+    private static Optional<String> optionalText(JsonNode node, String field) {
         JsonNode value = node.get(field);
         return value != null && value.isTextual() && !value.asText().isBlank()
-                ? java.util.Optional.of(value.asText().trim()) : java.util.Optional.empty();
+                ? Optional.of(value.asText().trim()) : Optional.empty();
     }
 
     private static String replayFileName(String mode) {
@@ -842,10 +923,22 @@ public final class ExecutionExportArtifacts {
         };
     }
 
-    private static String stableExportId(String projectName, String input) {
+    private String resolveExportId(ArtifactManagementRequest request, String projectName) {
+        String requested = request.text("exportId").map(String::trim).orElse("");
+        if (!requested.isBlank()) {
+            if (!EXPORT_ID.matcher(requested).matches()) {
+                throw new ArtifactOperationException("export_id_invalid", "exportId contains unsupported characters");
+            }
+            ArtifactPathPolicy.validateSegment(requested);
+            return requested;
+        }
+        return "export-" + stableExportId(projectName, request.input());
+    }
+
+    private String stableExportId(String projectName, JsonNode input) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest((projectName + "\n" + input).getBytes(StandardCharsets.UTF_8));
+                    .digest((projectName + "\n" + canonicalize(input)).getBytes(StandardCharsets.UTF_8));
             StringBuilder value = new StringBuilder("sha256-");
             for (int index = 0; index < 8; index++) {
                 value.append(String.format("%02x", digest[index]));
@@ -855,6 +948,25 @@ public final class ExecutionExportArtifacts {
             throw new ArtifactOperationException("execution_export_id_failed",
                     "export identifier could not be created");
         }
+    }
+
+    private JsonNode canonicalize(JsonNode input) {
+        if (input == null || input.isValueNode()) {
+            return input;
+        }
+        if (input.isObject()) {
+            ObjectNode ordered = JsonNodeFactory.instance.objectNode();
+            List<String> fields = new ArrayList<>();
+            input.fieldNames().forEachRemaining(fields::add);
+            fields.sort(String::compareTo);
+            for (String field : fields) {
+                ordered.set(field, canonicalize(input.get(field)));
+            }
+            return ordered;
+        }
+        ArrayNode ordered = JsonNodeFactory.instance.arrayNode();
+        input.forEach(child -> ordered.add(canonicalize(child)));
+        return ordered;
     }
 
     private String postmanCollection(

@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -49,6 +50,7 @@ class McpServerStdioIT {
     @Test
     void executableJarStartsInStdioModeWithoutContaminatingStdout() throws Exception {
         Path workspaceRoot = workspaceRoot();
+        resetArtifactFixture(workspaceRoot.resolve(".mcpjvm"));
         writeStdioFixture(workspaceRoot);
         HttpServer routeProbe = HttpServer.create(new InetSocketAddress(0), 0);
         routeProbe.createContext("/__probe/status", exchange -> respondProbe(exchange, """
@@ -88,7 +90,7 @@ class McpServerStdioIT {
             assertThat(tools).extracting(node -> node.path("name").asText())
                     .containsExactlyInAnyOrder(
                             "debug_check", "jvm_lifecycle", "probe", "route_synthesis", "failure_analysis",
-                            "artifact_management", "transport_execute");
+                            "artifact_management", "execution_profile_export", "transport_execute");
             JsonNode routeTool = null;
             for (JsonNode tool : tools) {
                 if ("route_synthesis".equals(tool.path("name").asText())) {
@@ -166,6 +168,17 @@ class McpServerStdioIT {
             assertThat(transportSchema.path("properties").has("request")).isTrue();
             assertThat(transportSchema.path("properties").has("options")).isTrue();
 
+            JsonNode exportTool = null;
+            for (JsonNode tool : tools) {
+                if ("execution_profile_export".equals(tool.path("name").asText())) {
+                    exportTool = tool;
+                    break;
+                }
+            }
+            assertThat(exportTool).isNotNull();
+            assertThat(exportTool.path("inputSchema").path("properties").has("mode")).isTrue();
+            assertThat(exportTool.path("inputSchema").path("properties").has("contextBindings")).isTrue();
+
             server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
             JsonNode debugCheck = server.responseFor(3);
             JsonNode debugCheckPayload = toolPayload(debugCheck);
@@ -176,6 +189,32 @@ class McpServerStdioIT {
             assertThat(structuredDebugCheck.isObject()).isTrue();
             assertThat(structuredDebugCheck.path("ok").asBoolean()).isTrue();
             assertThat(structuredDebugCheck.path("workspaceRoot").asText()).isEqualTo(workspaceRoot.toString());
+
+            server.send(request(7, "tools/call", Map.of(
+                    "name", "execution_profile_export",
+                    "arguments", Map.of("mode", "postman"))));
+            JsonNode exportFailure = toolPayload(server.responseFor(7));
+            assertThat(exportFailure.path("status").asText()).isEqualTo("project_artifact_missing");
+            assertThat(exportFailure.path("reasonCode").asText()).isEqualTo("project_artifact_missing");
+
+            writeExecutionProfileExportFixture(workspaceRoot);
+            server.send(request(31, "tools/call", Map.of(
+                    "name", "execution_profile_export",
+                    "arguments", Map.of(
+                            "projectName", "demo",
+                            "executionProfile", "smoke",
+                            "mode", "sh",
+                            "exportId", "stdio-export"))));
+            JsonNode exportSuccess = toolPayload(server.responseFor(31));
+            assertThat(exportSuccess.path("resultType").asText()).isEqualTo("execution_profile_export");
+            assertThat(exportSuccess.path("status").asText()).isEqualTo("ok");
+            assertThat(exportSuccess.path("exportId").asText()).isEqualTo("stdio-export");
+            Path exportedScript = Path.of(exportSuccess.path("output").path("scriptPathAbs").asText());
+            assertThat(Files.isRegularFile(exportedScript)).isTrue();
+            assertThat(Files.readString(exportedScript)).contains("curl --fail")
+                    .contains("http://127.0.0.1:9196/health");
+            JsonNode exportManifest = JSON.readTree(Files.readString(exportedScript.getParent().resolve("manifest.json")));
+            assertThat(exportManifest.path("exportId").asText()).isEqualTo("stdio-export");
 
             server.send(request(6, "tools/call", Map.of(
                     "name", "probe",
@@ -670,6 +709,48 @@ class McpServerStdioIT {
                     public String run() {
                         return "ok";
                     }
+                }
+        """);
+    }
+
+    private static void resetArtifactFixture(Path root) throws IOException {
+        if (!Files.exists(root)) {
+            return;
+        }
+        List<Path> paths;
+        try (var stream = Files.walk(root)) {
+            paths = stream.sorted(Comparator.reverseOrder()).toList();
+        }
+        for (Path path : paths) {
+            Files.deleteIfExists(path);
+        }
+    }
+
+    private static void writeExecutionProfileExportFixture(Path workspaceRoot) throws IOException {
+        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
+        Files.createDirectories(projectRoot.resolve("plans/regression/health"));
+        ObjectNode project = JSON.createObjectNode();
+        ObjectNode workspace = project.putArray("workspaces").addObject();
+        workspace.put("projectRoot", workspaceRoot.toString());
+        workspace.putObject("defaults").putObject("orchestrator")
+                .put("resumePollMax", 1).put("resumePollIntervalMs", 10).put("resumePollTimeoutMs", 100);
+        workspace.putArray("executionProfiles").addObject()
+                .put("executionProfile", "smoke")
+                .put("executionPolicy", "stop_on_fail")
+                .put("suiteType", "regression")
+                .putArray("plans").addObject().put("order", 1).put("planName", "health");
+        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
+        Files.writeString(projectRoot.resolve("plans/regression/health/contract.json"), """
+                {
+                  "steps": [{
+                    "order": 1,
+                    "id": "health",
+                    "protocol": "http",
+                    "transport": {"http": {
+                      "method": "GET",
+                      "url": "http://127.0.0.1:9196/health"
+                    }}
+                  }]
                 }
                 """);
     }
