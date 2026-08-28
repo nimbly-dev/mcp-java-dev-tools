@@ -29,6 +29,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.action.
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.action.impl.UpsertPerformancePlanAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.action.impl.UpsertRegressionPlanAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.action.impl.UpsertSecurityPlanAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.action.impl.UpsertRunResultAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.action.impl.ValidateProbeConfigAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.action.impl.ValidateProjectContextAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.action.impl.ValidatePerformancePlanAction;
@@ -217,6 +218,11 @@ public class ArtifactManagementConfiguration {
     @Bean
     ReadRunResultAction readRunResultAction(RunResultArtifacts artifacts) {
         return new ReadRunResultAction(artifacts);
+    }
+
+    @Bean
+    UpsertRunResultAction upsertRunResultAction(RunResultArtifacts artifacts) {
+        return new UpsertRunResultAction(artifacts);
     }
 
     @Bean

@@ -53,9 +53,14 @@ class McpServerStdioIT {
         resetArtifactFixture(workspaceRoot.resolve(".mcpjvm"));
         writeStdioFixture(workspaceRoot);
         HttpServer routeProbe = HttpServer.create(new InetSocketAddress(0), 0);
+        AtomicInteger performanceProbeHits = new AtomicInteger();
         routeProbe.createContext("/__probe/status", exchange -> respondProbe(exchange, """
-                {"probe":{"key":"example.StdioController#run:7","hitCount":0,
+                {"probe":{"key":"example.StdioController#run:7","hitCount":%d,"lastHitEpoch":%d,
                 "lineResolvable":true,"lineValidation":"resolvable"}}
+                """.formatted(performanceProbeHits.incrementAndGet(), System.currentTimeMillis())));
+        routeProbe.createContext("/__probe/reset", exchange -> respondProbe(exchange, """
+                {"results":[{"key":"example.StdioController#run:7","ok":true,
+                "lineResolvable":true,"lineValidation":"resolvable"}]}
                 """));
         routeProbe.createContext("/actuator/mappings", exchange -> respondProbe(exchange, """
                 {"handler":"example.StdioController#run()",
@@ -72,9 +77,12 @@ class McpServerStdioIT {
                 "rootCauseType":"java.lang.IllegalArgumentException",
                 "nearestApplicationMethodKey":"example.StdioController#run:7","complete":true}}
                 """));
-        routeProbe.createContext("/transport", exchange -> respondProbe(exchange, """
-                {"safe":"transport-ok","authorization":"Bearer should-not-escape"}
-                """));
+        routeProbe.createContext("/transport", exchange -> {
+            int status = exchange.getRequestURI().getRawQuery() == null ? 200 : 403;
+            respondProbe(exchange, status, """
+                    {"safe":"transport-ok","authorization":"Bearer should-not-escape"}
+                    """);
+        });
         routeProbe.start();
         try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
             server.send(initializeRequest());
@@ -90,7 +98,8 @@ class McpServerStdioIT {
             assertThat(tools).extracting(node -> node.path("name").asText())
                     .containsExactlyInAnyOrder(
                             "debug_check", "jvm_lifecycle", "probe", "route_synthesis", "failure_analysis",
-                            "artifact_management", "execution_profile_export", "transport_execute");
+                            "artifact_management", "execution_profile_export", "transport_execute",
+                            "execution_orchestration");
             JsonNode routeTool = null;
             for (JsonNode tool : tools) {
                 if ("route_synthesis".equals(tool.path("name").asText())) {
@@ -151,7 +160,7 @@ class McpServerStdioIT {
                 }
             }
             assertThat(artifactTool).isNotNull();
-            assertThat(artifactTool.path("inputSchema").path("oneOf")).hasSize(30);
+            assertThat(artifactTool.path("inputSchema").path("oneOf")).hasSize(31);
             JsonNode transportTool = null;
             for (JsonNode tool : tools) {
                 if ("transport_execute".equals(tool.path("name").asText())) {
@@ -179,6 +188,19 @@ class McpServerStdioIT {
             assertThat(exportTool.path("inputSchema").path("properties").has("mode")).isTrue();
             assertThat(exportTool.path("inputSchema").path("properties").has("contextBindings")).isTrue();
 
+            JsonNode orchestrationTool = findTool(tools, "execution_orchestration");
+            assertThat(orchestrationTool).isNotNull();
+            JsonNode orchestrationSchema = orchestrationTool.path("inputSchema");
+            assertThat(orchestrationSchema.path("required"))
+                    .isEqualTo(JSON.readTree("[\"action\",\"input\"]"));
+            assertThat(orchestrationSchema.path("properties").path("action").path("const").asText())
+                    .isEqualTo("execute");
+            JsonNode orchestrationInput = orchestrationSchema.path("properties").path("input");
+            assertThat(orchestrationInput.path("required"))
+                    .isEqualTo(JSON.readTree("[\"projectName\",\"executionProfile\"]"));
+            assertThat(orchestrationInput.path("properties").path("maxPlansPerCall").path("minimum").asInt())
+                    .isEqualTo(1);
+
             server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
             JsonNode debugCheck = server.responseFor(3);
             JsonNode debugCheckPayload = toolPayload(debugCheck);
@@ -196,6 +218,14 @@ class McpServerStdioIT {
             JsonNode exportFailure = toolPayload(server.responseFor(7));
             assertThat(exportFailure.path("status").asText()).isEqualTo("project_artifact_missing");
             assertThat(exportFailure.path("reasonCode").asText()).isEqualTo("project_artifact_missing");
+
+            server.send(request(32, "tools/call", Map.of(
+                    "name", "execution_orchestration",
+                    "arguments", Map.of("action", "execute", "input", Map.of(
+                            "projectName", "demo", "executionProfile", "missing")))));
+            JsonNode orchestrationFailure = toolPayload(server.responseFor(32));
+            assertThat(orchestrationFailure.path("status").asText()).isEqualTo("blocked");
+            assertThat(orchestrationFailure.path("reasonCode").asText()).isNotBlank();
 
             writeExecutionProfileExportFixture(workspaceRoot);
             server.send(request(31, "tools/call", Map.of(
@@ -215,6 +245,58 @@ class McpServerStdioIT {
                     .contains("http://127.0.0.1:9196/health");
             JsonNode exportManifest = JSON.readTree(Files.readString(exportedScript.getParent().resolve("manifest.json")));
             assertThat(exportManifest.path("exportId").asText()).isEqualTo("stdio-export");
+
+            writeSecurityOrchestrationFixture(workspaceRoot, routeProbe.getAddress().getPort());
+            server.send(request(33, "tools/call", Map.of(
+                    "name", "execution_orchestration",
+                    "arguments", Map.of("action", "execute", "input", Map.of(
+                            "projectName", "demo", "executionProfile", "security-smoke", "maxPlansPerCall", 1)))));
+            JsonNode securityOrchestration = toolPayload(server.responseFor(33));
+            assertThat(securityOrchestration.path("status").asText())
+                    .as("security orchestration: %s", securityOrchestration)
+                    .isEqualTo("pass");
+            assertThat(securityOrchestration.path("action").asText()).isEqualTo("execute");
+            assertThat(securityOrchestration.path("suiteRunId").asText()).isNotBlank();
+            assertThat(securityOrchestration.path("progressSummary").path("status").asText()).isEqualTo("pass");
+
+            writePerformanceOrchestrationFixture(workspaceRoot, routeProbe.getAddress().getPort());
+            server.send(request(34, "tools/call", Map.of(
+                    "name", "execution_orchestration",
+                    "arguments", Map.of("action", "execute", "input", Map.of(
+                            "projectName", "demo", "executionProfile", "performance-smoke", "suiteRunId", "performance-resume")))));
+            JsonNode performanceOrchestration = toolPayload(server.responseFor(34));
+            assertThat(performanceOrchestration.path("status").asText())
+                    .as("performance orchestration: %s", performanceOrchestration)
+                    .isEqualTo("pass");
+            assertThat(performanceOrchestration.path("planRuns").toString())
+                    .contains("performance-smoke").contains("thresholdResults");
+
+            server.send(request(35, "tools/call", Map.of(
+                    "name", "execution_orchestration",
+                    "arguments", Map.of("action", "execute", "input", Map.of(
+                            "projectName", "demo", "executionProfile", "performance-smoke", "suiteRunId", "performance-resume")))));
+            JsonNode performanceResume = toolPayload(server.responseFor(35));
+            assertThat(performanceResume.path("status").asText()).isEqualTo("pass");
+            assertThat(performanceResume.path("suiteRunId").asText()).isEqualTo("performance-resume");
+
+            writeSecuritySidecarOrchestrationFixture(workspaceRoot, routeProbe.getAddress().getPort());
+            server.send(request(36, "tools/call", Map.of(
+                    "name", "execution_orchestration",
+                    "arguments", Map.of("action", "execute", "input", Map.of(
+                            "projectName", "demo", "executionProfile", "security-sidecar")))));
+            JsonNode sidecarSecurity = toolPayload(server.responseFor(36));
+            assertThat(sidecarSecurity.path("status").asText()).isEqualTo("pass");
+            assertThat(sidecarSecurity.path("planRuns").toString()).contains("sidecar_assisted");
+
+            writeRegressionOrchestrationFixture(workspaceRoot, routeProbe.getAddress().getPort());
+            server.send(request(37, "tools/call", Map.of(
+                    "name", "execution_orchestration",
+                    "arguments", Map.of("action", "execute", "input", Map.of(
+                            "projectName", "demo", "executionProfile", "regression-smoke")))));
+            JsonNode regressionOrchestration = toolPayload(server.responseFor(37));
+            assertThat(regressionOrchestration.path("status").asText())
+                    .as("regression orchestration: %s", regressionOrchestration).isEqualTo("pass");
+            assertThat(regressionOrchestration.path("planRuns").toString()).contains("regression-smoke");
 
             server.send(request(6, "tools/call", Map.of(
                     "name", "probe",
@@ -683,6 +765,15 @@ class McpServerStdioIT {
         return Map.of("jsonrpc", "2.0", "id", id, "method", method, "params", params);
     }
 
+    private static JsonNode findTool(JsonNode tools, String toolName) {
+        for (JsonNode tool : tools) {
+            if (toolName.equals(tool.path("name").asText())) {
+                return tool;
+            }
+        }
+        return null;
+    }
+
     private static Path jarPath() {
         String configured = System.getProperty("mcpServerJar");
         if (configured == null || configured.isBlank()) {
@@ -753,6 +844,108 @@ class McpServerStdioIT {
                   }]
                 }
                 """);
+    }
+
+    private static void writeSecurityOrchestrationFixture(Path workspaceRoot, int port) throws IOException {
+        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
+        Path planRoot = projectRoot.resolve("plans/security/security-smoke");
+        Files.createDirectories(planRoot);
+        ObjectNode project = (ObjectNode) JSON.readTree(Files.readString(projectRoot.resolve("projects.json")));
+        ObjectNode workspace = (ObjectNode) project.path("workspaces").get(0);
+        workspace.putArray("executionProfiles").addObject()
+                .put("executionProfile", "security-smoke")
+                .put("executionPolicy", "stop_on_fail")
+                .put("suiteType", "security")
+                .putArray("plans").addObject().put("order", 1).put("planName", "security-smoke");
+        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
+        Files.writeString(planRoot.resolve("metadata.json"), "{\"suiteType\":\"security\"}");
+        Files.writeString(planRoot.resolve("contract.json"), """
+                {"suiteType":"security","securityMode":"blackbox",
+                "targetBoundary":{"environment":"local-ci","baseUrl":"http://127.0.0.1:%d",
+                "allowedHosts":["127.0.0.1"],"allowedPorts":[%d]},
+                "entrypoints":[{"id":"transport","transport":{"type":"http","method":"GET","path":"/transport"}}],
+                "authenticationProfiles":[{"id":"anonymous","kind":"anonymous"}]}
+                """.formatted(port, port));
+    }
+
+    private static void writePerformanceOrchestrationFixture(Path workspaceRoot, int port) throws IOException {
+        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
+        Path planRoot = projectRoot.resolve("plans/performance/performance-smoke");
+        Path jmeter = workspaceRoot.resolve("fixture-jmeter.cmd");
+        Files.createDirectories(planRoot);
+        Files.writeString(jmeter, """
+                @echo off
+                > "%5" echo elapsed,success
+                >> "%5" echo 10,true
+                exit /b 0
+                """);
+        ObjectNode project = (ObjectNode) JSON.readTree(Files.readString(projectRoot.resolve("projects.json")));
+        ObjectNode workspace = (ObjectNode) project.path("workspaces").get(0);
+        workspace.putArray("executionProfiles").addObject()
+                .put("executionProfile", "performance-smoke")
+                .put("executionPolicy", "stop_on_fail")
+                .put("suiteType", "performance")
+                .putArray("plans").addObject().put("order", 1).put("planName", "performance-smoke");
+        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
+        Files.writeString(planRoot.resolve("metadata.json"), "{\"suiteType\":\"performance\"}");
+        Files.writeString(planRoot.resolve("contract.json"), """
+                {"workloadProvider":{"type":"jmeter","mode":"generated_http",
+                "options":{"installationPath":%s}},
+                "entrypoints":[{"transport":{"protocol":"http","baseUrl":"http://127.0.0.1:%d",
+                "healthCheckPath":"/transport"},"request":{"method":"GET","path":"/transport"}}],
+                "loadModel":{"mode":"concurrency","concurrency":1,"rampUpSeconds":0,"durationSeconds":1},
+                "observationTargets":{"probeBaseUrl":"http://127.0.0.1:%d",
+                "requiredLineHits":["example.StdioController#run:7"]},
+                "successCriteria":{"maxErrorRatePct":0,"minThroughputPerSec":1,"p95LatencyMs":100}}
+                """.formatted(JSON.writeValueAsString(jmeter.toString()), port, port));
+    }
+
+    private static void writeSecuritySidecarOrchestrationFixture(Path workspaceRoot, int port) throws IOException {
+        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
+        Path planRoot = projectRoot.resolve("plans/security/security-sidecar");
+        Files.createDirectories(planRoot);
+        ObjectNode project = (ObjectNode) JSON.readTree(Files.readString(projectRoot.resolve("projects.json")));
+        ObjectNode workspace = (ObjectNode) project.path("workspaces").get(0);
+        workspace.putArray("executionProfiles").addObject()
+                .put("executionProfile", "security-sidecar")
+                .put("executionPolicy", "stop_on_fail")
+                .put("suiteType", "security")
+                .putArray("plans").addObject().put("order", 1).put("planName", "security-sidecar");
+        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
+        Files.writeString(planRoot.resolve("metadata.json"), "{\"suiteType\":\"security\"}");
+        Files.writeString(planRoot.resolve("contract.json"), """
+                {"suiteType":"security","securityMode":"sidecar_assisted",
+                "targetBoundary":{"environment":"local-ci","baseUrl":"http://127.0.0.1:%d",
+                "allowedHosts":["127.0.0.1"],"allowedPorts":[%d]},
+                "entrypoints":[{"id":"transport","transport":{"type":"http","method":"GET","path":"/transport"}}],
+                "authenticationProfiles":[{"id":"anonymous","kind":"anonymous"}],
+                "runtimeTargets":[{"id":"controller","entrypointRef":"transport","probeBaseUrl":"http://127.0.0.1:%d",
+                "strictLineKey":"example.StdioController#run:7"}],
+                "attackProfiles":[{"id":"sidecar-deny","entrypointRef":"transport","authenticationProfileRef":"anonymous",
+                "baseline":{"expect":{"outcome":"allow","mustHitRuntimeTargets":["controller"]}},
+                "attack":{"query":{"securityProbe":"sidecar"},"expect":{"outcome":"deny","mustHitRuntimeTargets":["controller"]}}}]}
+                """.formatted(port, port, port));
+    }
+
+    private static void writeRegressionOrchestrationFixture(Path workspaceRoot, int port) throws IOException {
+        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
+        Path planRoot = projectRoot.resolve("plans/regression/regression-smoke");
+        Files.createDirectories(planRoot);
+        ObjectNode project = (ObjectNode) JSON.readTree(Files.readString(projectRoot.resolve("projects.json")));
+        ObjectNode workspace = (ObjectNode) project.path("workspaces").get(0);
+        workspace.putArray("executionProfiles").addObject()
+                .put("executionProfile", "regression-smoke")
+                .put("executionPolicy", "stop_on_fail")
+                .put("suiteType", "regression")
+                .putArray("plans").addObject().put("order", 1).put("planName", "regression-smoke");
+        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
+        Files.writeString(planRoot.resolve("metadata.json"),
+                "{\"suiteType\":\"regression\",\"execution\":{\"intent\":\"regression\"}}");
+        Files.writeString(planRoot.resolve("contract.json"), """
+                {"targets":[{}],"steps":[{"order":1,"id":"transport","protocol":"http",
+                "transport":{"http":{"method":"GET","url":"http://127.0.0.1:%d/transport"}},
+                "expect":[{"id":"status","actualPath":"response.status","operator":"field_equals","expected":200}]}]}
+                """.formatted(port));
     }
 
     private static void writeTransportPolicyFixture(Path workspaceRoot, int probePort) throws IOException {
@@ -837,9 +1030,13 @@ class McpServerStdioIT {
     }
 
     private static void respondProbe(HttpExchange exchange, String payload) throws IOException {
+        respondProbe(exchange, 200, payload);
+    }
+
+    private static void respondProbe(HttpExchange exchange, int status, String payload) throws IOException {
         byte[] body = payload.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("content-type", "application/json");
-        exchange.sendResponseHeaders(200, body.length);
+        exchange.sendResponseHeaders(status, body.length);
         exchange.getResponseBody().write(body);
         exchange.close();
     }

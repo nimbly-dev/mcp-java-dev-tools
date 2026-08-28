@@ -13,11 +13,11 @@ class ArtifactManagementActionTest {
 
     @Test
     void publicAllowlistContainsEveryApprovedFamilyActionPair() {
-        assertThat(ArtifactManagementAction.values()).hasSize(30);
+        assertThat(ArtifactManagementAction.values()).hasSize(31);
         assertThat(ArtifactManagementAction.allowedActions(ArtifactType.PROBE_CONFIG))
                 .containsExactly("read", "validate", "upsert", "reload");
         assertThat(ArtifactManagementAction.allowedActions(ArtifactType.RUN_RESULT))
-                .containsExactly("read", "list", "rebuild", "backfill", "cutover", "query", "cleanup");
+                .containsExactly("read", "upsert", "list", "rebuild", "backfill", "cutover", "query", "cleanup");
     }
 
     @Test

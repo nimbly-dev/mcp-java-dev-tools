@@ -123,6 +123,27 @@ class ArtifactManagementOperationsTest {
     }
 
     @Test
+    void runResultUpsertPersistsTheCanonicalExecutionResultPath() {
+        ArtifactManagementResult persisted = operations.upsertRunResult(request(
+                ArtifactType.RUN_RESULT,
+                ArtifactAction.UPSERT,
+                Map.of(
+                        "projectName", "demo",
+                        "suiteType", "performance",
+                        "planName", "load",
+                        "runId", "run-1",
+                        "payload", Map.of("status", "pass"))));
+
+        ArtifactManagementResult read = operations.readRunResult(request(
+                ArtifactType.RUN_RESULT,
+                ArtifactAction.READ,
+                Map.of("projectName", "demo", "suiteType", "performance", "planName", "load", "runId", "run-1")));
+
+        assertThat(persisted.status()).isEqualTo("ok");
+        assertThat(read.details().get("artifact").toString()).contains("\"status\":\"pass\"");
+    }
+
+    @Test
     void performancePlanRoundTripsWithPerformanceSpecificValidation() {
         ArtifactManagementResult upsert = operations.upsertPlan(request(
                 ArtifactType.PERFORMANCE_PLAN,
@@ -524,6 +545,7 @@ class ArtifactManagementOperationsTest {
         private ArtifactManagementResult listProjects(ArtifactManagementRequest r) { return project.list(r); }
         private ArtifactManagementResult rebuildRunResults(ArtifactManagementRequest r) { return runs.rebuild(r); }
         private ArtifactManagementResult queryRunResults(ArtifactManagementRequest r) { return runs.query(r); }
+        private ArtifactManagementResult upsertRunResult(ArtifactManagementRequest r) { return runs.upsert(r); }
         private ArtifactManagementResult readRunResult(ArtifactManagementRequest r) { return runs.read(r); }
         private ArtifactManagementResult generateExport(ArtifactManagementRequest r) { return exports.generate(r); }
         private ArtifactManagementResult upsertPlan(ArtifactManagementRequest r, String suite) { return plans.upsert(r, suite); }

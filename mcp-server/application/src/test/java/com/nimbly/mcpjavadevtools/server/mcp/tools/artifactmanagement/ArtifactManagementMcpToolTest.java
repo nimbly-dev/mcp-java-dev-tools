@@ -54,7 +54,7 @@ class ArtifactManagementMcpToolTest {
         var schema = new ObjectMapper().readTree(
                 ArtifactManagementMcpSchema.publicInputSchema(new ObjectMapper()));
 
-        assertThat(schema.path("oneOf")).hasSize(30);
+        assertThat(schema.path("oneOf")).hasSize(31);
         for (var branch : schema.path("oneOf")) {
             assertThat(branch.path("properties").path("input").path("additionalProperties").asBoolean())
                     .isFalse();

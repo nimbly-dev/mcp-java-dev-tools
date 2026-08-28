@@ -26,7 +26,7 @@ class DefaultRegressionSuiteFeatureTest {
     private final ObjectMapper mapper = new ObjectMapper();
     private final RegressionPlanPreflight preflight = new RegressionPlanPreflight();
     private final TransportExecutionFeature transport = request -> ExecuteTransportResult.httpResponse(
-            "ok", "http", 200, java.util.Map.of(), "", 1);
+            "pass", "http", 200, java.util.Map.of(), "", 1);
     private final RegressionSuiteFeature feature = new DefaultRegressionSuiteFeature(
             List.of(
                     new PreflightRegressionPlanAction(preflight),
@@ -136,7 +136,7 @@ class DefaultRegressionSuiteFeatureTest {
         AtomicReference<Map<String, Object>> request = new AtomicReference<>();
         TransportExecutionFeature recording = input -> {
             request.set(((ExecuteTransportRequest) input).request());
-            return ExecuteTransportResult.httpResponse("ok", "http", 200, Map.of(), "", 1);
+            return ExecuteTransportResult.httpResponse("pass", "http", 200, Map.of(), "", 1);
         };
 
         RegressionSuiteResult result = execute(recording, validPlan());
@@ -195,7 +195,7 @@ class DefaultRegressionSuiteFeatureTest {
         expectations.addObject().put("id", "body").put("actualPath", "response.body")
                 .put("operator", "contains").put("expected", "order-7");
         TransportExecutionFeature response = request -> ExecuteTransportResult.httpResponse(
-                "ok", "http", 200, Map.of("X-Result", "accepted"), "{\"id\":\"order-7\"}", 1);
+                "pass", "http", 200, Map.of("X-Result", "accepted"), "{\"id\":\"order-7\"}", 1);
 
         RegressionSuiteResult result = execute(response, input);
 
@@ -211,7 +211,7 @@ class DefaultRegressionSuiteFeatureTest {
         expectation.put("operator", "numeric_lte");
         expectation.put("expected", 200);
         TransportExecutionFeature response = request -> ExecuteTransportResult.httpResponse(
-                "ok", "http", 200, Map.of(), "not-a-number", 1);
+                "pass", "http", 200, Map.of(), "not-a-number", 1);
 
         RegressionSuiteResult result = execute(response, input);
 
@@ -249,7 +249,7 @@ class DefaultRegressionSuiteFeatureTest {
         TransportExecutionFeature response = request -> {
             calls.incrementAndGet();
             return ExecuteTransportResult.httpResponse(
-                    "ok", "http", 200, Map.of(), "{\"records\":[{\"type\":\"primary\"}]}", 1);
+                    "pass", "http", 200, Map.of(), "{\"records\":[{\"type\":\"primary\"}]}", 1);
         };
 
         RegressionSuiteResult result = execute(response, input);
