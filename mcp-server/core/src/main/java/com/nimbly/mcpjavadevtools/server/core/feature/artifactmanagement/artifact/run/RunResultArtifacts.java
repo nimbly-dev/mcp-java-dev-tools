@@ -71,6 +71,28 @@ public final class RunResultArtifacts {
         });
     }
 
+    /** Persists one normalized execution result through the run Artifact path policy. */
+    public ArtifactManagementResult upsert(ArtifactManagementRequest request) {
+        return support.withWorkspace(request, workspace -> {
+            String projectName = support.resolveProject(workspace, request);
+            String suiteType = support.suiteType(request);
+            String planName = support.requiredSegment(request, "planName", "plan_name_required");
+            String runId = support.requiredSegment(request, "runId", "run_id_required");
+            JsonNode payload = support.payload(request);
+            support.requireObject(payload, "run_result_payload_invalid", "payload must be an object");
+            Path result = workspace.paths().resolve(
+                    ".mcpjvm", projectName, "plans", suiteType, planName, "runs", runId,
+                    "execution.result.json");
+            support.jsonStore().write(result, payload);
+            return support.success(request, Map.of(
+                    "projectName", projectName,
+                    "planName", planName,
+                    "runId", runId,
+                    "path", workspace.paths().relative(result),
+                    "status", "persisted"));
+        });
+    }
+
     /** Rebuilds all run-state surfaces transactionally. */
     public ArtifactManagementResult rebuild(ArtifactManagementRequest request) {
         return runStateOperation(request, "rebuild");

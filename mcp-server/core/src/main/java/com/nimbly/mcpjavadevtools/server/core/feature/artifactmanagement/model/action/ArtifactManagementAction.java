@@ -27,6 +27,7 @@ public enum ArtifactManagementAction {
     SECURITY_PLAN_UPSERT(ArtifactType.SECURITY_PLAN, ArtifactAction.UPSERT),
     SECURITY_PLAN_LIST(ArtifactType.SECURITY_PLAN, ArtifactAction.LIST),
     RUN_RESULT_READ(ArtifactType.RUN_RESULT, ArtifactAction.READ),
+    RUN_RESULT_UPSERT(ArtifactType.RUN_RESULT, ArtifactAction.UPSERT),
     RUN_RESULT_LIST(ArtifactType.RUN_RESULT, ArtifactAction.LIST),
     RUN_RESULT_REBUILD(ArtifactType.RUN_RESULT, ArtifactAction.REBUILD),
     RUN_RESULT_BACKFILL(ArtifactType.RUN_RESULT, ArtifactAction.BACKFILL),

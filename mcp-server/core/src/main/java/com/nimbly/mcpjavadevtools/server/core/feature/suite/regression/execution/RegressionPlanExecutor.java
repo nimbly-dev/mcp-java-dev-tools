@@ -139,7 +139,7 @@ public final class RegressionPlanExecutor {
             ExecuteTransportResult result,
             Map<String, Object> context,
             Map<Integer, Map<String, Object>> outputs) {
-        if (!"ok".equals(result.status())) {
+        if (!"pass".equals(result.status())) {
             return outcome(step, "blocked", result.reasonCode(), result);
         }
         Map<String, Object> response = response(result);
