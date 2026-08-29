@@ -15,6 +15,9 @@ public interface Operation<A extends Enum<A>, I, O> {
     /** @return immutable trace metadata for this executable operation */
     OperationDescriptor descriptor();
 
+    /** @return concrete executable owner identity, independently of the descriptor */
+    String executableOwner();
+
     /**
      * Executes the operation for one typed input.
      *

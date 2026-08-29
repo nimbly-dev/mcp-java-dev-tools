@@ -9,7 +9,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactWorkspaceProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifacts;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
@@ -105,7 +105,7 @@ class ArtifactManagementParityMatrixTest {
                 .contains("input.request.includeResolvedSecrets === true");
         assertThat(runInput).contains("pageSize: z.number().int().min(1).max(100).default(10)")
                 .contains("sortDirection: z.enum([\"asc\", \"desc\"]).default(\"desc\")");
-        assertThat(javaSources).contains("LIMIT ? OFFSET ?", "pageSize(query)", "asInt(10)",
+        assertThat(javaSources).contains("LIMIT ? OFFSET ?", "pageSize(input)", "asInt(10)",
                 "asText(\"desc\")");
 
         List<String> parityReasons = List.of(
@@ -170,7 +170,7 @@ class ArtifactManagementParityMatrixTest {
                 ArtifactAction.GENERATE,
                 mapper.createObjectNode().put("projectName", "demo").put("mode", "sh")
                         .put("executionProfile", "smoke"));
-        ArtifactManagementResult result = new ExecutionExportArtifacts(support).generate(request);
+        ArtifactManagementResult result = new ExecutionExportOperations(support).generate(request);
         assertThat(result.resultType()).isEqualTo("execution_profile_export");
         assertThat(result.status()).isEqualTo("ok");
         assertThat(result.details()).containsKeys("exportDirAbs", "output", "suiteType", "executionProfile");

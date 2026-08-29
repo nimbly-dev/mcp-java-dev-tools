@@ -29,4 +29,13 @@ class ArtifactManagementActionTest {
                 .distinct())
                 .containsExactlyInAnyOrder(ArtifactAction.values());
     }
+
+    @Test
+    void internalRouteIdentifiersKeepFamilyAndActionPairsUnique() {
+        assertThat(Arrays.stream(ArtifactManagementAction.values())
+                .map(ArtifactManagementAction::routeId)
+                .distinct())
+                .hasSize(31)
+                .contains("probe_config/read", "execution_export/generate", "run_result/query");
+    }
 }

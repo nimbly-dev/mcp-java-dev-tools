@@ -147,21 +147,33 @@ class OperationCatalogTest {
     public static class TestOperation implements Operation<TestAction, String, String> {
 
         private final TestAction action;
+        private final String executableOwner;
         private final OperationDescriptor descriptor;
 
         private TestOperation(TestAction action, String toolName, String operationAction) {
-            this(action, toolName, operationAction, TestOperation.class.getName());
+            this(action, toolName, operationAction, TestOperation.class.getName(),
+                    TestOperation.class.getName());
         }
 
         private TestOperation(
                 TestAction action, String toolName, String operationAction, String executableOwner) {
+            this(action, toolName, operationAction, TestOperation.class.getName(), executableOwner);
+        }
+
+        private TestOperation(
+                TestAction action,
+                String toolName,
+                String operationAction,
+                String actualOwner,
+                String descriptorOwner) {
             this.action = action;
+            this.executableOwner = actualOwner;
             descriptor = new OperationDescriptor(
                     toolName,
                     operationAction,
                     String.class.getName(),
                     String.class.getName(),
-                    executableOwner,
+                    descriptorOwner,
                     TRACE);
         }
 
@@ -173,6 +185,11 @@ class OperationCatalogTest {
         @Override
         public OperationDescriptor descriptor() {
             return descriptor;
+        }
+
+        @Override
+        public String executableOwner() {
+            return executableOwner;
         }
 
         @Override
@@ -197,6 +214,11 @@ class OperationCatalogTest {
         @Override
         public OperationDescriptor descriptor() {
             return null;
+        }
+
+        @Override
+        public String executableOwner() {
+            return getClass().getName();
         }
 
         @Override

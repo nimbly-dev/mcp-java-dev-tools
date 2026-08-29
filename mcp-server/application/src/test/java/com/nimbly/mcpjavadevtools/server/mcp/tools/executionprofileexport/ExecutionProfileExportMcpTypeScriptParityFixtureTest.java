@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactJsonStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifacts;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.DefaultExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
@@ -45,7 +45,7 @@ class ExecutionProfileExportMcpTypeScriptParityFixtureTest {
         ArtifactJsonStore store = new ArtifactJsonStore(JSON);
         ArtifactManagementSupport support = new ArtifactManagementSupport(
                 () -> Optional.of(workspace), store, new SqliteRunStateStore(JSON), JSON);
-        ExecutionExportArtifactGateway gateway = new ExecutionExportArtifacts(support);
+        ExecutionExportArtifactGateway gateway = new ExecutionExportOperations(support);
         ExecutionProfileExportFeature feature = new DefaultExecutionProfileExportFeature(
                 new ExecutionProfileExportOperationCatalog(new ExportExecutionProfileOperation(
                         gateway,

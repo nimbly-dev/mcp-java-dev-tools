@@ -48,6 +48,11 @@ public final class ExportExecutionProfileOperation implements Operation<
     }
 
     @Override
+    public String executableOwner() {
+        return getClass().getName();
+    }
+
+    @Override
     public ExecutionProfileExportResult execute(ExecutionProfileExportRequest request) {
         ArtifactManagementResult result = artifactGateway.generate(new ArtifactManagementRequest(
                 ArtifactType.EXECUTION_EXPORT,
