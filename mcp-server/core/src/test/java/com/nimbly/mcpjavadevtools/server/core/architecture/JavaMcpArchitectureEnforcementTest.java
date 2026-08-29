@@ -153,6 +153,11 @@ class JavaMcpArchitectureEnforcementTest {
         addJavaFiles(files, root.resolve(
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/operation"));
         addJavaFiles(files, root.resolve(
+                "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
+                        + "artifactmanagement/operation"));
+        addArtifactExportMigrationFiles(files, root);
+        addArtifactRunStateMigrationFiles(files, root);
+        addJavaFiles(files, root.resolve(
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/executionprofileexport"));
         addJavaFiles(files, root.resolve(
                 "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/configuration/"
@@ -170,6 +175,87 @@ class JavaMcpArchitectureEnforcementTest {
                 "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
                         + "executionprofileexport/ExecutionProfileExportMcpTool.java"));
         return files.stream().sorted().toList();
+    }
+
+    private static void addArtifactExportMigrationFiles(List<Path> files, Path root) throws IOException {
+        String[] names = {
+            "ExecutionExportCanonicalJson.java",
+            "ExecutionExportContext.java",
+            "ExecutionExportEnvironmentFormat.java",
+            "ExecutionExportEnvironmentWriter.java",
+            "ExecutionExportGenerator.java",
+            "ExecutionExportId.java",
+            "ExecutionExportJmeterArtifacts.java",
+            "ExecutionExportManifestWriter.java",
+            "ExecutionExportMode.java",
+            "ExecutionExportOperations.java",
+            "ExecutionExportPackageWriter.java",
+            "ExecutionExportPostmanRenderer.java",
+            "ExecutionExportPowerShellHeader.java",
+            "ExecutionExportPowerShellRenderer.java",
+            "ExecutionExportPowerShellScripts.java",
+            "ExecutionExportPowerShellWorkload.java",
+            "ExecutionExportProfileSelector.java",
+            "ExecutionExportReader.java",
+            "ExecutionExportReplayFiles.java",
+            "ExecutionExportReplayFileWriter.java",
+            "ExecutionExportReplayReadme.java",
+            "ExecutionExportReplayRenderer.java",
+            "ExecutionExportReplayWriter.java",
+            "ExecutionExportResultAssembler.java",
+            "ExecutionExportRuntimeRenderer.java",
+            "ExecutionExportScalarValues.java",
+            "ExecutionExportScriptArguments.java",
+            "ExecutionExportScriptFileCopier.java",
+            "ExecutionExportScriptFileName.java",
+            "ExecutionExportScriptInvocation.java",
+            "ExecutionExportScriptPhase.java",
+            "ExecutionExportScriptPreparation.java",
+            "ExecutionExportScriptReference.java",
+            "ExecutionExportShellQuoting.java",
+            "ExecutionExportShellRenderer.java",
+            "ExecutionExportShellScripts.java",
+            "ExecutionExportShellWorkload.java",
+            "ExecutionExportWorkloadKind.java",
+            "ExecutionExportWorkloadResolver.java"
+        };
+        Path exportRoot = root.resolve(
+                "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
+                        + "artifactmanagement/artifact/export");
+        for (String name : names) {
+            addJavaFiles(files, exportRoot.resolve(name));
+        }
+    }
+
+    private static void addArtifactRunStateMigrationFiles(List<Path> files, Path root) throws IOException {
+        String[] names = {
+            "SqliteLegacyCorrelation.java",
+            "SqliteRebuildCounts.java",
+            "SqliteRunProjection.java",
+            "SqliteRunStateArtifactReader.java",
+            "SqliteRunStateCleanup.java",
+            "SqliteRunStateCutover.java",
+            "SqliteRunStateDatabase.java",
+            "SqliteRunStateJson.java",
+            "SqliteRunStateLegacyBackfill.java",
+            "SqliteRunStateLock.java",
+            "SqliteRunStateProjectionRebuilder.java",
+            "SqliteRunStateProjectionWriter.java",
+            "SqliteRunStateQuery.java",
+            "SqliteRunStateQueryContext.java",
+            "SqliteRunStateQueryContract.java",
+            "SqliteRunStateQueryPlan.java",
+            "SqliteRunStateQueryPlanBuilder.java",
+            "SqliteRunStateQueryRows.java",
+            "SqliteRunStateRowMapper.java",
+            "SqliteRunStateStore.java"
+        };
+        Path artifactRoot = root.resolve(
+                "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
+                        + "artifactmanagement/artifact");
+        for (String name : names) {
+            addJavaFiles(files, artifactRoot.resolve(name));
+        }
     }
 
     private static void addJavaFiles(List<Path> files, Path root) throws IOException {

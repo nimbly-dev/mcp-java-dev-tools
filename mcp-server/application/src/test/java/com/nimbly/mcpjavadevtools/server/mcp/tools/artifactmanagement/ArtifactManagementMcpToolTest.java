@@ -4,9 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.mcp.annotation.McpTool;
 
 /** Focused Application Adapter mapping and deterministic output tests. */
 class ArtifactManagementMcpToolTest {
@@ -55,6 +60,13 @@ class ArtifactManagementMcpToolTest {
                 ArtifactManagementMcpSchema.publicInputSchema(new ObjectMapper()));
 
         assertThat(schema.path("oneOf")).hasSize(31);
+        List<String> schemaRoutes = java.util.stream.StreamSupport.stream(
+                        schema.path("oneOf").spliterator(), false)
+                .map(branch -> branch.path("properties").path("artifactType").path("const").asText()
+                        + "/" + branch.path("properties").path("action").path("const").asText())
+                .toList();
+        assertThat(schemaRoutes).containsExactlyElementsOf(Arrays.stream(ArtifactManagementAction.values())
+                .map(ArtifactManagementAction::routeId).toList());
         for (var branch : schema.path("oneOf")) {
             assertThat(branch.path("properties").path("input").path("additionalProperties").asBoolean())
                     .isFalse();
@@ -97,5 +109,21 @@ class ArtifactManagementMcpToolTest {
                 "contextBindings", "contextValues", "when"}) {
             assertThat(export.has(field)).as(field).isTrue();
         }
+    }
+
+    @Test
+    void operationExposureMatchesTheActualMcpToolAndAllThirtyOnePairs() throws Exception {
+        McpTool registration = ArtifactManagementMcpTool.class
+                .getMethod("execute", String.class, String.class, Map.class)
+                .getAnnotation(McpTool.class);
+        OperationExposure exposure = ArtifactManagementMcpTool.operationExposure();
+
+        assertThat(registration).isNotNull();
+        assertThat(registration.name()).isEqualTo(exposure.toolName());
+        assertThat(exposure.adapterType()).isEqualTo(ArtifactManagementMcpTool.class.getName());
+        assertThat(exposure.actions()).hasSize(31).doesNotHaveDuplicates()
+                .containsExactlyElementsOf(Arrays.stream(ArtifactManagementAction.values())
+                        .map(ArtifactManagementAction::routeId)
+                        .toList());
     }
 }

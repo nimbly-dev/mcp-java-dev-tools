@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactJsonStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifacts;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
@@ -72,7 +72,7 @@ class ExecutionProfileExportJavaTypeScriptExecutionParityTest {
         ArtifactJsonStore store = new ArtifactJsonStore(JSON);
         ArtifactManagementSupport support = new ArtifactManagementSupport(
                 () -> Optional.of(root), store, new SqliteRunStateStore(JSON), JSON);
-        ExecutionExportArtifactGateway gateway = new ExecutionExportArtifacts(support);
+        ExecutionExportArtifactGateway gateway = new ExecutionExportOperations(support);
         ArtifactManagementRequest request = new ArtifactManagementRequest(
                 ArtifactType.EXECUTION_EXPORT, ArtifactAction.GENERATE,
                 JSON.createObjectNode().put("projectName", "demo").put("executionProfile", "load-suite")

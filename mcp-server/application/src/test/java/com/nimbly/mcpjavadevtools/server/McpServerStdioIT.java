@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.fail;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.BufferedReader;
@@ -18,13 +19,16 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -160,7 +164,17 @@ class McpServerStdioIT {
                 }
             }
             assertThat(artifactTool).isNotNull();
+            assertThat(schemaFingerprint(artifactTool.path("inputSchema")))
+                    .as("tools/list artifact_management schema fingerprint")
+                    .isEqualTo("d767c5a28b9d3c65f21c2d208140320f38737d7ea56507507e53e889a94352f7");
             assertThat(artifactTool.path("inputSchema").path("oneOf")).hasSize(31);
+            List<String> artifactRoutes = new ArrayList<>();
+            for (JsonNode branch : artifactTool.path("inputSchema").path("oneOf")) {
+                artifactRoutes.add(branch.path("properties").path("artifactType").path("const").asText()
+                        + "/" + branch.path("properties").path("action").path("const").asText());
+            }
+            assertThat(artifactRoutes).containsExactlyElementsOf(Arrays.stream(ArtifactManagementAction.values())
+                    .map(ArtifactManagementAction::routeId).toList());
             JsonNode transportTool = null;
             for (JsonNode tool : tools) {
                 if ("transport_execute".equals(tool.path("name").asText())) {
@@ -446,6 +460,77 @@ class McpServerStdioIT {
             JsonNode performanceList = toolPayload(server.responseFor(28));
             assertThat(performanceList.path("status").asText()).isEqualTo("ok");
             assertThat(performanceList.path("planNames").isArray()).isTrue();
+
+            server.send(request(38, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "regression_plan",
+                            "action", "list",
+                            "input", Map.of("projectName", "demo")))));
+            JsonNode regressionList = toolPayload(server.responseFor(38));
+            assertThat(regressionList.path("status").asText()).isEqualTo("ok");
+            assertThat(regressionList.path("planNames").isArray()).isTrue();
+
+            server.send(request(39, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "security_plan",
+                            "action", "list",
+                            "input", Map.of("projectName", "demo")))));
+            JsonNode securityList = toolPayload(server.responseFor(39));
+            assertThat(securityList.path("status").asText()).isEqualTo("ok");
+            assertThat(securityList.path("planNames").isArray()).isTrue();
+
+            server.send(request(40, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "run_result",
+                            "action", "list",
+                            "input", Map.of(
+                                    "projectName", "demo",
+                                    "suiteType", "regression",
+                                    "planName", "health")))));
+            JsonNode runList = toolPayload(server.responseFor(40));
+            assertThat(runList.path("status").asText()).isEqualTo("ok");
+            assertThat(runList.path("runIds").isArray()).isTrue();
+
+            server.send(request(41, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "execution_export",
+                            "action", "list",
+                            "input", Map.of("projectName", "demo")))));
+            JsonNode exportList = toolPayload(server.responseFor(41));
+            assertThat(exportList.path("status").asText()).isEqualTo("ok");
+            assertThat(exportList.path("exportFolders").isArray()).isTrue();
+
+            server.send(request(42, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "execution_export",
+                            "action", "read",
+                            "input", Map.of(
+                                    "projectName", "demo",
+                                    "query", Map.of("exportId", "stdio-export"))))));
+            JsonNode exportRead = toolPayload(server.responseFor(42));
+            assertThat(exportRead.path("status").asText()).isEqualTo("ok");
+            assertThat(exportRead.path("files").isArray()).isTrue();
+
+            server.send(request(43, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "probe_config",
+                            "action", "query",
+                            "input", Map.of()))));
+            assertToolValidationFailure(server.responseFor(43));
+
+            server.send(request(44, "tools/call", Map.of(
+                    "name", "artifact_management",
+                    "arguments", Map.of(
+                            "artifactType", "unknown",
+                            "action", "read",
+                            "input", Map.of()))));
+            assertToolValidationFailure(server.responseFor(44));
 
             writeTransportPolicyFixture(workspaceRoot, routeProbe.getAddress().getPort());
             server.send(request(29, "tools/call", Map.of(
@@ -774,6 +859,11 @@ class McpServerStdioIT {
         return null;
     }
 
+    private static String schemaFingerprint(JsonNode schema) throws Exception {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(schema.toString().getBytes(StandardCharsets.UTF_8)));
+    }
+
     private static Path jarPath() {
         String configured = System.getProperty("mcpServerJar");
         if (configured == null || configured.isBlank()) {
@@ -1022,6 +1112,11 @@ class McpServerStdioIT {
         } catch (IOException exception) {
             throw new AssertionError("Probe Tool payload was not JSON: " + text, exception);
         }
+    }
+
+    private static void assertToolValidationFailure(JsonNode response) {
+        String text = response.path("result").path("content").get(0).path("text").asText();
+        assertThat(text).contains("Tool (artifact_management) input validation failed");
     }
 
     private static JsonNode resourcePayload(JsonNode response) throws IOException {

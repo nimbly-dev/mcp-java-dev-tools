@@ -56,6 +56,15 @@ public enum ArtifactManagementAction {
         return action;
     }
 
+    /**
+     * Returns the unique internal operation identifier for this family/action
+     * pair.  The public MCP envelope continues to expose the two separate
+     * {@code artifactType} and {@code action} values.
+     */
+    public String routeId() {
+        return artifactType.value() + "/" + action.value();
+    }
+
     /** Resolves an allowed family/action pair. */
     public static Optional<ArtifactManagementAction> resolve(
             ArtifactType artifactType,

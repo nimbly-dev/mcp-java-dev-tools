@@ -9,11 +9,11 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactWorkspaceProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifacts;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.plan.PlanArtifacts;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.project.ProjectContextArtifacts;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigArtifacts;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultArtifacts;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.plan.PlanOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.project.ProjectContextOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.registry.ProbeRegistration;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistry;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactAction;
@@ -397,7 +397,7 @@ class ArtifactManagementOperationsTest {
         AtomicInteger reloads = new AtomicInteger();
         ArtifactManagementSupport support = new ArtifactManagementSupport(
                 () -> Optional.of(workspace), new ArtifactJsonStore(mapper), new SqliteRunStateStore(), mapper);
-        ProbeConfigArtifacts owner = new ProbeConfigArtifacts(support, () -> {
+        ProbeConfigOperations owner = new ProbeConfigOperations(support, () -> {
             reloads.incrementAndGet();
             return new ProbeRegistry(List.of(new ProbeRegistration("live", "http://127.0.0.1:1")));
         });
@@ -416,7 +416,7 @@ class ArtifactManagementOperationsTest {
     void probeReloadRefreshesTheActiveRegistryWithoutDuplicateStatusOwnership() {
         ArtifactManagementSupport support = new ArtifactManagementSupport(
                 () -> Optional.of(workspace), new ArtifactJsonStore(mapper), new SqliteRunStateStore(), mapper);
-        ProbeConfigArtifacts owner = new ProbeConfigArtifacts(support,
+        ProbeConfigOperations owner = new ProbeConfigOperations(support,
                 () -> new ProbeRegistry(List.of(new ProbeRegistration("live", "http://127.0.0.1:1"))));
         try {
             Files.createDirectories(workspace.resolve(".mcpjvm"));
@@ -520,11 +520,11 @@ class ArtifactManagementOperationsTest {
 
     /** Test-only composition of family owners; production has no compatibility façade. */
     private static final class ArtifactManagementTestHarness {
-        private final ProbeConfigArtifacts probe;
-        private final ProjectContextArtifacts project;
-        private final PlanArtifacts plans;
-        private final RunResultArtifacts runs;
-        private final ExecutionExportArtifacts exports;
+        private final ProbeConfigOperations probe;
+        private final ProjectContextOperations project;
+        private final PlanOperations plans;
+        private final RunResultOperations runs;
+        private final ExecutionExportOperations exports;
 
         private ArtifactManagementTestHarness(
                 ArtifactWorkspaceProvider provider,
@@ -532,11 +532,11 @@ class ArtifactManagementOperationsTest {
                 SqliteRunStateStore state,
                 ObjectMapper mapper) {
             ArtifactManagementSupport support = new ArtifactManagementSupport(provider, store, state, mapper);
-            probe = new ProbeConfigArtifacts(support);
-            project = new ProjectContextArtifacts(support);
-            plans = new PlanArtifacts(support);
-            runs = new RunResultArtifacts(support);
-            exports = new ExecutionExportArtifacts(support);
+            probe = new ProbeConfigOperations(support);
+            project = new ProjectContextOperations(support);
+            plans = new PlanOperations(support);
+            runs = new RunResultOperations(support);
+            exports = new ExecutionExportOperations(support);
         }
 
         private ArtifactManagementResult upsertProbeConfig(ArtifactManagementRequest r) { return probe.upsert(r); }

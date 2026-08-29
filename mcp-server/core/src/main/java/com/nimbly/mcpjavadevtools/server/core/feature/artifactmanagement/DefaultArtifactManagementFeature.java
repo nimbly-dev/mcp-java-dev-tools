@@ -1,22 +1,20 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement;
 
-import com.nimbly.mcpjavadevtools.server.core.dispatch.EnumActionDispatcher;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.action.ArtifactManagementActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
-import java.util.List;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
 import java.util.Map;
+import java.util.Objects;
 
 /** Complete production Artifact Management Feature implementation. */
 public final class DefaultArtifactManagementFeature implements ArtifactManagementFeature {
 
-    private final EnumActionDispatcher<
-            ArtifactManagementAction, ArtifactManagementRequest, ArtifactManagementResult> dispatcher;
+    private final ArtifactOperationCatalog operationCatalog;
 
-    /** Creates a dispatcher for the complete public family/action allowlist. */
-    public DefaultArtifactManagementFeature(List<? extends ArtifactManagementActionHandler> handlers) {
-        dispatcher = new EnumActionDispatcher<>(ArtifactManagementAction.class, handlers);
+    /** Creates the Feature from the complete capability-owned operation catalog. */
+    public DefaultArtifactManagementFeature(ArtifactOperationCatalog operationCatalog) {
+        this.operationCatalog = Objects.requireNonNull(operationCatalog, "operationCatalog must not be null");
     }
 
     @Override
@@ -28,7 +26,7 @@ public final class DefaultArtifactManagementFeature implements ArtifactManagemen
                     Map.of("failedStep", "input_validation"));
         }
         return ArtifactManagementAction.resolve(request.artifactType(), request.action())
-                .map(action -> dispatcher.dispatch(action, request))
+                .map(operationCatalogAction -> operationCatalog.execute(operationCatalogAction, request))
                 .orElseGet(() -> ArtifactManagementResult.blocked(
                         "artifact_action_not_allowed",
                         "requested action is not permitted for the Artifact family",

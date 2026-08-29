@@ -86,7 +86,7 @@ public class OperationCatalog<A extends Enum<A>, I, O> {
         if (descriptor == null) {
             throw new IllegalArgumentException("operation descriptor must not be null");
         }
-        if (!descriptor.executableOwner().equals(operation.getClass().getName())) {
+        if (!descriptor.executableOwner().equals(operation.executableOwner())) {
             throw new IllegalArgumentException(
                     "descriptor executable owner does not match operation: " + operationId.name());
         }
