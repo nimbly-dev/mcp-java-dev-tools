@@ -23,10 +23,11 @@ Only `application` may depend on Spring Boot, Spring AI, or MCP transport
 types. `core` must never depend on `application`; Maven Enforcer makes the
 Spring and MCP transport dependency restriction explicit.
 
-Other than the completed `jvm_lifecycle` and Probe migrations, no production Core Feature,
-Artifact schema, storage implementation, integration, reporting workflow, suite
-execution behavior, reason-code catalog, parity contract, or optional HTTP
-transport is defined by the runtime. The real `application -> core` Transport
+Other than the completed `jvm_lifecycle` and Probe migrations and the bounded
+`execution_profile_export` reference route from #604, no production Core
+Feature, Artifact schema, storage implementation, integration, reporting
+workflow, suite execution behavior, reason-code catalog, parity contract, or
+optional HTTP transport is defined by the runtime. The real `application -> core` Transport
 Adapters are owned by the completed Probe (#571) and JVM lifecycle (#572)
 Feature migrations. Future migrations may add further adapters, but test-scope
 fake Features must never ship in the executable JAR or be exposed as MCP Tools.
@@ -47,7 +48,7 @@ ready without registering unsupported placeholder MCP Tools.
 | `failure_analysis` | `mcp/tools/failureanalysis` | registered; #574 |
 | `transport_execute` | `mcp/tools/transportexecute` | registered; #576 |
 | `artifact_management` | `mcp/tools/artifactmanagement` | Feature migration required |
-| `execution_profile_export` | `mcp/tools/executionprofileexport` | Feature migration required |
+| `execution_profile_export` | `mcp/tools/executionprofileexport` | registered; #604 Catalog-Describe-Execute reference |
 | `execution_orchestration` | `mcp/tools/executionorchestration` | Feature migration required |
 
 Each future Transport Adapter performs MCP shape validation, request mapping,
@@ -73,6 +74,11 @@ The current public surface is deliberately small:
 - `jvm_lifecycle` discovers local JVMs and safely attaches or deactivates the
   repository-owned Sidecar Agent.
 - `probe` exposes the migrated bounded Sidecar Probe actions.
+- `execution_profile_export` exposes the parity-covered export action through
+  the Catalog-Describe-Execute reference route documented in
+  `../docs/architecture/java-mcp-operation-catalog.md`.
+  The normative tracked contract amendment is documented in
+  `../docs/architecture/java-mcp-catalog-describe-execute-contract.md`.
 
 Workspace selection initially uses `--workspace-root`, then
 `MCP_WORKSPACE_ROOT`, then `INIT_CWD` or `PWD`, followed by the current

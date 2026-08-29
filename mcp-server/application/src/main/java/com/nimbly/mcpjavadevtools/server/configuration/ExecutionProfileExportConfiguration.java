@@ -4,10 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.DefaultExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.action.ExecutionProfileExportActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.action.impl.ExportExecutionProfileAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExportExecutionProfileOperation;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.executionprofileexport.ExecutionProfileExportMcpSchemaPostProcessor;
-import java.util.List;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.executionprofileexport.ExecutionProfileExportMcpRequestMapper;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.executionprofileexport.ExecutionProfileExportMcpResponseMapper;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.executionprofileexport.ExecutionProfileExportMcpTool;
+import java.util.Map;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -21,14 +26,37 @@ public class ExecutionProfileExportConfiguration {
     }
 
     @Bean
-    ExportExecutionProfileAction exportExecutionProfileAction(
-            ExecutionExportArtifactGateway artifactGateway, ObjectMapper objectMapper) {
-        return new ExportExecutionProfileAction(artifactGateway, objectMapper);
+    ExecutionProfileExportArtifactInputMapper executionProfileExportArtifactInputMapper(ObjectMapper objectMapper) {
+        return new ExecutionProfileExportArtifactInputMapper(objectMapper);
+    }
+
+    @Bean
+    ExportExecutionProfileOperation exportExecutionProfileOperation(
+            ExecutionExportArtifactGateway artifactGateway,
+            ExecutionProfileExportArtifactInputMapper inputMapper) {
+        return new ExportExecutionProfileOperation(artifactGateway, inputMapper, new OperationTraceMetadata(
+                ExecutionProfileExportMcpTool.class.getName(),
+                ExecutionProfileExportMcpRequestMapper.class.getName(),
+                ExecutionProfileExportFeature.class.getName(),
+                ExecutionProfileExportMcpResponseMapper.class.getName(),
+                "mcp-server/application/src/test/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
+                        + "executionprofileexport/ExecutionProfileExportMcpTypeScriptParityFixtureTest.java",
+                "filesystem_artifact_export",
+                Map.of(
+                        "artifactGateway", ExecutionExportArtifactGateway.class.getName(),
+                        "artifactInputMapper", ExecutionProfileExportArtifactInputMapper.class.getName())));
+    }
+
+    @Bean
+    ExecutionProfileExportOperationCatalog executionProfileExportOperationCatalog(
+            ExportExecutionProfileOperation operation) {
+        return new ExecutionProfileExportOperationCatalog(
+                operation, ExecutionProfileExportMcpTool.operationExposure());
     }
 
     @Bean
     ExecutionProfileExportFeature executionProfileExportFeature(
-            List<ExecutionProfileExportActionHandler> handlers) {
-        return new DefaultExecutionProfileExportFeature(handlers);
+            ExecutionProfileExportOperationCatalog operationCatalog) {
+        return new DefaultExecutionProfileExportFeature(operationCatalog);
     }
 }

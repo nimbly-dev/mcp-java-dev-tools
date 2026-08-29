@@ -12,16 +12,19 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.DefaultExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.action.impl.ExportExecutionProfileAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExportExecutionProfileOperation;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
 import java.util.Map.Entry;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -43,8 +46,12 @@ class ExecutionProfileExportMcpTypeScriptParityFixtureTest {
         ArtifactManagementSupport support = new ArtifactManagementSupport(
                 () -> Optional.of(workspace), store, new SqliteRunStateStore(JSON), JSON);
         ExecutionExportArtifactGateway gateway = new ExecutionExportArtifacts(support);
-        ExecutionProfileExportFeature feature = new DefaultExecutionProfileExportFeature(List.of(
-                new ExportExecutionProfileAction(gateway, JSON)));
+        ExecutionProfileExportFeature feature = new DefaultExecutionProfileExportFeature(
+                new ExecutionProfileExportOperationCatalog(new ExportExecutionProfileOperation(
+                        gateway,
+                        new ExecutionProfileExportArtifactInputMapper(JSON),
+                        trace()),
+                        ExecutionProfileExportMcpTool.operationExposure()));
         tool = new ExecutionProfileExportMcpTool(feature);
     }
 
@@ -120,5 +127,18 @@ class ExecutionProfileExportMcpTypeScriptParityFixtureTest {
             throw new IllegalStateException("repository root could not be located");
         }
         return current;
+    }
+
+    private static OperationTraceMetadata trace() {
+        return new OperationTraceMetadata(
+                ExecutionProfileExportMcpTool.class.getName(),
+                ExecutionProfileExportMcpRequestMapper.class.getName(),
+                ExecutionProfileExportFeature.class.getName(),
+                ExecutionProfileExportMcpResponseMapper.class.getName(),
+                ExecutionProfileExportMcpTypeScriptParityFixtureTest.class.getName(),
+                "filesystem_artifact_export",
+                Map.of(
+                        "artifactGateway", ExecutionExportArtifactGateway.class.getName(),
+                        "artifactInputMapper", ExecutionProfileExportArtifactInputMapper.class.getName()));
     }
 }

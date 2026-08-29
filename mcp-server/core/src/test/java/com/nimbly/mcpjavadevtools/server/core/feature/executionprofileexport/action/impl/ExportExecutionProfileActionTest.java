@@ -10,6 +10,9 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.r
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExportExecutionProfileOperation;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -25,11 +28,11 @@ class ExportExecutionProfileActionTest {
             captured.set(request);
             return successResult();
         };
-        ExportExecutionProfileAction action = new ExportExecutionProfileAction(gateway, objectMapper);
+        ExportExecutionProfileOperation operation = operation(gateway);
 
-        ExecutionProfileExportResult result = action.execute(request());
+        ExecutionProfileExportResult result = operation.execute(request());
 
-        assertThat(action.action()).isEqualTo(ExecutionProfileExportAction.EXPORT);
+        assertThat(operation.operationId()).isEqualTo(ExecutionProfileExportAction.EXPORT);
         assertThat(result.resultType()).isEqualTo("execution_profile_export");
         assertThat(result.status()).isEqualTo("ok");
         assertThat(result.details()).containsEntry("exportId", "export-1");
@@ -49,14 +52,30 @@ class ExportExecutionProfileActionTest {
         ExecutionExportArtifactGateway gateway = request -> new ArtifactManagementResult(
                 "report", "execution_export_mode_required", "execution_export_mode_required",
                 "provide_mode", "Provide mode.", "mode is required", Map.of("failedStep", "input"), Map.of());
-        ExportExecutionProfileAction action = new ExportExecutionProfileAction(gateway, objectMapper);
+        ExportExecutionProfileOperation operation = operation(gateway);
 
-        ExecutionProfileExportResult result = action.execute(request());
+        ExecutionProfileExportResult result = operation.execute(request());
 
         assertThat(result.resultType()).isEqualTo("report");
         assertThat(result.status()).isEqualTo("execution_export_mode_required");
         assertThat(result.reasonCode()).isEqualTo("execution_export_mode_required");
         assertThat(result.reasonMeta()).containsEntry("failedStep", "input");
+    }
+
+    private ExportExecutionProfileOperation operation(ExecutionExportArtifactGateway gateway) {
+        return new ExportExecutionProfileOperation(
+                gateway,
+                new ExecutionProfileExportArtifactInputMapper(objectMapper),
+                new OperationTraceMetadata(
+                        "ExecutionProfileExportMcpTool",
+                        "ExecutionProfileExportMcpRequestMapper",
+                        "DefaultExecutionProfileExportFeature",
+                        "ExecutionProfileExportMcpResponseMapper",
+                        "ExportExecutionProfileActionTest",
+                        "filesystem_artifact_export",
+                        Map.of(
+                                "artifactGateway", ExecutionExportArtifactGateway.class.getName(),
+                                "artifactInputMapper", ExecutionProfileExportArtifactInputMapper.class.getName())));
     }
 
     private ExecutionProfileExportRequest request() {

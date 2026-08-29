@@ -1,21 +1,18 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport;
 
-import com.nimbly.mcpjavadevtools.server.core.dispatch.EnumActionDispatcher;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.action.ExecutionProfileExportActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
-import java.util.List;
+import java.util.Objects;
 
-/** Complete dispatcher-backed Execution Profile Export Feature. */
+/** Complete Catalog-Describe-Execute Execution Profile Export Feature. */
 public final class DefaultExecutionProfileExportFeature implements ExecutionProfileExportFeature {
 
-    private final EnumActionDispatcher<
-            ExecutionProfileExportAction, ExecutionProfileExportRequest, ExecutionProfileExportResult> dispatcher;
+    private final ExecutionProfileExportOperationCatalog operationCatalog;
 
-    /** Creates the complete export action dispatcher. */
-    public DefaultExecutionProfileExportFeature(List<? extends ExecutionProfileExportActionHandler> handlers) {
-        dispatcher = new EnumActionDispatcher<>(ExecutionProfileExportAction.class, handlers);
+    /** Creates the feature from its complete capability-owned operation catalog. */
+    public DefaultExecutionProfileExportFeature(ExecutionProfileExportOperationCatalog operationCatalog) {
+        this.operationCatalog = Objects.requireNonNull(operationCatalog, "operationCatalog must not be null");
     }
 
     @Override
@@ -23,6 +20,6 @@ public final class DefaultExecutionProfileExportFeature implements ExecutionProf
         if (request == null || request.action() == null) {
             return ExecutionProfileExportResult.invalidRequest();
         }
-        return dispatcher.dispatch(request.action(), request);
+        return operationCatalog.execute(request.action(), request);
     }
 }

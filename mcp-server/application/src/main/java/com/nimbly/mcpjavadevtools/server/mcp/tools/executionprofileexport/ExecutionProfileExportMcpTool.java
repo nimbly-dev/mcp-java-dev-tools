@@ -5,10 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryFailureKind;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
+import java.util.List;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +20,8 @@ import org.springframework.stereotype.Component;
 /** Thin Spring AI Application Adapter for execution_profile_export. */
 @Component
 public final class ExecutionProfileExportMcpTool {
+
+    public static final String TOOL_NAME = ExecutionProfileExportOperationCatalog.TOOL_NAME;
 
     private final ExecutionProfileExportFeature feature;
     private final ExecutionProfileExportMcpRequestMapper requestMapper;
@@ -44,9 +49,17 @@ public final class ExecutionProfileExportMcpTool {
         this.objectMapper = objectMapper;
     }
 
+    /** Describes the exact MCP registration consumed by the operation catalog. */
+    public static OperationExposure operationExposure() {
+        return new OperationExposure(
+                TOOL_NAME,
+                ExecutionProfileExportMcpTool.class.getName(),
+                List.of(ExecutionProfileExportOperationCatalog.ACTION));
+    }
+
     /** Exposes the complete TypeScript-compatible input contract. */
     @McpTool(
-            name = "execution_profile_export",
+            name = TOOL_NAME,
             description = "Export one persisted Execution Profile into deterministic replay artifacts.",
             generateOutputSchema = false)
     public McpActionResponse execute(

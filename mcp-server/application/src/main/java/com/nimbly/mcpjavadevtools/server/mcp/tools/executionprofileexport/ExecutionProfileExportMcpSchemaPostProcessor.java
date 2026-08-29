@@ -12,8 +12,6 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 /** Replaces generated parameter metadata with the exact public export schema. */
 public final class ExecutionProfileExportMcpSchemaPostProcessor implements BeanPostProcessor {
 
-    private static final String TOOL_NAME = "execution_profile_export";
-
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
         if (!(bean instanceof List<?> specifications)
@@ -23,7 +21,8 @@ public final class ExecutionProfileExportMcpSchemaPostProcessor implements BeanP
         @SuppressWarnings("unchecked")
         List<McpServerFeatures.SyncToolSpecification> tools =
                 (List<McpServerFeatures.SyncToolSpecification>) bean;
-        if (tools.stream().noneMatch(specification -> TOOL_NAME.equals(specification.tool().name()))) {
+        if (tools.stream().noneMatch(
+                specification -> ExecutionProfileExportMcpTool.TOOL_NAME.equals(specification.tool().name()))) {
             return bean;
         }
         Map<String, Object> schema = ExecutionProfileExportMcpSchema.publicInputSchema();
@@ -32,7 +31,7 @@ public final class ExecutionProfileExportMcpSchemaPostProcessor implements BeanP
 
     private McpServerFeatures.SyncToolSpecification replaceSchema(
             McpServerFeatures.SyncToolSpecification specification, Map<String, Object> schema) {
-        if (!TOOL_NAME.equals(specification.tool().name())) {
+        if (!ExecutionProfileExportMcpTool.TOOL_NAME.equals(specification.tool().name())) {
             return specification;
         }
         McpSchema.Tool source = specification.tool();
