@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -50,6 +51,34 @@ class McpServerStdioIT {
     private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final String PROTOCOL_VERSION = "2025-03-26";
+
+    @Test
+    void executableJarContainsClassifiedExecutionProfileExportBoundaryFailure() throws Exception {
+        try (McpServerProcess server = McpServerProcess.startWithBoundaryFailure(jarPath(), workspaceRoot())) {
+            server.send(initializeRequest());
+            assertThat(server.responseFor(1).path("result").path("protocolVersion").asText())
+                    .isEqualTo(PROTOCOL_VERSION);
+            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
+
+            server.send(request(2, "tools/call", Map.of(
+                    "name", "execution_profile_export",
+                    "arguments", Map.of("mode", "postman"))));
+            JsonNode response = server.responseFor(2);
+            JsonNode payload = toolPayload(response);
+
+            assertThat(payload.path("status").asText()).isEqualTo("internal_error");
+            assertThat(payload.path("reasonCode").asText()).isEqualTo("internal_error");
+            assertThat(payload.path("reasonMeta").path("failedStep").asText())
+                    .isEqualTo("configuration_invariant");
+            assertThat(payload.toString()).doesNotContain(
+                    "mcp605-controlled-secret", "secret", "stack", "path");
+            assertThat(response.path("result").path("isError").asBoolean()).isFalse();
+            assertThat(server.stdoutLines()).allSatisfy(line -> {
+                assertJsonRpcMessage(line);
+                assertThat(line).doesNotContain("mcp605-controlled-secret", "secret", "stack", "path");
+            });
+        }
+    }
 
     @Test
     void executableJarStartsInStdioModeWithoutContaminatingStdout() throws Exception {
@@ -199,8 +228,14 @@ class McpServerStdioIT {
                 }
             }
             assertThat(exportTool).isNotNull();
+            assertThat(exportTool.path("description").asText())
+                    .isEqualTo("Export one persisted Execution Profile into deterministic replay artifacts.");
+            assertThat(exportTool.path("inputSchema").path("type").asText()).isEqualTo("object");
+            assertThat(exportTool.path("inputSchema").path("additionalProperties").asBoolean()).isFalse();
             assertThat(exportTool.path("inputSchema").path("properties").has("mode")).isTrue();
             assertThat(exportTool.path("inputSchema").path("properties").has("contextBindings")).isTrue();
+            assertThat(exportTool.path("inputSchema").path("properties").path("mode").path("enum"))
+                    .isEqualTo(JSON.readTree("[\"ps1\",\"sh\",\"postman\"]"));
 
             JsonNode orchestrationTool = findTool(tools, "execution_orchestration");
             assertThat(orchestrationTool).isNotNull();
@@ -233,6 +268,27 @@ class McpServerStdioIT {
             assertThat(exportFailure.path("status").asText()).isEqualTo("project_artifact_missing");
             assertThat(exportFailure.path("reasonCode").asText()).isEqualTo("project_artifact_missing");
 
+            server.send(request(8, "tools/call", Map.of(
+                    "name", "execution_profile_export",
+                    "arguments", Map.of("mode", 123))));
+            JsonNode exportSchemaValidation = server.responseFor(8);
+            assertThat(exportSchemaValidation.path("result").path("isError").asBoolean()).isTrue();
+            String exportSchemaValidationText = exportSchemaValidation.path("result").path("content").get(0)
+                    .path("text").asText();
+            assertThat(exportSchemaValidationText)
+                    .contains("Tool (execution_profile_export) input validation failed")
+                    .doesNotContain("secret", "stack", "path");
+
+            server.send(request(10, "tools/call", Map.of(
+                    "name", "execution_profile_export")));
+            JsonNode exportMissingArguments = toolPayload(server.responseFor(10));
+            assertThat(exportMissingArguments.path("resultType").asText()).isEqualTo("report");
+            assertThat(exportMissingArguments.path("status").asText())
+                    .isEqualTo("execution_export_mode_required");
+            assertThat(exportMissingArguments.path("reasonCode").asText())
+                    .isEqualTo("execution_export_mode_required");
+            assertThat(exportMissingArguments.toString()).doesNotContain("secret", "stack", "path");
+
             server.send(request(32, "tools/call", Map.of(
                     "name", "execution_orchestration",
                     "arguments", Map.of("action", "execute", "input", Map.of(
@@ -259,6 +315,18 @@ class McpServerStdioIT {
                     .contains("http://127.0.0.1:9196/health");
             JsonNode exportManifest = JSON.readTree(Files.readString(exportedScript.getParent().resolve("manifest.json")));
             assertThat(exportManifest.path("exportId").asText()).isEqualTo("stdio-export");
+
+            server.send(request(9, "tools/call", Map.of(
+                    "name", "execution_profile_export",
+                    "arguments", Map.of(
+                            "projectName", "demo",
+                            "executionProfile", "smoke",
+                            "mode", "sh",
+                            "exportId", "../escape"))));
+            JsonNode exportProductValidation = toolPayload(server.responseFor(9));
+            assertThat(exportProductValidation.path("status").asText()).isEqualTo("export_id_invalid");
+            assertThat(exportProductValidation.path("reasonCode").asText()).isEqualTo("export_id_invalid");
+            assertThat(exportProductValidation.path("reasonMeta").has("failedStep")).isFalse();
 
             writeSecurityOrchestrationFixture(workspaceRoot, routeProbe.getAddress().getPort());
             server.send(request(33, "tools/call", Map.of(
@@ -872,6 +940,15 @@ class McpServerStdioIT {
         return Path.of(configured).toAbsolutePath();
     }
 
+    private static Path testClassesPath() {
+        try {
+            return Path.of(McpServerStdioIT.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+                    .toAbsolutePath();
+        } catch (URISyntaxException exception) {
+            throw new IllegalStateException("Test classes location is not a valid URI", exception);
+        }
+    }
+
     private static Path workspaceRoot() {
         return Path.of(System.getProperty("java.io.tmpdir"), "mcp-java-dev-tools-stdio-it-workspace");
     }
@@ -1429,6 +1506,21 @@ class McpServerStdioIT {
                 throws IOException {
             List<String> command = new ArrayList<>(List.of(javaBinary(), "-jar", jar.toString()));
             command.addAll(List.of(applicationArguments));
+            return startProcess(command, workspaceRoot);
+        }
+
+        static McpServerProcess startWithBoundaryFailure(Path jar, Path workspaceRoot) throws IOException {
+            List<String> command = new ArrayList<>(List.of(
+                    javaBinary(),
+                    "-Dmcp605.stdio.boundary-failure=true",
+                    "-Dloader.path=" + testClassesPath(),
+                    "-cp",
+                    jar.toString(),
+                    "org.springframework.boot.loader.launch.PropertiesLauncher"));
+            return startProcess(command, workspaceRoot);
+        }
+
+        private static McpServerProcess startProcess(List<String> command, Path workspaceRoot) throws IOException {
             Process process = new ProcessBuilder(command)
                     .redirectErrorStream(false)
                     .start();

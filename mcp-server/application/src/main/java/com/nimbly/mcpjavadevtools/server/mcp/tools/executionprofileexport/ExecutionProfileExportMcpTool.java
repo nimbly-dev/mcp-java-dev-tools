@@ -11,6 +11,7 @@ import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryFailureKind;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponseMapper;
 import java.util.List;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -22,24 +23,27 @@ import org.springframework.stereotype.Component;
 public final class ExecutionProfileExportMcpTool {
 
     public static final String TOOL_NAME = ExecutionProfileExportOperationCatalog.TOOL_NAME;
+    private static final String SERIALIZATION_FALLBACK =
+            "{\"resultType\":\"report\",\"status\":\"internal_error\","
+                    + "\"reasonCode\":\"internal_error\"}";
 
     private final ExecutionProfileExportFeature feature;
     private final ExecutionProfileExportMcpRequestMapper requestMapper;
-    private final ExecutionProfileExportMcpResponseMapper responseMapper;
+    private final McpActionResponseMapper<ExecutionProfileExportRequest, ExecutionProfileExportResult> responseMapper;
     private final McpBoundaryExecutor boundaryExecutor;
     private final ObjectMapper objectMapper;
 
     /** Creates the adapter from the intentional Core Feature boundary. */
     @Autowired
-    public ExecutionProfileExportMcpTool(ExecutionProfileExportFeature feature) {
+    public ExecutionProfileExportMcpTool(ExecutionProfileExportFeature feature, ObjectMapper objectMapper) {
         this(feature, new ExecutionProfileExportMcpRequestMapper(),
-                new ExecutionProfileExportMcpResponseMapper(), new McpBoundaryExecutor(), new ObjectMapper());
+                new ExecutionProfileExportMcpResponseMapper(), new McpBoundaryExecutor(), objectMapper);
     }
 
     ExecutionProfileExportMcpTool(
             ExecutionProfileExportFeature feature,
             ExecutionProfileExportMcpRequestMapper requestMapper,
-            ExecutionProfileExportMcpResponseMapper responseMapper,
+            McpActionResponseMapper<ExecutionProfileExportRequest, ExecutionProfileExportResult> responseMapper,
             McpBoundaryExecutor boundaryExecutor,
             ObjectMapper objectMapper) {
         this.feature = feature;
@@ -64,18 +68,22 @@ public final class ExecutionProfileExportMcpTool {
             generateOutputSchema = false)
     public McpActionResponse execute(
             @McpToolParam(description = "Execution Profile Export request.") ExecutionProfileExportMcpRequest request) {
-        return invokeMcpRequest(request);
-    }
-
-    /** Package-visible entry point for focused adapter tests. */
-    McpActionResponse invokeMcpRequest(ExecutionProfileExportMcpRequest request) {
         try {
             ExecutionProfileExportRequest coreRequest = requestMapper.map(request);
             ExecutionProfileExportResult result = feature.execute(coreRequest);
-            return boundaryExecutor.mapResponse(
-                    () -> responseMapper.map(result), responseMapper::mapBoundary);
+            try {
+                return responseMapper.map(coreRequest, result);
+            } catch (McpBoundaryException exception) {
+                return boundaryExecutor.map(exception, responseMapper::mapBoundary);
+            } catch (RuntimeException exception) {
+                return boundaryExecutor.map(
+                        new McpBoundaryException(McpBoundaryFailureKind.RESPONSE_MAPPING, exception),
+                        responseMapper::mapBoundary);
+            }
         } catch (IllegalArgumentException exception) {
-            return responseMapper.invalidRequest();
+            return boundaryExecutor.mapResponse(
+                    responseMapper::invalidRequest,
+                    responseMapper::mapBoundary);
         } catch (McpBoundaryException exception) {
             return boundaryExecutor.map(exception, responseMapper::mapBoundary);
         } catch (RuntimeException exception) {
@@ -87,21 +95,23 @@ public final class ExecutionProfileExportMcpTool {
 
     /** Raw JSON helper used by deterministic adapter tests. */
     public String call(String arguments) {
+        ExecutionProfileExportMcpRequest request;
         try {
-            ExecutionProfileExportMcpRequest request = objectMapper.readValue(
+            request = objectMapper.readValue(
                     arguments, ExecutionProfileExportMcpRequest.class);
-            return objectMapper.writeValueAsString(invokeMcpRequest(request));
         } catch (JsonProcessingException | IllegalArgumentException exception) {
-            return serialize(responseMapper.invalidRequest());
+            try {
+                return objectMapper.writeValueAsString(boundaryExecutor.mapResponse(
+                        responseMapper::invalidRequest,
+                        responseMapper::mapBoundary));
+            } catch (JsonProcessingException serializationException) {
+                return SERIALIZATION_FALLBACK;
+            }
         }
-    }
-
-    private String serialize(McpActionResponse response) {
         try {
-            return objectMapper.writeValueAsString(response);
+            return objectMapper.writeValueAsString(execute(request));
         } catch (JsonProcessingException exception) {
-            return "{\"resultType\":\"report\",\"status\":\"internal_error\","
-                    + "\"reasonCode\":\"internal_error\"}";
+            return SERIALIZATION_FALLBACK;
         }
     }
 }

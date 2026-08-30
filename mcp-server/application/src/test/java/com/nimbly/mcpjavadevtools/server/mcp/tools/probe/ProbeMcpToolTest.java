@@ -16,8 +16,20 @@ import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionRequest;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.mcp.annotation.McpTool;
 
 class ProbeMcpToolTest {
+
+    @Test
+    void exposesTheClosedActionAllowlistThroughTheActualMcpRegistration() throws NoSuchMethodException {
+        McpTool registration = ProbeMcpTool.class
+                .getMethod("probe", String.class, ProbeMcpActionInput.class)
+                .getAnnotation(McpTool.class);
+
+        assertThat(registration.name()).isEqualTo(ProbeMcpTool.operationExposure().toolName());
+        assertThat(ProbeMcpTool.operationExposure().actions())
+                .containsExactly("check", "status", "reset", "wait_for_hit", "capture", "actuate", "profiler");
+    }
 
     @Test
     void mapsCaptureMcpInputThroughTheIntentionalCoreFeatureBoundary() {

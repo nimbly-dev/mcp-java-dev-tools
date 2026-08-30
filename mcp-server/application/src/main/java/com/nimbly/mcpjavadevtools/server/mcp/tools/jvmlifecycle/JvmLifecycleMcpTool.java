@@ -3,10 +3,13 @@ package com.nimbly.mcpjavadevtools.server.mcp.tools.jvmlifecycle;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.JvmLifecycleFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.request.JvmLifecycleRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.JvmLifecycleResult;
+import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionRequest;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
+import java.util.List;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +19,10 @@ import org.springframework.stereotype.Component;
  * Thin Spring AI Application Adapter for the complete JVM lifecycle MCP Tool.
  */
 @Component
-public class JvmLifecycleMcpTool {
+public final class JvmLifecycleMcpTool {
+
+    /** Stable MCP Tool name consumed by the JVM lifecycle operation catalog. */
+    public static final String TOOL_NAME = JvmLifecycleOperationCatalog.TOOL_NAME;
 
     private final JvmLifecycleFeature feature;
     private final JvmLifecycleMcpRequestMapper requestMapper;
@@ -41,6 +47,14 @@ public class JvmLifecycleMcpTool {
         this.boundaryExecutor = boundaryExecutor;
     }
 
+    /** Describes the exact Spring AI registration consumed by the Core catalog. */
+    public static OperationExposure operationExposure() {
+        return new OperationExposure(
+                TOOL_NAME,
+                JvmLifecycleMcpTool.class.getName(),
+                List.of("list_jvms", "attach", "deactivate"));
+    }
+
     /**
      * Exposes the complete action-based lifecycle contract through Spring AI.
      *
@@ -49,7 +63,7 @@ public class JvmLifecycleMcpTool {
      * @return deterministic lifecycle response
      */
     @McpTool(
-            name = "jvm_lifecycle",
+            name = TOOL_NAME,
             description = "Discover local JVMs and safely attach or deactivate the repository-owned Sidecar Agent.",
             generateOutputSchema = true)
     public McpActionResponse execute(

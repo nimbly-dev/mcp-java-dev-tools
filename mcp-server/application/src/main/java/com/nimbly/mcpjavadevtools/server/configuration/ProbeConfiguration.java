@@ -23,9 +23,15 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.endpoint.Probe
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.response.ProbeResponseCompactionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.routing.ProbeTargetResolver;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.probe.ProbeMcpRequestMapper;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.probe.ProbeMcpResponseMapper;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.probe.ProbeMcpTool;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -142,15 +148,30 @@ public class ProbeConfiguration {
         return new ProbeProfilerAction(resolver, endpoint, client, compaction, outputStore);
     }
 
-    /**
-     * Assembles the public Core Feature from action-owned Spring beans.
-     *
-     * @param handlers all registered Probe action implementations
-     * @return complete consolidated Probe Feature
-     */
+    /** Assembles the capability-owned operation catalog from action-owned Spring beans. */
     @Bean
-    ProbeFeature probeFeature(List<ProbeActionHandler> handlers) {
-        return new DefaultProbeFeature(handlers);
+    ProbeOperationCatalog probeOperationCatalog(List<ProbeActionHandler> handlers) {
+        return new ProbeOperationCatalog(
+                handlers,
+                ProbeMcpTool.operationExposure(),
+                new OperationTraceMetadata(
+                        ProbeMcpTool.class.getName(),
+                        ProbeMcpRequestMapper.class.getName(),
+                        ProbeFeature.class.getName(),
+                        ProbeMcpResponseMapper.class.getName(),
+                        "mcp-server/application/src/test/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
+                                + "probe/ProbeMcpTypeScriptParityFixtureTest.java",
+                        "probe_runtime",
+                        Map.of(
+                                "actionHandlers", ProbeActionHandler.class.getName(),
+                                "endpointClient", ProbeEndpointClient.class.getName(),
+                                "targetResolver", ProbeTargetResolver.class.getName())));
+    }
+
+    /** Assembles the public Core Feature from the complete operation catalog. */
+    @Bean
+    ProbeFeature probeFeature(ProbeOperationCatalog operationCatalog) {
+        return new DefaultProbeFeature(operationCatalog);
     }
 
     private static ProbeEndpointConfiguration endpointConfiguration(ProbeConfigurationProperties properties) {

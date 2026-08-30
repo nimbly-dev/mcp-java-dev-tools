@@ -14,11 +14,17 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.helper.Defaul
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.helper.JvmLifecycleHelper;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.JvmLifecycleExecutionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.ProbeHostPolicy;
+import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.jvmlifecycle.JvmLifecycleMcpRequestMapper;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.jvmlifecycle.JvmLifecycleMcpResponseMapper;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.jvmlifecycle.JvmLifecycleMcpTool;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -93,8 +99,28 @@ public class JvmLifecycleConfiguration {
     }
 
     @Bean
-    JvmLifecycleFeature jvmLifecycleFeature(List<JvmLifecycleActionHandler> handlers) {
-        return new DefaultJvmLifecycleFeature(handlers);
+    JvmLifecycleOperationCatalog jvmLifecycleOperationCatalog(
+            List<JvmLifecycleActionHandler> handlers) {
+        return new JvmLifecycleOperationCatalog(
+                handlers,
+                JvmLifecycleMcpTool.operationExposure(),
+                new OperationTraceMetadata(
+                        JvmLifecycleMcpTool.class.getName(),
+                        JvmLifecycleMcpRequestMapper.class.getName(),
+                        JvmLifecycleFeature.class.getName(),
+                        JvmLifecycleMcpResponseMapper.class.getName(),
+                        "mcp-server/application/src/test/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
+                                + "jvmlifecycle/JvmLifecycleMcpTypeScriptParityFixtureTest.java",
+                        "jvm_lifecycle",
+                        Map.of(
+                                "actionHandlers", JvmLifecycleActionHandler.class.getName(),
+                                "lifecycleHelper", JvmLifecycleHelper.class.getName(),
+                                "artifactResolver", JvmLifecycleArtifactResolver.class.getName())));
+    }
+
+    @Bean
+    JvmLifecycleFeature jvmLifecycleFeature(JvmLifecycleOperationCatalog operationCatalog) {
+        return new DefaultJvmLifecycleFeature(operationCatalog);
     }
 
     private static Path packagedDirectory() {
