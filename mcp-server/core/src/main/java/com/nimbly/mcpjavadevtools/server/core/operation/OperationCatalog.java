@@ -153,15 +153,20 @@ public class OperationCatalog<A extends Enum<A>, I, O> {
     }
 
     /** @return registered operations for deterministic inventory generation */
-    List<Operation<A, I, O>> registeredOperations() {
+    public List<Operation<A, I, O>> registeredOperations() {
         return List.copyOf(operations.values());
     }
 
-    OperationExposure exposure() {
+    /** @return immutable typed operations for explicit aggregate composition */
+    public List<Operation<A, I, O>> operations() {
+        return registeredOperations();
+    }
+
+    public OperationExposure exposure() {
         return exposure;
     }
 
-    String operationCatalog() {
+    public String operationCatalog() {
         return operationCatalog;
     }
 

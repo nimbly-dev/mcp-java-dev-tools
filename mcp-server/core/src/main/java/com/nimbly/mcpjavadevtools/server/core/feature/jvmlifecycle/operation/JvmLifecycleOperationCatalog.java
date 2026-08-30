@@ -5,6 +5,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.action.JvmLif
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.JvmLifecycleAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.request.JvmLifecycleRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.JvmLifecycleResult;
+import com.nimbly.mcpjavadevtools.server.core.operation.Operation;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
@@ -54,6 +55,11 @@ public final class JvmLifecycleOperationCatalog {
     /** @return immutable descriptors in closed action order */
     public List<OperationDescriptor> catalog() {
         return catalog.catalog();
+    }
+
+    /** @return immutable typed operations for aggregate manifest composition */
+    public List<Operation<JvmLifecycleAction, JvmLifecycleRequest, JvmLifecycleResult>> operations() {
+        return catalog.operations();
     }
 
     /** @param action selected lifecycle action @return its descriptor */

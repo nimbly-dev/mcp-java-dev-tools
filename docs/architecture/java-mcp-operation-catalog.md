@@ -41,7 +41,7 @@ perform runtime reflection or classpath scanning.
 Artifact Management capability for this phase. Its `export` action is owned by
 `ExportExecutionProfileOperation`, registered by
 `ExecutionProfileExportOperationCatalog`, and composed explicitly by
-`ExecutionProfileExportConfiguration`. The operation still delegates Artifact
+`CoreOperationDirectory`. The operation still delegates Artifact
 generation through the existing `ExecutionExportArtifactGateway`; no Artifact,
 Sidecar, MCP schema, status, reason-code, or output behavior was changed.
 
@@ -51,6 +51,27 @@ collaborator roles. The generated inventory additionally names the concrete
 capability catalog that dispatches the action. The focused parity fixture
 remains the proof that the migrated route preserves the released TypeScript
 contract.
+
+## Aggregate operation directory
+
+The Core operation package now also provides the heterogeneous
+`OperationDirectory`. `CoreOperationDirectory` is the production composition
+root for all fifty-four approved operations: it binds every capability catalog
+and feature owner exactly once, then joins those immutable
+`OperationRegistration` bindings to the versioned XML document at
+`META-INF/mcpjvm/operations/manifest.xml`. The XML reader is secure and
+bounded, and XML cannot select Java types or executable methods. Java-owned
+schemas, binders, normalizers, safety policy, and typed execution remain the
+source of truth after the join; there is no reflective schema generator.
+
+The directory exposes deterministic catalog pages, complete manifest-backed
+descriptions, and independent exact-ID execution. It validates payload bounds,
+approved schema rules, confirmation/deprecation policy, timeout, redaction, and
+normalized result shape before returning a bounded execution envelope. Its
+generated aggregate manifest and trace inventory retain the released
+Tool/action identity (including explicit actionless rows), canonical operation
+ID, CDE schema, normalization rule, result comparison rule, and parity
+scenario.
 
 ## Structural enforcement
 
@@ -103,7 +124,9 @@ For a new migrated capability:
 6. Add focused behavior/parity evidence and a generated inventory assertion for
    every advertised action.
 
-Route Synthesis, Failure Analysis, Transport Execution, the suite Features, and
-Execution Orchestration continue using `EnumActionDispatcher` until their own
-bounded #606 rollout groups. The migrated Java paths do not silently alter the
+The aggregate binding is Core-only and does not cut over public Application MCP
+registration. Route Synthesis, Failure Analysis, Transport Execution, the suite
+Features, and Execution Orchestration continue using their existing
+`EnumActionDispatcher`-backed capability implementations behind the explicit
+typed directory adapters. The migrated Java paths do not silently alter the
 released TypeScript compatibility implementation.

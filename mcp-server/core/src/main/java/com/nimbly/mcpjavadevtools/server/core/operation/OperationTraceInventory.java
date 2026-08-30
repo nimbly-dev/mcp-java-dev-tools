@@ -28,9 +28,11 @@ public class OperationTraceInventory {
         for (Operation<A, I, O> operation : catalog.registeredOperations()) {
             OperationDescriptor descriptor = operation.descriptor();
             OperationTraceMetadata trace = descriptor.trace();
+            OperationLegacyIdentity identity = operation.legacyIdentity();
             entries.add(new OperationTraceEntry(
                     exposure.toolName(),
-                    descriptor.action(),
+                    identity.action(),
+                    identity.actionless(),
                     descriptor.requestType(),
                     descriptor.resultType(),
                     exposure.adapterType(),
@@ -42,7 +44,40 @@ public class OperationTraceInventory {
                     trace.responseMapper(),
                     trace.focusedEvidence(),
                     trace.sideEffect(),
-                    trace.collaboratorRoles()));
+                    trace.collaboratorRoles(),
+                    identity.inventory(descriptor),
+                    descriptor.operationId().value()));
+        }
+        return List.copyOf(entries);
+    }
+
+    /** Generates aggregate rows from an assembled immutable manifest. */
+    public static List<OperationTraceEntry> generate(OperationManifest manifest) {
+        Objects.requireNonNull(manifest, "manifest must not be null");
+        List<OperationTraceEntry> entries = new ArrayList<>();
+        for (OperationRegistration<?, ?> registration
+                : manifest.registrations()) {
+            OperationDescriptor descriptor = registration.descriptor();
+            OperationTraceMetadata trace = descriptor.trace();
+            OperationLegacyIdentity identity = registration.legacyIdentity();
+            entries.add(new OperationTraceEntry(
+                    identity.toolName(),
+                    identity.action(),
+                    identity.actionless(),
+                    descriptor.requestType(),
+                    descriptor.resultType(),
+                    trace.mcpAdapter(),
+                    trace.requestMapper(),
+                    trace.coreFeature(),
+                    registration.operationCatalog(),
+                    OperationDescriptor.class.getName(),
+                    descriptor.executableOwner(),
+                    trace.responseMapper(),
+                    trace.focusedEvidence(),
+                    trace.sideEffect(),
+                    trace.collaboratorRoles(),
+                    identity.inventory(descriptor),
+                    descriptor.operationId().value()));
         }
         return List.copyOf(entries);
     }

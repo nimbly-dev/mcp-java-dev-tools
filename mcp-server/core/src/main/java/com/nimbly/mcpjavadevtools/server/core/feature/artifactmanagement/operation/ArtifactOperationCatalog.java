@@ -61,6 +61,12 @@ public final class ArtifactOperationCatalog {
         return catalog.catalog();
     }
 
+    /** @return immutable typed operations for aggregate manifest composition */
+    public List<Operation<
+            ArtifactManagementAction, ArtifactManagementRequest, ArtifactManagementResult>> operations() {
+        return catalog.operations();
+    }
+
     /** @param action selected family/action pair @return its descriptor */
     public OperationDescriptor describe(ArtifactManagementAction action) {
         return catalog.describe(action);

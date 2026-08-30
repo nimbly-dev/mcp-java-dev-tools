@@ -5,6 +5,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.action.ProbeActionHa
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.ProbeAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
+import com.nimbly.mcpjavadevtools.server.core.operation.Operation;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
@@ -54,6 +55,11 @@ public final class ProbeOperationCatalog {
     /** @return immutable descriptors in closed action order */
     public List<OperationDescriptor> catalog() {
         return catalog.catalog();
+    }
+
+    /** @return immutable typed operations for aggregate manifest composition */
+    public List<Operation<ProbeAction, ProbeRequest, ProbeResult>> operations() {
+        return catalog.operations();
     }
 
     /** @param action selected Probe action @return its descriptor */

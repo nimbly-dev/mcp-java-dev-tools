@@ -3,6 +3,7 @@ package com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.TransportExecutionAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.request.TransportExecutionRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.TransportProtocol;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -17,7 +18,7 @@ public record ExecuteTransportRequest(
     public ExecuteTransportRequest {
         Objects.requireNonNull(protocol, "protocol must not be null");
         Objects.requireNonNull(request, "request must not be null");
-        request = Map.copyOf(new LinkedHashMap<>(request));
+        request = Collections.unmodifiableMap(new LinkedHashMap<>(request));
     }
 
     /** {@inheritDoc} */
