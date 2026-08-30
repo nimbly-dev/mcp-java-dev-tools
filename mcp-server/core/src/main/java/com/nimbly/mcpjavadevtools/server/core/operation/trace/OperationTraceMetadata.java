@@ -1,4 +1,4 @@
-package com.nimbly.mcpjavadevtools.server.core.operation;
+package com.nimbly.mcpjavadevtools.server.core.operation.trace;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

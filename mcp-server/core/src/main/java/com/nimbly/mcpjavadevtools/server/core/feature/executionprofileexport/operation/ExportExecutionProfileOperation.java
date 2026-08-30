@@ -8,9 +8,11 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.r
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
-import com.nimbly.mcpjavadevtools.server.core.operation.Operation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
+import java.util.Map;
 import java.util.Objects;
 
 /** Concrete execution owner for the released execution-profile export action. */
@@ -50,6 +52,18 @@ public final class ExportExecutionProfileOperation implements Operation<
     @Override
     public String executableOwner() {
         return getClass().getName();
+    }
+
+    @Override
+    public OperationLegacyIdentity legacyIdentity() {
+        return new OperationLegacyIdentity(
+                ExecutionProfileExportOperationCatalog.TOOL_NAME,
+                "",
+                true,
+                Map.of(),
+                "execution_profile_export_input_to_typed_artifact_request",
+                "export_result_fields_preserved_without_artifact_discriminators",
+                "execution_profile_export_input_contract");
     }
 
     @Override

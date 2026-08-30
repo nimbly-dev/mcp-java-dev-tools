@@ -2,7 +2,7 @@ package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operat
 
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.util.List;
 
 /** Explicit catalog rows for the Execution Export Artifact family. */

@@ -24,7 +24,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.response.Probe
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.routing.ProbeTargetResolver;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.probe.ProbeMcpRequestMapper;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.probe.ProbeMcpResponseMapper;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.probe.ProbeMcpTool;

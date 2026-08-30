@@ -4,7 +4,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryFailureKind;

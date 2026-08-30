@@ -3,9 +3,10 @@ package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operat
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
-import com.nimbly.mcpjavadevtools.server.core.operation.Operation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -60,6 +61,20 @@ final class ArtifactOperation implements Operation<
     @Override
     public String executableOwner() {
         return ownerType.getName() + "#" + ownerMethod;
+    }
+
+    @Override
+    public OperationLegacyIdentity legacyIdentity() {
+        return new OperationLegacyIdentity(
+                ArtifactOperationCatalog.TOOL_NAME,
+                operationId.routeId(),
+                false,
+                Map.of("artifactType", operationId.artifactType().value(),
+                        "action", operationId.action().value()),
+                "artifact_type_and_action_to_canonical_operation_id",
+                "artifact_result_envelope_fields_and_details_preserved",
+                "artifact_management_" + operationId.artifactType().value()
+                        + "_" + operationId.action().value());
     }
 
     @Override

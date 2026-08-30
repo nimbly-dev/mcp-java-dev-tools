@@ -10,7 +10,7 @@ import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryFailureKind;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import java.util.Arrays;
 import java.util.Map;
 import org.springframework.ai.mcp.annotation.McpTool;

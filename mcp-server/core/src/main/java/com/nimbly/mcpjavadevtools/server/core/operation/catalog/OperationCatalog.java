@@ -1,4 +1,4 @@
-package com.nimbly.mcpjavadevtools.server.core.operation;
+package com.nimbly.mcpjavadevtools.server.core.operation.catalog;
 
 import java.util.Collections;
 import java.util.EnumMap;
@@ -7,6 +7,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceInventory;
 
 /**
  * Exact Catalog-Describe-Execute resolution for one closed capability.
@@ -153,15 +156,20 @@ public class OperationCatalog<A extends Enum<A>, I, O> {
     }
 
     /** @return registered operations for deterministic inventory generation */
-    List<Operation<A, I, O>> registeredOperations() {
+    public List<Operation<A, I, O>> registeredOperations() {
         return List.copyOf(operations.values());
     }
 
-    OperationExposure exposure() {
+    /** @return immutable typed operations for explicit aggregate composition */
+    public List<Operation<A, I, O>> operations() {
+        return registeredOperations();
+    }
+
+    public OperationExposure exposure() {
         return exposure;
     }
 
-    String operationCatalog() {
+    public String operationCatalog() {
         return operationCatalog;
     }
 

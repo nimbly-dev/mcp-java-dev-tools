@@ -13,7 +13,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.artifactmanagement.ArtifactManagementMcpRequestMapper;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.artifactmanagement.ArtifactManagementMcpResponseMapper;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.artifactmanagement.ArtifactManagementMcpTool;

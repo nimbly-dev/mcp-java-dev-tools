@@ -17,9 +17,9 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.a
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceEntry;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;

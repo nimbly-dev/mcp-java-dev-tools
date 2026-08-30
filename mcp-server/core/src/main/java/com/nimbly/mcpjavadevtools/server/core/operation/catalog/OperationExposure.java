@@ -1,4 +1,4 @@
-package com.nimbly.mcpjavadevtools.server.core.operation;
+package com.nimbly.mcpjavadevtools.server.core.operation.catalog;
 
 import java.util.HashSet;
 import java.util.List;

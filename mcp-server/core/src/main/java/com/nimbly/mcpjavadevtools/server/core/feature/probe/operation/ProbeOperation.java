@@ -4,10 +4,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.action.ProbeActionHa
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.ProbeAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
-import com.nimbly.mcpjavadevtools.server.core.operation.Operation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;

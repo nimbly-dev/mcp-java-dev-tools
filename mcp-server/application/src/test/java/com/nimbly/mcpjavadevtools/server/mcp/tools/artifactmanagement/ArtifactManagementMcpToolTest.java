@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
