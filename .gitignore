@@ -20,6 +20,7 @@ buildNumber.properties
 .codegraph/
 .gemini/
 .kiro/
+.agents/
 GEMINI.md
 node_modules
 dist/
