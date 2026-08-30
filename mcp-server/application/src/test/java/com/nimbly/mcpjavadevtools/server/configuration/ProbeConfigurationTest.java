@@ -23,6 +23,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegist
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.target.ProbeTargetSelector;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.endpoint.ProbeEndpointClient;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.routing.ProbeTargetResolver;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -46,6 +47,10 @@ class ProbeConfigurationTest {
             context.refresh();
 
             assertThat(context.getBeansOfType(ProbeActionHandler.class)).hasSize(7);
+            assertThat(context.getBeansOfType(ProbeOperationCatalog.class)).hasSize(1);
+            assertThat(context.getBean(ProbeOperationCatalog.class).catalog())
+                    .extracting(descriptor -> descriptor.action())
+                    .containsExactly("check", "status", "reset", "wait_for_hit", "capture", "actuate", "profiler");
             assertThat(context.getBean(ProbeFeature.class)).isInstanceOf(DefaultProbeFeature.class);
             assertThat(context.getBean(Clock.class)).isNotNull();
             assertThat(context.getBean(ProbeWaitSleeper.class)).isNotNull();
@@ -107,7 +112,9 @@ class ProbeConfigurationTest {
                 client,
                 compaction,
                 configuration.probeProfilerOutputStore());
-        return configuration.probeFeature(List.of(check, status, reset, wait, capture, actuate, profiler));
+        ProbeOperationCatalog catalog = configuration.probeOperationCatalog(
+                List.of(check, status, reset, wait, capture, actuate, profiler));
+        return configuration.probeFeature(catalog);
     }
 
     private static ProbeConfigurationProperties properties(int port) {

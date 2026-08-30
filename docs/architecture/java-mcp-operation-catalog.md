@@ -55,9 +55,14 @@ contract.
 ## Structural enforcement
 
 `JavaMcpArchitectureEnforcementTest` runs as part of the Core test phase for the
-migrated reference graph. It enforces these bounded ownership rules on the
-operation package, the `execution_profile_export` Core operation/Feature, its
-explicit Application composition, and its request/response/MCP adapter path:
+migrated operation graphs. It enforces these bounded ownership rules on the
+shared operation package, the `execution_profile_export` Core
+operation/Feature, and the first #606 rollout group (`probe` and
+`jvm_lifecycle`) together with their capability-owned operation packages:
+
+Application composition for the rollout group is covered separately by the
+configuration, MCP adapter, parity, and packaged STDIO tests; it is not part of
+this Core AST structural enforcement test.
 
 The test uses the Java compiler AST for class, method, visibility, nesting, and
 private-call analysis. It does not use source regular expressions, so comments,
@@ -98,6 +103,7 @@ For a new migrated capability:
 6. Add focused behavior/parity evidence and a generated inventory assertion for
    every advertised action.
 
-Existing legacy capabilities continue using `EnumActionDispatcher` until their
-own approved migration story. This phase changes the reference route only and
-does not silently alter the released TypeScript compatibility implementation.
+Route Synthesis, Failure Analysis, Transport Execution, the suite Features, and
+Execution Orchestration continue using `EnumActionDispatcher` until their own
+bounded #606 rollout groups. The migrated Java paths do not silently alter the
+released TypeScript compatibility implementation.

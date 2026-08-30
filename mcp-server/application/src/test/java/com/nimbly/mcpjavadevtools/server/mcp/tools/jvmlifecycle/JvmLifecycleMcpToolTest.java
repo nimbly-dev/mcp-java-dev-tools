@@ -10,8 +10,20 @@ import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionRequest;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.mcp.annotation.McpTool;
 
 class JvmLifecycleMcpToolTest {
+
+    @Test
+    void exposesTheClosedActionAllowlistThroughTheActualMcpRegistration() throws NoSuchMethodException {
+        McpTool registration = JvmLifecycleMcpTool.class
+                .getMethod("execute", String.class, JvmLifecycleMcpActionInput.class)
+                .getAnnotation(McpTool.class);
+
+        assertThat(registration.name()).isEqualTo(JvmLifecycleMcpTool.operationExposure().toolName());
+        assertThat(JvmLifecycleMcpTool.operationExposure().actions())
+                .containsExactly("list_jvms", "attach", "deactivate");
+    }
 
     @Test
     void mapsListJvmsThroughTheCoreFeatureAndPreservesCompatibilityFields() {

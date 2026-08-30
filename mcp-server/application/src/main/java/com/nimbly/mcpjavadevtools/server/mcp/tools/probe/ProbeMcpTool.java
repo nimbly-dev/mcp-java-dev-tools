@@ -3,6 +3,8 @@ package com.nimbly.mcpjavadevtools.server.mcp.tools.probe;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryFailureKind;
@@ -10,6 +12,7 @@ import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionRequest;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionRequestMapper;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponseMapper;
+import java.util.List;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +22,10 @@ import org.springframework.stereotype.Component;
  * Thin Spring AI Application Adapter for the complete consolidated Probe MCP Tool.
  */
 @Component
-public class ProbeMcpTool {
+public final class ProbeMcpTool {
+
+    /** Stable MCP Tool name consumed by the Probe operation catalog. */
+    public static final String TOOL_NAME = ProbeOperationCatalog.TOOL_NAME;
 
     private final ProbeFeature probeFeature;
     private final McpActionRequestMapper<ProbeMcpActionInput, ProbeRequest> requestMapper;
@@ -47,6 +53,14 @@ public class ProbeMcpTool {
         this.boundaryExecutor = boundaryExecutor;
     }
 
+    /** Describes the exact Spring AI registration consumed by the Core catalog. */
+    public static OperationExposure operationExposure() {
+        return new OperationExposure(
+                TOOL_NAME,
+                ProbeMcpTool.class.getName(),
+                List.of("check", "status", "reset", "wait_for_hit", "capture", "actuate", "profiler"));
+    }
+
     /**
      * Maps MCP input to the Core Feature and normalizes only its deterministic outcome.
      *
@@ -55,7 +69,7 @@ public class ProbeMcpTool {
      * @return deterministic Probe MCP response
      */
     @McpTool(
-            name = "probe",
+            name = TOOL_NAME,
             description = "Run a bounded Java Sidecar Probe action.",
             generateOutputSchema = true)
     public McpActionResponse probe(

@@ -52,7 +52,7 @@ class ExecutionProfileExportMcpTypeScriptParityFixtureTest {
                         new ExecutionProfileExportArtifactInputMapper(JSON),
                         trace()),
                         ExecutionProfileExportMcpTool.operationExposure()));
-        tool = new ExecutionProfileExportMcpTool(feature);
+        tool = new ExecutionProfileExportMcpTool(feature, JSON);
     }
 
     @Test
@@ -64,7 +64,7 @@ class ExecutionProfileExportMcpTypeScriptParityFixtureTest {
             for (JsonNode testCase : JSON.readTree(stream).path("cases")) {
                 ExecutionProfileExportMcpRequest request = JSON.treeToValue(
                         testCase.path("input"), ExecutionProfileExportMcpRequest.class);
-                assertFixture(testCase, tool.invokeMcpRequest(request));
+                assertFixture(testCase, tool.execute(request));
             }
         }
     }

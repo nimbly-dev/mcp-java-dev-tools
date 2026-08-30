@@ -2,6 +2,7 @@ package com.nimbly.mcpjavadevtools.server.mcp.tools.executionprofileexport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
@@ -9,6 +10,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.r
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.DefaultExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
@@ -17,9 +19,19 @@ import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceEntry;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
+import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
+import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryFailure;
+import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryFailureKind;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponseMapper;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.mcp.annotation.McpTool;
 
@@ -30,13 +42,9 @@ class ExecutionProfileExportMcpToolTest {
         ExecutionProfileExportFeature feature = request -> new ExecutionProfileExportResult(
                 "execution_profile_export", "ok", "success", null, null, "", Map.of(),
                 Map.of("mode", request.mode(), "exportId", "export-1"));
-        ExecutionProfileExportMcpTool tool = new ExecutionProfileExportMcpTool(
-                feature, new ExecutionProfileExportMcpRequestMapper(),
-                new ExecutionProfileExportMcpResponseMapper(),
-                new com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor(),
-                new com.fasterxml.jackson.databind.ObjectMapper());
+        ExecutionProfileExportMcpTool tool = tool(feature);
 
-        McpActionResponse response = tool.invokeMcpRequest(new ExecutionProfileExportMcpRequest(
+        McpActionResponse response = tool.execute(new ExecutionProfileExportMcpRequest(
                 "demo", null, "nightly", null, null, "sh", null, false, true, true,
                 Map.of("auth.bearer", "AUTH_TOKEN"), Map.of()));
 
@@ -49,12 +57,191 @@ class ExecutionProfileExportMcpToolTest {
     @Test
     void returnsDeterministicInvalidRequestForNullTransportInput() {
         ExecutionProfileExportFeature feature = request -> ExecutionProfileExportResult.invalidRequest();
-        ExecutionProfileExportMcpTool tool = new ExecutionProfileExportMcpTool(feature);
+        ExecutionProfileExportMcpTool tool = tool(feature);
 
-        McpActionResponse response = tool.invokeMcpRequest(null);
+        McpActionResponse response = tool.execute(null);
 
         assertThat(response.resultType()).isEqualTo("report");
         assertThat(response.reasonCode()).isEqualTo("execution_profile_export_request_invalid");
+    }
+
+    @Test
+    void containsInvalidRequestResponseMapperFailureForTypedInput() {
+        ExecutionProfileExportMcpTool tool = tool(
+                request -> ExecutionProfileExportResult.invalidRequest(),
+                failingInvalidRequestMapper());
+
+        McpActionResponse response = tool.execute(null);
+
+        assertThat(response.reasonCode()).isEqualTo("internal_error");
+        assertThat(response.reasonMeta())
+                .containsEntry("failedStep", McpBoundaryFailureKind.RESPONSE_MAPPING.value());
+        assertThat(response.reason()).doesNotContain("secret-value");
+    }
+
+    @Test
+    void containsInvalidRequestResponseMapperFailureForMalformedRawJson() throws Exception {
+        ExecutionProfileExportMcpTool tool = tool(
+                request -> ExecutionProfileExportResult.invalidRequest(),
+                failingInvalidRequestMapper());
+
+        JsonNode response = new ObjectMapper().readTree(tool.call("{"));
+
+        assertThat(response.path("reasonCode").asText()).isEqualTo("internal_error");
+        assertThat(response.path("reasonMeta").path("failedStep").asText())
+                .isEqualTo(McpBoundaryFailureKind.RESPONSE_MAPPING.value());
+        assertThat(response.toString()).doesNotContain("secret-value");
+    }
+
+    @Test
+    void mapsFeatureIllegalArgumentExceptionToTheDeterministicInvalidRequest() {
+        ExecutionProfileExportMcpTool tool = tool(request -> {
+            throw new IllegalArgumentException("request is not acceptable");
+        });
+
+        McpActionResponse response = tool.execute(request());
+
+        assertThat(response.reasonCode()).isEqualTo("execution_profile_export_request_invalid");
+        assertThat(response.status()).isEqualTo("execution_profile_export_request_invalid");
+    }
+
+    @Test
+    void containsUnexpectedRequestMappingFailuresWithoutLeakingDetails() {
+        Map<String, String> failingBindings = new HashMap<>() {
+            @Override
+            public void forEach(BiConsumer<? super String, ? super String> action) {
+                throw new IllegalStateException("Authorization: Bearer secret-value");
+            }
+        };
+        failingBindings.put("authorization", "secret-value");
+
+        ExecutionProfileExportMcpTool tool = tool(request -> {
+            throw new AssertionError("Core Feature must not receive a failed request mapping");
+        });
+        McpActionResponse response = tool.execute(new ExecutionProfileExportMcpRequest(
+                "demo", "export-1", "nightly", "smoke", null, "sh", null,
+                false, true, true, failingBindings, Map.of()));
+
+        assertThat(response.reasonCode()).isEqualTo("internal_error");
+        assertThat(response.reasonMeta())
+                .containsEntry("failedStep", McpBoundaryFailureKind.FEATURE_INVOCATION_CONTRACT.value());
+        assertThat(response.reason()).doesNotContain("secret-value");
+    }
+
+    @Test
+    void containsUnexpectedFeatureFailuresWithoutLeakingDetails() {
+        ExecutionProfileExportMcpTool tool = tool(request -> {
+            throw new IllegalStateException("Authorization: Bearer secret-value");
+        });
+
+        McpActionResponse response = tool.execute(request());
+
+        assertThat(response.reasonCode()).isEqualTo("internal_error");
+        assertThat(response.reasonMeta())
+                .containsEntry("failedStep", McpBoundaryFailureKind.FEATURE_INVOCATION_CONTRACT.value());
+        assertThat(response.reason()).doesNotContain("secret-value");
+    }
+
+    @Test
+    void preservesClassifiedFeatureBoundaryFailures() {
+        ExecutionProfileExportMcpTool tool = tool(request -> {
+            throw new McpBoundaryException(
+                    McpBoundaryFailureKind.CONFIGURATION_INVARIANT,
+                    new IllegalStateException("secret-value"));
+        });
+
+        McpActionResponse response = tool.execute(request());
+
+        assertThat(response.reasonCode()).isEqualTo("internal_error");
+        assertThat(response.reasonMeta())
+                .containsEntry("failedStep", McpBoundaryFailureKind.CONFIGURATION_INVARIANT.value());
+        assertThat(response.reason()).doesNotContain("secret-value");
+
+        JsonNode rawResponse;
+        try {
+            rawResponse = new ObjectMapper().readTree(tool.call("{}"));
+        } catch (Exception exception) {
+            throw new AssertionError("controlled boundary response was not valid JSON", exception);
+        }
+        assertThat(rawResponse.path("reasonCode").asText()).isEqualTo("internal_error");
+        assertThat(rawResponse.path("reasonMeta").path("failedStep").asText())
+                .isEqualTo(McpBoundaryFailureKind.CONFIGURATION_INVARIANT.value());
+        assertThat(rawResponse.toString()).doesNotContain("secret-value");
+    }
+
+    @Test
+    void containsUnexpectedResponseMappingFailuresWithoutLeakingDetails() {
+        ExecutionProfileExportMcpTool tool = tool(request -> null);
+
+        McpActionResponse response = tool.execute(request());
+
+        assertThat(response.reasonCode()).isEqualTo("internal_error");
+        assertThat(response.reasonMeta())
+                .containsEntry("failedStep", McpBoundaryFailureKind.RESPONSE_MAPPING.value());
+        assertThat(response.reason()).doesNotContain("NullPointerException");
+    }
+
+    @Test
+    void preservesClassifiedResponseMappingFailures() {
+        McpActionResponseMapper<ExecutionProfileExportRequest, ExecutionProfileExportResult> mapper =
+                new McpActionResponseMapper<>() {
+            @Override
+            public McpActionResponse map(
+                    ExecutionProfileExportRequest request, ExecutionProfileExportResult result) {
+                throw new McpBoundaryException(
+                        McpBoundaryFailureKind.CONFIGURATION_INVARIANT,
+                        new IllegalStateException("secret-value"));
+            }
+
+            @Override
+            public McpActionResponse invalidRequest() {
+                return new ExecutionProfileExportMcpResponseMapper().invalidRequest();
+            }
+
+            @Override
+            public McpActionResponse mapBoundary(McpBoundaryFailure failure) {
+                return new ExecutionProfileExportMcpResponseMapper().mapBoundary(failure);
+            }
+        };
+        ExecutionProfileExportMcpTool tool = tool(request -> new ExecutionProfileExportResult(
+                "execution_profile_export", "ok", "success", null, null, "", Map.of(), Map.of()), mapper);
+
+        McpActionResponse response = tool.execute(request());
+
+        assertThat(response.reasonCode()).isEqualTo("internal_error");
+        assertThat(response.reasonMeta())
+                .containsEntry("failedStep", McpBoundaryFailureKind.CONFIGURATION_INVARIANT.value());
+        assertThat(response.reason()).doesNotContain("secret-value");
+    }
+
+    @Test
+    void returnsDeterministicInvalidRequestForMalformedRawJson() throws Exception {
+        ExecutionProfileExportMcpTool tool = tool(request -> ExecutionProfileExportResult.invalidRequest());
+
+        String response = tool.call("{");
+
+        assertThat(new ObjectMapper().readTree(response).path("reasonCode").asText())
+                .isEqualTo("execution_profile_export_request_invalid");
+    }
+
+    @Test
+    void returnsTheBoundedFallbackWhenResponseSerializationFails() {
+        Map<String, Object> recursiveDetails = new HashMap<>();
+        recursiveDetails.put("self", recursiveDetails);
+        ExecutionProfileExportMcpTool tool = tool(request -> new ExecutionProfileExportResult(
+                "execution_profile_export", "ok", "success", null, null, "", Map.of(), recursiveDetails));
+
+        assertThat(tool.call("{}"))
+                .isEqualTo("{\"resultType\":\"report\",\"status\":\"internal_error\","
+                        + "\"reasonCode\":\"internal_error\"}");
+    }
+
+    @Test
+    void hasNoPrivateWorkflowOrSerializationMethods() {
+        assertThat(Arrays.stream(ExecutionProfileExportMcpTool.class.getDeclaredMethods())
+                .filter(method -> Modifier.isPrivate(method.getModifiers()))
+                .map(Method::getName)
+                .toList()).isEmpty();
     }
 
     @Test
@@ -107,9 +294,9 @@ class ExecutionProfileExportMcpToolTest {
                     "execution_profile_export", "ok", "success", null, null, "", Map.of(), Map.of());
         });
         ExecutionProfileExportMcpTool tool = new ExecutionProfileExportMcpTool(
-                new DefaultExecutionProfileExportFeature(catalog));
+                new DefaultExecutionProfileExportFeature(catalog), new ObjectMapper());
 
-        McpActionResponse response = tool.invokeMcpRequest(new ExecutionProfileExportMcpRequest(
+        McpActionResponse response = tool.execute(new ExecutionProfileExportMcpRequest(
                 "demo", "export-1", "nightly", "smoke", null, "sh", "sh",
                 false, true, true, Map.of(), Map.of()));
 
@@ -142,5 +329,47 @@ class ExecutionProfileExportMcpToolTest {
                                         "artifactInputMapper", ExecutionProfileExportArtifactInputMapper.class
                                                 .getName()))),
                 ExecutionProfileExportMcpTool.operationExposure());
+    }
+
+    private ExecutionProfileExportMcpTool tool(ExecutionProfileExportFeature feature) {
+        return tool(feature, new ExecutionProfileExportMcpResponseMapper());
+    }
+
+    private ExecutionProfileExportMcpTool tool(
+            ExecutionProfileExportFeature feature,
+            McpActionResponseMapper<ExecutionProfileExportRequest, ExecutionProfileExportResult> responseMapper) {
+        return new ExecutionProfileExportMcpTool(
+                feature,
+                new ExecutionProfileExportMcpRequestMapper(),
+                responseMapper,
+                new McpBoundaryExecutor(),
+                new ObjectMapper());
+    }
+
+    private McpActionResponseMapper<ExecutionProfileExportRequest, ExecutionProfileExportResult>
+            failingInvalidRequestMapper() {
+        return new McpActionResponseMapper<>() {
+            @Override
+            public McpActionResponse map(
+                    ExecutionProfileExportRequest request, ExecutionProfileExportResult result) {
+                return new ExecutionProfileExportMcpResponseMapper().map(request, result);
+            }
+
+            @Override
+            public McpActionResponse invalidRequest() {
+                throw new IllegalStateException("secret-value");
+            }
+
+            @Override
+            public McpActionResponse mapBoundary(McpBoundaryFailure failure) {
+                return new ExecutionProfileExportMcpResponseMapper().mapBoundary(failure);
+            }
+        };
+    }
+
+    private ExecutionProfileExportMcpRequest request() {
+        return new ExecutionProfileExportMcpRequest(
+                "demo", "export-1", "nightly", "smoke", null, "sh", null,
+                false, true, true, Map.of(), Map.of());
     }
 }
