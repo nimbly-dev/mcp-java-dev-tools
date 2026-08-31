@@ -12,7 +12,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.mod
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExportExecutionProfileOperation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;

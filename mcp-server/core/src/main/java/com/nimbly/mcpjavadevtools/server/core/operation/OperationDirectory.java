@@ -4,6 +4,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Objects;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationCatalogPageBuilder;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationDirectoryException;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationInvocationExecution;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifest;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestAssembler;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
 
 /** Aggregate Core Catalog-Describe-Execute directory over explicit registrations. */
 public final class OperationDirectory {

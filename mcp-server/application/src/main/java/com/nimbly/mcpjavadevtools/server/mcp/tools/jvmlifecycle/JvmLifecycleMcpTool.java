@@ -4,7 +4,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.JvmLifecycleF
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.request.JvmLifecycleRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.JvmLifecycleResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionRequest;

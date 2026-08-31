@@ -15,10 +15,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.mod
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExportExecutionProfileOperation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceEntry;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryFailure;
@@ -268,7 +268,8 @@ class ExecutionProfileExportMcpToolTest {
 
         assertThat(catalog.catalog()).containsExactly(descriptor);
         assertThat(entry.toolName()).isEqualTo(registration.name()).isEqualTo(descriptor.toolName());
-        assertThat(entry.action()).isEqualTo(descriptor.action());
+        assertThat(entry.action()).isEmpty();
+        assertThat(entry.actionless()).isTrue();
         assertThat(entry.requestType()).isEqualTo(descriptor.requestType());
         assertThat(entry.resultType()).isEqualTo(descriptor.resultType());
         assertThat(entry.mcpAdapter()).isEqualTo(descriptor.trace().mcpAdapter());
@@ -282,7 +283,7 @@ class ExecutionProfileExportMcpToolTest {
         assertThat(entry.sideEffect()).isEqualTo(descriptor.trace().sideEffect());
         assertThat(entry.collaboratorRoles()).isEqualTo(descriptor.trace().collaboratorRoles());
         assertThat(ExecutionProfileExportMcpTool.operationExposure().actions())
-                .containsExactly(entry.action());
+                .containsExactly(descriptor.action());
     }
 
     @Test

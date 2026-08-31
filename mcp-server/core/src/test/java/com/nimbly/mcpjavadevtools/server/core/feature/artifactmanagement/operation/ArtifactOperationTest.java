@@ -8,9 +8,9 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

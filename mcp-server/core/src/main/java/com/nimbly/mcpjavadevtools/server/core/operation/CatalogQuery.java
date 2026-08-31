@@ -2,6 +2,8 @@ package com.nimbly.mcpjavadevtools.server.core.operation;
 
 import java.util.Locale;
 import java.util.Objects;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationDirectoryException;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 
 /** Bounded aggregate catalog query with stable filtering and pagination state. */
 public record CatalogQuery(

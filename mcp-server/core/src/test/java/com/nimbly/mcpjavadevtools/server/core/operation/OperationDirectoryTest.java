@@ -14,6 +14,23 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationExecutor;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationCatalogEntry;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationArgumentDocumentation;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationAlias;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDocumentation;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestAssembler;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 
 class OperationDirectoryTest {
 

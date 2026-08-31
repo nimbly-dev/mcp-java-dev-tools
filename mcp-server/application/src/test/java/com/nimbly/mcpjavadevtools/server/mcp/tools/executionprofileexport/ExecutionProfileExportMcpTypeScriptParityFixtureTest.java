@@ -15,7 +15,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.Exe
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExportExecutionProfileOperation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
 import java.io.IOException;
 import java.io.InputStream;

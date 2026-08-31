@@ -15,7 +15,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.helper.JvmLif
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.JvmLifecycleExecutionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.ProbeHostPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.jvmlifecycle.JvmLifecycleMcpRequestMapper;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.jvmlifecycle.JvmLifecycleMcpResponseMapper;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.jvmlifecycle.JvmLifecycleMcpTool;

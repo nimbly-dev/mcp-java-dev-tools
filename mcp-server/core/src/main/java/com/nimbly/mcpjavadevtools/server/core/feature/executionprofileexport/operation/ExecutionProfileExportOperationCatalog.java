@@ -3,11 +3,11 @@ package com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.op
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
-import com.nimbly.mcpjavadevtools.server.core.operation.Operation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceEntry;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
 import java.util.List;
 import java.util.Objects;
 

@@ -6,6 +6,12 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 
 class OperationCatalogTest {
 

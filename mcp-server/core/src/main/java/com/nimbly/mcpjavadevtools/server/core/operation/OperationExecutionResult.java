@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 
 /** Deterministic, redaction-safe aggregate execution envelope. */
 public record OperationExecutionResult(

@@ -77,7 +77,29 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import com.nimbly.mcpjavadevtools.server.core.operation.TransportExecutionOperationRegistrations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.operation.ArtifactOperationArguments;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.operation.ProbeOperationArguments;
+import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.operation.TransportExecuteArguments;
+import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.operation.TransportExecutionOperationRegistrations;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
+import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectoryOwners;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationAlias;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationArgumentDocumentation;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDocumentation;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifest;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaRules;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 
 /** Acceptance coverage for the production 610 operation aggregate. */
 class CoreOperationDirectoryTest {

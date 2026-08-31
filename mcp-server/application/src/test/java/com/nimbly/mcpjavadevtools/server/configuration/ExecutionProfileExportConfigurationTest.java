@@ -12,9 +12,9 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.mod
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExportExecutionProfileOperation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceEntry;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.executionprofileexport.ExecutionProfileExportMcpRequest;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.executionprofileexport.ExecutionProfileExportMcpRequestMapper;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.executionprofileexport.ExecutionProfileExportMcpResponseMapper;
@@ -62,7 +62,8 @@ class ExecutionProfileExportConfigurationTest {
             assertThat(registration.name()).isEqualTo(exposure.toolName()).isEqualTo(descriptor.toolName());
             assertThat(exposure.actions()).containsExactly(descriptor.action());
             assertThat(trace.toolName()).isEqualTo(registration.name());
-            assertThat(trace.action()).isEqualTo(descriptor.action());
+            assertThat(trace.action()).isEmpty();
+            assertThat(trace.actionless()).isTrue();
             assertThat(trace.requestType()).isEqualTo(descriptor.requestType());
             assertThat(trace.resultType()).isEqualTo(descriptor.resultType());
             assertThat(trace.mcpAdapter()).isEqualTo(ExecutionProfileExportMcpTool.class.getName());

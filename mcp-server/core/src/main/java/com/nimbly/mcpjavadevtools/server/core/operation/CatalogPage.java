@@ -2,6 +2,7 @@ package com.nimbly.mcpjavadevtools.server.core.operation;
 
 import java.util.List;
 import java.util.Objects;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationCatalogEntry;
 
 /** Immutable, bounded aggregate catalog page. */
 public record CatalogPage(

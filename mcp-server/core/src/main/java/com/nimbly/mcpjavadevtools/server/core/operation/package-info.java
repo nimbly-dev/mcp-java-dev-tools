@@ -1,9 +1,8 @@
 /**
- * Capability-neutral Catalog-Describe-Execute primitives for the Java MCP
- * Core.
+ * Intentional public boundary for the Java MCP Core Operation Directory.
  *
- * <p>This package owns immutable operation metadata, exact catalog resolution,
- * Application exposure contracts, and deterministic Tool-to-Operation trace
- * generation. It contains no Spring, MCP SDK, I/O, or capability behavior.</p>
+ * <p>The root package contains only the directory request, response, and
+ * identity types. Catalog, binding, composition, execution, manifest, schema,
+ * safety, and trace behavior live in their purpose-owned subpackages.</p>
  */
 package com.nimbly.mcpjavadevtools.server.core.operation;

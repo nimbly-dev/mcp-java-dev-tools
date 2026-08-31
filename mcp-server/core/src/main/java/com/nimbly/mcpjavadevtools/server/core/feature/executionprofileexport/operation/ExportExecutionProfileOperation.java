@@ -8,10 +8,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.r
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
-import com.nimbly.mcpjavadevtools.server.core.operation.Operation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationLegacyIdentity;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.util.Map;
 import java.util.Objects;
 

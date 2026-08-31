@@ -3,10 +3,10 @@ package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operat
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
-import com.nimbly.mcpjavadevtools.server.core.operation.Operation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationLegacyIdentity;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationTraceMetadata;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;

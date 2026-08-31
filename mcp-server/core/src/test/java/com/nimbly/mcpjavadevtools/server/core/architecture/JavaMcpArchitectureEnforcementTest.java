@@ -58,6 +58,14 @@ class JavaMcpArchitectureEnforcementTest {
     }
 
     @Test
+    void everyRelocatedOperationSourceIsCoveredByAstEnforcement() throws IOException {
+        Set<Path> enforced = Set.copyOf(enforcedProductionFiles());
+        assertThat(enforced)
+                .as("all MCPJVM-613 relocated operation sources must be AST-enforced")
+                .containsAll(relocatedOperationFiles(repositoryRoot()));
+    }
+
+    @Test
     void requiresTheTrackedJavaMcpContractAmendment() throws IOException {
         Path contract = repositoryRoot().resolve(
                 "docs/architecture/java-mcp-catalog-describe-execute-contract.md");
@@ -152,6 +160,7 @@ class JavaMcpArchitectureEnforcementTest {
         List<Path> files = new ArrayList<>();
         addJavaFiles(files, root.resolve(
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/operation"));
+        files.addAll(relocatedOperationFiles(root));
         addJavaFiles(files, root.resolve(
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
                         + "artifactmanagement/operation"));
@@ -178,7 +187,39 @@ class JavaMcpArchitectureEnforcementTest {
         addJavaFiles(files, root.resolve(
                 "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
                         + "executionprofileexport/ExecutionProfileExportMcpTool.java"));
-        return files.stream().sorted().toList();
+        return files.stream().distinct().sorted().toList();
+    }
+
+    private List<Path> relocatedOperationFiles(Path root) throws IOException {
+        String[] packagePaths = {
+            "feature/artifactmanagement/model/operation",
+            "feature/artifactmanagement/operation",
+            "feature/executionorchestration/model/operation",
+            "feature/executionorchestration/operation",
+            "feature/executionprofileexport/model/operation",
+            "feature/executionprofileexport/operation",
+            "feature/failureanalysis/model/operation",
+            "feature/failureanalysis/operation",
+            "feature/jvmlifecycle/operation",
+            "feature/probe/model/operation",
+            "feature/probe/operation",
+            "feature/routesynthesis/operation",
+            "feature/suite/regression/model/operation",
+            "feature/suite/regression/operation",
+            "feature/suite/performance/model/operation",
+            "feature/suite/performance/operation",
+            "feature/suite/security/model/operation",
+            "feature/suite/security/operation",
+            "feature/transportexecution/model/operation",
+            "feature/transportexecution/operation"
+        };
+        List<Path> files = new ArrayList<>();
+        Path sourceRoot = root.resolve(
+                "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core");
+        for (String packagePath : packagePaths) {
+            addJavaFiles(files, sourceRoot.resolve(packagePath));
+        }
+        return files;
     }
 
     private static void addArtifactExportMigrationFiles(List<Path> files, Path root) throws IOException {

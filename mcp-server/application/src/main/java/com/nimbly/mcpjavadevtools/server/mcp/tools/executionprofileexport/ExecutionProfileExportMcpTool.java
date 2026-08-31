@@ -6,7 +6,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.Exe
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationExposure;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryException;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryExecutor;
 import com.nimbly.mcpjavadevtools.server.mcp.error.McpBoundaryFailureKind;

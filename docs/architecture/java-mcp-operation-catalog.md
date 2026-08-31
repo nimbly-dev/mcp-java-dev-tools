@@ -26,14 +26,55 @@ descriptors whose executable owner does not match the concrete operation. A
 null or unregistered action fails closed with the deterministic
 `unsupported operation` message.
 
-The shared contract lives in
+The public directory contract remains at
 `mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/operation`.
-`OperationDescriptor` is immutable metadata only: it contains Tool/action
+Its implementation is split into purpose-owned packages beneath that boundary:
+`binding`, `catalog`, `composition`, `execution`, `manifest`, `manifest/xml`,
+`schema`, `safety`, and `trace`. `OperationDescriptor` is immutable metadata
+only: it contains Tool/action
 identity, typed request/result ownership, concrete executor identity, and
 `OperationTraceMetadata`. It contains no executable lambda, I/O, Spring type, or
 hidden behavior. `OperationTraceInventory` derives deterministic rows directly
 from the validated catalog, including its capability dispatch owner; it does not
 perform runtime reflection or classpath scanning.
+
+### MCPJVM-613 package disposition
+
+The relocation is package-only. The resolved member-level guard in
+`OperationRelocationApiCompatibilityTest` compares this disposition with the
+`c420060` baseline; the Suite argument row is the one approved one-to-three
+ownership split.
+
+| Before package | After package | Types |
+| --- | --- | --- |
+| `...server.core.operation` | `...server.core.operation` | `CatalogPage`, `CatalogQuery`, `OperationDirectory`, `OperationExecutionResult`, `OperationId`, `OperationInvocation` |
+| `...server.core.operation` | `...server.core.operation.catalog` | `Operation`, `OperationCatalog`, `OperationCatalogEntry`, `OperationCatalogPageBuilder`, `OperationCursor`, `OperationExposure` |
+| `...server.core.operation` | `...server.core.operation.binding` | `OperationExecutor`, `OperationRegistration`, `OperationRegistrationBinding`, `OperationRegistrationContract`, `OperationRequestDecoder`, `OperationResultEncoder` |
+| `...server.core.operation` | `...server.core.operation.composition` | `CoreOperationDirectory`, `CoreOperationDirectoryOwners` |
+| `...server.core.operation` | `...server.core.operation.execution` | `OperationDirectoryException`, `OperationExecutionException`, `OperationExecutionStatus`, `OperationInvocationExecution` |
+| `...server.core.operation` | `...server.core.operation.manifest` | `OperationAlias`, `OperationArgumentDocumentation`, `OperationDescriptor`, `OperationDescriptorMetadata`, `OperationDocumentation`, `OperationManifest`, `OperationManifestAssembler`, `OperationManifestDocument`, `OperationManifestLoader` |
+| `...server.core.operation` | `...server.core.operation.manifest.xml` | `OperationManifestXmlReader`, `OperationManifestXmlStructureValidator` |
+| `...server.core.operation` | `...server.core.operation.schema` | `CanonicalOperationSchema`, `CoreOperationResultFields`, `CoreOperationResultSchemas`, `OperationSchema`, `OperationSchemaRules`, `OperationSchemaValidator` |
+| `...server.core.operation` | `...server.core.operation.safety` | `CoreOperationSafetyPolicy`, `OperationSafetyPolicy`, `OperationValueRedactor` |
+| `...server.core.operation` | `...server.core.operation.trace` | `OperationLegacyIdentity`, `OperationTraceEntry`, `OperationTraceInventory`, `OperationTraceMetadata` |
+| `...server.core.operation` | `...server.core.feature.artifactmanagement.model.operation` | `ArtifactOperationArguments` |
+| `...server.core.operation` | `...server.core.feature.artifactmanagement.operation` | `ArtifactOperationRegistrations` |
+| `...server.core.operation` | `...server.core.feature.executionorchestration.model.operation` | `ExecutionOrchestrationArguments` |
+| `...server.core.operation` | `...server.core.feature.executionorchestration.operation` | `ExecutionOrchestrationOperationRegistrations` |
+| `...server.core.operation` | `...server.core.feature.executionprofileexport.model.operation` | `ExecutionProfileExportArguments` |
+| `...server.core.operation` | `...server.core.feature.executionprofileexport.operation` | `ExecutionProfileExportOperationRegistrations` |
+| `...server.core.operation` | `...server.core.feature.failureanalysis.model.operation` | `FailureAnalyzeArguments`, `FailureExpectedFingerprintArguments`, `FailureInvestigationArguments`, `FailureLineHitArguments`, `FailureTerminalArguments`, `FailureVerifyArguments` |
+| `...server.core.operation` | `...server.core.feature.failureanalysis.operation` | `FailureAnalysisOperationRegistrations` |
+| `...server.core.operation` | `...server.core.feature.jvmlifecycle.operation` | `JvmLifecycleOperationRegistrations` |
+| `...server.core.operation` | `...server.core.feature.probe.model.operation` | `ProbeHttpArguments`, `ProbeOperationArguments` |
+| `...server.core.operation` | `...server.core.feature.probe.operation` | `ProbeOperationRegistrations`, `ProbeOperationSchemas` |
+| `...server.core.operation` | `...server.core.feature.routesynthesis.operation` | `RouteSynthesisOperationRegistrations` |
+| `...server.core.operation` | `...server.core.feature.transportexecution.model.operation` | `TransportExecuteArguments`, `TransportExecuteOptionsArguments` |
+| `...server.core.operation` | `...server.core.feature.transportexecution.operation` | `TransportExecutionOperationRegistrations` |
+| `...server.core.operation` | `...server.core.feature.suite.{regression,performance,security}.model.operation` | `SuiteOperationArguments` → `RegressionSuiteOperationArguments`, `PerformanceSuiteOperationArguments`, `SecuritySuiteOperationArguments` |
+| `...server.core.operation` | `...server.core.feature.suite.regression.operation` | `RegressionSuiteOperationRegistrations` |
+| `...server.core.operation` | `...server.core.feature.suite.performance.operation` | `PerformanceSuiteOperationRegistrations` |
+| `...server.core.operation` | `...server.core.feature.suite.security.operation` | `SecuritySuiteOperationRegistrations` |
 
 ## Reference capability
 
