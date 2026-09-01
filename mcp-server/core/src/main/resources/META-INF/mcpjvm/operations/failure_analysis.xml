@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tool name="failure_analysis" formatVersion="2">
+  <action classification="diagnostic" name="analyze_trace">
+    <summary>Analyze a Java failure trace.</summary>
+    <description>Analyzes a bounded failure trace and returns sanitized diagnostic evidence.</description>
+    <tags>
+      <tag>failure_analysis</tag>
+      <tag>diagnostic</tag>
+    </tags>
+    <aliases>
+      <alias tool="failure_analysis" action="analyze_trace" />
+    </aliases>
+    <arguments>
+      <argument name="trace" description="Pasted Java failure trace." type="string" required="true" />
+      <argument name="sidecarBaseUrl" description="Sidecar base URL." type="string" required="true" />
+      <argument name="sidecarAuthorization" description="Sidecar authorization." type="string" required="false" />
+      <argument name="investigation" description="Investigation limits." type="object" required="false" />
+      <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
+    </arguments>
+    <examples>
+      <example>{"trace":"java.lang.IllegalStateException: example","sidecarBaseUrl":"http://127.0.0.1:9191"}</example>
+    </examples>
+    <safety sideEffect="evidence_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="diagnostic" name="verify_reproduction">
+    <summary>Verify a Java failure reproduction.</summary>
+    <description>Verifies bounded reproduction evidence for a diagnosed Java failure.</description>
+    <tags>
+      <tag>failure_analysis</tag>
+      <tag>diagnostic</tag>
+    </tags>
+    <aliases>
+      <alias tool="failure_analysis" action="verify_reproduction" />
+    </aliases>
+    <arguments>
+      <argument name="captureId" description="Capture identifier." type="string" required="false" />
+      <argument name="sidecarBaseUrl" description="Sidecar base URL." type="string" required="false" />
+      <argument name="sidecarAuthorization" description="Sidecar authorization." type="string" required="false" />
+      <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
+      <argument name="expectedFingerprint" description="Expected failure fingerprint." type="object" required="false" />
+      <argument name="lineHit" description="Expected strict line hit." type="object" required="false" />
+      <argument name="terminalState" description="Terminal verification state." type="object" required="false" />
+      <argument name="investigation" description="Investigation limits." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"captureId":"capture-1","expectedFingerprint":{"exceptionType":"java.lang.IllegalStateException","rootCauseType":"java.lang.IllegalStateException","nearestApplicationMethodKey":"com.example.Sample#run:1"},"lineHit":{"strictLineKey":"com.example.Sample#run:1","hitCount":1},"sidecarBaseUrl":"http://127.0.0.1:9191"}</example>
+    </examples>
+    <safety sideEffect="evidence_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+</tool>

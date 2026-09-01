@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tool name="execution_profile_export" formatVersion="2">
+  <action classification="artifact" name="export">
+    <summary>Export a deterministic execution profile.</summary>
+    <description>Creates a replayable execution-profile export through the Artifact boundary.</description>
+    <tags>
+      <tag>execution_profile</tag>
+      <tag>export</tag>
+    </tags>
+    <aliases>
+      <alias tool="execution_profile_export" actionless="true" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="exportId" description="Export identifier." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="when" description="Export time hint." type="string" required="false" />
+      <argument name="mode" description="Export mode." type="string" required="false" />
+      <argument name="type" description="Export mode alias." type="string" required="false" />
+      <argument name="includeResolvedSecrets" description="Whether to include resolved secrets." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="includeRuntimeStartup" description="Whether to include runtime startup." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="includeHealthcheckGate" description="Whether to include the healthcheck gate." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="contextBindings" description="Context to environment bindings." type="object" required="false" />
+      <argument name="contextValues" description="Direct context values." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_export" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+</tool>

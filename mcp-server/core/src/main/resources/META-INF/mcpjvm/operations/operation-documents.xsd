@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="versionType">
+    <xs:restriction base="xs:positiveInteger">
+      <xs:enumeration value="2"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="identifierType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z0-9][a-z0-9_-]*"/>
+      <xs:maxLength value="128"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="fieldNameType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[A-Za-z][A-Za-z0-9_-]*"/>
+      <xs:maxLength value="128"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="operation-manifest">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="resource" minOccurs="1" maxOccurs="32">
+          <xs:complexType>
+            <xs:attribute name="name" use="required">
+              <xs:simpleType>
+                <xs:restriction base="xs:string">
+                  <xs:pattern value="[a-z0-9][a-z0-9_-]*\.xml"/>
+                  <xs:maxLength value="128"/>
+                </xs:restriction>
+              </xs:simpleType>
+            </xs:attribute>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="formatVersion" type="versionType" use="required"/>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="tool">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="action" type="actionType" minOccurs="1" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="name" type="identifierType" use="required"/>
+      <xs:attribute name="formatVersion" type="versionType" use="required"/>
+    </xs:complexType>
+  </xs:element>
+  <xs:complexType name="actionType">
+    <xs:sequence>
+      <xs:element name="summary" type="xs:string" minOccurs="1"/>
+      <xs:element name="description" type="xs:string" minOccurs="1"/>
+      <xs:element name="tags" type="tagsType" minOccurs="0"/>
+      <xs:element name="aliases" type="aliasesType" minOccurs="0"/>
+      <xs:element name="arguments" type="argumentsType" minOccurs="0"/>
+      <xs:element name="examples" type="examplesType" minOccurs="0"/>
+      <xs:element name="compatibility" type="compatibilityType" minOccurs="0"/>
+      <xs:element name="safety" type="safetyType" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="identifierType" use="required"/>
+    <xs:attribute name="subject" type="identifierType" use="optional"/>
+    <xs:attribute name="classification" type="identifierType" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="tagsType">
+    <xs:sequence>
+      <xs:element name="tag" type="xs:string" minOccurs="1" maxOccurs="16"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="aliasesType">
+    <xs:sequence>
+      <xs:element name="alias" type="aliasType" minOccurs="1" maxOccurs="16"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="aliasType">
+    <xs:attribute name="tool" type="identifierType" use="required"/>
+    <xs:attribute name="action" type="xs:string" use="optional"/>
+    <xs:attribute name="actionless" type="xs:boolean" use="optional"/>
+  </xs:complexType>
+  <xs:complexType name="argumentsType">
+    <xs:sequence>
+      <xs:element name="argument" type="argumentType" minOccurs="0" maxOccurs="128"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="argumentType">
+    <xs:sequence>
+      <xs:element name="default" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="fieldNameType" use="required"/>
+    <xs:attribute name="description" type="xs:string" use="required"/>
+    <xs:attribute name="type" type="xs:string" use="required"/>
+    <xs:attribute name="required" type="xs:boolean" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="examplesType">
+    <xs:sequence>
+      <xs:element name="example" type="xs:string" minOccurs="1" maxOccurs="16"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="compatibilityType">
+    <xs:attribute name="since" type="xs:string" use="optional"/>
+    <xs:attribute name="replacement" type="xs:string" use="optional"/>
+    <xs:attribute name="deprecated" type="xs:boolean" use="optional"/>
+  </xs:complexType>
+  <xs:complexType name="safetyType">
+    <xs:attribute name="sideEffect" type="xs:string" use="required"/>
+    <xs:attribute name="confirmationRequired" type="xs:boolean" use="required"/>
+    <xs:attribute name="credentialPolicy" type="xs:string" use="required"/>
+    <xs:attribute name="redactionPolicy" type="xs:string" use="required"/>
+    <xs:attribute name="timeoutMs" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="cancellable" type="xs:boolean" use="required"/>
+    <xs:attribute name="maxInputBytes" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="maxOutputBytes" type="xs:positiveInteger" use="required"/>
+  </xs:complexType>
+</xs:schema>

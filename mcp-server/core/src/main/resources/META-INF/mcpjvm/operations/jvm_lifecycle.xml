@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tool name="jvm_lifecycle" formatVersion="2">
+  <action classification="runtime" name="list_jvms">
+    <summary>List discoverable local JVMs.</summary>
+    <description>Returns bounded local JVM candidates without attaching to a process.</description>
+    <tags>
+      <tag>jvm_lifecycle</tag>
+      <tag>runtime</tag>
+    </tags>
+    <aliases>
+      <alias tool="jvm_lifecycle" action="list_jvms" />
+    </aliases>
+    <arguments />
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="jvm_process_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="runtime" name="attach">
+    <summary>Attach the repository Sidecar Agent to a JVM.</summary>
+    <description>Performs the explicit local JVM lifecycle attach operation.</description>
+    <tags>
+      <tag>jvm_lifecycle</tag>
+      <tag>sidecar</tag>
+    </tags>
+    <aliases>
+      <alias tool="jvm_lifecycle" action="attach" />
+    </aliases>
+    <arguments>
+      <argument name="pid" description="Target JVM process identifier." type="string" required="true" />
+      <argument name="expectedProcessStartEpochMs" description="Expected JVM start time." type="integer" required="true" />
+      <argument name="confirm" description="Confirmation flag." type="boolean" required="true" />
+      <argument name="probeHost" description="Probe host override." type="string" required="false">
+        <default>"127.0.0.1"</default>
+      </argument>
+      <argument name="probePort" description="Probe port override." type="integer" required="false">
+        <default>9191</default>
+      </argument>
+      <argument name="include" description="Probe include selector." type="string" required="false" />
+      <argument name="exclude" description="Probe exclude selector." type="string" required="false" />
+    </arguments>
+    <examples>
+      <example>{"pid":"1234","expectedProcessStartEpochMs":1,"confirm":true}</example>
+    </examples>
+    <safety sideEffect="sidecar_agent_attach" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="runtime" name="deactivate">
+    <summary>Deactivate the repository Sidecar Agent from a JVM.</summary>
+    <description>Performs the explicit local JVM lifecycle deactivation operation.</description>
+    <tags>
+      <tag>jvm_lifecycle</tag>
+      <tag>sidecar</tag>
+    </tags>
+    <aliases>
+      <alias tool="jvm_lifecycle" action="deactivate" />
+    </aliases>
+    <arguments>
+      <argument name="pid" description="Target JVM process identifier." type="string" required="true" />
+      <argument name="expectedProcessStartEpochMs" description="Expected JVM start time." type="integer" required="true" />
+      <argument name="confirm" description="Confirmation flag." type="boolean" required="true" />
+    </arguments>
+    <examples>
+      <example>{"pid":"1234","expectedProcessStartEpochMs":1,"confirm":true}</example>
+    </examples>
+    <safety sideEffect="sidecar_agent_deactivate" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+</tool>

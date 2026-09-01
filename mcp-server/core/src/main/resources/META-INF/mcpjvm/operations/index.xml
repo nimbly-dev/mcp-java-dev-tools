@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<operation-manifest formatVersion="2">
+  <resource name="artifact_management.xml"/>
+  <resource name="execution_orchestration.xml"/>
+  <resource name="execution_profile_export.xml"/>
+  <resource name="failure_analysis.xml"/>
+  <resource name="jvm_lifecycle.xml"/>
+  <resource name="performance_suite.xml"/>
+  <resource name="probe.xml"/>
+  <resource name="regression_suite.xml"/>
+  <resource name="route_synthesis.xml"/>
+  <resource name="security_suite.xml"/>
+  <resource name="transport_execute.xml"/>
+</operation-manifest>

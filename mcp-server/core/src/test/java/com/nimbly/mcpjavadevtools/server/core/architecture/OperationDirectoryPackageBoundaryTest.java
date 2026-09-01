@@ -72,7 +72,8 @@ class OperationDirectoryPackageBoundaryTest {
                     "OperationManifestAssembler.java", "OperationManifestDocument.java",
                     "OperationManifestLoader.java")),
             Map.entry("operation/manifest/xml", List.of(
-                    "OperationManifestXmlReader.java", "OperationManifestXmlStructureValidator.java")),
+                    "OperationManifestXmlReader.java", "OperationManifestXmlSecurity.java",
+                    "OperationManifestXmlStructureValidator.java")),
             Map.entry("operation/schema", List.of(
                     "CanonicalOperationSchema.java", "OperationSchema.java", "OperationSchemaRules.java",
                     "OperationSchemaValidator.java", "CoreOperationResultFields.java",

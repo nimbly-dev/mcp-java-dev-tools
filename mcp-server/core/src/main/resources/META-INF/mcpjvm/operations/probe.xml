@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tool name="probe" formatVersion="2">
+  <action classification="runtime" name="actuate">
+    <summary>Actuate a registered JVM Probe.</summary>
+    <description>Executes the bounded Probe endpoint write operation.</description>
+    <tags>
+      <tag>probe</tag>
+      <tag>runtime</tag>
+    </tags>
+    <aliases>
+      <alias tool="probe" action="actuate" />
+    </aliases>
+    <arguments>
+      <argument name="baseUrl" description="Probe base URL." type="string" required="false" />
+      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
+      <argument name="action" description="Action value." type="string" required="true" />
+      <argument name="sessionId" description="Session identifier." type="string" required="true" />
+      <argument name="actuatorId" description="Actuator identifier." type="string" required="false" />
+      <argument name="targetKey" description="Strict target key." type="string" required="false" />
+      <argument name="returnBoolean" description="Actuation return value." type="boolean" required="false" />
+      <argument name="ttlMs" description="Actuation TTL." type="integer" required="false" />
+      <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
+    </arguments>
+    <examples>
+      <example>{"action":"arm","sessionId":"session-1"}</example>
+    </examples>
+    <safety sideEffect="probe_endpoint_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="runtime" name="capture">
+    <summary>Capture a registered JVM Probe result.</summary>
+    <description>Reads bounded captured Probe evidence.</description>
+    <tags>
+      <tag>probe</tag>
+      <tag>runtime</tag>
+    </tags>
+    <aliases>
+      <alias tool="probe" action="capture" />
+    </aliases>
+    <arguments>
+      <argument name="captureId" description="Capture identifier." type="string" required="true" />
+      <argument name="baseUrl" description="Probe base URL." type="string" required="false" />
+      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
+      <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
+    </arguments>
+    <examples>
+      <example>{"captureId":"capture-1"}</example>
+    </examples>
+    <safety sideEffect="probe_capture_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="runtime" name="check">
+    <summary>Check a registered JVM Probe endpoint.</summary>
+    <description>Performs a bounded Probe endpoint read operation.</description>
+    <tags>
+      <tag>probe</tag>
+      <tag>runtime</tag>
+    </tags>
+    <aliases>
+      <alias tool="probe" action="check" />
+    </aliases>
+    <arguments>
+      <argument name="baseUrl" description="Probe base URL." type="string" required="false" />
+      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
+      <argument name="http" description="HTTP transport options." type="object" required="false" />
+      <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="probe_endpoint_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="runtime" name="profiler">
+    <summary>Collect a registered JVM Probe profile.</summary>
+    <description>Writes bounded profiler evidence through the Probe runtime.</description>
+    <tags>
+      <tag>probe</tag>
+      <tag>profiler</tag>
+    </tags>
+    <aliases>
+      <alias tool="probe" action="profiler" />
+    </aliases>
+    <arguments>
+      <argument name="action" description="Action value." type="string" required="true" />
+      <argument name="sessionId" description="Session identifier." type="string" required="false" />
+      <argument name="provider" description="Profiler provider." type="string" required="false" />
+      <argument name="event" description="Profiler event." type="string" required="false" />
+      <argument name="intervalNanos" description="Profiler interval." type="integer" required="false" />
+      <argument name="outputPath" description="Profiler output path." type="string" required="false" />
+      <argument name="outputFormat" description="Profiler output format." type="string" required="false" />
+      <argument name="baseUrl" description="Probe base URL." type="string" required="false" />
+      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
+      <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
+    </arguments>
+    <examples>
+      <example>{"action":"start"}</example>
+    </examples>
+    <safety sideEffect="probe_artifact_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="runtime" name="reset">
+    <summary>Reset a registered JVM Probe.</summary>
+    <description>Executes the bounded Probe endpoint reset operation.</description>
+    <tags>
+      <tag>probe</tag>
+      <tag>runtime</tag>
+    </tags>
+    <aliases>
+      <alias tool="probe" action="reset" />
+    </aliases>
+    <arguments>
+      <argument name="key" description="Strict Probe key." type="string" required="false" />
+      <argument name="keys" description="Strict Probe keys." type="array" required="false" />
+      <argument name="lineHint" description="Source line hint." type="integer" required="false" />
+      <argument name="className" description="Class selector." type="string" required="false" />
+      <argument name="baseUrl" description="Probe base URL." type="string" required="false" />
+      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
+      <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="probe_endpoint_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="runtime" name="status">
+    <summary>Read registered JVM Probe status.</summary>
+    <description>Returns bounded status evidence for registered Probe endpoints.</description>
+    <tags>
+      <tag>probe</tag>
+      <tag>runtime</tag>
+    </tags>
+    <aliases>
+      <alias tool="probe" action="status" />
+    </aliases>
+    <arguments>
+      <argument name="key" description="Strict Probe key." type="string" required="false" />
+      <argument name="keys" description="Strict Probe keys." type="array" required="false" />
+      <argument name="lineHint" description="Source line hint." type="integer" required="false" />
+      <argument name="baseUrl" description="Probe base URL." type="string" required="false" />
+      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
+      <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="probe_endpoint_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="runtime" name="wait_for_hit">
+    <summary>Wait for a registered JVM Probe hit.</summary>
+    <description>Polls a bounded Probe hit condition with cancellation support.</description>
+    <tags>
+      <tag>probe</tag>
+      <tag>runtime</tag>
+    </tags>
+    <aliases>
+      <alias tool="probe" action="wait_for_hit" />
+    </aliases>
+    <arguments>
+      <argument name="key" description="Strict Probe key." type="string" required="true" />
+      <argument name="lineHint" description="Source line hint." type="integer" required="false" />
+      <argument name="baseUrl" description="Probe base URL." type="string" required="false" />
+      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
+      <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
+      <argument name="pollIntervalMs" description="Probe polling interval." type="integer" required="false" />
+      <argument name="maxRetries" description="Maximum polling retries." type="integer" required="false" />
+    </arguments>
+    <examples>
+      <example>{"key":"com.example.Sample#run:1"}</example>
+    </examples>
+    <safety sideEffect="probe_endpoint_poll" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+</tool>

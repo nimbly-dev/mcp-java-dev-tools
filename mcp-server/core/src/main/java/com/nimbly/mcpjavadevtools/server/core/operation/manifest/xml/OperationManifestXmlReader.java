@@ -1,42 +1,47 @@
 package com.nimbly.mcpjavadevtools.server.core.operation.manifest.xml;
 
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationAlias;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationArgumentDocumentation;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDocumentation;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.validation.Schema;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.xml.sax.SAXException;
 
-/** Package-owned DOM-to-model reader for the operation manifest format. */
+/** Package-owned reader for legacy and capability-owned operation documents. */
 public final class OperationManifestXmlReader {
 
     private static final ObjectMapper JSON = new ObjectMapper();
+
     private OperationManifestXmlReader() {
     }
 
+    /** Reads one legacy manifest or one capability-owned Tool/action document. */
     public static OperationManifestDocument read(Document document) {
         Element root = document.getDocumentElement();
+        if (root != null && "tool".equals(root.getTagName())) {
+            OperationManifestXmlStructureValidator.validateBounds(document, 0);
+            OperationManifestXmlSchemaValidator.validate(document);
+            return new OperationManifestDocument(1, readCapability(root));
+        }
         if (root == null || !"operations".equals(root.getTagName())) {
             throw new IllegalArgumentException("operation manifest root must be operations");
         }
         OperationManifestXmlStructureValidator.validate(document);
-        for (int index = 0; index < root.getAttributes().getLength(); index++) {
-            if (!"manifestVersion".equals(root.getAttributes().item(index).getNodeName())) {
-                throw new IllegalArgumentException("operation manifest contains an unsupported root attribute");
-            }
-        }
         int version;
         try {
             version = Integer.parseInt(attribute(root, "manifestVersion", true));
@@ -45,31 +50,39 @@ public final class OperationManifestXmlReader {
         }
         Map<OperationId, OperationDocumentation> operations = new LinkedHashMap<>();
         for (Element operation : children(root, "operation")) {
-            for (int index = 0; index < operation.getAttributes().getLength(); index++) {
-                if (!Set.of("id", "summary", "description", "classification", "since",
-                        "replacement", "deprecated").contains(
-                                operation.getAttributes().item(index).getNodeName())) {
-                    throw new IllegalArgumentException("operation documentation contains an unsupported attribute");
-                }
-            }
             OperationId id = OperationId.of(attribute(operation, "id", true));
-            if (operations.put(id, readOperation(operation)) != null) {
+            if (operations.put(id, readOperation(operation, false)) != null) {
                 throw new IllegalArgumentException("duplicate operation documentation: " + id.value());
             }
         }
-        if (children(root, null).size() != children(root, "operation").size()) {
+        if (children(root, null).size() != operations.size()) {
             throw new IllegalArgumentException("operation manifest contains an unsupported root element");
         }
         return new OperationManifestDocument(version, operations);
     }
 
-    static OperationDocumentation readOperation(Element element) {
-        for (Element child : children(element, null)) {
-            if (!Set.of("summary", "description", "arguments", "examples", "tags", "aliases",
-                    "safety", "compatibility").contains(child.getTagName())) {
-                throw new IllegalArgumentException("operation documentation contains an unsupported element");
+    static Map<OperationId, OperationDocumentation> readCapability(Element root) {
+        String toolName = attribute(root, "name", true);
+        if (!"2".equals(attribute(root, "formatVersion", true))) {
+            throw new IllegalArgumentException("unsupported operation capability version");
+        }
+        Map<OperationId, OperationDocumentation> operations = new LinkedHashMap<>();
+        for (Element action : children(root, "action")) {
+            String actionName = attribute(action, "name", true);
+            String subject = attribute(action, "subject", false);
+            if ("artifact_management".equals(toolName) != (subject != null)) {
+                throw new IllegalArgumentException("operation action subject identity is invalid");
+            }
+            OperationId id = OperationId.of(toolName + "."
+                    + (subject == null ? "" : subject + ".") + actionName);
+            if (operations.put(id, readOperation(action, true)) != null) {
+                throw new IllegalArgumentException("duplicate operation documentation: " + id.value());
             }
         }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(operations));
+    }
+
+    static OperationDocumentation readOperation(Element element, boolean schemaValidated) {
         String summary = attribute(element, "summary", false);
         String description = attribute(element, "description", false);
         String classification = attribute(element, "classification", false);
@@ -77,62 +90,55 @@ public final class OperationManifestXmlReader {
         description = description == null ? text(element, "description", true) : description;
         classification = classification == null ? text(element, "classification", true) : classification;
         Element compatibility = child(element, "compatibility", false);
-        String directSince = attribute(element, "since", false);
-        String directReplacement = attribute(element, "replacement", false);
-        String directDeprecated = attribute(element, "deprecated", false);
-        String since = directSince == null && compatibility != null
-                ? attribute(compatibility, "since", false) : directSince;
-        String replacement = directReplacement == null && compatibility != null
-                ? attribute(compatibility, "replacement", false) : directReplacement;
-        String deprecatedValue = directDeprecated == null && compatibility != null
-                ? attribute(compatibility, "deprecated", false) : directDeprecated;
+        String since = attribute(element, "since", false);
+        String replacement = attribute(element, "replacement", false);
+        String deprecatedValue = attribute(element, "deprecated", false);
+        if (compatibility != null) {
+            since = since == null ? attribute(compatibility, "since", false) : since;
+            replacement = replacement == null ? attribute(compatibility, "replacement", false) : replacement;
+            deprecatedValue = deprecatedValue == null
+                    ? attribute(compatibility, "deprecated", false) : deprecatedValue;
+        }
         boolean deprecated = false;
         if (deprecatedValue != null) {
-            if (!"true".equals(deprecatedValue) && !"false".equals(deprecatedValue)) {
+            if (!("true".equals(deprecatedValue) || "false".equals(deprecatedValue)
+                    || (schemaValidated && ("1".equals(deprecatedValue) || "0".equals(deprecatedValue))))) {
                 throw new IllegalArgumentException("manifest deprecated attribute is invalid");
             }
-            deprecated = Boolean.parseBoolean(deprecatedValue);
+            deprecated = "true".equals(deprecatedValue) || "1".equals(deprecatedValue);
         }
-        Element safety = child(element, "safety", false);
-        return new OperationDocumentation(
-                summary,
-                description,
-                classification,
-                readArguments(element),
-                readExamples(element),
-                readTags(element),
-                readAliases(element),
-                since == null ? "1" : since,
-                deprecated,
-                replacement,
-                readSafety(safety));
+        Element tags = child(element, "tags", false);
+        List<String> tagValues = new ArrayList<>();
+        if (tags != null) {
+            for (Element tag : children(tags, "tag")) {
+                tagValues.add(text(tag, null, true));
+            }
+        }
+        return new OperationDocumentation(summary, description, classification,
+                readArguments(element, schemaValidated), readExamples(element), tagValues,
+                readAliases(element, schemaValidated),
+                since == null ? "1" : since, deprecated, replacement,
+                readSafety(child(element, "safety", false), schemaValidated));
     }
 
-    static List<OperationArgumentDocumentation> readArguments(Element operation) {
+    static List<OperationArgumentDocumentation> readArguments(Element operation, boolean schemaValidated) {
         Element wrapper = child(operation, "arguments", false);
         if (wrapper == null) {
             return List.of();
         }
         List<OperationArgumentDocumentation> arguments = new ArrayList<>();
         for (Element element : children(wrapper, "argument")) {
-            JsonNode defaultValue = null;
             Element defaultElement = child(element, "default", false);
-            if (defaultElement != null) {
-                defaultValue = json(text(defaultElement, null, true));
-            }
+            JsonNode defaultValue = defaultElement == null ? null : json(text(defaultElement, null, true));
             String required = attribute(element, "required", true);
-            if (!"true".equals(required) && !"false".equals(required)) {
+            if (!("true".equals(required) || "false".equals(required)
+                    || (schemaValidated && ("1".equals(required) || "0".equals(required))))) {
                 throw new IllegalArgumentException("manifest argument boolean attribute is invalid");
             }
             arguments.add(new OperationArgumentDocumentation(
-                    attribute(element, "name", true),
-                    attribute(element, "description", true),
-                    attribute(element, "type", true),
-                    Boolean.parseBoolean(required),
+                    attribute(element, "name", true), attribute(element, "description", true),
+                    attribute(element, "type", true), "true".equals(required) || "1".equals(required),
                     defaultValue));
-        }
-        if (children(wrapper, null).size() != arguments.size()) {
-            throw new IllegalArgumentException("operation arguments contain an unsupported element");
         }
         return List.copyOf(arguments);
     }
@@ -146,28 +152,10 @@ public final class OperationManifestXmlReader {
         for (Element element : children(wrapper, "example")) {
             examples.add(json(text(element, null, true)));
         }
-        if (children(wrapper, null).size() != examples.size()) {
-            throw new IllegalArgumentException("operation examples are missing or unsupported");
-        }
         return List.copyOf(examples);
     }
 
-    static List<String> readTags(Element operation) {
-        Element wrapper = child(operation, "tags", false);
-        if (wrapper == null) {
-            return List.of();
-        }
-        List<String> tags = new ArrayList<>();
-        for (Element element : children(wrapper, "tag")) {
-            tags.add(text(element, null, true));
-        }
-        if (children(wrapper, null).size() != tags.size()) {
-            throw new IllegalArgumentException("operation tags contain an unsupported element");
-        }
-        return List.copyOf(tags);
-    }
-
-    static List<OperationAlias> readAliases(Element operation) {
+    static List<OperationAlias> readAliases(Element operation, boolean schemaValidated) {
         Element wrapper = child(operation, "aliases", false);
         if (wrapper == null) {
             return List.of();
@@ -175,38 +163,34 @@ public final class OperationManifestXmlReader {
         List<OperationAlias> aliases = new ArrayList<>();
         for (Element element : children(wrapper, "alias")) {
             String action = attribute(element, "action", false);
-            String actionlessValue = attribute(element, "actionless", false);
-            if (actionlessValue != null && !"true".equals(actionlessValue)
-                    && !"false".equals(actionlessValue)) {
+            String actionless = attribute(element, "actionless", false);
+            if (actionless != null && !("true".equals(actionless) || "false".equals(actionless)
+                    || (schemaValidated && ("1".equals(actionless) || "0".equals(actionless))))) {
                 throw new IllegalArgumentException("manifest boolean attribute is invalid");
             }
-            boolean actionless = actionlessValue != null && Boolean.parseBoolean(actionlessValue);
-            aliases.add(new OperationAlias(
-                    attribute(element, "tool", true), action == null ? "" : action, actionless));
-        }
-        if (children(wrapper, null).size() != aliases.size()) {
-            throw new IllegalArgumentException("operation aliases contain an unsupported element");
+            aliases.add(new OperationAlias(attribute(element, "tool", true), action == null ? "" : action,
+                    actionless != null && ("true".equals(actionless) || "1".equals(actionless))));
         }
         return List.copyOf(aliases);
     }
 
-    static OperationSafetyPolicy readSafety(Element element) {
+    static OperationSafetyPolicy readSafety(Element element, boolean schemaValidated) {
         if (element == null) {
             return null;
         }
         String confirmation = attribute(element, "confirmationRequired", true);
         String cancellable = attribute(element, "cancellable", true);
-        if (!("true".equals(confirmation) || "false".equals(confirmation))
-                || !("true".equals(cancellable) || "false".equals(cancellable))) {
+        if (!(("true".equals(confirmation) || "false".equals(confirmation)
+                || (schemaValidated && ("1".equals(confirmation) || "0".equals(confirmation))))
+                && ("true".equals(cancellable) || "false".equals(cancellable)
+                || (schemaValidated && ("1".equals(cancellable) || "0".equals(cancellable)))))) {
             throw new IllegalArgumentException("manifest safety boolean attribute is invalid");
         }
-        return new OperationSafetyPolicy(
-                attribute(element, "sideEffect", true),
-                Boolean.parseBoolean(confirmation),
-                attribute(element, "credentialPolicy", true),
-                attribute(element, "redactionPolicy", true),
+        return new OperationSafetyPolicy(attribute(element, "sideEffect", true),
+                "true".equals(confirmation) || "1".equals(confirmation),
+                attribute(element, "credentialPolicy", true), attribute(element, "redactionPolicy", true),
                 Long.parseLong(attribute(element, "timeoutMs", true)),
-                Boolean.parseBoolean(cancellable),
+                "true".equals(cancellable) || "1".equals(cancellable),
                 Integer.parseInt(attribute(element, "maxInputBytes", true)),
                 Integer.parseInt(attribute(element, "maxOutputBytes", true)));
     }
@@ -265,5 +249,36 @@ public final class OperationManifestXmlReader {
         } catch (IOException exception) {
             throw new IllegalArgumentException("manifest JSON value is invalid", exception);
         }
+    }
+
+}
+
+/** Validates public capability DOM reads against the fixed shared syntax contract. */
+final class OperationManifestXmlSchemaValidator {
+
+    private static final int MAX_SCHEMA_BYTES = 262_144;
+
+    private OperationManifestXmlSchemaValidator() {
+    }
+
+    static void validate(Document document) {
+        try (InputStream source = OperationManifestXmlReader.class.getClassLoader().getResourceAsStream(
+                "META-INF/mcpjvm/operations/operation-documents.xsd")) {
+            if (source == null) {
+                throw new IllegalArgumentException("operation capability schema is missing");
+            }
+            byte[] schemaBytes = source.readNBytes(MAX_SCHEMA_BYTES + 1);
+            if (schemaBytes.length > MAX_SCHEMA_BYTES) {
+                throw new IllegalArgumentException("operation capability schema exceeds its byte bound");
+            }
+            schema(schemaBytes)
+                    .newValidator().validate(new DOMSource(document));
+        } catch (IOException | SAXException exception) {
+            throw new IllegalArgumentException("operation capability XML is invalid", exception);
+        }
+    }
+
+    static Schema schema(byte[] source) throws SAXException {
+        return OperationManifestXmlSecurity.schema(source);
     }
 }

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tool name="regression_suite" formatVersion="2">
+  <action classification="suite" name="execute_plan">
+    <summary>Execute a regression-suite plan.</summary>
+    <description>Runs a bounded approved regression-suite plan.</description>
+    <tags>
+      <tag>regression_suite</tag>
+      <tag>suite</tag>
+    </tags>
+    <aliases>
+      <alias tool="regression_suite" action="execute_plan" />
+    </aliases>
+    <arguments>
+      <argument name="metadata" description="Plan metadata." type="object" required="true" />
+      <argument name="contract" description="Plan contract." type="object" required="true" />
+      <argument name="providedContext" description="Provided context." type="object" required="false" />
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runDirectory" description="Performance run directory." type="string" required="false" />
+      <argument name="suiteRunId" description="Suite run identifier." type="string" required="false" />
+      <argument name="probeBaseUrl" description="Probe base URL override." type="string" required="false" />
+      <argument name="workspaceRootAbs" description="Workspace root." type="string" required="false" />
+      <argument name="runtimeContextName" description="Runtime context name." type="string" required="false" />
+    </arguments>
+    <examples>
+      <example>{"metadata":{},"contract":{}}</example>
+    </examples>
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="suite" name="preflight">
+    <summary>Preflight a regression-suite plan.</summary>
+    <description>Validates readiness for a bounded regression-suite plan.</description>
+    <tags>
+      <tag>regression_suite</tag>
+      <tag>suite</tag>
+    </tags>
+    <aliases>
+      <alias tool="regression_suite" action="preflight" />
+    </aliases>
+    <arguments>
+      <argument name="metadata" description="Plan metadata." type="object" required="true" />
+      <argument name="contract" description="Plan contract." type="object" required="true" />
+      <argument name="providedContext" description="Provided context." type="object" required="false" />
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runDirectory" description="Performance run directory." type="string" required="false" />
+      <argument name="suiteRunId" description="Suite run identifier." type="string" required="false" />
+      <argument name="probeBaseUrl" description="Probe base URL override." type="string" required="false" />
+      <argument name="workspaceRootAbs" description="Workspace root." type="string" required="false" />
+    </arguments>
+    <examples>
+      <example>{"metadata":{},"contract":{}}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+</tool>
