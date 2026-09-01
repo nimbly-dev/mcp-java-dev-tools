@@ -99,9 +99,10 @@ The Core operation package now also provides the heterogeneous
 `OperationDirectory`. `CoreOperationDirectory` is the production composition
 root for all fifty-four approved operations: it binds every capability catalog
 and feature owner exactly once, then joins those immutable
-`OperationRegistration` bindings to the versioned XML document at
-`META-INF/mcpjvm/operations/manifest.xml`. The XML reader is secure and
-bounded, and XML cannot select Java types or executable methods. Java-owned
+`OperationRegistration` bindings to the ordered resource index at
+`META-INF/mcpjvm/operations/index.xml`. The index loads one shared-XSD
+validated capability document per Core operation owner. The XML reader is secure
+and bounded, and XML cannot select Java types or executable methods. Java-owned
 schemas, binders, normalizers, safety policy, and typed execution remain the
 source of truth after the join; there is no reflective schema generator.
 

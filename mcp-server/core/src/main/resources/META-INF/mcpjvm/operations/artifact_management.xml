@@ -1,0 +1,766 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tool name="artifact_management" formatVersion="2">
+  <action classification="artifact" name="read" subject="probe_config">
+    <summary>Read the persisted Probe registry configuration.</summary>
+    <description>Reads the workspace-owned Probe configuration Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>probe</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="probe_config/read" />
+    </aliases>
+    <arguments>
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="validate" subject="probe_config">
+    <summary>Validate the persisted Probe registry configuration.</summary>
+    <description>Validates the workspace-owned Probe configuration Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>probe</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="probe_config/validate" />
+    </aliases>
+    <arguments>
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="upsert" subject="probe_config">
+    <summary>Upsert the persisted Probe registry configuration.</summary>
+    <description>Writes the workspace-owned Probe configuration Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>probe</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="probe_config/upsert" />
+    </aliases>
+    <arguments>
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="reload" subject="probe_config">
+    <summary>Reload the Probe registry configuration.</summary>
+    <description>Reloads the workspace-owned Probe registry state.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>probe</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="probe_config/reload" />
+    </aliases>
+    <arguments>
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="probe_registry_reload" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="read" subject="project_context">
+    <summary>Read the persisted project context.</summary>
+    <description>Reads the workspace-owned project context Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>project</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="project_context/read" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="replace" description="Whether to replace the existing artifact." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="validate" subject="project_context">
+    <summary>Validate the persisted project context.</summary>
+    <description>Validates the workspace-owned project context Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>project</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="project_context/validate" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="replace" description="Whether to replace the existing artifact." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="upsert" subject="project_context">
+    <summary>Upsert the persisted project context.</summary>
+    <description>Writes the workspace-owned project context Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>project</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="project_context/upsert" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="replace" description="Whether to replace the existing artifact." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="list" subject="project_context">
+    <summary>List persisted project contexts.</summary>
+    <description>Lists workspace-owned project context Artifacts.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>project</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="project_context/list" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="replace" description="Whether to replace the existing artifact." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="read" subject="performance_plan">
+    <summary>Read a persisted performance plan.</summary>
+    <description>Reads a workspace-owned performance-suite plan Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>performance</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="performance_plan/read" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="validate" subject="performance_plan">
+    <summary>Validate a persisted performance plan.</summary>
+    <description>Validates a workspace-owned performance-suite plan Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>performance</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="performance_plan/validate" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="upsert" subject="performance_plan">
+    <summary>Upsert a performance plan.</summary>
+    <description>Writes a workspace-owned performance-suite plan Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>performance</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="performance_plan/upsert" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"planName":"sample","payload":{}}</example>
+    </examples>
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="list" subject="performance_plan">
+    <summary>List persisted performance plans.</summary>
+    <description>Lists workspace-owned performance-suite plan Artifacts.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>performance</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="performance_plan/list" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="read" subject="regression_plan">
+    <summary>Read a persisted regression plan.</summary>
+    <description>Reads a workspace-owned regression-suite plan Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>regression</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="regression_plan/read" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="validate" subject="regression_plan">
+    <summary>Validate a persisted regression plan.</summary>
+    <description>Validates a workspace-owned regression-suite plan Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>regression</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="regression_plan/validate" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="upsert" subject="regression_plan">
+    <summary>Upsert a regression plan.</summary>
+    <description>Writes a workspace-owned regression-suite plan Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>regression</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="regression_plan/upsert" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"planName":"sample","payload":{}}</example>
+    </examples>
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="list" subject="regression_plan">
+    <summary>List persisted regression plans.</summary>
+    <description>Lists workspace-owned regression-suite plan Artifacts.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>regression</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="regression_plan/list" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="read" subject="security_plan">
+    <summary>Read a persisted security plan.</summary>
+    <description>Reads a workspace-owned security-suite plan Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>security</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="security_plan/read" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="validate" subject="security_plan">
+    <summary>Validate a persisted security plan.</summary>
+    <description>Validates a workspace-owned security-suite plan Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>security</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="security_plan/validate" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="upsert" subject="security_plan">
+    <summary>Upsert a security plan.</summary>
+    <description>Writes a workspace-owned security-suite plan Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>security</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="security_plan/upsert" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"planName":"sample","payload":{}}</example>
+    </examples>
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="list" subject="security_plan">
+    <summary>List persisted security plans.</summary>
+    <description>Lists workspace-owned security-suite plan Artifacts.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>security</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="security_plan/list" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="read" subject="run_result">
+    <summary>Read a persisted suite run result.</summary>
+    <description>Reads a workspace-owned suite run result Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>run</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="run_result/read" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="suiteType" description="Suite type." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runId" description="Run identifier." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="strict" description="Strict state-store behavior." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="stateSurface" description="Selected state surface." type="string" required="false" />
+      <argument name="scope" description="State scope selectors." type="object" required="false" />
+      <argument name="retention" description="Retention policy." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="upsert" subject="run_result">
+    <summary>Upsert a suite run result.</summary>
+    <description>Writes a workspace-owned suite run result Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>run</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="run_result/upsert" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="suiteType" description="Suite type." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runId" description="Run identifier." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="strict" description="Strict state-store behavior." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="stateSurface" description="Selected state surface." type="string" required="false" />
+      <argument name="scope" description="State scope selectors." type="object" required="false" />
+      <argument name="retention" description="Retention policy." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"projectName":"sample","payload":{}}</example>
+    </examples>
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="list" subject="run_result">
+    <summary>List persisted suite run results.</summary>
+    <description>Lists workspace-owned suite run result Artifacts.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>run</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="run_result/list" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="suiteType" description="Suite type." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runId" description="Run identifier." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="strict" description="Strict state-store behavior." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="stateSurface" description="Selected state surface." type="string" required="false" />
+      <argument name="scope" description="State scope selectors." type="object" required="false" />
+      <argument name="retention" description="Retention policy." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="rebuild" subject="run_result">
+    <summary>Rebuild projected suite run state.</summary>
+    <description>Rebuilds the canonical run-state projection from persisted Artifacts.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>run</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="run_result/rebuild" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="suiteType" description="Suite type." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runId" description="Run identifier." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="strict" description="Strict state-store behavior." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="stateSurface" description="Selected state surface." type="string" required="false" />
+      <argument name="scope" description="State scope selectors." type="object" required="false" />
+      <argument name="retention" description="Retention policy." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"projectName":"sample"}</example>
+    </examples>
+    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="backfill" subject="run_result">
+    <summary>Backfill projected suite run state.</summary>
+    <description>Backfills canonical run-state rows from persisted Artifacts.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>run</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="run_result/backfill" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="suiteType" description="Suite type." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runId" description="Run identifier." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="strict" description="Strict state-store behavior." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="stateSurface" description="Selected state surface." type="string" required="true" />
+      <argument name="scope" description="State scope selectors." type="object" required="false" />
+      <argument name="retention" description="Retention policy." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"projectName":"sample","stateSurface":"correlation_state"}</example>
+    </examples>
+    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="cutover" subject="run_result">
+    <summary>Cut over canonical suite run-state reads.</summary>
+    <description>Switches the bounded run-state projection to its canonical source.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>run</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="run_result/cutover" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="suiteType" description="Suite type." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runId" description="Run identifier." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="strict" description="Strict state-store behavior." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="stateSurface" description="Selected state surface." type="string" required="false" />
+      <argument name="scope" description="State scope selectors." type="object" required="false" />
+      <argument name="retention" description="Retention policy." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"projectName":"sample"}</example>
+    </examples>
+    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="query" subject="run_result">
+    <summary>Query projected suite run state.</summary>
+    <description>Reads bounded canonical run-state query results.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>run</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="run_result/query" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="suiteType" description="Suite type." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runId" description="Run identifier." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="strict" description="Strict state-store behavior." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="stateSurface" description="Selected state surface." type="string" required="false" />
+      <argument name="scope" description="State scope selectors." type="object" required="false" />
+      <argument name="retention" description="Retention policy." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"projectName":"sample"}</example>
+    </examples>
+    <safety sideEffect="sqlite_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="cleanup" subject="run_result">
+    <summary>Clean up retained suite run state.</summary>
+    <description>Removes only bounded, eligible canonical run-state rows.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>run</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="run_result/cleanup" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="suiteType" description="Suite type." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="runId" description="Run identifier." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="strict" description="Strict state-store behavior." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="stateSurface" description="Selected state surface." type="string" required="false" />
+      <argument name="scope" description="State scope selectors." type="object" required="false" />
+      <argument name="retention" description="Retention policy." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"projectName":"sample"}</example>
+    </examples>
+    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="read" subject="execution_export">
+    <summary>Read an execution export.</summary>
+    <description>Reads a persisted execution-profile export Artifact.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>export</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="execution_export/read" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="mode" description="Export mode." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="when" description="Export time hint." type="string" required="false" />
+      <argument name="type" description="Export mode alias." type="string" required="false" />
+      <argument name="includeResolvedSecrets" description="Whether to include resolved secrets." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="includeRuntimeStartup" description="Whether to include runtime startup." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="includeHealthcheckGate" description="Whether to include the healthcheck gate." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="contextBindings" description="Context to environment bindings." type="object" required="false" />
+      <argument name="contextValues" description="Direct context values." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"projectName":"sample","query":{}}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="list" subject="execution_export">
+    <summary>List execution exports.</summary>
+    <description>Lists persisted execution-profile export Artifacts.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>export</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="execution_export/list" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="mode" description="Export mode." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="when" description="Export time hint." type="string" required="false" />
+      <argument name="type" description="Export mode alias." type="string" required="false" />
+      <argument name="includeResolvedSecrets" description="Whether to include resolved secrets." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="includeRuntimeStartup" description="Whether to include runtime startup." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="includeHealthcheckGate" description="Whether to include the healthcheck gate." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="contextBindings" description="Context to environment bindings." type="object" required="false" />
+      <argument name="contextValues" description="Direct context values." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"projectName":"sample"}</example>
+    </examples>
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+  <action classification="artifact" name="generate" subject="execution_export">
+    <summary>Generate an execution export.</summary>
+    <description>Writes a bounded replayable execution-profile export package.</description>
+    <tags>
+      <tag>artifact_management</tag>
+      <tag>export</tag>
+    </tags>
+    <aliases>
+      <alias tool="artifact_management" action="execution_export/generate" />
+    </aliases>
+    <arguments>
+      <argument name="projectName" description="Project selector." type="string" required="false" />
+      <argument name="mode" description="Export mode." type="string" required="false" />
+      <argument name="planName" description="Plan name." type="string" required="false" />
+      <argument name="executionProfile" description="Execution profile." type="string" required="false" />
+      <argument name="when" description="Export time hint." type="string" required="false" />
+      <argument name="type" description="Export mode alias." type="string" required="false" />
+      <argument name="includeResolvedSecrets" description="Whether to include resolved secrets." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="includeRuntimeStartup" description="Whether to include runtime startup." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="includeHealthcheckGate" description="Whether to include the healthcheck gate." type="boolean" required="false">
+        <default>false</default>
+      </argument>
+      <argument name="contextBindings" description="Context to environment bindings." type="object" required="false" />
+      <argument name="contextValues" description="Direct context values." type="object" required="false" />
+      <argument name="query" description="Operation query selectors." type="object" required="false" />
+    </arguments>
+    <examples>
+      <example>{"projectName":"sample","mode":"ps1"}</example>
+    </examples>
+    <safety sideEffect="filesystem_export" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+</tool>

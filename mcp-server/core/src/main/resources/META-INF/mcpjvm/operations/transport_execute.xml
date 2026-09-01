@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tool name="transport_execute" formatVersion="2">
+  <action classification="transport" name="execute">
+    <summary>Execute an approved transport request.</summary>
+    <description>Executes a bounded transport request through the Core transport boundary.</description>
+    <tags>
+      <tag>transport_execute</tag>
+      <tag>http</tag>
+    </tags>
+    <aliases>
+      <alias tool="transport_execute" actionless="true" />
+    </aliases>
+    <arguments>
+      <argument name="protocol" description="Transport protocol." type="string" required="true" />
+      <argument name="request" description="Protocol-specific request." type="object" required="true" />
+      <argument name="options" description="Transport options." type="object" required="false">
+        <default>{"wrappedOnly":true}</default>
+      </argument>
+    </arguments>
+    <examples>
+      <example>{"protocol":"http","request":{}}</example>
+    </examples>
+    <safety sideEffect="transport_request" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+  </action>
+</tool>
