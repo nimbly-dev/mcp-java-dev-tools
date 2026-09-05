@@ -6,7 +6,8 @@ import com.nimbly.mcpjavadevtools.server.core.operation.OperationExecutionResult
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationJsonSize;
-import com.nimbly.mcpjavadevtools.server.core.operation.schema.BoundedOperationSchemaValidator;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationJsonTreeLimits;
 import java.util.List;
 
 /** Applies bounded input and output checks before conversion, copying, and disclosure. */
@@ -39,7 +40,7 @@ public class OperationPayloadValidation {
         if (context.deadlineExpired()) {
             return OperationInvocationExecution.timeout(operationId);
         }
-        List<String> violations = BoundedOperationSchemaValidator.schemaViolations(
+        List<String> violations = OperationSchemaValidator.violations(
                 registration.inputSchema(), input, context::cancellationRequested);
         if (!violations.isEmpty()) {
             return context.deadlineExpired() ? OperationInvocationExecution.timeout(operationId)
@@ -52,7 +53,7 @@ public class OperationPayloadValidation {
 
     static OperationExecutionResult inputStructure(
             OperationId operationId, JsonNode input, OperationExecutionContext context) {
-        List<String> structural = BoundedOperationSchemaValidator.treeViolations(
+        List<String> structural = OperationJsonTreeLimits.violations(
                 input, context::cancellationRequested);
         if (structural.isEmpty()) {
             return null;
@@ -70,7 +71,7 @@ public class OperationPayloadValidation {
             boolean validateSchema,
             OperationExecutionContext context) {
         OperationId operationId = registration.descriptor().operationId();
-        if (!BoundedOperationSchemaValidator.treeViolations(
+        if (!OperationJsonTreeLimits.violations(
                 result, context::cancellationRequested).isEmpty()) {
             if (context.deadlineExpired()) {
                 return OperationInvocationExecution.timeout(operationId);
@@ -92,7 +93,7 @@ public class OperationPayloadValidation {
         if (context.deadlineExpired()) {
             return OperationInvocationExecution.timeout(operationId);
         }
-        if (validateSchema && !BoundedOperationSchemaValidator.schemaViolations(
+        if (validateSchema && !OperationSchemaValidator.violations(
                 registration.resultSchema(), result, context::cancellationRequested).isEmpty()) {
             if (context.deadlineExpired()) {
                 return OperationInvocationExecution.timeout(operationId);

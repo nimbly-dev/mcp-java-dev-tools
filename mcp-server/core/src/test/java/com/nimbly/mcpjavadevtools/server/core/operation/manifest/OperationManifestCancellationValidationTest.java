@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
-import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedNonCancellableOperationExecutor;
-import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedDelegateOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
@@ -91,7 +89,7 @@ public class OperationManifestCancellationValidationTest {
         OperationSafetyPolicy policy = new OperationSafetyPolicy(
                 "none", false, "caller_must_not_supply_credentials", "none", 100, false,
                 1_048_576, 4_194_304);
-        BoundedNonCancellableOperationExecutor<Request, Result> executor =
+        ContextAwareOperationExecutor<Request, Result> executor =
                 boundedNonCancellable(request -> new Result());
         OperationRegistration<Request, Result> registration = registration(policy, executor);
 
@@ -124,8 +122,9 @@ public class OperationManifestCancellationValidationTest {
         OperationSafetyPolicy policy = new OperationSafetyPolicy(
                 "filesystem_write", false, "caller_must_not_supply_credentials", "none", 100, true,
                 1_048_576, 4_194_304);
-        BoundedDelegateOperationExecutor<Request, Result> executor =
-                (request, context) -> new Result();
+        ContextAwareOperationExecutor<Request, Result> executor = ContextAwareOperationExecutor.declared(
+                OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION,
+                OperationCancellationGuarantee.DELEGATED_DEADLINE, (request, context) -> new Result());
         OperationRegistration<Request, Result> registration = registration(policy, executor);
 
         OperationManifest manifest = OperationManifestAssembler.assembleStrict(
@@ -141,7 +140,7 @@ public class OperationManifestCancellationValidationTest {
         OperationSafetyPolicy policy = new OperationSafetyPolicy(
                 "none", false, "caller_must_not_supply_credentials", "none", 100, true,
                 1_048_576, 4_194_304);
-        BoundedNonCancellableOperationExecutor<Request, Result> executor =
+        ContextAwareOperationExecutor<Request, Result> executor =
                 boundedNonCancellable(request -> new Result());
         OperationRegistration<Request, Result> registration = registration(policy, executor);
 
@@ -153,6 +152,39 @@ public class OperationManifestCancellationValidationTest {
                 .isThrownBy(() -> OperationManifestAssembler.assembleStrict(
                         List.of(registration), document(policy)))
                 .withMessageContaining("must disable cancellation support");
+    }
+
+    @Test
+    void rejectsInconsistentExplicitDelegateDeclarations() {
+        for (OperationCancellationGuarantee guarantee : OperationCancellationGuarantee.values()) {
+            if (guarantee != OperationCancellationGuarantee.DELEGATED_DEADLINE) {
+                assertThatIllegalArgumentException().isThrownBy(() -> ContextAwareOperationExecutor.declared(
+                        OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION,
+                        guarantee, (request, context) -> new Result()))
+                        .withMessageContaining("delegated deadline guarantee");
+            }
+        }
+        assertThatIllegalArgumentException().isThrownBy(() -> ContextAwareOperationExecutor.declared(
+                OperationCancellationState.LEGACY_UNVERIFIED_CANCELLATION,
+                OperationCancellationGuarantee.NONE, (request, context) -> new Result()))
+                .withMessageContaining("cannot declare legacy");
+    }
+
+    @Test
+    void declaredExecutorPassesTheExactRequestAndContextToItsOwner() {
+        Request request = new Request();
+        var context = com.nimbly.mcpjavadevtools.server.core.operation.execution
+                .OperationExecutionContext.forTimeout(100);
+        Result result = new Result();
+        ContextAwareOperationExecutor<Request, Result> executor = ContextAwareOperationExecutor.declared(
+                OperationCancellationState.CONTEXT_AWARE_CANCELLATION,
+                OperationCancellationGuarantee.ROLLBACK, (actualRequest, actualContext) -> {
+                    assertThat(actualRequest).isSameAs(request);
+                    assertThat(actualContext).isSameAs(context);
+                    return result;
+                });
+        assertThat(executor.execute(request, context)).isSameAs(result);
+        assertThat(executor.cancellationGuarantee()).isEqualTo(OperationCancellationGuarantee.ROLLBACK);
     }
 
     private OperationRegistration<Request, Result> registration(
@@ -181,12 +213,17 @@ public class OperationManifestCancellationValidationTest {
                         List.of(new OperationAlias("demo", "echo")), "1", false, null, policy)));
     }
 
-    private BoundedNonCancellableOperationExecutor<Request, Result> boundedNonCancellable(
+    private ContextAwareOperationExecutor<Request, Result> boundedNonCancellable(
             OperationExecutor<Request, Result> delegate) {
-        return new BoundedNonCancellableOperationExecutor<>() {
+        return new ContextAwareOperationExecutor<>() {
             @Override
-            public Result execute(Request request) {
+            public Result execute(Request request, com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext context) {
                 return delegate.execute(request);
+            }
+
+            @Override
+            public OperationCancellationState cancellationState() {
+                return OperationCancellationState.NOT_CANCELLABLE;
             }
 
             @Override

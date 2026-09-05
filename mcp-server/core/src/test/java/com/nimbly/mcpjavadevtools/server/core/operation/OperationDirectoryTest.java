@@ -35,8 +35,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationExecutor;
-import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedNonCancellableOperationExecutor;
-import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedDelegateOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoder;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
@@ -56,6 +54,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManife
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyLimits;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
@@ -1215,7 +1214,7 @@ class OperationDirectoryTest {
         OperationDocumentation documentation = documentation(
                 "demo.non_cancellable_saturation", "none", false, null, echoArguments(),
                 JSON.readTree("{\"message\":\"wait\"}"), 100, false);
-        BoundedNonCancellableOperationExecutor<EchoRequest, EchoResult> executor =
+        ContextAwareOperationExecutor<EchoRequest, EchoResult> executor =
                 boundedNonCancellable(request -> {
             started.countDown();
             try {
@@ -1305,13 +1304,15 @@ class OperationDirectoryTest {
         OperationDocumentation documentation = documentation(
                 "demo.bounded_delegate", "filesystem_write", false, null, echoArguments(),
                 JSON.readTree("{\"message\":\"wait\"}"), 100);
-        BoundedDelegateOperationExecutor<EchoRequest, EchoResult> executor = (request, context) -> {
+        ContextAwareOperationExecutor<EchoRequest, EchoResult> executor = ContextAwareOperationExecutor.declared(
+                OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION,
+                OperationCancellationGuarantee.DELEGATED_DEADLINE, (request, context) -> {
             while (!context.cancellationRequested()) {
                 Thread.onSpinWait();
             }
             stopped.set(true);
             return new EchoResult("stopped");
-        };
+        });
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.bounded_delegate", executor, EchoResult.class, documentation);
         OperationDirectory directory = new OperationDirectory(
@@ -1491,12 +1492,17 @@ class OperationDirectoryTest {
                 resultType, documentation, OperationResultEncoders.typed(JSON, resultType));
     }
 
-    private <I, O> BoundedNonCancellableOperationExecutor<I, O> boundedNonCancellable(
+    private <I, O> ContextAwareOperationExecutor<I, O> boundedNonCancellable(
             OperationExecutor<I, O> delegate) {
-        return new BoundedNonCancellableOperationExecutor<>() {
+        return new ContextAwareOperationExecutor<>() {
             @Override
-            public O execute(I request) {
+            public O execute(I request, com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext context) {
                 return delegate.execute(request);
+            }
+
+            @Override
+            public OperationCancellationState cancellationState() {
+                return OperationCancellationState.NOT_CANCELLABLE;
             }
 
             @Override

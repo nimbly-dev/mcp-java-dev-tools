@@ -1,7 +1,5 @@
 package com.nimbly.mcpjavadevtools.server.core.operation.safety;
 
-import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedNonCancellableOperationExecutor;
-import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedDelegateOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationExecutor;
 import java.util.Objects;
@@ -17,17 +15,11 @@ public class OperationCancellationSupport {
             OperationExecutor<?, ?> executor, OperationSafetyPolicy policy) {
         Objects.requireNonNull(executor, "executor must not be null");
         Objects.requireNonNull(policy, "policy must not be null");
-        if (executor instanceof BoundedNonCancellableOperationExecutor<?, ?>) {
-            return OperationCancellationState.NOT_CANCELLABLE;
-        }
         if (!policy.cancellationSupported()) {
             return OperationCancellationState.NOT_CANCELLABLE;
         }
-        if (executor instanceof BoundedDelegateOperationExecutor<?, ?>) {
-            return OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION;
-        }
-        if (executor instanceof ContextAwareOperationExecutor<?, ?>) {
-            return OperationCancellationState.CONTEXT_AWARE_CANCELLATION;
+        if (executor instanceof ContextAwareOperationExecutor<?, ?> owner) {
+            return Objects.requireNonNull(owner.cancellationState(), "cancellation state must not be null");
         }
         return OperationCancellationState.LEGACY_UNVERIFIED_CANCELLATION;
     }
@@ -35,18 +27,8 @@ public class OperationCancellationSupport {
     /** Resolves the explicit mutation cancellation guarantee carried by an executor. */
     public static OperationCancellationGuarantee guarantee(OperationExecutor<?, ?> executor) {
         Objects.requireNonNull(executor, "executor must not be null");
-        if (executor instanceof BoundedDelegateOperationExecutor<?, ?> bounded) {
-            return Objects.requireNonNull(
-                    bounded.cancellationGuarantee(), "cancellation guarantee must not be null");
-        }
-        if (executor instanceof ContextAwareOperationExecutor<?, ?> contextAware) {
-            return Objects.requireNonNull(
-                    contextAware.cancellationGuarantee(), "cancellation guarantee must not be null");
-        }
-        if (executor instanceof BoundedNonCancellableOperationExecutor<?, ?>) {
-            return Objects.requireNonNull(
-                    ((BoundedNonCancellableOperationExecutor<?, ?>) executor).cancellationGuarantee(),
-                    "cancellation guarantee must not be null");
+        if (executor instanceof ContextAwareOperationExecutor<?, ?> owner) {
+            return Objects.requireNonNull(owner.cancellationGuarantee(), "cancellation guarantee must not be null");
         }
         return OperationCancellationGuarantee.NONE;
     }
@@ -62,7 +44,8 @@ public class OperationCancellationSupport {
             throw new IllegalArgumentException(
                     "legacy cancellation registration requires migration compatibility mode");
         }
-        if (executor instanceof BoundedNonCancellableOperationExecutor<?, ?>
+        if (executor instanceof ContextAwareOperationExecutor<?, ?> owner
+                && owner.cancellationState() == OperationCancellationState.NOT_CANCELLABLE
                 && policy.cancellationSupported()) {
             throw new IllegalArgumentException(
                     "non-cancellable operation must disable cancellation support");

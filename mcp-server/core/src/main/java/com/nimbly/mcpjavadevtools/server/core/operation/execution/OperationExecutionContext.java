@@ -1,6 +1,7 @@
 package com.nimbly.mcpjavadevtools.server.core.operation.execution;
 
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyLimits;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Immutable monotonic deadline plus a cooperative cancellation signal for one execution. */
 public class OperationExecutionContext {
@@ -8,18 +9,18 @@ public class OperationExecutionContext {
     private static final ThreadLocal<OperationExecutionContext> CURRENT = new ThreadLocal<>();
 
     private final long deadlineNanos;
-    private final OperationCancellationSignal cancellationSignal;
+    private final AtomicBoolean cancellationRequested;
     private final boolean unbounded;
 
     private OperationExecutionContext(
             long deadlineNanos,
-            OperationCancellationSignal cancellationSignal,
+            AtomicBoolean cancellationRequested,
             boolean unbounded) {
-        if (cancellationSignal == null) {
+        if (cancellationRequested == null) {
             throw new IllegalArgumentException("operation execution context is invalid");
         }
         this.deadlineNanos = deadlineNanos;
-        this.cancellationSignal = cancellationSignal;
+        this.cancellationRequested = cancellationRequested;
         this.unbounded = unbounded;
     }
 
@@ -34,7 +35,7 @@ public class OperationExecutionContext {
 
     /** Creates an unbounded context for direct typed binding calls outside directory execution. */
     public static OperationExecutionContext unbounded() {
-        return new OperationExecutionContext(Long.MAX_VALUE, new OperationCancellationSignal(), true);
+        return new OperationExecutionContext(Long.MAX_VALUE, new AtomicBoolean(), true);
     }
 
     /** @return the context installed for the current operation thread, or an unbounded context */
@@ -52,12 +53,12 @@ public class OperationExecutionContext {
 
     /** Requests cooperative cancellation through the shared signal. */
     public void requestCancellation() {
-        cancellationSignal.request();
+        cancellationRequested.set(true);
     }
 
     /** @return whether the caller or deadline has requested that execution stop */
     public boolean cancellationRequested() {
-        return cancellationSignal.requested() || deadlineExpired();
+        return cancellationRequested.get() || deadlineExpired();
     }
 
     /** @return whether the monotonic execution deadline has expired */
@@ -86,7 +87,7 @@ public class OperationExecutionContext {
         }
         return new OperationExecutionContext(
                 startNanos + timeoutMillis * 1_000_000L,
-                new OperationCancellationSignal(), false);
+                new AtomicBoolean(), false);
     }
 
     long remainingNanosAt(long nowNanos) {

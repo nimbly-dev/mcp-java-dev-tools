@@ -22,7 +22,7 @@ public class OperationSchemaValidator {
         return violations(schema, input, () -> false);
     }
 
-    static List<String> violations(
+    public static List<String> violations(
             OperationSchema schema, JsonNode input, OperationValidationBudget budget) {
         if (schema == null || budget == null) {
             throw new IllegalArgumentException("schema and validation budget must not be null");
