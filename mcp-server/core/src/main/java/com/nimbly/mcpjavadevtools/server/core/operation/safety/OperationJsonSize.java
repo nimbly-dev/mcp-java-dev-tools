@@ -27,12 +27,12 @@ public class OperationJsonSize {
         if (mapper == null || value == null) {
             throw new IllegalArgumentException("mapper and JSON value must not be null");
         }
-        OperationJsonByteCounter counter = new OperationJsonByteCounter(maximumBytes);
+        OperationJsonByteBuffer buffer = new OperationJsonByteBuffer(maximumBytes, false);
         try {
-            mapper.writeValue(counter, value);
-            return counter.count();
+            mapper.writeValue(buffer, value);
+            return buffer.size();
         } catch (IOException exception) {
-            if (counter.exceeded()) {
+            if (buffer.exceeded()) {
                 return -1;
             }
             throw exception;

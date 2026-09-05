@@ -63,19 +63,17 @@ class OperationDirectoryPackageBoundaryTest {
                     "BoundedOperationRequestDecoder.java", "OperationRequestDecoderAdapter.java",
                     "OperationRequestDecoders.java", "OperationRequestEquivalence.java",
                     "OperationExecutor.java", "OperationResultEncoder.java",
-                    "ContextAwareOperationExecutor.java", "BoundedDelegateOperationExecutor.java",
-                    "BoundedNonCancellableOperationExecutor.java", "BoundedOperationResultEncoder.java",
+                    "ContextAwareOperationExecutor.java", "DeclaredOperationExecutor.java",
+                    "BoundedOperationResultEncoder.java",
                     "OperationResultEncoders.java", "MapperOperationResultEncoder.java")),
             Map.entry("operation/composition", List.of(
                     "CoreOperationDirectory.java", "CoreOperationDirectoryOwners.java")),
             Map.entry("operation/execution", List.of(
                     "OperationDirectoryException.java", "OperationExecutionException.java",
+                    "OperationFailureException.java",
                     "OperationExecutionStatus.java", "OperationInvocationExecution.java",
                     "OperationPayloadValidation.java",
-                    "OperationBindingException.java", "OperationNormalizationException.java",
-                    "OperationOutputTooLargeException.java", "OperationOutputStructureException.java",
-                    "OperationCancellationSignal.java", "OperationExecutionContext.java",
-                    "OperationExecutionContextScope.java")),
+                    "OperationExecutionContext.java", "OperationExecutionContextScope.java")),
             Map.entry("operation/manifest", List.of(
                     "OperationAlias.java", "OperationArgumentDocumentation.java",
                     "OperationDescriptor.java", "OperationDescriptorMetadata.java",
@@ -86,7 +84,7 @@ class OperationDirectoryPackageBoundaryTest {
                     "OperationManifestXmlReader.java", "OperationManifestXmlSecurity.java",
                     "OperationManifestXmlStructureValidator.java")),
             Map.entry("operation/schema", List.of(
-                    "BoundedOperationSchemaValidator.java", "CanonicalOperationSchema.java",
+                    "CanonicalOperationSchema.java",
                     "OperationSchema.java", "OperationSchemaRules.java",
                     "OperationSchemaValidator.java", "CoreOperationResultFields.java",
                     "CoreOperationResultSchemas.java", "OperationJsonTreeLimits.java",
@@ -94,12 +92,11 @@ class OperationDirectoryPackageBoundaryTest {
                     "OperationSchemaValueSemantics.java", "OperationSchemaValueBounds.java",
                     "OperationValidationBudget.java")),
             Map.entry("operation/safety", List.of(
-                    "BoundedOperationValueRedactor.java",
                     "OperationSafetyPolicy.java", "CoreOperationSafetyPolicy.java",
                     "OperationValueRedactor.java", "OperationSafetyLimits.java",
                     "OperationCancellationState.java", "OperationCancellationGuarantee.java",
-                    "OperationCancellationSupport.java", "OperationJsonByteCounter.java",
-                    "OperationJsonSize.java", "OperationJsonByteBuffer.java",
+                    "OperationCancellationSupport.java", "OperationJsonSize.java",
+                    "OperationJsonByteBuffer.java",
                     "OperationJsonSnapshot.java")),
             Map.entry("operation/trace", List.of(
                     "OperationLegacyIdentity.java", "OperationTraceEntry.java",

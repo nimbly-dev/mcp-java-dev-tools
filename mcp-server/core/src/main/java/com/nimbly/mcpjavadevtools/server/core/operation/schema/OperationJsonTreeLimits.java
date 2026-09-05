@@ -23,7 +23,7 @@ public class OperationJsonTreeLimits {
     }
 
     /** Returns one deterministic violation while consulting a cooperative budget. */
-    static List<String> violations(JsonNode value, OperationValidationBudget budget) {
+    public static List<String> violations(JsonNode value, OperationValidationBudget budget) {
         if (budget == null) {
             throw new IllegalArgumentException("JSON validation budget must not be null");
         }

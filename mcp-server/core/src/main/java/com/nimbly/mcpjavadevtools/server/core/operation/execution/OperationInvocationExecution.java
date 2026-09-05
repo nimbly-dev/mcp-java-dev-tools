@@ -22,7 +22,7 @@ import java.util.concurrent.TimeoutException;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifest;
-import com.nimbly.mcpjavadevtools.server.core.operation.safety.BoundedOperationValueRedactor;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationValueRedactor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationJsonSnapshot;
@@ -225,7 +225,7 @@ public class OperationInvocationExecution {
         }
         JsonNode safeResult;
         try {
-            safeResult = BoundedOperationValueRedactor.redact(
+            safeResult = OperationValueRedactor.redact(
                     result, registration.safety().redactionPolicy(), context::cancellationRequested);
             if (safeResult == null) {
                 return context.deadlineExpired() ? timeout(descriptor.operationId())
@@ -251,14 +251,8 @@ public class OperationInvocationExecution {
 
     static OperationExecutionResult failureFromCause(OperationId operationId, Throwable cause) {
         String reasonCode = "operation_execution_failed";
-        if (cause instanceof OperationOutputTooLargeException) {
-            reasonCode = "operation_output_too_large";
-        } else if (cause instanceof OperationOutputStructureException) {
-            reasonCode = "operation_output_structure_invalid";
-        } else if (cause instanceof OperationBindingException) {
-            reasonCode = "operation_binding_failed";
-        } else if (cause instanceof OperationNormalizationException) {
-            reasonCode = "operation_normalization_failed";
+        if (cause instanceof OperationFailureException classified) {
+            reasonCode = classified.reasonCode();
         }
         return failure(operationId, OperationExecutionStatus.FAILED, reasonCode,
                 "The operation could not be completed.");

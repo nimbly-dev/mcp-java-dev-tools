@@ -64,6 +64,10 @@ class OperationRelocationApiCompatibilityTest {
     }
 
     private Set<String> intentional616Additions(String candidateType) {
+        Set<String> consolidationAdditions = intentional626Additions(candidateType);
+        if (!consolidationAdditions.isEmpty()) {
+            return consolidationAdditions;
+        }
         String assembler = BASELINE_OPERATION_PACKAGE + ".OperationManifestAssembler";
         String execution = BASELINE_OPERATION_PACKAGE + ".OperationInvocationExecution";
         String descriptorPackage = BASELINE_OPERATION_PACKAGE.replace('.', '/');
@@ -87,6 +91,37 @@ class OperationRelocationApiCompatibilityTest {
                     + descriptorPackage + "/OperationExecutionResult;|varargs=false");
         }
         return Set.of();
+    }
+
+    private Set<String> intentional626Additions(String candidateType) {
+        String budget = BASELINE_OPERATION_PACKAGE + ".schema.OperationValidationBudget";
+        String json = "com.fasterxml.jackson.databind.JsonNode";
+        String owner;
+        String result;
+        String method;
+        String parameters;
+        String descriptor;
+        if (candidateType.endsWith(".OperationSchemaValidator")) {
+            owner = BASELINE_OPERATION_PACKAGE + ".OperationSchemaValidator";
+            result = "java.util.List<java.lang.String>";
+            method = "violations";
+            parameters = BASELINE_OPERATION_PACKAGE + ".OperationSchema, " + json + ", " + budget;
+            descriptor = "(L" + BASELINE_OPERATION_PACKAGE.replace('.', '/')
+                    + "/OperationSchema;Lcom/fasterxml/jackson/databind/JsonNode;L"
+                    + budget.replace('.', '/') + ";)Ljava/util/List;";
+        } else if (candidateType.endsWith(".OperationValueRedactor")) {
+            owner = BASELINE_OPERATION_PACKAGE + ".OperationValueRedactor";
+            result = json;
+            method = "redact";
+            parameters = json + ", java.lang.String, " + budget;
+            descriptor = "(Lcom/fasterxml/jackson/databind/JsonNode;Ljava/lang/String;L"
+                    + budget.replace('.', '/') + ";)Lcom/fasterxml/jackson/databind/JsonNode;";
+        } else {
+            return Set.of();
+        }
+        return Set.of("METHOD|" + owner + "|public static|typeParameters=[]|return=" + result
+                + "|name=" + method + "|params=[" + parameters + "]|throws=[]|descriptor="
+                + descriptor + "|varargs=false");
     }
 
     @Test

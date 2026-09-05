@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
-import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedDelegateOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationResultEncoder;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
@@ -19,18 +18,19 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequest
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationFailureException;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationAlias;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDocumentation;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
-import com.nimbly.mcpjavadevtools.server.core.operation.safety.BoundedOperationValueRedactor;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationValueRedactor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyLimits;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
-import com.nimbly.mcpjavadevtools.server.core.operation.schema.BoundedOperationSchemaValidator;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationJsonTreeLimits;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -85,7 +85,7 @@ public class OperationKernelTest {
         }
         AtomicInteger checks = new AtomicInteger();
 
-        assertThat(BoundedOperationSchemaValidator.treeViolations(
+        assertThat(OperationJsonTreeLimits.violations(
                 wide, () -> checks.incrementAndGet() > 1_024))
                 .containsExactly("$ JSON validation budget expired");
         assertThat(checks.get()).isGreaterThan(1_024);
@@ -231,7 +231,7 @@ public class OperationKernelTest {
         }
         AtomicInteger checks = new AtomicInteger();
 
-        assertThat(BoundedOperationValueRedactor.redact(
+        assertThat(OperationValueRedactor.redact(
                 result, "redact_sensitive_fields",
                 () -> checks.incrementAndGet() > 8)).isNull();
     }
@@ -247,7 +247,7 @@ public class OperationKernelTest {
         }
         OperationSchema enumSchema = new OperationSchema(enumDefinition);
         AtomicInteger enumChecks = new AtomicInteger();
-        assertThat(BoundedOperationSchemaValidator.schemaViolations(
+        assertThat(OperationSchemaValidator.violations(
                 enumSchema, JSON.readTree("999"), () -> enumChecks.incrementAndGet() > 5))
                 .contains("$ JSON validation budget expired");
 
@@ -260,7 +260,7 @@ public class OperationKernelTest {
             values.add(value);
         }
         AtomicInteger uniqueChecks = new AtomicInteger();
-        assertThat(BoundedOperationSchemaValidator.schemaViolations(
+        assertThat(OperationSchemaValidator.violations(
                 uniqueSchema, values, () -> uniqueChecks.incrementAndGet() > 265))
                 .contains("$ JSON validation budget expired");
     }
@@ -332,8 +332,9 @@ public class OperationKernelTest {
         assertThat(contextDirectory.manifest().traceInventory().getFirst().compatibility())
                 .containsEntry("cancellationState", "CONTEXT_AWARE_CANCELLATION");
 
-        BoundedDelegateOperationExecutor<Request, Result> bounded =
-                (request, context) -> new Result("bounded");
+        ContextAwareOperationExecutor<Request, Result> bounded = ContextAwareOperationExecutor.declared(
+                OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION,
+                OperationCancellationGuarantee.DELEGATED_DEADLINE, (request, context) -> new Result("bounded"));
         assertThat(OperationCancellationSupport.state(bounded, policy(
                 100, 1_048_576, 4_194_304)))
                 .isEqualTo(OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION);
@@ -441,6 +442,14 @@ public class OperationKernelTest {
             OperationSafetyPolicy policy) {
         return directory(decoder, executor, inputSchema, resultSchema, policy,
                 OperationResultEncoders.typed(JSON, Result.class));
+    }
+
+    @Test
+    void rejectsUnrecognizedInternalFailureReasonCodes() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new OperationFailureException(
+                        "safe failure", "token=REVIEW_SENTINEL"))
+                .withMessage("operation failure reason code is not recognized");
     }
 
     private OperationDirectory directory(

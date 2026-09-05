@@ -10,21 +10,30 @@ public class OperationJsonByteBuffer extends OutputStream {
     private static final int INITIAL_CAPACITY = 1_024;
 
     private final int maximum;
+    private final boolean retainBytes;
     private byte[] bytes = new byte[0];
     private int count;
     private boolean exceeded;
 
     public OperationJsonByteBuffer(int maximum) {
+        this(maximum, true);
+    }
+
+    OperationJsonByteBuffer(int maximum, boolean retainBytes) {
         if (maximum < 1) {
             throw new IllegalArgumentException("maximum JSON bytes must be positive");
         }
         this.maximum = maximum;
+        this.retainBytes = retainBytes;
     }
 
     @Override
     public void write(int value) throws IOException {
         ensureCapacity(1);
-        bytes[count++] = (byte) value;
+        if (retainBytes) {
+            bytes[count] = (byte) value;
+        }
+        count++;
     }
 
     @Override
@@ -36,7 +45,9 @@ public class OperationJsonByteBuffer extends OutputStream {
             throw new IndexOutOfBoundsException("JSON byte range is invalid");
         }
         ensureCapacity(length);
-        System.arraycopy(source, offset, bytes, count, length);
+        if (retainBytes) {
+            System.arraycopy(source, offset, bytes, count, length);
+        }
         count += length;
     }
 
@@ -48,12 +59,19 @@ public class OperationJsonByteBuffer extends OutputStream {
         return exceeded;
     }
 
+    int size() {
+        return count;
+    }
+
     private void ensureCapacity(int additional) throws IOException {
         if (additional > maximum - count) {
             exceeded = true;
             throw new IOException("operation JSON byte ceiling exceeded");
         }
         int required = count + additional;
+        if (!retainBytes) {
+            return;
+        }
         if (required <= bytes.length) {
             return;
         }
