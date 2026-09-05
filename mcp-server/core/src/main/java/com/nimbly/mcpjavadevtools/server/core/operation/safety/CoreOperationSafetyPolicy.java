@@ -4,7 +4,7 @@ import java.util.Set;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 
 /** Java-owned safety policy for the complete Core operation aggregate. */
-public final class CoreOperationSafetyPolicy {
+public class CoreOperationSafetyPolicy {
 
     private static final Set<String> CONFIRMATION_REQUIRED = Set.of(
             "artifact_management.probe_config.upsert",
@@ -48,10 +48,10 @@ public final class CoreOperationSafetyPolicy {
                 CONFIRMATION_REQUIRED.contains(operationId),
                 "caller_must_not_supply_credentials",
                 "redact_sensitive_fields",
-                60_000,
+                OperationSafetyLimits.DEFAULT_TIMEOUT_MILLIS,
                 true,
-                1_048_576,
-                4_194_304);
+                OperationSafetyLimits.MAX_INPUT_BYTES,
+                OperationSafetyLimits.MAX_OUTPUT_BYTES);
     }
 
     public static String sideEffect(String operationId) {

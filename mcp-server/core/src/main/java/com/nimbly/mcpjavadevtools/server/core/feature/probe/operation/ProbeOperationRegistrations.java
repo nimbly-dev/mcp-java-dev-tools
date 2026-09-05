@@ -25,7 +25,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMeta
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
 /** Binds all seven Probe owners to the typed request factory. */
-public final class ProbeOperationRegistrations {
+public class ProbeOperationRegistrations {
 
     private ProbeOperationRegistrations() {
     }

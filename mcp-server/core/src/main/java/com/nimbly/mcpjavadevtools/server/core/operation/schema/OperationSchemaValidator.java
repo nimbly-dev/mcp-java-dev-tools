@@ -3,13 +3,13 @@ package com.nimbly.mcpjavadevtools.server.core.operation.schema;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /** Bounded validator for the JSON-schema subset used by the operation directory. */
-public final class OperationSchemaValidator {
+public class OperationSchemaValidator {
 
     private OperationSchemaValidator() {
     }
@@ -19,14 +19,44 @@ public final class OperationSchemaValidator {
         if (schema == null) {
             throw new IllegalArgumentException("schema must not be null");
         }
+        return violations(schema, input, () -> false);
+    }
+
+    static List<String> violations(
+            OperationSchema schema, JsonNode input, OperationValidationBudget budget) {
+        if (schema == null || budget == null) {
+            throw new IllegalArgumentException("schema and validation budget must not be null");
+        }
+        List<String> structuralViolations = OperationJsonTreeLimits.violations(input, budget);
+        if (!structuralViolations.isEmpty()) {
+            return structuralViolations;
+        }
         JsonNode definition = schema.definition();
-        return violations(definition, definition, input);
+        return validate(definition, definition, input, budget);
     }
 
     public static List<String> violations(JsonNode schema, JsonNode root, JsonNode input) {
+        List<String> structuralViolations = OperationJsonTreeLimits.violations(input);
+        if (!structuralViolations.isEmpty()) {
+            return structuralViolations;
+        }
+        try {
+            OperationSchemaRules.validate(root);
+            if (schema == null || !schema.equals(root)) {
+                OperationSchemaRules.visit(schema, root.path("$defs"), new HashSet<>(), 1);
+            }
+        } catch (IllegalArgumentException exception) {
+            return List.of("$ schema is outside the supported subset");
+        }
+        return validate(schema, root, input, () -> false);
+    }
+
+    static List<String> validate(
+            JsonNode schema, JsonNode root, JsonNode input, OperationValidationBudget budget) {
         List<String> violations = new ArrayList<>();
-        collect(schema, root, input == null ? NullNode.getInstance() : input,
-                "$", violations, 0);
+        OperationSchemaValidationContext context = new OperationSchemaValidationContext(
+                root, "$", violations, 0, budget);
+        collect(schema, input == null ? NullNode.getInstance() : input, context);
         return List.copyOf(violations);
     }
 
@@ -38,60 +68,71 @@ public final class OperationSchemaValidator {
         }
     }
 
-    static void collect(
-            JsonNode schema,
-            JsonNode root,
-            JsonNode input,
-            String path,
-            List<String> violations,
-            int depth) {
-        if (depth > 16 || schema == null || schema.isEmpty()) {
+    static void collect(JsonNode schema, JsonNode input,
+            OperationSchemaValidationContext context) {
+        if (context.expired()) {
+            context.violations().add("$ JSON validation budget expired");
+            return;
+        }
+        if (context.depth() > 16) {
+            return;
+        }
+        if (schema == null) {
+            context.violations().add(context.path() + " references missing schema");
             return;
         }
         if (schema.has("$ref")) {
-            collect(referenceTarget(schema, root), root, input, path, violations, depth + 1);
+            collect(context.referenceTarget(schema), input, context.child(context.path()));
             return;
         }
         JsonNode enumValues = schema.get("enum");
-        if (enumValues != null && enumValues.isArray() && !contains(enumValues, input)) {
-            violations.add(path + " is not an allowed value");
+        if (OperationSchemaValueBounds.enumViolation(enumValues, input, context.path(), context)) {
             return;
         }
         JsonNode type = schema.get("type");
         if (type != null && !matches(type, input)) {
-            violations.add(path + " must match the declared type");
+            context.violations().add(context.path() + " must match the declared type");
             return;
         }
-        if (schema.has("oneOf") && !matchesOneOf(schema, root, input, path, depth)) {
-            violations.add(path + " does not match exactly one allowed schema");
+        if (schema.has("oneOf") && !matchesOneOf(schema, input, context)) {
+            if (context.expired()) {
+                context.violations().add("$ JSON validation budget expired");
+                return;
+            }
+            context.violations().add(context.path() + " does not match exactly one allowed schema");
             return;
         }
-        valueBounds(schema, input, path, violations);
-        String typeName = OperationSchemaRules.structuralType(type, input);
-        if ("object".equals(typeName) && input.isObject()) {
-            objectViolations(schema, root, input, path, violations, depth);
+        OperationSchemaValueBounds.apply(
+                schema, input, context.path(), context.violations(), context.budget());
+        children(schema, input, context);
+    }
+
+    static void children(
+            JsonNode schema,
+            JsonNode input,
+            OperationSchemaValidationContext context) {
+        if (input.isObject()) {
+            objectViolations(schema, input, context);
         }
-        if ("array".equals(typeName) && input.isArray()) {
+        if (input.isArray()) {
             JsonNode items = schema.get("items");
             if (items != null) {
                 for (int index = 0; index < input.size(); index++) {
-                    collect(items, root, input.get(index), path + "[" + index + "]", violations, depth + 1);
+                    collect(items, input.get(index), context.child(
+                            context.path() + "[" + index + "]"));
                 }
             }
         }
     }
 
-    static JsonNode referenceTarget(JsonNode schema, JsonNode root) {
-        String reference = schema.get("$ref").asText();
-        return root.path("$defs").get(reference.substring("#/$defs/".length()));
-    }
-
     static boolean matchesOneOf(
-            JsonNode schema, JsonNode root, JsonNode input, String path, int depth) {
+            JsonNode schema, JsonNode input, OperationSchemaValidationContext context) {
         int matches = 0;
         for (JsonNode alternative : schema.get("oneOf")) {
             List<String> candidate = new ArrayList<>();
-            collect(alternative, root, input, path, candidate, depth + 1);
+            OperationSchemaValidationContext candidateContext = new OperationSchemaValidationContext(
+                    context.root(), context.path(), candidate, context.depth() + 1, context.budget());
+            collect(alternative, input, candidateContext);
             if (candidate.isEmpty()) {
                 matches++;
             }
@@ -101,32 +142,40 @@ public final class OperationSchemaValidator {
 
     static void objectViolations(
             JsonNode schema,
-            JsonNode root,
             JsonNode input,
-            String path,
-            List<String> violations,
-            int depth) {
+            OperationSchemaValidationContext context) {
         JsonNode required = schema.get("required");
         if (required != null && required.isArray()) {
             for (JsonNode name : required) {
+                if (context.expired()) {
+                    context.violations().add("$ JSON validation budget expired");
+                    return;
+                }
                 if (name.isTextual() && !input.has(name.asText())) {
-                    violations.add(path + "." + name.asText() + " is required");
+                    context.violations().add(
+                            context.path() + "." + name.asText() + " is required");
                 }
             }
         }
         JsonNode properties = schema.get("properties");
         Iterator<Map.Entry<String, JsonNode>> fields = input.fields();
         while (fields.hasNext()) {
+            if (context.expired()) {
+                context.violations().add("$ JSON validation budget expired");
+                return;
+            }
             Map.Entry<String, JsonNode> field = fields.next();
             JsonNode property = properties == null ? null : properties.get(field.getKey());
             if (property == null && schema.path("additionalProperties").isBoolean()
                     && !schema.path("additionalProperties").asBoolean()) {
-                violations.add(path + "." + field.getKey() + " is not supported");
+                context.violations().add(
+                        context.path() + "." + field.getKey() + " is not supported");
             } else if (property != null) {
-                collect(property, root, field.getValue(), path + "." + field.getKey(), violations, depth + 1);
+                collect(property, field.getValue(), context.child(
+                        context.path() + "." + field.getKey()));
             } else if (schema.path("additionalProperties").isObject()) {
-                collect(schema.path("additionalProperties"), root, field.getValue(),
-                        path + "." + field.getKey(), violations, depth + 1);
+                collect(schema.path("additionalProperties"), field.getValue(), context.child(
+                        context.path() + "." + field.getKey()));
             }
         }
     }
@@ -152,60 +201,11 @@ public final class OperationSchemaValidator {
             case "array" -> value.isArray();
             case "string" -> value.isTextual();
             case "boolean" -> value.isBoolean();
-            case "integer" -> value.isIntegralNumber();
-            case "number" -> value.isNumber();
+            case "integer" -> OperationSchemaValueSemantics.isInteger(value);
+            case "number" -> OperationSchemaValueSemantics.isJsonNumber(value);
             case "null" -> value.isNull();
             default -> true;
         };
     }
 
-    static boolean contains(JsonNode values, JsonNode candidate) {
-        for (JsonNode value : values) {
-            if (value.equals(candidate)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static void valueBounds(JsonNode schema, JsonNode value, String path, List<String> violations) {
-        if (value.isTextual()) {
-            if (schema.has("minLength") && value.textValue().length() < schema.get("minLength").asInt()) {
-                violations.add(path + " is shorter than allowed");
-            }
-            if (schema.has("maxLength") && value.textValue().length() > schema.get("maxLength").asInt()) {
-                violations.add(path + " is longer than allowed");
-            }
-            if (schema.has("pattern") && !Pattern.compile(schema.get("pattern").asText())
-                    .matcher(value.textValue()).find()) {
-                violations.add(path + " does not match the required pattern");
-            }
-        }
-        if (value.isArray()) {
-            if (schema.has("minItems") && value.size() < schema.get("minItems").asInt()) {
-                violations.add(path + " has fewer items than allowed");
-            }
-            if (schema.has("maxItems") && value.size() > schema.get("maxItems").asInt()) {
-                violations.add(path + " has more items than allowed");
-            }
-            if (schema.path("uniqueItems").asBoolean(false)) {
-                for (int index = 0; index < value.size(); index++) {
-                    for (int prior = 0; prior < index; prior++) {
-                        if (value.get(prior).equals(value.get(index))) {
-                            violations.add(path + " must contain unique items");
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-        if (value.isNumber()) {
-            if (schema.has("minimum") && value.asDouble() < schema.get("minimum").asDouble()) {
-                violations.add(path + " is below the minimum");
-            }
-            if (schema.has("maximum") && value.asDouble() > schema.get("maximum").asDouble()) {
-                violations.add(path + " is above the maximum");
-            }
-        }
-    }
 }

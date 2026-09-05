@@ -38,6 +38,7 @@ class OperationDirectoryPackageBoundaryTest {
             "OperationExecutionResult.java",
             "OperationId.java",
             "OperationInvocation.java",
+            "OperationInvocationExecutionBridge.java",
             "package-info.java");
     private static final Set<String> FORBIDDEN_OPERATION_PACKAGES = Set.of(
             "common", "domain", "helper", "manager", "service", "shared", "util", "utility");
@@ -59,12 +60,22 @@ class OperationDirectoryPackageBoundaryTest {
             Map.entry("operation/binding", List.of(
                     "OperationRegistration.java", "OperationRegistrationBinding.java",
                     "OperationRegistrationContract.java", "OperationRequestDecoder.java",
-                    "OperationExecutor.java", "OperationResultEncoder.java")),
+                    "BoundedOperationRequestDecoder.java", "OperationRequestDecoderAdapter.java",
+                    "OperationRequestDecoders.java", "OperationRequestEquivalence.java",
+                    "OperationExecutor.java", "OperationResultEncoder.java",
+                    "ContextAwareOperationExecutor.java", "BoundedDelegateOperationExecutor.java",
+                    "BoundedNonCancellableOperationExecutor.java", "BoundedOperationResultEncoder.java",
+                    "OperationResultEncoders.java", "MapperOperationResultEncoder.java")),
             Map.entry("operation/composition", List.of(
                     "CoreOperationDirectory.java", "CoreOperationDirectoryOwners.java")),
             Map.entry("operation/execution", List.of(
                     "OperationDirectoryException.java", "OperationExecutionException.java",
-                    "OperationExecutionStatus.java", "OperationInvocationExecution.java")),
+                    "OperationExecutionStatus.java", "OperationInvocationExecution.java",
+                    "OperationPayloadValidation.java",
+                    "OperationBindingException.java", "OperationNormalizationException.java",
+                    "OperationOutputTooLargeException.java", "OperationOutputStructureException.java",
+                    "OperationCancellationSignal.java", "OperationExecutionContext.java",
+                    "OperationExecutionContextScope.java")),
             Map.entry("operation/manifest", List.of(
                     "OperationAlias.java", "OperationArgumentDocumentation.java",
                     "OperationDescriptor.java", "OperationDescriptorMetadata.java",
@@ -75,12 +86,21 @@ class OperationDirectoryPackageBoundaryTest {
                     "OperationManifestXmlReader.java", "OperationManifestXmlSecurity.java",
                     "OperationManifestXmlStructureValidator.java")),
             Map.entry("operation/schema", List.of(
-                    "CanonicalOperationSchema.java", "OperationSchema.java", "OperationSchemaRules.java",
+                    "BoundedOperationSchemaValidator.java", "CanonicalOperationSchema.java",
+                    "OperationSchema.java", "OperationSchemaRules.java",
                     "OperationSchemaValidator.java", "CoreOperationResultFields.java",
-                    "CoreOperationResultSchemas.java")),
+                    "CoreOperationResultSchemas.java", "OperationJsonTreeLimits.java",
+                    "OperationSchemaValidationContext.java", "OperationSchemaPatternSafety.java",
+                    "OperationSchemaValueSemantics.java", "OperationSchemaValueBounds.java",
+                    "OperationValidationBudget.java")),
             Map.entry("operation/safety", List.of(
+                    "BoundedOperationValueRedactor.java",
                     "OperationSafetyPolicy.java", "CoreOperationSafetyPolicy.java",
-                    "OperationValueRedactor.java")),
+                    "OperationValueRedactor.java", "OperationSafetyLimits.java",
+                    "OperationCancellationState.java", "OperationCancellationGuarantee.java",
+                    "OperationCancellationSupport.java", "OperationJsonByteCounter.java",
+                    "OperationJsonSize.java", "OperationJsonByteBuffer.java",
+                    "OperationJsonSnapshot.java")),
             Map.entry("operation/trace", List.of(
                     "OperationLegacyIdentity.java", "OperationTraceEntry.java",
                     "OperationTraceInventory.java", "OperationTraceMetadata.java")),

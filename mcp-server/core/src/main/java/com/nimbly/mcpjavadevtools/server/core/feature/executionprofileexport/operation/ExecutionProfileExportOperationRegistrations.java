@@ -24,7 +24,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMeta
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
 /** Binds the actionless released export Tool to its typed Core owner. */
-public final class ExecutionProfileExportOperationRegistrations {
+public class ExecutionProfileExportOperationRegistrations {
 
     private ExecutionProfileExportOperationRegistrations() {
     }

@@ -25,7 +25,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMeta
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
 /** Binds all 31 Artifact Management owners to canonical operation inputs. */
-public final class ArtifactOperationRegistrations {
+public class ArtifactOperationRegistrations {
 
     private ArtifactOperationRegistrations() {
     }

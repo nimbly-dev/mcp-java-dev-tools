@@ -53,11 +53,40 @@ class OperationRelocationApiCompatibilityTest {
                         .as("candidate source for %s -> %s", baselineType, candidateType)
                         .isTrue();
                 Set<String> actual = resolvedApi(Class.forName(candidateType), typeIdentities);
+                Set<String> allowed616Additions = intentional616Additions(candidateType);
+                Set<String> expectedWith616Additions = new TreeSet<>(expected);
+                expectedWith616Additions.addAll(allowed616Additions);
                 assertThat(actual)
                         .as("resolved JVM API for %s -> %s", baselineType, candidateType)
-                        .containsExactlyInAnyOrderElementsOf(expected);
+                        .containsExactlyInAnyOrderElementsOf(expectedWith616Additions);
             }
         }
+    }
+
+    private Set<String> intentional616Additions(String candidateType) {
+        String assembler = BASELINE_OPERATION_PACKAGE + ".OperationManifestAssembler";
+        String execution = BASELINE_OPERATION_PACKAGE + ".OperationInvocationExecution";
+        String descriptorPackage = BASELINE_OPERATION_PACKAGE.replace('.', '/');
+        if (candidateType.endsWith(".OperationManifestAssembler")) {
+            return Set.of("METHOD|" + assembler + "|public static|typeParameters=[]|return="
+                    + BASELINE_OPERATION_PACKAGE + ".OperationManifest|name=assembleStrict|params=["
+                    + "java.util.List<? extends " + BASELINE_OPERATION_PACKAGE
+                    + ".OperationRegistration<?, ?>>, " + assembler.substring(0,
+                    assembler.lastIndexOf('.') + 1) + "OperationManifestDocument]|throws=[]|descriptor=(Ljava/util/List;L"
+                    + descriptorPackage + "/OperationManifestDocument;)L" + descriptorPackage
+                    + "/OperationManifest;|varargs=false");
+        }
+        if (candidateType.endsWith(".OperationInvocationExecution")) {
+            return Set.of("METHOD|" + execution + "|public static|typeParameters=[]|return="
+                    + BASELINE_OPERATION_PACKAGE + ".OperationExecutionResult|name=run|params=["
+                    + BASELINE_OPERATION_PACKAGE + ".OperationManifest, "
+                    + "com.fasterxml.jackson.databind.ObjectMapper, " + BASELINE_OPERATION_PACKAGE
+                    + ".OperationId, com.fasterxml.jackson.databind.JsonNode, boolean, boolean]|throws=[]|descriptor=(L"
+                    + descriptorPackage + "/OperationManifest;Lcom/fasterxml/jackson/databind/ObjectMapper;L"
+                    + descriptorPackage + "/OperationId;Lcom/fasterxml/jackson/databind/JsonNode;ZZ)L"
+                    + descriptorPackage + "/OperationExecutionResult;|varargs=false");
+        }
+        return Set.of();
     }
 
     @Test

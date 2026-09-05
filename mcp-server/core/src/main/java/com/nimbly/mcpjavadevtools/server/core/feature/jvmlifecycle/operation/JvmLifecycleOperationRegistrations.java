@@ -26,7 +26,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMeta
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
 /** Binds all three JVM lifecycle owners to the typed request factory. */
-public final class JvmLifecycleOperationRegistrations {
+public class JvmLifecycleOperationRegistrations {
 
     private JvmLifecycleOperationRegistrations() {
     }

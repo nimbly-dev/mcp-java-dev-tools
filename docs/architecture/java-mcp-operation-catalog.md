@@ -47,15 +47,15 @@ ownership split.
 
 | Before package | After package | Types |
 | --- | --- | --- |
-| `...server.core.operation` | `...server.core.operation` | `CatalogPage`, `CatalogQuery`, `OperationDirectory`, `OperationExecutionResult`, `OperationId`, `OperationInvocation` |
+| `...server.core.operation` | `...server.core.operation` | `CatalogPage`, `CatalogQuery`, `OperationDirectory`, `OperationExecutionResult`, `OperationId`, `OperationInvocation`, `OperationInvocationExecutionBridge` |
 | `...server.core.operation` | `...server.core.operation.catalog` | `Operation`, `OperationCatalog`, `OperationCatalogEntry`, `OperationCatalogPageBuilder`, `OperationCursor`, `OperationExposure` |
-| `...server.core.operation` | `...server.core.operation.binding` | `OperationExecutor`, `OperationRegistration`, `OperationRegistrationBinding`, `OperationRegistrationContract`, `OperationRequestDecoder`, `OperationResultEncoder` |
+| `...server.core.operation` | `...server.core.operation.binding` | `BoundedDelegateOperationExecutor`, `BoundedNonCancellableOperationExecutor`, `BoundedOperationRequestDecoder`, `BoundedOperationResultEncoder`, `ContextAwareOperationExecutor`, `MapperOperationResultEncoder`, `OperationExecutor`, `OperationRegistration`, `OperationRegistrationBinding`, `OperationRegistrationContract`, `OperationRequestDecoder`, `OperationRequestDecoderAdapter`, `OperationRequestDecoders`, `OperationRequestEquivalence`, `OperationResultEncoder`, `OperationResultEncoders` |
 | `...server.core.operation` | `...server.core.operation.composition` | `CoreOperationDirectory`, `CoreOperationDirectoryOwners` |
-| `...server.core.operation` | `...server.core.operation.execution` | `OperationDirectoryException`, `OperationExecutionException`, `OperationExecutionStatus`, `OperationInvocationExecution` |
+| `...server.core.operation` | `...server.core.operation.execution` | `OperationBindingException`, `OperationCancellationSignal`, `OperationDirectoryException`, `OperationExecutionContext`, `OperationExecutionContextScope`, `OperationExecutionException`, `OperationExecutionStatus`, `OperationInvocationExecution`, `OperationNormalizationException`, `OperationOutputStructureException`, `OperationOutputTooLargeException`, `OperationPayloadValidation` |
 | `...server.core.operation` | `...server.core.operation.manifest` | `OperationAlias`, `OperationArgumentDocumentation`, `OperationDescriptor`, `OperationDescriptorMetadata`, `OperationDocumentation`, `OperationManifest`, `OperationManifestAssembler`, `OperationManifestDocument`, `OperationManifestLoader` |
 | `...server.core.operation` | `...server.core.operation.manifest.xml` | `OperationManifestXmlReader`, `OperationManifestXmlStructureValidator` |
-| `...server.core.operation` | `...server.core.operation.schema` | `CanonicalOperationSchema`, `CoreOperationResultFields`, `CoreOperationResultSchemas`, `OperationSchema`, `OperationSchemaRules`, `OperationSchemaValidator` |
-| `...server.core.operation` | `...server.core.operation.safety` | `CoreOperationSafetyPolicy`, `OperationSafetyPolicy`, `OperationValueRedactor` |
+| `...server.core.operation` | `...server.core.operation.schema` | `BoundedOperationSchemaValidator`, `CanonicalOperationSchema`, `CoreOperationResultFields`, `CoreOperationResultSchemas`, `OperationJsonTreeLimits`, `OperationSchema`, `OperationSchemaPatternSafety`, `OperationSchemaRules`, `OperationSchemaValidationContext`, `OperationSchemaValueBounds`, `OperationSchemaValueSemantics`, `OperationValidationBudget`, `OperationSchemaValidator` |
+| `...server.core.operation` | `...server.core.operation.safety` | `BoundedOperationValueRedactor`, `CoreOperationSafetyPolicy`, `OperationCancellationGuarantee`, `OperationCancellationState`, `OperationCancellationSupport`, `OperationJsonByteBuffer`, `OperationJsonByteCounter`, `OperationJsonSize`, `OperationJsonSnapshot`, `OperationSafetyLimits`, `OperationSafetyPolicy`, `OperationValueRedactor` |
 | `...server.core.operation` | `...server.core.operation.trace` | `OperationLegacyIdentity`, `OperationTraceEntry`, `OperationTraceInventory`, `OperationTraceMetadata` |
 | `...server.core.operation` | `...server.core.feature.artifactmanagement.model.operation` | `ArtifactOperationArguments` |
 | `...server.core.operation` | `...server.core.feature.artifactmanagement.operation` | `ArtifactOperationRegistrations` |
@@ -76,22 +76,13 @@ ownership split.
 | `...server.core.operation` | `...server.core.feature.suite.performance.operation` | `PerformanceSuiteOperationRegistrations` |
 | `...server.core.operation` | `...server.core.feature.suite.security.operation` | `SecuritySuiteOperationRegistrations` |
 
-## Reference capability
+## Kernel fixture scope
 
-`execution_profile_export` is the bounded reference migration outside the
-Artifact Management capability for this phase. Its `export` action is owned by
-`ExportExecutionProfileOperation`, registered by
-`ExecutionProfileExportOperationCatalog`, and composed explicitly by
-`CoreOperationDirectory`. The operation still delegates Artifact
-generation through the existing `ExecutionExportArtifactGateway`; no Artifact,
-Sidecar, MCP schema, status, reason-code, or output behavior was changed.
-
-The trace metadata names the MCP adapter, request mapper, Core Feature, response
-mapper, focused TypeScript-parity evidence, side-effect classification, and
-collaborator roles. The generated inventory additionally names the concrete
-capability catalog that dispatches the action. The focused parity fixture
-remains the proof that the migrated route preserves the released TypeScript
-contract.
+Issue #616 completes the capability-neutral kernel only. It does not migrate a
+production capability or rewrite an existing operation registration. Synthetic
+heterogeneous fixtures provide the bounded binding, execution, normalization,
+and cancellation proof; the sequential capability stories own production-row
+migration and parity evidence.
 
 ## Aggregate operation directory
 
@@ -114,6 +105,39 @@ generated aggregate manifest and trace inventory retain the released
 Tool/action identity (including explicit actionless rows), canonical operation
 ID, CDE schema, normalization rule, result comparison rule, and parity
 scenario.
+
+The Core kernel applies these named hard ceilings before argument binding or Core
+execution: 1 MiB input, 4 MiB output, depth 64, 100,000 JSON nodes, and 262,144
+UTF-8 bytes per string value. Input snapshots use exact decimal parsing after
+capped serialization. Strict kernel assembly requires every request decoder and
+result encoder to support bounded round-trip streaming; mapper-backed bindings
+stream through the hard ceiling before tree materialization, and the streamed
+JSON representation is authoritative for normalization. The normal aggregate
+assembly remains an explicit migration-compatibility path for the unchanged
+legacy capability registrations. Its ordinary encoders are validated for
+structure and encoded bytes immediately after their first returned tree and
+before any defensive copy or repeated normalization; this compatibility path is
+not proof of a future bounded capability migration. Custom request decoders and
+ordinary typed mapper decoders use a strict lossless comparison. A typed mapper
+decoder may explicitly declare exact Java-owned default values for omitted record
+fields. Top-level defaults use field-name keys and nested defaults use escaped RFC
+6901 JSON Pointer keys; the complete caller-declared default metadata (path names,
+framing, cumulative nodes, and values) is subject to the same bounded JSON checks
+before canonical lookup paths or value snapshots are retained. Every rebound value is also checked against the input
+schema; no arbitrary added container is accepted.
+The per-operation policy may tighten these values but cannot widen them.
+Operation timeouts are monotonic and bounded to 100–300,000 ms, defaulting to
+30,000 ms; the aggregate executor is capped at 16 concurrent operations and
+allows a 1,000 ms cooperative-cancellation grace period.
+
+Typed owners that consume `OperationExecutionContext` receive the monotonic
+deadline and cooperative cancellation signal explicitly. Existing owners remain
+in `LEGACY_UNVERIFIED_CANCELLATION` compatibility state until
+their owning migration story proves context-aware, bounded-delegate, or
+explicitly non-cancellable semantics. That state is surfaced in generated
+trace compatibility evidence and is accepted only by the current migration
+assembly path; strict future aggregate validation rejects it. Thread
+interruption alone is not treated as cancellation proof.
 
 ## Structural enforcement
 
@@ -167,8 +191,8 @@ For a new migrated capability:
    every advertised action.
 
 The aggregate binding is Core-only and does not cut over public Application MCP
-registration. Route Synthesis, Failure Analysis, Transport Execution, the suite
-Features, and Execution Orchestration continue using their existing
-`EnumActionDispatcher`-backed capability implementations behind the explicit
-typed directory adapters. The migrated Java paths do not silently alter the
-released TypeScript compatibility implementation.
+registration. Existing capability implementations and registrations continue
+to be the released compatibility sources; no production capability row is
+rewritten by #616. Later sequential capability stories may migrate those rows
+through the same kernel without silently altering the released TypeScript
+compatibility implementation.

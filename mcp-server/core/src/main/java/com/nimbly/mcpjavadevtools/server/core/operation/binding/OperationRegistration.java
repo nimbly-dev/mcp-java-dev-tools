@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
 
@@ -70,9 +71,9 @@ public record OperationRegistration<I, O>(
                 requestType,
                 resultType,
                 contract,
-                input -> mapper.convertValue(input, requestType),
+                OperationRequestDecoders.typed(mapper, requestType),
                 executor::apply,
-                result -> mapper.valueToTree(result));
+                OperationResultEncoders.typed(mapper, resultType));
     }
 
     /** @return Java-owned request schema */
@@ -92,12 +93,14 @@ public record OperationRegistration<I, O>(
 
     /** @return immutable legacy-to-CDE compatibility metadata */
     public Map<String, String> compatibility() {
-        return legacyIdentity.inventory(descriptor);
+        Map<String, String> values = new java.util.TreeMap<>(legacyIdentity.inventory(descriptor));
+        values.put("cancellationState", OperationCancellationSupport.state(executor, safety()).name());
+        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(values));
     }
 
     /** Converts, executes, and normalizes one already schema-validated input. */
     public JsonNode execute(JsonNode input) {
-        return OperationRegistrationBinding.execute(input, decoder, executor, encoder);
+        return OperationRegistrationBinding.execute(input, this);
     }
 
     /** Rebinds only immutable manifest metadata, retaining explicit executable ownership. */

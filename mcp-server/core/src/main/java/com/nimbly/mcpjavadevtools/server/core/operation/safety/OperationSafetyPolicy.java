@@ -1,6 +1,7 @@
 package com.nimbly.mcpjavadevtools.server.core.operation.safety;
 
 import java.util.Objects;
+import java.util.Set;
 
 /** Explicit safety, size, timeout, and cancellation policy for one operation. */
 public record OperationSafetyPolicy(
@@ -13,6 +14,10 @@ public record OperationSafetyPolicy(
         int maxInputBytes,
         int maxOutputBytes) {
 
+    private static final Set<String> READ_ONLY_SIDE_EFFECTS = Set.of(
+            "none", "read_only", "filesystem_read", "sqlite_read", "jvm_process_read",
+            "probe_endpoint_read", "probe_endpoint_poll", "probe_capture_read", "evidence_read");
+
     /** Validates the bounded execution policy. */
     public OperationSafetyPolicy {
         Objects.requireNonNull(sideEffect, "sideEffect must not be null");
@@ -23,11 +28,12 @@ public record OperationSafetyPolicy(
                 || redactionPolicy.length() > 128) {
             throw new IllegalArgumentException("operation safety policy values must not be blank");
         }
-        if (timeoutMillis < 1 || timeoutMillis > 300_000) {
+        if (timeoutMillis < OperationSafetyLimits.MIN_TIMEOUT_MILLIS
+                || timeoutMillis > OperationSafetyLimits.MAX_TIMEOUT_MILLIS) {
             throw new IllegalArgumentException("timeoutMillis is outside the supported bounds");
         }
-        if (maxInputBytes < 1 || maxInputBytes > 4_194_304
-                || maxOutputBytes < 1 || maxOutputBytes > 16_777_216) {
+        if (maxInputBytes < 1 || maxInputBytes > OperationSafetyLimits.MAX_INPUT_BYTES
+                || maxOutputBytes < 1 || maxOutputBytes > OperationSafetyLimits.MAX_OUTPUT_BYTES) {
             throw new IllegalArgumentException("operation byte bounds are outside the supported bounds");
         }
     }
@@ -39,14 +45,14 @@ public record OperationSafetyPolicy(
                 false,
                 "caller_must_not_supply_credentials",
                 "redact_sensitive_fields",
-                60_000,
+                OperationSafetyLimits.DEFAULT_TIMEOUT_MILLIS,
                 true,
-                1_048_576,
-                4_194_304);
+                OperationSafetyLimits.MAX_INPUT_BYTES,
+                OperationSafetyLimits.MAX_OUTPUT_BYTES);
     }
 
     /** @return whether the operation is classified as read-only */
     public boolean readOnly() {
-        return "none".equals(sideEffect) || "read_only".equals(sideEffect);
+        return READ_ONLY_SIDE_EFFECTS.contains(sideEffect);
     }
 }

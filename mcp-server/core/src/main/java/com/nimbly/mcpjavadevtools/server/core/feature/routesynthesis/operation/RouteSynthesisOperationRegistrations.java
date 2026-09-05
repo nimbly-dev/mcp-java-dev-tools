@@ -27,7 +27,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMeta
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
 /** Binds all four Route Synthesis owners to concrete request records. */
-public final class RouteSynthesisOperationRegistrations {
+public class RouteSynthesisOperationRegistrations {
 
     private RouteSynthesisOperationRegistrations() {
     }

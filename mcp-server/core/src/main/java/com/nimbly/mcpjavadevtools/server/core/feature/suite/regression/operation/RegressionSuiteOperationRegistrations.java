@@ -24,7 +24,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMeta
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
 /** Binds both Regression Suite actions to the existing Core JSON plan contract. */
-public final class RegressionSuiteOperationRegistrations {
+public class RegressionSuiteOperationRegistrations {
 
     private RegressionSuiteOperationRegistrations() {
     }

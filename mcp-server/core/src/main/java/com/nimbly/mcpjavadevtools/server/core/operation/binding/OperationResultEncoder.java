@@ -6,6 +6,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 @FunctionalInterface
 public interface OperationResultEncoder<O> {
 
-    /** @param result typed result @return JSON result */
+    /** @param result typed result @return JSON result for direct compatibility callers */
     JsonNode encode(O result);
 }
