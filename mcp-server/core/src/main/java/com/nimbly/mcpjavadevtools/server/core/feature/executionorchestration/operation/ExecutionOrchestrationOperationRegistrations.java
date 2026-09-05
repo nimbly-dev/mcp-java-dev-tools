@@ -22,7 +22,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIde
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 
 /** Binds execution orchestration to its explicit persisted-state request contract. */
-public final class ExecutionOrchestrationOperationRegistrations {
+public class ExecutionOrchestrationOperationRegistrations {
 
     private ExecutionOrchestrationOperationRegistrations() {
     }

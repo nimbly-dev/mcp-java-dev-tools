@@ -16,7 +16,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManife
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
 
 /** Aggregate Core Catalog-Describe-Execute directory over explicit registrations. */
-public final class OperationDirectory {
+public class OperationDirectory {
 
     private final OperationManifest manifest;
     private final ObjectMapper mapper;
@@ -66,12 +66,15 @@ public final class OperationDirectory {
 
     /** Executes one exact invocation without requiring a preceding describe call. */
     public OperationExecutionResult execute(OperationInvocation invocation) {
-        return OperationInvocationExecution.run(manifest, mapper, invocation);
+        if (invocation == null) {
+            return OperationInvocationExecution.run(manifest, mapper, invocation);
+        }
+        return OperationInvocationExecutionBridge.run(manifest, mapper, invocation);
     }
 
     /** Convenience exact-ID execution entry point. */
     public OperationExecutionResult execute(OperationId operationId, JsonNode input) {
-        return execute(new OperationInvocation(operationId, input));
+        return OperationInvocationExecution.run(manifest, mapper, operationId, input, false, false);
     }
 
     /** @return the immutable assembled manifest */

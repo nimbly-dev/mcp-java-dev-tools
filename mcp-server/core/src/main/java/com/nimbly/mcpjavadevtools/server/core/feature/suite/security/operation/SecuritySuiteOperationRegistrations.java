@@ -22,7 +22,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIde
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 
 /** Binds the Security Suite action to its bounded JSON contract. */
-public final class SecuritySuiteOperationRegistrations {
+public class SecuritySuiteOperationRegistrations {
 
     private SecuritySuiteOperationRegistrations() {
     }

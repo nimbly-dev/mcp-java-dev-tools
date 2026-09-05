@@ -2,27 +2,48 @@ package com.nimbly.mcpjavadevtools.server.core.operation.manifest;
 
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationResultEncoder;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationRequestDecoder;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationJsonSize;
 
 /** Joins XML documentation to explicit Java registrations and fails closed. */
-public final class OperationManifestAssembler {
+public class OperationManifestAssembler {
 
     private OperationManifestAssembler() {
     }
 
-    /** Assembles the exact executable/documentation join for one manifest version. */
+    /**
+     * Assembles the executable/documentation join in migration compatibility mode.
+     * Strict kernel fixtures should use {@link #assembleStrict(List, OperationManifestDocument)}.
+     */
     public static OperationManifest assemble(
             List<? extends OperationRegistration<?, ?>> registrations,
             OperationManifestDocument document) {
+        return assemble(registrations, document, true);
+    }
+
+    /** Assembles a manifest with strict cancellation-state validation enabled. */
+    public static OperationManifest assembleStrict(
+            List<? extends OperationRegistration<?, ?>> registrations,
+            OperationManifestDocument document) {
+        return assemble(registrations, document, false);
+    }
+
+    /** Assembles with an explicit migration mode for strict future cutover validation. */
+    static OperationManifest assemble(
+            List<? extends OperationRegistration<?, ?>> registrations,
+            OperationManifestDocument document,
+            boolean migrationCompatibilityMode) {
         Objects.requireNonNull(registrations, "registrations must not be null");
         Objects.requireNonNull(document, "manifest document must not be null");
         Map<OperationId, OperationRegistration<?, ?>> joined = new TreeMap<>();
@@ -35,7 +56,7 @@ public final class OperationManifestAssembler {
             if (joined.containsKey(id)) {
                 throw new IllegalArgumentException("duplicate executable operation: " + id.value());
             }
-            joined.put(id, enrich(registration, document.documentation(id)));
+            joined.put(id, enrich(registration, document.documentation(id), migrationCompatibilityMode));
         }
         for (OperationId documentedId : document.operations().keySet()) {
             if (!joined.containsKey(documentedId)) {
@@ -47,6 +68,13 @@ public final class OperationManifestAssembler {
 
     static OperationRegistration<?, ?> enrich(
             OperationRegistration<?, ?> registration, OperationDocumentation documentation) {
+        return enrich(registration, documentation, true);
+    }
+
+    static OperationRegistration<?, ?> enrich(
+            OperationRegistration<?, ?> registration,
+            OperationDocumentation documentation,
+            boolean migrationCompatibilityMode) {
         OperationId id = registration.descriptor().operationId();
         if (documentation == null) {
             throw new IllegalArgumentException("missing operation documentation: " + id.value());
@@ -59,11 +87,15 @@ public final class OperationManifestAssembler {
         validateAliases(descriptor, documentation.aliases(), registration.legacyIdentity());
         OperationSchema inputSchema = registration.inputSchema();
         OperationSchema resultSchema = registration.resultSchema();
+        if (!migrationCompatibilityMode) {
+            validateBoundedBinding(registration, id);
+        }
+        OperationCancellationSupport.validate(
+                registration.executor(), registration.safety(), migrationCompatibilityMode);
         OperationDocumentation effectiveDocumentation = documentation.withSafety(registration.safety());
         validateArguments(id, documentation.arguments(), inputSchema);
         for (JsonNode example : effectiveDocumentation.examples()) {
-            if (example.toString().getBytes(StandardCharsets.UTF_8).length
-                    > registration.safety().maxInputBytes()) {
+            if (OperationJsonSize.measure(example, registration.safety().maxInputBytes()) < 0) {
                 throw new IllegalArgumentException("manifest example exceeds input limit: " + id.value());
             }
             List<String> violations = OperationSchemaValidator.violations(inputSchema, example);
@@ -80,6 +112,18 @@ public final class OperationManifestAssembler {
                 resultSchema,
                 registration.safety());
         return registration.withDescriptor(descriptor.withMetadata(metadata));
+    }
+
+    static void validateBoundedBinding(
+            OperationRegistration<?, ?> registration, OperationId id) {
+        if (!(registration.decoder() instanceof BoundedOperationRequestDecoder<?>)) {
+            throw new IllegalArgumentException(
+                    "operation argument decoder must support bounded round trips: " + id.value());
+        }
+        if (!(registration.encoder() instanceof BoundedOperationResultEncoder<?>)) {
+            throw new IllegalArgumentException(
+                    "operation result encoder must support bounded streaming: " + id.value());
+        }
     }
 
     public static void validateArguments(

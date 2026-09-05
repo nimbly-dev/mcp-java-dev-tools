@@ -22,7 +22,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIde
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 
 /** Binds the Performance Suite action to its bounded JSON plan contract. */
-public final class PerformanceSuiteOperationRegistrations {
+public class PerformanceSuiteOperationRegistrations {
 
     private PerformanceSuiteOperationRegistrations() {
     }

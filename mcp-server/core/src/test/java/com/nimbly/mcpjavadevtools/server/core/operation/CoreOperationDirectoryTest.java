@@ -83,6 +83,8 @@ import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.o
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.operation.TransportExecutionOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectoryOwners;
@@ -511,6 +513,7 @@ class CoreOperationDirectoryTest {
                 new OperationRegistrationContract(
                         OperationSchema.empty(), OperationSchema.empty(),
                         OperationSafetyPolicy.legacy("none")),
-                input -> input.asText(), input -> input, input -> JSON.valueToTree(input));
+                OperationRequestDecoders.typed(JSON, String.class), input -> input,
+                OperationResultEncoders.typed(JSON, String.class));
     }
 }

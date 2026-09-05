@@ -23,7 +23,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMeta
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
 /** Binds the actionless transport Tool to the Core transport boundary. */
-public final class TransportExecutionOperationRegistrations {
+public class TransportExecutionOperationRegistrations {
 
     private TransportExecutionOperationRegistrations() {
     }

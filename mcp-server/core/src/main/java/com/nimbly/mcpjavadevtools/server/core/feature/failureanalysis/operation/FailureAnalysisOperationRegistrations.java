@@ -33,7 +33,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMeta
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
 /** Binds both Failure Analysis owners and both verification variants. */
-public final class FailureAnalysisOperationRegistrations {
+public class FailureAnalysisOperationRegistrations {
 
     private FailureAnalysisOperationRegistrations() {
     }

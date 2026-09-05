@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /** Validates the bounded Draft 2020-12 schema subset accepted by Core. */
-public final class OperationSchemaRules {
+public class OperationSchemaRules {
 
     public static final String DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
     private static final Set<String> KEYWORDS = Set.of(
@@ -55,6 +55,9 @@ public final class OperationSchemaRules {
         }
         if (schema.has("$ref")) {
             localReference(schema, definitions, activeRefs, depth);
+        }
+        if (depth == 0 && !OperationJsonTreeLimits.violations(schema).isEmpty()) {
+            throw new IllegalArgumentException("operation schema contains an invalid JSON value");
         }
     }
 
@@ -116,6 +119,14 @@ public final class OperationSchemaRules {
         JsonNode reference = schema.get("$ref");
         if (!reference.isTextual() || !reference.asText().startsWith("#/$defs/")) {
             throw new IllegalArgumentException("operation schema references must be local");
+        }
+        Iterator<String> siblings = schema.fieldNames();
+        while (siblings.hasNext()) {
+            String sibling = siblings.next();
+            if (!sibling.equals("$ref")
+                    && !(depth == 0 && (sibling.equals("$schema") || sibling.equals("$defs")))) {
+                throw new IllegalArgumentException("operation schema $ref siblings are unsupported");
+            }
         }
         String name = reference.asText().substring("#/$defs/".length());
         if (name.isBlank() || definitions == null || !definitions.has(name)
@@ -185,7 +196,7 @@ public final class OperationSchemaRules {
         }
         for (String name : Set.of("minimum", "maximum")) {
             JsonNode value = schema.get(name);
-            if (value != null && !value.isNumber()) {
+            if (value != null && !OperationSchemaValueSemantics.isJsonNumber(value)) {
                 throw new IllegalArgumentException("operation schema numeric bound is invalid: " + name);
             }
         }
@@ -199,10 +210,12 @@ public final class OperationSchemaRules {
             } catch (RuntimeException exception) {
                 throw new IllegalArgumentException("operation schema pattern is invalid", exception);
             }
+            OperationSchemaPatternSafety.validate(pattern.asText());
         }
         JsonNode minimum = schema.get("minimum");
         JsonNode maximum = schema.get("maximum");
-        if (minimum != null && maximum != null && minimum.asDouble() > maximum.asDouble()) {
+        if (minimum != null && maximum != null
+                && OperationSchemaValueSemantics.compareNumbers(minimum, maximum) > 0) {
             throw new IllegalArgumentException("operation schema numeric bounds are inverted");
         }
         JsonNode minItems = schema.get("minItems");
@@ -216,4 +229,5 @@ public final class OperationSchemaRules {
             throw new IllegalArgumentException("operation schema string bounds are inverted");
         }
     }
+
 }

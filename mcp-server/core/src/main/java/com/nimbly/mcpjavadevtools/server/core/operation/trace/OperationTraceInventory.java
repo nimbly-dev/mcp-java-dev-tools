@@ -82,7 +82,7 @@ public class OperationTraceInventory {
                     trace.focusedEvidence(),
                     trace.sideEffect(),
                     trace.collaboratorRoles(),
-                    identity.inventory(descriptor),
+                    registration.compatibility(),
                     descriptor.operationId().value()));
         }
         return List.copyOf(entries);
