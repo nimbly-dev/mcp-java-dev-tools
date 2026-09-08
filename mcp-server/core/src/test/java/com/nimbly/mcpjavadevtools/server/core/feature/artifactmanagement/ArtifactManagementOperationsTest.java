@@ -55,8 +55,7 @@ class ArtifactManagementOperationsTest {
 
     @Test
     void upsertAndReadProbeConfigUseWorkspaceContainedArtifact() {
-        ObjectNode payload = mapper.createObjectNode();
-        payload.putArray("probes").addObject().put("id", "line");
+        ObjectNode payload = validProbe();
         ArtifactManagementResult upsert = operations.upsertProbeConfig(request(
                 ArtifactType.PROBE_CONFIG,
                 ArtifactAction.UPSERT,
@@ -303,8 +302,10 @@ class ArtifactManagementOperationsTest {
                 .put("name", "local").put("mode", "terminal").put("autoStart", true)
                 .putArray("startups").addObject().put("name", "gateway").put("command", "echo")
                 .putArray("args").add("runtime-started");
-        workspaceArtifact.putArray("externalSystems").addObject().put("name", "gateway")
-                .putArray("healthChecks").addObject().put("id", "ready").put("type", "http")
+        ObjectNode external = workspaceArtifact.putArray("externalSystems").addObject();
+        external.put("name", "gateway").put("kind", "http")
+                .put("host", "127.0.0.1").put("port", 9196);
+        external.putArray("healthChecks").addObject().put("id", "ready").put("type", "http")
                 .put("url", "http://127.0.0.1:9196/health").put("required", true);
         workspaceArtifact.putArray("scripts").addObject()
                 .put("name", "setup").put("phase", "postHealthcheck").put("command", "sh")
@@ -404,7 +405,7 @@ class ArtifactManagementOperationsTest {
 
         ArtifactManagementResult result = owner.upsert(request(
                 ArtifactType.PROBE_CONFIG, ArtifactAction.UPSERT,
-                Map.of("payload", mapper.createObjectNode().put("probes", "configured"))));
+                Map.of("payload", validProbe())));
 
         assertThat(result.status()).isEqualTo("ok");
         assertThat(reloads).hasValue(1);
@@ -420,7 +421,7 @@ class ArtifactManagementOperationsTest {
                 () -> new ProbeRegistry(List.of(new ProbeRegistration("live", "http://127.0.0.1:1"))));
         try {
             Files.createDirectories(workspace.resolve(".mcpjvm"));
-            Files.writeString(workspace.resolve(".mcpjvm/probe-config.json"), "{}\n");
+            Files.writeString(workspace.resolve(".mcpjvm/probe-config.json"), validProbe().toString());
         } catch (IOException exception) {
             throw new AssertionError(exception);
         }
@@ -428,7 +429,7 @@ class ArtifactManagementOperationsTest {
         ArtifactManagementResult result = owner.reload(request(
                 ArtifactType.PROBE_CONFIG, ArtifactAction.RELOAD, Map.of()));
 
-        assertThat(result.status()).isEqualTo("ok");
+        assertThat(result.status()).isEqualTo("reloaded");
         assertThat(result.details()).doesNotContainKey("status");
         assertThat(result.details()).containsEntry("reloadApplied", true)
                 .containsEntry("activeProbeCount", 1);
@@ -509,6 +510,13 @@ class ArtifactManagementOperationsTest {
                                 .put("resumePollIntervalMs", 10)
                                 .put("resumePollTimeoutMs", 100)));
         return project;
+    }
+
+    private ObjectNode validProbe() {
+        ObjectNode config = mapper.createObjectNode().put("defaultProfile", "local");
+        config.putObject("profiles").putObject("local").putObject("probes")
+                .putObject("line").put("baseUrl", "http://127.0.0.1:9191");
+        return config;
     }
 
     private ArtifactManagementRequest request(

@@ -7,6 +7,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.a
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,6 +69,11 @@ public final class ArtifactManagementSupport {
         return ArtifactManagementResult.success(request.artifactType(), request.action(), details);
     }
 
+    public ArtifactManagementResult success(
+            ArtifactManagementRequest request, String status, Map<String, Object> details) {
+        return ArtifactManagementResult.success(request.artifactType(), request.action(), status, details);
+    }
+
     public JsonNode readOrNotConfigured(Path path) {
         if (!Files.isRegularFile(path)) {
             throw new ArtifactOperationException("probe_registry_not_configured",
@@ -90,11 +96,15 @@ public final class ArtifactManagementSupport {
     public String resolveProject(Workspace workspace, ArtifactManagementRequest request) {
         Optional<String> selected = request.text("projectName");
         if (selected.isPresent()) {
+            request.text("projectRootAbs").ifPresent(this::validateProjectRoot);
             ArtifactPathPolicy.validateSegment(selected.get());
             return selected.get();
         }
-        List<String> names = jsonStore.directories(workspace.paths.resolve(".mcpjvm")).stream()
-                .filter(name -> Files.isRegularFile(projectPath(workspace, name))).toList();
+        Optional<String> root = request.text("projectRootAbs");
+        if (root.isPresent()) {
+            return resolveProjectByRoot(workspace, root.get());
+        }
+        List<String> names = projectNames(workspace);
         if (names.size() == 1) {
             return names.getFirst();
         }
@@ -103,6 +113,64 @@ public final class ArtifactManagementSupport {
         }
         throw new ArtifactOperationException("project_artifact_ambiguous",
                 "Multiple project Artifacts exist; projectName is required", Map.of("projectNames", names));
+    }
+
+    private String resolveProjectByRoot(Workspace workspace, String value) {
+        Path requestedRoot = validateProjectRoot(value);
+        List<String> matches = projectNames(workspace).stream()
+                .filter(name -> projectMatchesRoot(workspace, name, requestedRoot))
+                .toList();
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("failedStep", "project_resolution");
+        metadata.put("projectRootAbs", requestedRoot.toString());
+        if (matches.size() == 1) {
+            return matches.getFirst();
+        }
+        if (matches.isEmpty()) {
+            throw new ArtifactOperationException("project_artifact_missing",
+                    "projectRootAbs does not match any project Artifact workspace", metadata);
+        }
+        metadata.put("projectNames", matches);
+        throw new ArtifactOperationException("project_artifact_ambiguous",
+                "projectRootAbs matches multiple project Artifacts", metadata);
+    }
+
+    private Path validateProjectRoot(String value) {
+        Path root;
+        try {
+            root = Path.of(value.trim()).toAbsolutePath().normalize();
+        } catch (InvalidPathException exception) {
+            throw new ArtifactOperationException("project_selector_invalid",
+                    "projectRootAbs is invalid", Map.of("failedStep", "project_root_validation"));
+        }
+        if (!Files.isDirectory(root)) {
+            throw new ArtifactOperationException("project_selector_invalid",
+                    Files.exists(root) ? "projectRootAbs must be a directory" : "projectRootAbs does not exist",
+                    Map.of("failedStep", "project_root_validation", "projectRootAbs", root.toString()));
+        }
+        return root;
+    }
+
+    private List<String> projectNames(Workspace workspace) {
+        return jsonStore.directories(workspace.paths.resolve(".mcpjvm")).stream()
+                .filter(name -> Files.isRegularFile(projectPath(workspace, name)))
+                .toList();
+    }
+
+    private boolean projectMatchesRoot(Workspace workspace, String projectName, Path requestedRoot) {
+        try {
+            JsonNode artifact = readProject(workspace, projectName);
+            for (JsonNode candidate : artifact.path("workspaces")) {
+                if (candidate.path("projectRoot").isTextual()
+                        && Path.of(candidate.path("projectRoot").asText()).toAbsolutePath().normalize()
+                        .equals(requestedRoot)) {
+                    return true;
+                }
+            }
+        } catch (ArtifactOperationException | InvalidPathException exception) {
+            return false;
+        }
+        return false;
     }
 
     public String requiredProject(ArtifactManagementRequest request) {

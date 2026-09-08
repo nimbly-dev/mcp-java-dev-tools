@@ -1,16 +1,20 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.project;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactOperationException;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /** Project-context contract validation and bounded query projection. */
 final class ProjectContextContract {
+
+    private final ProjectRuntimeContextContract runtimeContexts = new ProjectRuntimeContextContract();
+    private final ProjectWorkspaceSectionsContract sections = new ProjectWorkspaceSectionsContract();
+    private final ProjectContextMerger merger = new ProjectContextMerger();
 
     void validate(JsonNode artifact) {
         ArtifactManagementSupport.requireObject(artifact, "project_artifact_invalid",
@@ -27,8 +31,33 @@ final class ProjectContextContract {
             if (!workspace.path("defaults").isObject()) {
                 throw new ArtifactOperationException("project_artifact_invalid", "workspace defaults are required");
             }
-            validateProfiles(workspace);
+            validateOrchestrator(workspace.path("defaults").path("orchestrator"));
+            validateProfiles(workspace, runtimeContexts.validate(workspace));
+            sections.validate(workspace);
         }
+    }
+
+    private void validateOrchestrator(JsonNode orchestrator) {
+        if (!orchestrator.isObject()) {
+            throw new ArtifactOperationException("project_artifact_invalid",
+                    "workspace defaults.orchestrator is required");
+        }
+        positiveInteger(orchestrator, "resumePollMax");
+        int pollInterval = positiveInteger(orchestrator, "resumePollIntervalMs");
+        int pollTimeout = positiveInteger(orchestrator, "resumePollTimeoutMs");
+        if (pollTimeout < pollInterval) {
+            throw new ArtifactOperationException("project_artifact_invalid",
+                    "resumePollTimeoutMs must be greater than or equal to resumePollIntervalMs");
+        }
+    }
+
+    private int positiveInteger(JsonNode object, String field) {
+        JsonNode value = object.get(field);
+        if (value == null || !value.isIntegralNumber() || !value.canConvertToInt() || value.asInt() < 1) {
+            throw new ArtifactOperationException("project_artifact_invalid",
+                    field + " must be a positive integer");
+        }
+        return value.asInt();
     }
 
     void validateScope(ArtifactManagementRequest request, JsonNode artifact) {
@@ -76,18 +105,10 @@ final class ProjectContextContract {
     }
 
     JsonNode merge(JsonNode original, JsonNode update) {
-        if (!original.isObject() || !update.isObject()) {
-            return update;
-        }
-        ObjectNode merged = (ObjectNode) original.deepCopy();
-        update.fields().forEachRemaining(entry -> {
-            JsonNode current = merged.get(entry.getKey());
-            merged.set(entry.getKey(), current == null ? entry.getValue() : merge(current, entry.getValue()));
-        });
-        return merged;
+        return merger.merge(original, update);
     }
 
-    private void validateProfiles(JsonNode workspace) {
+    private void validateProfiles(JsonNode workspace, Set<String> runtimeContextNames) {
         JsonNode profiles = workspace.get("executionProfiles");
         if (profiles == null || profiles.isNull()) {
             return;
@@ -110,6 +131,8 @@ final class ProjectContextContract {
                 throw new ArtifactOperationException("execution_profile_invalid",
                         "execution profile suiteType is invalid");
             }
+            validateRuntimeContextReference(profile, runtimeContextNames,
+                    "executionProfiles[].runtimeContextName");
             JsonNode plans = profile.path("plans");
             if (!plans.isArray() || plans.isEmpty()) {
                 throw new ArtifactOperationException("execution_profile_invalid",
@@ -124,7 +147,21 @@ final class ProjectContextContract {
                     throw new ArtifactOperationException("execution_profile_invalid",
                             "execution profile plans must be sequential and named");
                 }
+                validateRuntimeContextReference(plan, runtimeContextNames,
+                        "executionProfiles[].plans[].runtimeContextName");
             }
+        }
+    }
+
+    private void validateRuntimeContextReference(
+            JsonNode owner, Set<String> names, String field) {
+        JsonNode reference = owner.get("runtimeContextName");
+        if (reference == null || !reference.isTextual() || reference.asText().trim().isEmpty()) {
+            return;
+        }
+        if (!names.contains(reference.asText().trim())) {
+            throw new ArtifactOperationException("project_reference_invalid",
+                    field + " must match a workspaces[].runtimeContexts[].name");
         }
     }
 

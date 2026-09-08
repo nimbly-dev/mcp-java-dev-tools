@@ -12,13 +12,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-/** One catalog binding to a concrete final Artifact-family owner instance. */
+/**
+ * Legacy Java Tool routing retained until MCPJVM-611 removes ArtifactManagementMcpTool's
+ * dependency on DefaultArtifactManagementFeature and this capability catalog.
+ * COMPATIBILITY_RETAINED_UNTIL_611.
+ */
 final class ArtifactOperation implements Operation<
         ArtifactManagementAction, ArtifactManagementRequest, ArtifactManagementResult> {
 
     private final ArtifactManagementAction operationId;
-    private final Class<?> ownerType;
-    private final String ownerMethod;
+    private final String executableOwner;
     private final Function<ArtifactManagementRequest, ArtifactManagementResult> executor;
     private final OperationDescriptor descriptor;
 
@@ -30,15 +33,15 @@ final class ArtifactOperation implements Operation<
             Function<ArtifactManagementRequest, ArtifactManagementResult> executor,
             OperationTraceMetadata baseTrace) {
         this.operationId = Objects.requireNonNull(operationId, "operationId must not be null");
-        this.ownerType = Objects.requireNonNull(owner, "owner must not be null").getClass();
+        Class<?> ownerType = Objects.requireNonNull(owner, "owner must not be null").getClass();
         Class<?> checkedDeclaredOwnerType = Objects.requireNonNull(
                 declaredOwnerType, "declared owner type must not be null");
         if (ownerMethod == null || ownerMethod.isBlank()) {
             throw new IllegalArgumentException("owner method must not be blank");
         }
-        this.ownerMethod = ownerMethod;
+        this.executableOwner = ownerType.getName() + "#" + ownerMethod;
         this.executor = Objects.requireNonNull(executor, "executor must not be null");
-        OperationTraceMetadata trace = trace(baseTrace);
+        OperationTraceMetadata trace = trace(baseTrace, ownerType, ownerMethod);
         this.descriptor = new OperationDescriptor(
                 ArtifactOperationCatalog.TOOL_NAME,
                 operationId.routeId(),
@@ -60,21 +63,12 @@ final class ArtifactOperation implements Operation<
 
     @Override
     public String executableOwner() {
-        return ownerType.getName() + "#" + ownerMethod;
+        return executableOwner;
     }
 
     @Override
     public OperationLegacyIdentity legacyIdentity() {
-        return new OperationLegacyIdentity(
-                ArtifactOperationCatalog.TOOL_NAME,
-                operationId.routeId(),
-                false,
-                Map.of("artifactType", operationId.artifactType().value(),
-                        "action", operationId.action().value()),
-                "artifact_type_and_action_to_canonical_operation_id",
-                "artifact_result_envelope_fields_and_details_preserved",
-                "artifact_management_" + operationId.artifactType().value()
-                        + "_" + operationId.action().value());
+        return ArtifactOperationRegistrations.identity(operationId);
     }
 
     @Override
@@ -82,7 +76,8 @@ final class ArtifactOperation implements Operation<
         return executor.apply(input);
     }
 
-    private OperationTraceMetadata trace(OperationTraceMetadata baseTrace) {
+    private OperationTraceMetadata trace(
+            OperationTraceMetadata baseTrace, Class<?> ownerType, String ownerMethod) {
         Objects.requireNonNull(baseTrace, "trace must not be null");
         Map<String, String> roles = new LinkedHashMap<>(baseTrace.collaboratorRoles());
         roles.put("familyOperationOwner", ownerType.getName());

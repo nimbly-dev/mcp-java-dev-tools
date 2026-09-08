@@ -10,13 +10,11 @@
     <aliases>
       <alias tool="artifact_management" action="probe_config/read" />
     </aliases>
-    <arguments>
-      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
-    </arguments>
+    <arguments />
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="validate" subject="probe_config">
     <summary>Validate the persisted Probe registry configuration.</summary>
@@ -28,13 +26,11 @@
     <aliases>
       <alias tool="artifact_management" action="probe_config/validate" />
     </aliases>
-    <arguments>
-      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
-    </arguments>
+    <arguments />
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="upsert" subject="probe_config">
     <summary>Upsert the persisted Probe registry configuration.</summary>
@@ -47,12 +43,12 @@
       <alias tool="artifact_management" action="probe_config/upsert" />
     </aliases>
     <arguments>
-      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="payload" description="Required Probe configuration JSON object." type="object" required="true" />
     </arguments>
     <examples>
-      <example>{}</example>
+      <example>{"payload":{}}</example>
     </examples>
-    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="reload" subject="probe_config">
     <summary>Reload the Probe registry configuration.</summary>
@@ -64,13 +60,11 @@
     <aliases>
       <alias tool="artifact_management" action="probe_config/reload" />
     </aliases>
-    <arguments>
-      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
-    </arguments>
+    <arguments />
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="probe_registry_reload" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="probe_registry_reload" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="read" subject="project_context">
     <summary>Read the persisted project context.</summary>
@@ -85,16 +79,12 @@
     <arguments>
       <argument name="projectName" description="Project selector." type="string" required="false" />
       <argument name="projectRootAbs" description="Project root." type="string" required="false" />
-      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
-      <argument name="replace" description="Whether to replace the existing artifact." type="boolean" required="false">
-        <default>false</default>
-      </argument>
       <argument name="query" description="Operation query selectors." type="object" required="false" />
     </arguments>
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="validate" subject="project_context">
     <summary>Validate the persisted project context.</summary>
@@ -109,16 +99,11 @@
     <arguments>
       <argument name="projectName" description="Project selector." type="string" required="false" />
       <argument name="projectRootAbs" description="Project root." type="string" required="false" />
-      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
-      <argument name="replace" description="Whether to replace the existing artifact." type="boolean" required="false">
-        <default>false</default>
-      </argument>
-      <argument name="query" description="Operation query selectors." type="object" required="false" />
     </arguments>
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="upsert" subject="project_context">
     <summary>Upsert the persisted project context.</summary>
@@ -131,18 +116,16 @@
       <alias tool="artifact_management" action="project_context/upsert" />
     </aliases>
     <arguments>
-      <argument name="projectName" description="Project selector." type="string" required="false" />
-      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
-      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
+      <argument name="projectName" description="Required project selector." type="string" required="true" />
+      <argument name="payload" description="Required project context JSON object." type="object" required="true" />
       <argument name="replace" description="Whether to replace the existing artifact." type="boolean" required="false">
         <default>false</default>
       </argument>
-      <argument name="query" description="Operation query selectors." type="object" required="false" />
     </arguments>
     <examples>
-      <example>{}</example>
+      <example>{"projectName":"sample","payload":{"workspaces":[{"projectRoot":".","defaults":{"orchestrator":{"resumePollMax":1,"resumePollIntervalMs":10,"resumePollTimeoutMs":100}}}]}}</example>
     </examples>
-    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="list" subject="project_context">
     <summary>List persisted project contexts.</summary>
@@ -154,19 +137,11 @@
     <aliases>
       <alias tool="artifact_management" action="project_context/list" />
     </aliases>
-    <arguments>
-      <argument name="projectName" description="Project selector." type="string" required="false" />
-      <argument name="projectRootAbs" description="Project root." type="string" required="false" />
-      <argument name="payload" description="JSON payload for this operation." type="object" required="false" />
-      <argument name="replace" description="Whether to replace the existing artifact." type="boolean" required="false">
-        <default>false</default>
-      </argument>
-      <argument name="query" description="Operation query selectors." type="object" required="false" />
-    </arguments>
+    <arguments />
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="read" subject="performance_plan">
     <summary>Read a persisted performance plan.</summary>

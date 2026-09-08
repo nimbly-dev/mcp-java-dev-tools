@@ -32,6 +32,15 @@ public record ArtifactManagementResult(
             ArtifactType artifactType,
             ArtifactAction action,
             Map<String, Object> details) {
+        return success(artifactType, action, "ok", details);
+    }
+
+    /** Creates a compatibility success envelope with an action-specific status. */
+    public static ArtifactManagementResult success(
+            ArtifactType artifactType,
+            ArtifactAction action,
+            String status,
+            Map<String, Object> details) {
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("artifactType", artifactType.value());
         output.put("action", action.value());
@@ -40,7 +49,7 @@ public record ArtifactManagementResult(
         }
         return new ArtifactManagementResult(
                 "artifact",
-                "ok",
+                status,
                 "success",
                 null,
                 null,
