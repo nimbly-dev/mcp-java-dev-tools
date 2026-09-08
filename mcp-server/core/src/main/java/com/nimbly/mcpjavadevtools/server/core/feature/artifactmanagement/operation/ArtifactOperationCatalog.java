@@ -92,9 +92,8 @@ public final class ArtifactOperationCatalog {
                     ExecutionExportOperations exports,
                     OperationTraceMetadata trace) {
         return Stream.of(
-                ArtifactProbeOperationBindings.create(
-                        Objects.requireNonNull(probe, "probe operations must not be null"), trace),
-                ArtifactProjectOperationBindings.create(
+                ArtifactOperationRegistrations.legacyOperations(
+                        Objects.requireNonNull(probe, "probe operations must not be null"),
                         Objects.requireNonNull(project, "project operations must not be null"), trace),
                 ArtifactPlanOperationBindings.create(
                         Objects.requireNonNull(plans, "plan operations must not be null"), trace),

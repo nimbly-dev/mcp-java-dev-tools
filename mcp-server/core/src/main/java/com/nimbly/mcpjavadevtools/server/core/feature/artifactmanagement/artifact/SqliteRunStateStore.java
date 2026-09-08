@@ -13,6 +13,8 @@ public final class SqliteRunStateStore {
     private final SqliteRunStateLegacyBackfill backfill;
     private final SqliteRunStateCutover cutover = new SqliteRunStateCutover();
     private final SqliteRunStateCleanup cleanup = new SqliteRunStateCleanup();
+    private final SqliteRunStateProvisioningCleanup provisioningCleanup =
+            new SqliteRunStateProvisioningCleanup();
 
     /** Creates a store with the Core JSON parser. */
     public SqliteRunStateStore() {
@@ -32,6 +34,11 @@ public final class SqliteRunStateStore {
     /** Ensures a project-owned SQLite store and its projection tables exist. */
     public Map<String, Object> ensure(Path databasePath, String projectName) {
         return SqliteRunStateDatabase.ensure(databasePath, projectName);
+    }
+
+    /** Removes only a newly provisioned and still-empty store after project creation fails. */
+    public boolean cleanupProvisioning(Path workspaceRoot, Path databasePath, String projectName) {
+        return provisioningCleanup.removeIfEmpty(workspaceRoot, databasePath, projectName);
     }
 
     /** Returns the selected page after the query contract has been applied. */

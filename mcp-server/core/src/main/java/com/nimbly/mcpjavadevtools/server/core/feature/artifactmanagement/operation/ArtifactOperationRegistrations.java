@@ -1,25 +1,33 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.project.ProjectContextOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
-import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.operation.ArtifactOperationArguments;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationExecutor;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoder;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoder;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
-import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
-import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
@@ -27,25 +35,36 @@ import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 /** Binds all 31 Artifact Management owners to canonical operation inputs. */
 public class ArtifactOperationRegistrations {
 
+    private static final EnumSet<ArtifactManagementAction> OWNED_ACTIONS = EnumSet.range(
+            ArtifactManagementAction.PROBE_CONFIG_READ, ArtifactManagementAction.PROJECT_CONTEXT_LIST);
+
     private ArtifactOperationRegistrations() {
+    }
+
+    static List<ArtifactOperation> legacyOperations(
+            ProbeConfigOperations probe,
+            ProjectContextOperations project,
+            OperationTraceMetadata trace) {
+        return List.of(
+                new ArtifactOperation(ArtifactManagementAction.PROBE_CONFIG_READ, ProbeConfigOperations.class, probe, "read", probe::read, trace),
+                new ArtifactOperation(ArtifactManagementAction.PROBE_CONFIG_VALIDATE, ProbeConfigOperations.class, probe, "validate", probe::validate, trace),
+                new ArtifactOperation(ArtifactManagementAction.PROBE_CONFIG_UPSERT, ProbeConfigOperations.class, probe, "upsert", probe::upsert, trace),
+                new ArtifactOperation(ArtifactManagementAction.PROBE_CONFIG_RELOAD, ProbeConfigOperations.class, probe, "reload", probe::reload, trace),
+                new ArtifactOperation(ArtifactManagementAction.PROJECT_CONTEXT_READ, ProjectContextOperations.class, project, "read", project::read, trace),
+                new ArtifactOperation(ArtifactManagementAction.PROJECT_CONTEXT_VALIDATE,
+                        ProjectContextOperations.class, project, "validate", project::validate, trace),
+                new ArtifactOperation(ArtifactManagementAction.PROJECT_CONTEXT_UPSERT,
+                        ProjectContextOperations.class, project, "upsert", project::upsert, trace),
+                new ArtifactOperation(ArtifactManagementAction.PROJECT_CONTEXT_LIST, ProjectContextOperations.class, project, "list", project::list, trace));
     }
 
     public static List<OperationRegistration<?, ?>> create(
             ArtifactOperationCatalog catalog, ObjectMapper mapper) {
         Objects.requireNonNull(catalog, "artifact catalog must not be null");
         Objects.requireNonNull(mapper, "mapper must not be null");
-        EnumMap<ArtifactManagementAction, Operation<ArtifactManagementAction,
-                ArtifactManagementRequest, ArtifactManagementResult>> owners =
-                new EnumMap<>(ArtifactManagementAction.class);
-        for (Operation<ArtifactManagementAction, ArtifactManagementRequest, ArtifactManagementResult> owner
-                : catalog.operations()) {
-            if (owners.put(owner.operationId(), owner) != null) {
-                throw new IllegalArgumentException("duplicate Artifact owner: " + owner.operationId());
-            }
-        }
-        return java.util.Arrays.stream(ArtifactManagementAction.values())
-                .<OperationRegistration<?, ?>>map(action ->
-                        register(action, owners.get(action), mapper))
+        return catalog.operations().stream()
+                .<OperationRegistration<?, ?>>map(owner ->
+                        register(owner.operationId(), owner, mapper))
                 .toList();
     }
 
@@ -55,19 +74,19 @@ public class ArtifactOperationRegistrations {
             ObjectMapper mapper) {
         Objects.requireNonNull(owner, "artifact operation owner must not be null");
         OperationDescriptor descriptor = descriptor(action, owner);
+        OperationExecutor<ArtifactOperationArguments, ArtifactManagementResult> executor = executor(action, owner);
+        OperationRequestDecoder<ArtifactOperationArguments> decoder = isOwned(action)
+                ? OperationRequestDecoders.wrap(mapper, ArtifactOperationArguments.class, ArtifactOperationArguments::new,
+                        ArtifactOperationArguments::input)
+                : ArtifactOperationArguments::new;
+        OperationResultEncoder<ArtifactManagementResult> encoder = isOwned(action)
+                ? OperationResultEncoders.typed(mapper, ArtifactManagementResult.class)
+                : result -> mapper.valueToTree(ArtifactManagementResult.class.cast(result));
         return new OperationRegistration<>(
-                descriptor,
-                ArtifactOperationArguments.class,
-                ArtifactManagementResult.class,
-                new OperationRegistrationContract(
-                        schema(action), CoreOperationResultSchemas.artifact(),
-                        CoreOperationSafetyPolicy.forOperation(
-                                descriptor.operationId().value(), descriptor.trace().sideEffect())),
-                input -> new ArtifactOperationArguments(input),
-                input -> owner.execute(decode(action, input)),
-                result -> mapper.valueToTree(ArtifactManagementResult.class.cast(result)),
-                CoreOperationDirectory.class.getName(),
-                identity(action));
+                descriptor, ArtifactOperationArguments.class, ArtifactManagementResult.class,
+                new OperationRegistrationContract(ArtifactOperationSchemas.schema(action), CoreOperationResultSchemas.artifact(),
+                        safety(action, descriptor)),
+                decoder, executor, encoder, CoreOperationDirectory.class.getName(), identity(action));
     }
 
     static ArtifactManagementRequest decode(
@@ -75,112 +94,34 @@ public class ArtifactOperationRegistrations {
         return new ArtifactManagementRequest(action.artifactType(), action.action(), arguments.input());
     }
 
-    static OperationSchema schema(ArtifactManagementAction action) {
-        return switch (action) {
-            case PROBE_CONFIG_READ, PROBE_CONFIG_VALIDATE, PROBE_CONFIG_UPSERT, PROBE_CONFIG_RELOAD ->
-                    probeSchema();
-            case PROJECT_CONTEXT_READ, PROJECT_CONTEXT_VALIDATE, PROJECT_CONTEXT_UPSERT,
-                    PROJECT_CONTEXT_LIST -> projectSchema();
-            case PERFORMANCE_PLAN_READ, PERFORMANCE_PLAN_VALIDATE, PERFORMANCE_PLAN_LIST,
-                    REGRESSION_PLAN_READ, REGRESSION_PLAN_VALIDATE, REGRESSION_PLAN_LIST,
-                    SECURITY_PLAN_READ, SECURITY_PLAN_VALIDATE, SECURITY_PLAN_LIST -> planReadSchema();
-            case PERFORMANCE_PLAN_UPSERT, REGRESSION_PLAN_UPSERT, SECURITY_PLAN_UPSERT -> planUpsertSchema();
-            case RUN_RESULT_READ, RUN_RESULT_UPSERT, RUN_RESULT_LIST, RUN_RESULT_REBUILD,
-                    RUN_RESULT_BACKFILL, RUN_RESULT_CUTOVER, RUN_RESULT_QUERY, RUN_RESULT_CLEANUP ->
-                    runSchema(action);
-            case EXECUTION_EXPORT_READ, EXECUTION_EXPORT_LIST, EXECUTION_EXPORT_GENERATE ->
-                    exportSchema(action);
-        };
-    }
-
-    static OperationSchema probeSchema() {
-        ObjectNode root = CanonicalOperationSchema.object();
-        root.with("properties").putObject("payload")
-                .put("type", "object").put("additionalProperties", true);
-        return CanonicalOperationSchema.schema(root);
-    }
-
-    static OperationSchema projectSchema() {
-        ObjectNode root = CanonicalOperationSchema.object();
-        CanonicalOperationSchema.string(root, "projectName");
-        CanonicalOperationSchema.string(root, "projectRootAbs");
-        root.with("properties").putObject("payload")
-                .put("type", "object").put("additionalProperties", true);
-        root.with("properties").putObject("replace").put("type", "boolean").put("default", false);
-        root.with("properties").putObject("query")
-                .put("type", "object").put("additionalProperties", true);
-        return CanonicalOperationSchema.schema(root);
-    }
-
-    static OperationSchema planReadSchema() {
-        ObjectNode root = CanonicalOperationSchema.object();
-        CanonicalOperationSchema.string(root, "projectName");
-        CanonicalOperationSchema.string(root, "planName");
-        root.with("properties").putObject("payload")
-                .put("type", "object").put("additionalProperties", true);
-        root.with("properties").putObject("query")
-                .put("type", "object").put("additionalProperties", true);
-        return CanonicalOperationSchema.schema(root);
-    }
-
-    static OperationSchema planUpsertSchema() {
-        ObjectNode root = CanonicalOperationSchema.object();
-        CanonicalOperationSchema.string(root, "projectName");
-        CanonicalOperationSchema.string(root, "planName");
-        root.with("properties").putObject("payload")
-                .put("type", "object").put("additionalProperties", true);
-        return CanonicalOperationSchema.schema(root);
-    }
-
-    static OperationSchema runSchema(ArtifactManagementAction action) {
-        ObjectNode root = CanonicalOperationSchema.object();
-        CanonicalOperationSchema.string(root, "projectName");
-        CanonicalOperationSchema.enumString(root, "suiteType", "regression", "security");
-        CanonicalOperationSchema.string(root, "planName");
-        CanonicalOperationSchema.string(root, "runId");
-        CanonicalOperationSchema.string(root, "projectRootAbs");
-        CanonicalOperationSchema.string(root, "executionProfile");
-        root.with("properties").putObject("strict").put("type", "boolean").put("default", false);
-        CanonicalOperationSchema.enumString(root, "stateSurface",
-                "run_state", "correlation_state", "watcher_state");
-        root.with("properties").putObject("scope")
-                .put("type", "object").put("additionalProperties", true);
-        root.with("properties").putObject("retention")
-                .put("type", "object").put("additionalProperties", true);
-        root.with("properties").putObject("query")
-                .put("type", "object").put("additionalProperties", true);
-        if (action == ArtifactManagementAction.RUN_RESULT_UPSERT) {
-            root.with("properties").putObject("payload")
-                    .put("type", "object").put("additionalProperties", true);
+    static OperationExecutor<ArtifactOperationArguments, ArtifactManagementResult> executor(
+            ArtifactManagementAction action,
+            Operation<ArtifactManagementAction, ArtifactManagementRequest, ArtifactManagementResult> owner) {
+        if (isOwned(action)) {
+            return ContextAwareOperationExecutor.declared(
+                    OperationCancellationState.NOT_CANCELLABLE,
+                    OperationCancellationGuarantee.DETERMINISTIC_CONTINUATION,
+                    (input, context) -> owner.execute(decode(action, input)));
         }
-        if (action == ArtifactManagementAction.RUN_RESULT_BACKFILL) {
-            CanonicalOperationSchema.required(root, "stateSurface");
-            root.with("properties").with("stateSurface").putArray("enum").add("correlation_state");
-        }
-        return CanonicalOperationSchema.schema(root);
+        return input -> owner.execute(decode(action, input));
     }
 
-    static OperationSchema exportSchema(ArtifactManagementAction action) {
-        ObjectNode root = CanonicalOperationSchema.object();
-        CanonicalOperationSchema.string(root, "projectName");
-        CanonicalOperationSchema.enumString(root, "mode", "ps1", "sh", "postman");
-        CanonicalOperationSchema.string(root, "planName");
-        CanonicalOperationSchema.string(root, "executionProfile");
-        CanonicalOperationSchema.string(root, "when");
-        root.with("properties").putObject("includeResolvedSecrets")
-                .put("type", "boolean").put("default", false);
-        root.with("properties").putObject("includeRuntimeStartup")
-                .put("type", "boolean").put("default", false);
-        root.with("properties").putObject("includeHealthcheckGate")
-                .put("type", "boolean").put("default", false);
-        root.with("properties").putObject("contextBindings")
-                .put("type", "object").put("additionalProperties", true);
-        root.with("properties").putObject("contextValues")
-                .put("type", "object").put("additionalProperties", true);
-        root.with("properties").putObject("query")
-                .put("type", "object").put("additionalProperties", true);
-        CanonicalOperationSchema.enumString(root, "type", "ps1", "sh", "postman");
-        return CanonicalOperationSchema.schema(root);
+    static OperationSafetyPolicy safety(
+            ArtifactManagementAction action,
+            OperationDescriptor descriptor) {
+        OperationSafetyPolicy baseline = CoreOperationSafetyPolicy.forOperation(descriptor.operationId().value(),
+                descriptor.trace().sideEffect());
+        if (!isOwned(action)) {
+            return baseline;
+        }
+        return new OperationSafetyPolicy(
+                baseline.sideEffect(), baseline.confirmationRequired(), baseline.credentialPolicy(), baseline.redactionPolicy(),
+                baseline.timeoutMillis(), false, baseline.maxInputBytes(),
+                baseline.maxOutputBytes());
+    }
+
+    static boolean isOwned(ArtifactManagementAction action) {
+        return OWNED_ACTIONS.contains(action);
     }
 
     static OperationDescriptor descriptor(
@@ -207,14 +148,16 @@ public class ArtifactOperationRegistrations {
     }
 
     static OperationLegacyIdentity identity(ArtifactManagementAction action) {
+        String scenario = "artifact_management_" + action.artifactType().value() + "_" + action.action().value();
         return new OperationLegacyIdentity(
                 ArtifactOperationCatalog.TOOL_NAME,
                 action.routeId(),
                 false,
                 Map.of("artifactType", action.artifactType().value(),
                         "action", action.action().value()),
-                "artifact_type_and_action_to_canonical_operation_id",
-                "artifact_result_envelope_fields_and_details_preserved",
-                "artifact_management_" + action.artifactType().value() + "_" + action.action().value());
+                "unwrap_legacy_input_object_and_bind_to_" + scenario + "_typed_arguments",
+                "compare_status_reasonCode_message_nextActionCode_details_and_persisted_artifacts_for_"
+                        + scenario,
+                scenario);
     }
 }

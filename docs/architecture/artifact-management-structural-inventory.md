@@ -84,3 +84,52 @@ change adds only Artifact-specific family wiring.
 This document is evidence for the working-tree change. The repository was
 already partially staged before implementation; the index must be reviewed as
 a whole before any commit, and this inventory must not be committed alone.
+
+## MCPJVM-617 Probe and Project operation-directory migration
+
+Ticket #617 migrates only the four Probe Config and four Project Context rows to
+bounded operation-directory bindings. The released `artifact_management` Tool
+and its legacy `artifactType`/`action`/`input` envelope remain unchanged.
+
+| Routing source | Before #617 | After #617 | Disposition |
+| --- | --- | --- | --- |
+| `ArtifactProbeOperationBindings` | Four legacy Probe catalog rows | Removed | Rows are owned once by `ArtifactOperationRegistrations.legacyOperations`; no second Probe execution switch remains. |
+| `ArtifactProjectOperationBindings` | Four legacy Project catalog rows | Removed | Rows are owned once by `ArtifactOperationRegistrations.legacyOperations`; no second Project execution switch remains. |
+| `ArtifactOperationCatalog` | Composed separate Probe and Project tables | Composes the single eight-row compatibility table | The legacy Java Tool route remains available pending #611. |
+| `ArtifactOperationRegistrations` | Generic unbounded bindings for all Artifact rows | Eight selected rows use bounded typed decode/encode, explicit non-cancellable continuation, closed schemas, and row-specific compatibility rules | The other 23 rows retain their prior binding behavior and remain outside #617. |
+| `ArtifactOperationSchemas` | Schemas embedded in the registration owner | One bounded schema-only owner | Separates schema construction from execution routing and satisfies the production ownership limits. |
+| Plan, Run, and Export binding tables | Existing legacy rows | Unchanged | No sibling-ticket execution migration was performed. |
+
+The ticket's conservative routing measurement covers the eight existing
+Artifact routing files named above (`ArtifactOperation`, the catalog and
+registration owners, and the five family binding tables). It excludes imports,
+comments, and schema-builder methods. On that fixed basis the #617 change is
+**355 before -> 349 after (-6 lines)**. The schema code moved to
+`ArtifactOperationSchemas`; it is excluded on both sides of the comparison and
+does not conceal another execution table. The two removed Probe and Project
+binding tables account for all superseded routes.
+
+The executable proof is
+`ArtifactProbeProjectOperationRegistrationTest`: it assembles all eight rows
+strictly, compares canonical and legacy execution plus persisted state for each
+row, and checks the generated compatibility inventory. Its
+`generatesEightRowManifestAndTraceCompletionEvidence` case writes the assembled
+descriptors and trace rows to
+`mcp-server/core/target/mcpjvm-617-evidence/manifest.json` and
+`mcp-server/core/target/mcpjvm-617-evidence/trace-inventory.json`; those files
+are reproducible build evidence and are intentionally not another checked-in
+inventory source. The raw public-schema
+proof is `ArtifactProbeProjectLegacyStdioIT`; it checks every published branch,
+field, required set, and default before executing the eight legacy invocations.
+
+### Separately owned prerequisite repair
+
+`mcp-server/core/src/test/resources/mcpjvm-613/baseline-operation-api.resolved.txt`
+is not a #617 deliverable and is excluded from #617's allowed-path and
+structural measurements. Commit `0755a0c` introduced that fixture for #613;
+commit `c8dbf4d` removed it during #616 while leaving
+`OperationRelocationApiCompatibilityTest` dependent on the resource. Its
+working-tree restoration is therefore recorded as a separately owned #613/#616
+prerequisite repair that restores the pre-existing Core compatibility gate. No
+#617 production behavior depends on this fixture, and a commit or pull request
+must identify its ownership separately from the #617 implementation.
