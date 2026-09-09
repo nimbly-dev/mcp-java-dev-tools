@@ -2,21 +2,23 @@ package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifa
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
 
 /** Purpose-owned operations shared by performance, regression, and security plan families. */
 public final class PlanOperations {
     private final ArtifactManagementSupport support;
     private final PlanContract contract;
+    private final PlanReadProjection reads;
 
     /** Creates the plan owner. */
     public PlanOperations(ArtifactManagementSupport support) {
         this.support = support;
         this.contract = new PlanContract();
+        this.reads = new PlanReadProjection(support, contract);
     }
 
     /** Reads one suite plan. */
@@ -24,20 +26,8 @@ public final class PlanOperations {
         return support.withWorkspace(request, workspace -> {
             String projectName = support.resolveProject(workspace, request);
             String planName = support.requiredSegment(request, "planName", "plan_name_required");
-            JsonNode metadata = support.jsonStore().read(workspace.paths().resolve(
-                    ".mcpjvm", projectName, "plans", suiteType, planName, "metadata.json"));
-            JsonNode contract = support.jsonStore().read(workspace.paths().resolve(
-                    ".mcpjvm", projectName, "plans", suiteType, planName, "contract.json"));
-            Map<String, Object> artifact = new LinkedHashMap<>();
-            artifact.put("metadata", metadata);
-            artifact.put("contract", contract);
-            artifact.put("plan", support.jsonStore().readText(workspace.paths().resolve(
-                    ".mcpjvm", projectName, "plans", suiteType, planName, "plan.md")));
-            return support.success(request, Map.of(
-                    "projectName", projectName,
-                    "planName", planName,
-                    "artifact", artifact,
-                    "summary", this.contract.summary(contract, suiteType)));
+            return support.success(request,
+                    reads.read(request, suiteType, projectName, planName, workspace));
         });
     }
 
@@ -46,15 +36,24 @@ public final class PlanOperations {
         return support.withWorkspace(request, workspace -> {
             String projectName = support.resolveProject(workspace, request);
             String planName = support.requiredSegment(request, "planName", "plan_name_required");
+            JsonNode metadata = null;
+            if ("performance".equals(suiteType) || "regression".equals(suiteType)) {
+                metadata = support.jsonStore().read(workspace.paths().resolve(
+                        ".mcpjvm", projectName, "plans", suiteType, planName, "metadata.json"));
+            }
             JsonNode contract = support.jsonStore().read(workspace.paths().resolve(
                     ".mcpjvm", projectName, "plans", suiteType, planName, "contract.json"));
             if ("performance".equals(suiteType)) {
-                this.contract.validatePerformanceMetadata(support.jsonStore().read(workspace.paths().resolve(
-                        ".mcpjvm", projectName, "plans", suiteType, planName, "metadata.json")));
+                this.contract.validatePerformanceMetadata(metadata);
             }
             this.contract.validate(contract, suiteType);
-            return support.success(request, Map.of(
-                    "projectName", projectName, "planName", planName, "valid", true));
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("projectName", projectName);
+            details.put("planName", planName);
+            if ("performance".equals(suiteType)) {
+                details.put("valid", true);
+            }
+            return support.success(request, details);
         });
     }
 
@@ -82,10 +81,13 @@ public final class PlanOperations {
                     ".mcpjvm", projectName, "plans", suiteType, planName, "contract.json"), contract);
             support.writeOptionalText(workspace.paths().resolve(
                     ".mcpjvm", projectName, "plans", suiteType, planName, "plan.md"), payload.get("plan"));
+            String reportedPath = "performance".equals(suiteType)
+                    ? workspace.paths().relative(plan)
+                    : plan.toString();
             return support.success(request, Map.of(
                     "projectName", projectName,
                     "planName", planName,
-                    "path", workspace.paths().relative(plan)));
+                    "path", reportedPath));
         });
     }
 
