@@ -162,7 +162,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="validate" subject="performance_plan">
     <summary>Validate a persisted performance plan.</summary>
@@ -183,7 +183,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="upsert" subject="performance_plan">
     <summary>Upsert a performance plan.</summary>
@@ -203,7 +203,7 @@
     <examples>
       <example>{"planName":"sample","payload":{}}</example>
     </examples>
-    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="list" subject="performance_plan">
     <summary>List persisted performance plans.</summary>
@@ -224,7 +224,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="read" subject="regression_plan">
     <summary>Read a persisted regression plan.</summary>
@@ -245,7 +245,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="validate" subject="regression_plan">
     <summary>Validate a persisted regression plan.</summary>
@@ -266,7 +266,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="upsert" subject="regression_plan">
     <summary>Upsert a regression plan.</summary>
@@ -286,7 +286,7 @@
     <examples>
       <example>{"planName":"sample","payload":{}}</example>
     </examples>
-    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="list" subject="regression_plan">
     <summary>List persisted regression plans.</summary>
@@ -307,7 +307,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="read" subject="security_plan">
     <summary>Read a persisted security plan.</summary>
@@ -328,7 +328,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="validate" subject="security_plan">
     <summary>Validate a persisted security plan.</summary>
@@ -349,7 +349,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="upsert" subject="security_plan">
     <summary>Upsert a security plan.</summary>
@@ -369,7 +369,7 @@
     <examples>
       <example>{"planName":"sample","payload":{}}</example>
     </examples>
-    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="list" subject="security_plan">
     <summary>List persisted security plans.</summary>
@@ -390,7 +390,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="read" subject="run_result">
     <summary>Read a persisted suite run result.</summary>

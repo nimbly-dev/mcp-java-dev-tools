@@ -94,8 +94,7 @@ public final class ArtifactOperationCatalog {
         return Stream.of(
                 ArtifactOperationRegistrations.legacyOperations(
                         Objects.requireNonNull(probe, "probe operations must not be null"),
-                        Objects.requireNonNull(project, "project operations must not be null"), trace),
-                ArtifactPlanOperationBindings.create(
+                        Objects.requireNonNull(project, "project operations must not be null"),
                         Objects.requireNonNull(plans, "plan operations must not be null"), trace),
                 ArtifactRunOperationBindings.create(
                         Objects.requireNonNull(runs, "run operations must not be null"), trace),
