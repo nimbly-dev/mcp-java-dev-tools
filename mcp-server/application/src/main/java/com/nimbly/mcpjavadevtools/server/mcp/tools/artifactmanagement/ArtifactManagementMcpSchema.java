@@ -56,7 +56,7 @@ public final class ArtifactManagementMcpSchema {
                     SECURITY_PLAN_READ, SECURITY_PLAN_VALIDATE,
                     PERFORMANCE_PLAN_LIST, REGRESSION_PLAN_LIST, SECURITY_PLAN_LIST -> addPlanSelector(input);
             case PERFORMANCE_PLAN_UPSERT, REGRESSION_PLAN_UPSERT, SECURITY_PLAN_UPSERT -> addPlanUpsert(input);
-            case RUN_RESULT_READ, RUN_RESULT_LIST, RUN_RESULT_REBUILD, RUN_RESULT_BACKFILL,
+            case RUN_RESULT_READ, RUN_RESULT_UPSERT, RUN_RESULT_LIST, RUN_RESULT_REBUILD, RUN_RESULT_BACKFILL,
                     RUN_RESULT_CUTOVER, RUN_RESULT_QUERY, RUN_RESULT_CLEANUP -> addRunInput(input, action);
             case EXECUTION_EXPORT_READ, EXECUTION_EXPORT_LIST, EXECUTION_EXPORT_GENERATE ->
                     addExportInput(input, action);
@@ -85,7 +85,10 @@ public final class ArtifactManagementMcpSchema {
             ObjectNode input,
             ArtifactManagementAction action) {
         addRunCommonSelectors(input);
-        if (action == ArtifactManagementAction.RUN_RESULT_CLEANUP) {
+        if (action == ArtifactManagementAction.RUN_RESULT_UPSERT) {
+            addRequiredObject(input, "payload");
+            required(input, "projectName", "planName", "runId", "payload");
+        } else if (action == ArtifactManagementAction.RUN_RESULT_CLEANUP) {
             required(input, "projectName");
         } else if (action == ArtifactManagementAction.RUN_RESULT_BACKFILL) {
             input.with("properties").with("stateSurface").put("const", "correlation_state");
@@ -133,6 +136,7 @@ public final class ArtifactManagementMcpSchema {
         addString(input, "runId");
         addString(input, "projectRootAbs");
         addString(input, "executionProfile");
+        addOptionalObject(input, "payload");
         addBooleanDefault(input, "strict", false);
         addEnum(input, "stateSurface", "run_state", "correlation_state", "watcher_state",
                 "external_verification_state");

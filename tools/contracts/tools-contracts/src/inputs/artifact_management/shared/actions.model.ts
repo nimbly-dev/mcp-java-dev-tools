@@ -28,7 +28,7 @@ export const ARTIFACT_ACTION_ALLOWLIST = {
   project_context: ["read", "validate", "upsert", "list"],
   regression_plan: ["read", "validate", "upsert", "list"],
   security_plan: ["read", "validate", "upsert", "list"],
-  run_result: ["read", "list", "rebuild", "backfill", "cutover", "query", "cleanup"],
+  run_result: ["read", "upsert", "list", "rebuild", "backfill", "cutover", "query", "cleanup"],
   execution_export: ["read", "list", "generate"],
 } as const;
 

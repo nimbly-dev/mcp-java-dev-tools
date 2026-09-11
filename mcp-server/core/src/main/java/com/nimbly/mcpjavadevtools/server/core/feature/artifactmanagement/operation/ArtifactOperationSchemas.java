@@ -82,14 +82,14 @@ final class ArtifactOperationSchemas {
     static OperationSchema run(ArtifactManagementAction action) {
         ObjectNode root = CanonicalOperationSchema.object();
         CanonicalOperationSchema.string(root, "projectName");
-        CanonicalOperationSchema.enumString(root, "suiteType", "regression", "security");
+        CanonicalOperationSchema.enumString(root, "suiteType", "regression", "performance", "security");
         CanonicalOperationSchema.string(root, "planName");
         CanonicalOperationSchema.string(root, "runId");
         CanonicalOperationSchema.string(root, "projectRootAbs");
         CanonicalOperationSchema.string(root, "executionProfile");
         root.with("properties").putObject("strict").put("type", "boolean").put("default", false);
         CanonicalOperationSchema.enumString(root, "stateSurface",
-                "run_state", "correlation_state", "watcher_state");
+                "run_state", "correlation_state", "watcher_state", "external_verification_state");
         for (String field : java.util.List.of("scope", "retention", "query")) {
             root.with("properties").putObject(field)
                     .put("type", "object").put("additionalProperties", true);

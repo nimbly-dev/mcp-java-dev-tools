@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const { registerArtifactManagementTool } = require("@/tools/core/artifact_management/handler");
+const { ArtifactManagementRequestSchema } = require("@tools-contracts/artifact-management");
 
 type RegisteredToolHandler = (input: Record<string, unknown>) => Promise<{
   structuredContent: Record<string, any>;
@@ -56,6 +57,38 @@ test("[UT][transport][contract] artifact_management handler accepts probe_config
     input: {},
   });
   assert.notEqual(out.structuredContent.reasonCode, "artifact_request_invalid");
+});
+
+test("[UT][transport][contract] artifact_management accepts the complete run_result upsert contract", () => {
+  const parsed = ArtifactManagementRequestSchema.safeParse({
+    artifactType: "run_result",
+    action: "upsert",
+    input: {
+      projectName: "demo",
+      suiteType: "regression",
+      planName: "health",
+      runId: "run-1",
+      payload: { status: "pass" },
+    },
+  });
+  assert.equal(parsed.success, true);
+});
+
+test("[UT][transport][contract] artifact_management rejects incomplete run_result upsert contracts", () => {
+  for (const input of [
+    { projectName: "demo", planName: "health", runId: "run-1" },
+    { projectName: "demo", planName: "health", payload: { status: "pass" } },
+    { projectName: "demo", runId: "run-1", payload: { status: "pass" } },
+    { planName: "health", runId: "run-1", payload: { status: "pass" } },
+    { projectName: "demo", planName: "health", runId: "run-1", payload: [] },
+  ]) {
+    const parsed = ArtifactManagementRequestSchema.safeParse({
+      artifactType: "run_result",
+      action: "upsert",
+      input,
+    });
+    assert.equal(parsed.success, false);
+  }
 });
 
 test("[UT][transport][contract] artifact_management handler accepts snake_case aliases inside typed input envelope", async () => {

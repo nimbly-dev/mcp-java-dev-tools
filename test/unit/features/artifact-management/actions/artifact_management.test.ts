@@ -76,16 +76,136 @@ function writeRegressionPlan(root: string, projectName: string, planName: string
   );
 }
 
-test("[UT][artifact-management][artifact_management] artifact_management blocks disallowed action by artifactType", async () => {
-  const out = await artifactManagementDomain({
-    workspaceRootAbs: process.cwd(),
-    request: {
-      artifactType: "run_result",
-      action: "upsert",
-      input: {},
-    } as any,
-  });
-  assert.equal(out.structuredContent.status, "artifact_action_not_allowed");
+test("[UT][artifact-management][artifact_management] artifact_management upserts a contained run result", async () => {
+  const root = createTestTempDir("artifact-management-run-upsert");
+  try {
+    writeJson(path.join(root, ".mcpjvm", "demo", "projects.json"), {
+      workspaces: [{ projectRoot: root }],
+    });
+    const payload = { status: "pass", steps: [{ id: "health", status: "passed" }] };
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "upsert",
+        input: {
+          projectName: "demo",
+          suiteType: "regression",
+          planName: "health",
+          runId: "run-1",
+          payload,
+        },
+      },
+    });
+    assert.equal(out.structuredContent.status, "persisted");
+    assert.equal(
+      out.structuredContent.path,
+      ".mcpjvm/demo/plans/regression/health/runs/run-1/execution.result.json",
+    );
+    assert.deepEqual(
+      JSON.parse(
+        fs.readFileSync(
+          path.join(root, ".mcpjvm/demo/plans/regression/health/runs/run-1/execution.result.json"),
+          "utf8",
+        ),
+      ),
+      payload,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+  }
+});
+
+test("[UT][artifact-management][artifact_management] run_result upsert rejects unsafe selectors without writing", async () => {
+  const root = createTestTempDir("artifact-management-run-upsert-unsafe");
+  try {
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "upsert",
+        input: {
+          projectName: "demo",
+          suiteType: "regression",
+          planName: "health",
+          runId: "../escape",
+          payload: { status: "pass" },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.reasonCode, "run_result_payload_invalid");
+    assert.equal(fs.existsSync(path.join(root, "escape")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+  }
+});
+
+test("[UT][artifact-management][artifact_management] run_result upsert rejects a junction escape without writing", async () => {
+  const root = createTestTempDir("artifact-management-run-upsert-junction");
+  const outside = createTestTempDir("artifact-management-run-upsert-outside");
+  try {
+    fs.symlinkSync(outside, path.join(root, ".mcpjvm"), "junction");
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "upsert",
+        input: {
+          projectName: "demo",
+          suiteType: "regression",
+          planName: "health",
+          runId: "run-1",
+          payload: { status: "pass" },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.reasonCode, "artifact_path_symlink_escape");
+    assert.equal(fs.existsSync(path.join(outside, "demo")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+    fs.rmSync(outside, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+  }
+});
+
+test("[UT][artifact-management][artifact_management] run_result upsert redacts secrets before persistence", async () => {
+  const root = createTestTempDir("artifact-management-run-upsert-redaction");
+  try {
+    const out = await artifactManagementDomain({
+      workspaceRootAbs: root,
+      request: {
+        artifactType: "run_result",
+        action: "upsert",
+        input: {
+          projectName: "demo",
+          suiteType: "regression",
+          planName: "health",
+          runId: "run-1",
+          payload: {
+            status: "pass",
+            authorization: "Bearer raw-authorization",
+            nested: {
+              apiKey: "raw-api-key",
+              password: "raw-password",
+              credentialRef: "security.runtimeCredential",
+            },
+          },
+        },
+      },
+    });
+    assert.equal(out.structuredContent.status, "persisted");
+    const persisted = fs.readFileSync(
+      path.join(root, ".mcpjvm/demo/plans/regression/health/runs/run-1/execution.result.json"),
+      "utf8",
+    );
+    const artifact = JSON.parse(persisted);
+    assert.equal(artifact.authorization, "[REDACTED]");
+    assert.equal(artifact.nested.apiKey, "[REDACTED]");
+    assert.equal(artifact.nested.password, "[REDACTED]");
+    assert.equal(artifact.nested.credentialRef, "security.runtimeCredential");
+    assert.doesNotMatch(persisted, /raw-authorization|raw-api-key|raw-password/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+  }
 });
 
 test("[UT][artifact-management][artifact_management] artifact_management probe_config read returns summary and artifact payload", async () => {

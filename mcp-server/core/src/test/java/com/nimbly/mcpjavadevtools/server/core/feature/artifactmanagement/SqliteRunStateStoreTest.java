@@ -55,6 +55,59 @@ class SqliteRunStateStoreTest {
     }
 
     @Test
+    void strictRebuildRollsBackAndPreservesPreviousProjection() throws Exception {
+        Path run = workspace.resolve(".mcpjvm/demo/plans/regression/plan/runs/run-1");
+        Files.createDirectories(run);
+        Path result = run.resolve("execution.result.json");
+        Files.writeString(result, "{\"status\":\"pass\",\"startedAt\":100,\"endedAt\":200}");
+        Path database = workspace.resolve(".mcpjvm/demo/run-state.sqlite");
+        SqliteRunStateStore store = new SqliteRunStateStore(new ObjectMapper());
+        store.rebuild(database, "demo");
+        Map<String, Object> before = store.query(database, "demo", "run_state");
+
+        Files.writeString(result, "{not-json");
+
+        assertThatThrownBy(() -> store.rebuild(database, "demo", true))
+                .isInstanceOf(ArtifactOperationException.class)
+                .hasMessageContaining("strict rebuild rejected");
+        Map<String, Object> after = store.query(database, "demo", "run_state");
+
+        assertThat(after.get("items")).isEqualTo(before.get("items"));
+        assertThat(after.get("items").toString()).contains("run-1", "pass");
+
+        Files.writeString(result, "{\"status\":\"fail\",\"startedAt\":300,\"endedAt\":400}");
+        Map<String, Object> resumed = store.rebuild(database, "demo", true);
+
+        assertThat(resumed).containsEntry("replayedRuns", 1);
+        assertThat(store.query(database, "demo", "run_state").get("items").toString())
+                .contains("run-1", "fail")
+                .doesNotContain("pass");
+    }
+
+    @Test
+    void cleanupDeletesOnlyBoundedExpiredRowsAndPreservesNewestProtectedRow() throws Exception {
+        Path runs = workspace.resolve(".mcpjvm/demo/plans/regression/plan/runs");
+        for (int index = 1; index <= 3; index++) {
+            Path run = runs.resolve("run-" + index);
+            Files.createDirectories(run);
+            Files.writeString(run.resolve("execution.result.json"),
+                    "{\"status\":\"pass\",\"startedAt\":" + index
+                            + ",\"endedAt\":" + index + "}");
+        }
+        Path database = workspace.resolve(".mcpjvm/demo/run-state.sqlite");
+        SqliteRunStateStore store = new SqliteRunStateStore(new ObjectMapper());
+        store.rebuild(database, "demo");
+
+        Map<String, Object> first = store.cleanup(database, "demo", false, 1, 1, 1);
+        Map<String, Object> second = store.cleanup(database, "demo", false, 1, 1, 1);
+        String remaining = store.query(database, "demo", "run_state").get("items").toString();
+
+        assertThat(first).containsEntry("deletedRuns", 1);
+        assertThat(second).containsEntry("deletedRuns", 1);
+        assertThat(remaining).contains("run-3").doesNotContain("run-1", "run-2");
+    }
+
+    @Test
     void concurrentStoreOperationFailsClosedOnExplicitLock() throws Exception {
         Path database = workspace.resolve(".mcpjvm/demo/run-state.sqlite");
         Path lock = database.resolveSibling("run-state.sqlite.lock");

@@ -175,6 +175,7 @@ export const RunResultInputSchema = ProjectScopedInputSchema.extend({
   query: RunResultQuerySchema.optional(),
   stateSurface: z.enum(["run_state", "correlation_state", "watcher_state"]).optional(),
   retention: RunResultRetentionSchema.optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type RunResultInput = z.infer<typeof RunResultInputSchema>;

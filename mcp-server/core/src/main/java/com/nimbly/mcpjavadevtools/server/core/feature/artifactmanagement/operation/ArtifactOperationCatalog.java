@@ -17,7 +17,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMeta
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /** Complete Catalog-Describe-Execute surface for Artifact Management. */
 public final class ArtifactOperationCatalog {
@@ -91,17 +90,12 @@ public final class ArtifactOperationCatalog {
                     RunResultOperations runs,
                     ExecutionExportOperations exports,
                     OperationTraceMetadata trace) {
-        return Stream.of(
-                ArtifactOperationRegistrations.legacyOperations(
-                        Objects.requireNonNull(probe, "probe operations must not be null"),
-                        Objects.requireNonNull(project, "project operations must not be null"),
-                        Objects.requireNonNull(plans, "plan operations must not be null"), trace),
-                ArtifactRunOperationBindings.create(
-                        Objects.requireNonNull(runs, "run operations must not be null"), trace),
-                ArtifactExportOperationBindings.create(
-                        Objects.requireNonNull(exports, "export operations must not be null"), trace))
-                .flatMap(List::stream)
-                .toList();
+        return ArtifactOperationRegistrations.legacyOperations(
+                Objects.requireNonNull(probe, "probe operations must not be null"),
+                Objects.requireNonNull(project, "project operations must not be null"),
+                Objects.requireNonNull(plans, "plan operations must not be null"),
+                Objects.requireNonNull(runs, "run operations must not be null"),
+                Objects.requireNonNull(exports, "export operations must not be null"), trace);
     }
 
     static OperationTraceMetadata defaultTrace(OperationExposure exposure) {

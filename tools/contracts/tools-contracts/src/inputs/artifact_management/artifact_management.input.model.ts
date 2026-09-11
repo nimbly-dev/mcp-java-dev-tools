@@ -53,10 +53,38 @@ export const ArtifactManagementRequestSchema = z.discriminatedUnion("artifactTyp
   z
     .object({
       artifactType: z.literal("run_result"),
-      action: z.enum(["read", "list", "rebuild", "backfill", "cutover", "query", "cleanup"]),
+      action: z.enum([
+        "read",
+        "upsert",
+        "list",
+        "rebuild",
+        "backfill",
+        "cutover",
+        "query",
+        "cleanup",
+      ]),
       input: RunResultInputSchema,
     })
     .superRefine((request, ctx) => {
+      if (request.action === "upsert") {
+        for (const field of ["projectName", "planName", "runId"] as const) {
+          const value = request.input[field];
+          if (typeof value !== "string" || !value.trim()) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["input", field],
+              message: `${field} is required for run_result upsert`,
+            });
+          }
+        }
+        if (!request.input.payload) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["input", "payload"],
+            message: "payload is required for run_result upsert",
+          });
+        }
+      }
       if (request.action === "backfill" && request.input.stateSurface !== "correlation_state") {
         ctx.addIssue({
           code: "custom",

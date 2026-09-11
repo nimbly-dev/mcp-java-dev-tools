@@ -2,9 +2,11 @@ package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operat
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.project.ProjectContextOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.plan.PlanOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
@@ -37,7 +39,8 @@ import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 public class ArtifactOperationRegistrations {
 
     private static final EnumSet<ArtifactManagementAction> OWNED_ACTIONS = EnumSet.range(
-            ArtifactManagementAction.PROBE_CONFIG_READ, ArtifactManagementAction.SECURITY_PLAN_LIST);
+            ArtifactManagementAction.PROBE_CONFIG_READ,
+            ArtifactManagementAction.EXECUTION_EXPORT_GENERATE);
 
     private ArtifactOperationRegistrations() {
     }
@@ -46,10 +49,16 @@ public class ArtifactOperationRegistrations {
             ProbeConfigOperations probe,
             ProjectContextOperations project,
             PlanOperations plans,
+            RunResultOperations runs,
+            ExecutionExportOperations exports,
             OperationTraceMetadata trace) {
-        return java.util.stream.Stream.concat(
-                probeProjectOperations(probe, project, trace).stream(),
-                planOperations(plans, trace).stream()).toList();
+        return java.util.stream.Stream.of(
+                        probeProjectOperations(probe, project, trace),
+                        planOperations(plans, trace),
+                        runOperations(runs, trace),
+                        exportOperations(exports, trace))
+                .flatMap(List::stream)
+                .toList();
     }
 
     static List<ArtifactOperation> probeProjectOperations(
@@ -110,6 +119,38 @@ public class ArtifactOperationRegistrations {
                         request -> owner.list(request, "security"), trace));
     }
 
+    static List<ArtifactOperation> runOperations(
+            RunResultOperations owner, OperationTraceMetadata trace) {
+        return List.of(
+                new ArtifactOperation(ArtifactManagementAction.RUN_RESULT_READ,
+                        RunResultOperations.class, owner, "read", owner::read, trace),
+                new ArtifactOperation(ArtifactManagementAction.RUN_RESULT_UPSERT,
+                        RunResultOperations.class, owner, "upsert", owner::upsert, trace),
+                new ArtifactOperation(ArtifactManagementAction.RUN_RESULT_LIST,
+                        RunResultOperations.class, owner, "list", owner::list, trace),
+                new ArtifactOperation(ArtifactManagementAction.RUN_RESULT_REBUILD,
+                        RunResultOperations.class, owner, "rebuild", owner::rebuild, trace),
+                new ArtifactOperation(ArtifactManagementAction.RUN_RESULT_BACKFILL,
+                        RunResultOperations.class, owner, "backfill", owner::backfill, trace),
+                new ArtifactOperation(ArtifactManagementAction.RUN_RESULT_CUTOVER,
+                        RunResultOperations.class, owner, "cutover", owner::cutover, trace),
+                new ArtifactOperation(ArtifactManagementAction.RUN_RESULT_QUERY,
+                        RunResultOperations.class, owner, "query", owner::query, trace),
+                new ArtifactOperation(ArtifactManagementAction.RUN_RESULT_CLEANUP,
+                        RunResultOperations.class, owner, "cleanup", owner::cleanup, trace));
+    }
+
+    static List<ArtifactOperation> exportOperations(
+            ExecutionExportOperations owner, OperationTraceMetadata trace) {
+        return List.of(
+                new ArtifactOperation(ArtifactManagementAction.EXECUTION_EXPORT_READ,
+                        ExecutionExportOperations.class, owner, "read", owner::read, trace),
+                new ArtifactOperation(ArtifactManagementAction.EXECUTION_EXPORT_LIST,
+                        ExecutionExportOperations.class, owner, "list", owner::list, trace),
+                new ArtifactOperation(ArtifactManagementAction.EXECUTION_EXPORT_GENERATE,
+                        ExecutionExportOperations.class, owner, "generate", owner::generate, trace));
+    }
+
     public static List<OperationRegistration<?, ?>> create(
             ArtifactOperationCatalog catalog, ObjectMapper mapper) {
         Objects.requireNonNull(catalog, "artifact catalog must not be null");
@@ -127,11 +168,11 @@ public class ArtifactOperationRegistrations {
         Objects.requireNonNull(owner, "artifact operation owner must not be null");
         OperationDescriptor descriptor = descriptor(action, owner);
         OperationExecutor<ArtifactOperationArguments, ArtifactManagementResult> executor = executor(action, owner);
-        OperationRequestDecoder<ArtifactOperationArguments> decoder = isOwned(action)
+        OperationRequestDecoder<ArtifactOperationArguments> decoder = OWNED_ACTIONS.contains(action)
                 ? OperationRequestDecoders.wrap(mapper, ArtifactOperationArguments.class, ArtifactOperationArguments::new,
                         ArtifactOperationArguments::input)
                 : ArtifactOperationArguments::new;
-        OperationResultEncoder<ArtifactManagementResult> encoder = isOwned(action)
+        OperationResultEncoder<ArtifactManagementResult> encoder = OWNED_ACTIONS.contains(action)
                 ? OperationResultEncoders.typed(mapper, ArtifactManagementResult.class)
                 : result -> mapper.valueToTree(ArtifactManagementResult.class.cast(result));
         return new OperationRegistration<>(
@@ -149,7 +190,7 @@ public class ArtifactOperationRegistrations {
     static OperationExecutor<ArtifactOperationArguments, ArtifactManagementResult> executor(
             ArtifactManagementAction action,
             Operation<ArtifactManagementAction, ArtifactManagementRequest, ArtifactManagementResult> owner) {
-        if (isOwned(action)) {
+        if (OWNED_ACTIONS.contains(action)) {
             return ContextAwareOperationExecutor.declared(
                     OperationCancellationState.NOT_CANCELLABLE,
                     OperationCancellationGuarantee.DETERMINISTIC_CONTINUATION,
@@ -163,17 +204,13 @@ public class ArtifactOperationRegistrations {
             OperationDescriptor descriptor) {
         OperationSafetyPolicy baseline = CoreOperationSafetyPolicy.forOperation(descriptor.operationId().value(),
                 descriptor.trace().sideEffect());
-        if (!isOwned(action)) {
+        if (!OWNED_ACTIONS.contains(action)) {
             return baseline;
         }
         return new OperationSafetyPolicy(
                 baseline.sideEffect(), baseline.confirmationRequired(), baseline.credentialPolicy(), baseline.redactionPolicy(),
                 baseline.timeoutMillis(), false, baseline.maxInputBytes(),
                 baseline.maxOutputBytes());
-    }
-
-    static boolean isOwned(ArtifactManagementAction action) {
-        return OWNED_ACTIONS.contains(action);
     }
 
     static OperationDescriptor descriptor(

@@ -139,7 +139,10 @@ class ArtifactManagementOperationsTest {
                 Map.of("projectName", "demo", "suiteType", "performance", "planName", "load", "runId", "run-1")));
 
         assertThat(persisted.status()).isEqualTo("ok");
-        assertThat(read.details().get("artifact").toString()).contains("\"status\":\"pass\"");
+        assertThat(read.details().get("artifact"))
+                .isInstanceOf(Map.class)
+                .extracting(value -> ((Map<?, ?>) value).get("status"))
+                .isEqualTo("pass");
     }
 
     @Test

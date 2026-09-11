@@ -420,7 +420,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="upsert" subject="run_result">
     <summary>Upsert a suite run result.</summary>
@@ -451,7 +451,7 @@
     <examples>
       <example>{"projectName":"sample","payload":{}}</example>
     </examples>
-    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="list" subject="run_result">
     <summary>List persisted suite run results.</summary>
@@ -481,7 +481,7 @@
     <examples>
       <example>{}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="rebuild" subject="run_result">
     <summary>Rebuild projected suite run state.</summary>
@@ -511,7 +511,7 @@
     <examples>
       <example>{"projectName":"sample"}</example>
     </examples>
-    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="backfill" subject="run_result">
     <summary>Backfill projected suite run state.</summary>
@@ -541,7 +541,7 @@
     <examples>
       <example>{"projectName":"sample","stateSurface":"correlation_state"}</example>
     </examples>
-    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="cutover" subject="run_result">
     <summary>Cut over canonical suite run-state reads.</summary>
@@ -571,7 +571,7 @@
     <examples>
       <example>{"projectName":"sample"}</example>
     </examples>
-    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="query" subject="run_result">
     <summary>Query projected suite run state.</summary>
@@ -601,7 +601,7 @@
     <examples>
       <example>{"projectName":"sample"}</example>
     </examples>
-    <safety sideEffect="sqlite_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="sqlite_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="cleanup" subject="run_result">
     <summary>Clean up retained suite run state.</summary>
@@ -631,7 +631,7 @@
     <examples>
       <example>{"projectName":"sample"}</example>
     </examples>
-    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="sqlite_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="read" subject="execution_export">
     <summary>Read an execution export.</summary>
@@ -666,7 +666,7 @@
     <examples>
       <example>{"projectName":"sample","query":{}}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="list" subject="execution_export">
     <summary>List execution exports.</summary>
@@ -701,7 +701,7 @@
     <examples>
       <example>{"projectName":"sample"}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
   <action classification="artifact" name="generate" subject="execution_export">
     <summary>Generate an execution export.</summary>
@@ -736,6 +736,6 @@
     <examples>
       <example>{"projectName":"sample","mode":"ps1"}</example>
     </examples>
-    <safety sideEffect="filesystem_export" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="filesystem_export" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
 </tool>

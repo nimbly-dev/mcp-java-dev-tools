@@ -16,6 +16,7 @@ import { handleRunResultQuery } from "./run_result_query";
 import {
   readRunResultArtifact,
   resolveRunResultSuiteType,
+  upsertRunResultArtifact,
   workspaceRelativePath,
 } from "./run_result_artifact";
 
@@ -24,6 +25,9 @@ export async function handleRunResultLifecycle(
   request: ArtifactActionRequest<"run_result">,
   projectName: string,
 ): Promise<ArtifactActionResult> {
+  if (request.action === "upsert") {
+    return upsertRunResultArtifact(request, ctx.workspaceRootAbs, projectName);
+  }
   if (request.action === "cleanup") {
     const cleanup = await cleanupRunStateRetention({
       workspaceRootAbs: ctx.workspaceRootAbs,

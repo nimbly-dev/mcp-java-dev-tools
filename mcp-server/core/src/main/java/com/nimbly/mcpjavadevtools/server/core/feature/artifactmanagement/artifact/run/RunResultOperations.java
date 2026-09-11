@@ -42,7 +42,7 @@ public final class RunResultOperations {
                     "result.json");
             Path resultPath = Files.isRegularFile(executionResult) ? executionResult : legacyResult;
             if (Files.isRegularFile(resultPath)) {
-                details.put("artifact", support.jsonStore().read(resultPath));
+                details.put("artifact", transportValue(support.jsonStore().read(resultPath)));
             }
             addOptionalRunState(details, new RunStatePath(workspace, projectName, suiteType, planName, runId),
                     "continuation", "continuation.json");
@@ -196,8 +196,12 @@ public final class RunResultOperations {
                 ".mcpjvm", statePath.projectName(), "plans", statePath.suiteType(),
                 statePath.planName(), "runs", statePath.runId(), fileName);
         if (Files.isRegularFile(path)) {
-            details.put(outputName, support.jsonStore().read(path));
+            details.put(outputName, transportValue(support.jsonStore().read(path)));
         }
+    }
+
+    private Object transportValue(JsonNode value) {
+        return support.mapper().convertValue(value, Object.class);
     }
 
     private static void putIfMissing(ObjectNode target, String field, String value) {

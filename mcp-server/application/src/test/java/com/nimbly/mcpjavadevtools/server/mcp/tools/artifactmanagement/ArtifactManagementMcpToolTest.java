@@ -81,6 +81,16 @@ class ArtifactManagementMcpToolTest {
                 .orElseThrow();
         assertThat(performanceUpsert.path("properties").path("input").path("required").toString())
                 .contains("planName", "payload");
+        var runUpsert = java.util.stream.StreamSupport.stream(
+                        schema.path("oneOf").spliterator(), false)
+                .filter(node -> "run_result".equals(
+                        node.path("properties").path("artifactType").path("const").asText()))
+                .filter(node -> "upsert".equals(
+                        node.path("properties").path("action").path("const").asText()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(runUpsert.path("properties").path("input").path("required").toString())
+                .contains("projectName", "planName", "runId", "payload");
     }
 
     @Test

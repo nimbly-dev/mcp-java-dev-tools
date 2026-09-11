@@ -26,7 +26,8 @@ final class SqliteRunStateProjectionRebuilder {
         List<String> reasons = new ArrayList<>();
         try (SqliteRunStateLock ignored = SqliteRunStateLock.acquire(databasePath);
                 Connection connection = SqliteRunStateDatabase.open(databasePath)) {
-            SqliteRebuildCounts counts = rebuildProjection(connection, databasePath, projectName, reasons);
+            SqliteRebuildCounts counts = rebuildProjection(
+                    connection, databasePath, projectName, reasons, strict);
             int scanned = counts.scanned();
             int rebuilt = counts.rebuilt();
             int invalid = counts.invalid();
@@ -41,7 +42,8 @@ final class SqliteRunStateProjectionRebuilder {
             Connection connection,
             Path databasePath,
             String projectName,
-            List<String> reasons) throws SQLException {
+            List<String> reasons,
+            boolean strict) throws SQLException {
         connection.setAutoCommit(false);
         int scanned = 0;
         int rebuilt = 0;
@@ -61,6 +63,9 @@ final class SqliteRunStateProjectionRebuilder {
                         reasons.add(source.planName() + "/" + source.runId() + ":" + source.reason());
                     }
                 }
+            }
+            if (strict && invalid > 0) {
+                throw strictFailure(invalid, reasons);
             }
             connection.commit();
             return new SqliteRebuildCounts(scanned, rebuilt, invalid);
@@ -96,5 +101,12 @@ final class SqliteRunStateProjectionRebuilder {
         result.put("replayedRuns", rebuilt);
         result.put("summary", summary);
         return result;
+    }
+
+    private static ArtifactOperationException strictFailure(
+            int invalid, List<String> reasons) {
+        return new ArtifactOperationException("state_store_rebuild_strict_failed",
+                "strict rebuild rejected invalid run Artifacts",
+                Map.of("invalidRuns", invalid, "reasons", List.copyOf(reasons)));
     }
 }

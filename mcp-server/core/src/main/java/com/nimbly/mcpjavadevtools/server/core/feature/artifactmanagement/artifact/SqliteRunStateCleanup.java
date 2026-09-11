@@ -32,12 +32,16 @@ final class SqliteRunStateCleanup {
             int deleted = 0;
             if (!dryRun) {
                 try (var statement = connection.prepareStatement(
-                        "DELETE FROM plan_runs WHERE project_name = ? AND status IN "
-                                + "('pass', 'fail', 'blocked', 'partial_fail') "
-                                + "AND completed_at_epoch_ms IS NOT NULL AND completed_at_epoch_ms < ? "
-                                + "AND plan_run_pk NOT IN (SELECT plan_run_pk FROM plan_runs "
-                                + "WHERE project_name = ? AND status IN ('pass', 'fail', 'blocked', 'partial_fail') "
-                                + "ORDER BY completed_at_epoch_ms DESC, plan_run_pk DESC LIMIT ?) LIMIT ?")) {
+                        "DELETE FROM plan_runs WHERE plan_run_pk IN (SELECT candidate.plan_run_pk "
+                                + "FROM plan_runs candidate WHERE candidate.project_name = ? "
+                                + "AND candidate.status IN ('pass', 'fail', 'blocked', 'partial_fail') "
+                                + "AND candidate.completed_at_epoch_ms IS NOT NULL "
+                                + "AND candidate.completed_at_epoch_ms < ? "
+                                + "AND candidate.plan_run_pk NOT IN (SELECT protected.plan_run_pk "
+                                + "FROM plan_runs protected WHERE protected.project_name = ? "
+                                + "AND protected.status IN ('pass', 'fail', 'blocked', 'partial_fail') "
+                                + "ORDER BY protected.completed_at_epoch_ms DESC, protected.plan_run_pk DESC "
+                                + "LIMIT ?) ORDER BY candidate.completed_at_epoch_ms, candidate.plan_run_pk LIMIT ?)")) {
                     statement.setString(1, projectName);
                     statement.setLong(2, cutoff);
                     statement.setString(3, projectName);

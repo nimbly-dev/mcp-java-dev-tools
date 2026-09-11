@@ -5,10 +5,16 @@ import { readSecurityRunArtifact } from "@tools-feature-security-suite";
 import { resolveSecurityPlanRootAbs } from "@tools-security-execution-plan-spec";
 import type { ArtifactActionRequest, ArtifactActionResult } from "../actions/types";
 import { buildFailClosedArtifactResponse, okArtifactResponse } from "../shared/fail_closed";
-import { readJsonFile } from "../shared/json_io";
+import { readJsonFile, writeJsonFile } from "../shared/json_io";
 import { queryRunState } from "../state-store/run_state_query";
 
 type RunResultSuiteType = "regression" | "security";
+
+const MAX_ARTIFACT_DEPTH = 8;
+const MAX_ARTIFACT_FIELDS = 100;
+const MAX_ARTIFACT_ITEMS = 100;
+const MAX_ARTIFACT_STRING_LENGTH = 4096;
+const REDACTED_ARTIFACT_VALUE = "[REDACTED]";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -262,6 +268,166 @@ export function workspaceRelativePath(
   const resolved = path.resolve(pathAbs);
   if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return undefined;
   return path.relative(root, resolved).replaceAll("\\", "/");
+}
+
+function safeRunResultSegment(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "." || trimmed === ".." || /[\\/]/.test(trimmed)) return undefined;
+  return trimmed;
+}
+
+function isContainedPath(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === "" ||
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
+}
+
+async function runResultPathFailure(
+  workspaceRootAbs: string,
+  resultPath: string,
+): Promise<string | undefined> {
+  const workspaceRoot = path.resolve(workspaceRootAbs);
+  const candidate = path.resolve(resultPath);
+  if (!isContainedPath(workspaceRoot, candidate)) return "artifact_path_escape";
+
+  try {
+    const realWorkspaceRoot = await fs.realpath(workspaceRoot);
+    let existing = candidate;
+    for (;;) {
+      try {
+        await fs.lstat(existing);
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          return "artifact_path_unresolvable";
+        }
+        const parent = path.dirname(existing);
+        if (parent === existing) return "artifact_path_unresolvable";
+        existing = parent;
+      }
+    }
+    const realExisting = await fs.realpath(existing);
+    return isContainedPath(realWorkspaceRoot, realExisting)
+      ? undefined
+      : "artifact_path_symlink_escape";
+  } catch {
+    return "artifact_path_unresolvable";
+  }
+}
+
+function isSensitiveArtifactField(field: string): boolean {
+  const normalized = field.toLowerCase();
+  const symbolicReference =
+    normalized.endsWith("ref") &&
+    ["credential", "secret", "token", "password", "apikey"].some((part) =>
+      normalized.includes(part),
+    );
+  if (symbolicReference) return false;
+  return [
+    "password",
+    "secret",
+    "token",
+    "authorization",
+    "cookie",
+    "privatekey",
+    "api_key",
+    "apikey",
+    "credential",
+  ].some((part) => normalized.includes(part));
+}
+
+function sanitizeRunResultPayload(value: unknown, depth = 0, field = ""): unknown {
+  if (isSensitiveArtifactField(field)) return REDACTED_ARTIFACT_VALUE;
+  if (typeof value === "string") {
+    return value.length > MAX_ARTIFACT_STRING_LENGTH
+      ? `${value.slice(0, MAX_ARTIFACT_STRING_LENGTH)}...[TRUNCATED]`
+      : value;
+  }
+  if (value === null || typeof value !== "object") return value;
+  if (depth >= MAX_ARTIFACT_DEPTH) return "[DEPTH_LIMIT]";
+  if (Array.isArray(value)) {
+    const output = value
+      .slice(0, MAX_ARTIFACT_ITEMS)
+      .map((entry) => sanitizeRunResultPayload(entry, depth + 1, field));
+    if (value.length > MAX_ARTIFACT_ITEMS) output.push("[TRUNCATED]");
+    return output;
+  }
+  const output: Record<string, unknown> = {};
+  const entries = Object.entries(value);
+  for (const [key, entry] of entries.slice(0, MAX_ARTIFACT_FIELDS)) {
+    output[key] = sanitizeRunResultPayload(entry, depth + 1, key);
+  }
+  if (entries.length > MAX_ARTIFACT_FIELDS) output._truncated = true;
+  return output;
+}
+
+export async function upsertRunResultArtifact(
+  request: ArtifactActionRequest<"run_result">,
+  workspaceRootAbs: string,
+  projectName: string,
+): Promise<ArtifactActionResult> {
+  const safeProjectName = safeRunResultSegment(projectName);
+  const planName = safeRunResultSegment(request.input.planName);
+  const runId = safeRunResultSegment(request.input.runId);
+  const payload = request.input.payload;
+  if (!safeProjectName || !planName || !runId || !payload) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: "run_result_payload_invalid",
+      reason:
+        "projectName, planName, runId, and an object payload are required for run_result upsert",
+      reasonMeta: { action: request.action },
+    });
+  }
+  const artifactRootFailure = await runResultPathFailure(
+    workspaceRootAbs,
+    path.join(workspaceRootAbs, ".mcpjvm"),
+  );
+  if (artifactRootFailure) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: artifactRootFailure,
+      reason: "run_result upsert path is not safely contained by the workspace",
+    });
+  }
+  const suiteType = await resolveRunResultSuiteType(request, workspaceRootAbs, safeProjectName);
+  const resultPath = path.join(
+    workspaceRootAbs,
+    ".mcpjvm",
+    safeProjectName,
+    "plans",
+    suiteType,
+    planName,
+    "runs",
+    runId,
+    "execution.result.json",
+  );
+  const initialPathFailure = await runResultPathFailure(workspaceRootAbs, resultPath);
+  if (initialPathFailure) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: initialPathFailure,
+      reason: "run_result upsert path is not safely contained by the workspace",
+    });
+  }
+  await fs.mkdir(path.dirname(resultPath), { recursive: true });
+  const createdPathFailure = await runResultPathFailure(workspaceRootAbs, resultPath);
+  if (createdPathFailure) {
+    return buildFailClosedArtifactResponse({
+      reasonCode: createdPathFailure,
+      reason: "run_result upsert path is not safely contained by the workspace",
+    });
+  }
+  await writeJsonFile(resultPath, sanitizeRunResultPayload(payload));
+  return okArtifactResponse({
+    resultType: "artifact",
+    status: "persisted",
+    artifactType: request.artifactType,
+    action: request.action,
+    projectName: safeProjectName,
+    planName,
+    runId,
+    path: workspaceRelativePath(workspaceRootAbs, resultPath),
+  });
 }
 
 export async function readRunResultArtifact(
