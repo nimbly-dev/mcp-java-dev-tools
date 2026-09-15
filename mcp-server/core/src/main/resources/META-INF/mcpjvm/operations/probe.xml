@@ -115,7 +115,7 @@
       <argument name="timeoutMs" description="Operation timeout in milliseconds." type="integer" required="false" />
     </arguments>
     <examples>
-      <example>{}</example>
+      <example>{"key":"com.example.Sample#run:1"}</example>
     </examples>
     <safety sideEffect="probe_endpoint_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>

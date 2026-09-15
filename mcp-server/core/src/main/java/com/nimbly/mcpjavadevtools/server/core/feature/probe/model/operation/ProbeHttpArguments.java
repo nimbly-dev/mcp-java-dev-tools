@@ -6,6 +6,8 @@ import java.util.Map;
 public record ProbeHttpArguments(Map<String, String> headers) {
 
     public ProbeHttpArguments {
-        headers = headers == null ? Map.of() : Map.copyOf(headers);
+        if (headers != null) {
+            headers = Map.copyOf(headers);
+        }
     }
 }

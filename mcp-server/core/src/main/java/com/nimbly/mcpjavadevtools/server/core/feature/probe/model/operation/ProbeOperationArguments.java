@@ -1,7 +1,7 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.probe.model.operation;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
-import java.util.Map;
 
 /** Canonical Probe arguments without the outer Tool action discriminator. */
 public record ProbeOperationArguments(
@@ -10,7 +10,7 @@ public record ProbeOperationArguments(
         ProbeHttpArguments http,
         Integer timeoutMs,
         String key,
-        List<String> keys,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> keys,
         Integer lineHint,
         String className,
         Integer pollIntervalMs,
@@ -30,8 +30,5 @@ public record ProbeOperationArguments(
 
     public ProbeOperationArguments {
         keys = keys == null ? List.of() : List.copyOf(keys);
-        if (http == null) {
-            http = new ProbeHttpArguments(Map.of());
-        }
     }
 }
