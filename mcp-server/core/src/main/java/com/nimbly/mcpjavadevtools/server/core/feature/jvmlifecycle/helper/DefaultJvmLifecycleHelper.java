@@ -112,13 +112,13 @@ public final class DefaultJvmLifecycleHelper implements JvmLifecycleHelper {
     }
 
     private static void destroy(Process process) {
+        if (process.isAlive()) {
+            process.destroyForcibly();
+        }
         try {
             process.getInputStream().close();
         } catch (IOException ignored) {
             // The process is already being terminated; no further action is possible.
-        }
-        if (process.isAlive()) {
-            process.destroyForcibly();
         }
     }
 

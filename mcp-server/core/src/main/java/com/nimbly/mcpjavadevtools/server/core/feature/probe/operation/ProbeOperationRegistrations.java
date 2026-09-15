@@ -1,5 +1,6 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.probe.operation;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.ProbeAction;
@@ -7,19 +8,22 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeR
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeRequestFactory;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeRequestInput;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.operation.ProbeOperationArguments;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
-import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
@@ -34,17 +38,10 @@ public class ProbeOperationRegistrations {
             ProbeOperationCatalog catalog, ObjectMapper mapper) {
         Objects.requireNonNull(catalog, "probe catalog must not be null");
         Objects.requireNonNull(mapper, "mapper must not be null");
-        EnumMap<ProbeAction, Operation<ProbeAction, ProbeRequest, ProbeResult>> owners =
-                new EnumMap<>(ProbeAction.class);
-        for (Operation<ProbeAction, ProbeRequest, ProbeResult> owner : catalog.operations()) {
-            if (owners.put(owner.operationId(), owner) != null) {
-                throw new IllegalArgumentException("duplicate Probe owner: " + owner.operationId());
-            }
-        }
         ProbeRequestFactory factory = new ProbeRequestFactory();
-        return java.util.Arrays.stream(ProbeAction.values())
-                .<OperationRegistration<?, ?>>map(action ->
-                        register(action, owners.get(action), factory, mapper))
+        return catalog.operations().stream()
+                .<OperationRegistration<?, ?>>map(owner ->
+                        register(owner.operationId(), owner, factory, mapper))
                 .toList();
     }
 
@@ -60,12 +57,16 @@ public class ProbeOperationRegistrations {
                 ProbeOperationArguments.class,
                 ProbeResult.class,
                 new OperationRegistrationContract(
-                        schema(action), CoreOperationResultSchemas.probe(),
+                        ProbeOperationSchemas.schema(action), CoreOperationResultSchemas.probe(),
                         CoreOperationSafetyPolicy.forOperation(
                                 descriptor.operationId().value(), descriptor.trace().sideEffect())),
-                input -> mapper.convertValue(input, ProbeOperationArguments.class),
-                input -> owner.execute(factory.create(action, decode((ProbeOperationArguments) input))),
-                result -> mapper.valueToTree(ProbeResult.class.cast(result)),
+                OperationRequestDecoders.typed(mapper.copy()
+                                .setSerializationInclusion(JsonInclude.Include.NON_NULL),
+                        ProbeOperationArguments.class),
+                ContextAwareOperationExecutor.declared(OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION,
+                        OperationCancellationGuarantee.DELEGATED_DEADLINE,
+                        (input, context) -> owner.execute(factory.create(action, decode(input)))),
+                OperationResultEncoders.typed(mapper, ProbeResult.class),
                 CoreOperationDirectory.class.getName(),
                 identity(action));
     }
@@ -74,7 +75,8 @@ public class ProbeOperationRegistrations {
         return new ProbeRequestInput(
                 arguments.baseUrl(),
                 arguments.probeId(),
-                arguments.http().headers(),
+                arguments.http() == null || arguments.http().headers() == null
+                        ? Map.of() : arguments.http().headers(),
                 arguments.timeoutMs(),
                 arguments.key(),
                 arguments.keys(),
@@ -94,10 +96,6 @@ public class ProbeOperationRegistrations {
                 arguments.intervalNanos(),
                 arguments.outputPath(),
                 arguments.outputFormat());
-    }
-
-    static OperationSchema schema(ProbeAction action) {
-        return ProbeOperationSchemas.schema(action);
     }
 
     static OperationDescriptor descriptor(
