@@ -4,6 +4,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.disco
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.discovery.JavaSourceIndex;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.discovery.JavaSourceMethod;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.workspace.RouteSynthesisWorkspaceSnapshot;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,10 +62,12 @@ public class FileSystemJavaSourceDiscovery implements JavaSourceDiscovery {
             Path projectRoot,
             List<Path> additionalSourceRoots,
             String classHint) {
+        checkpoint();
         List<Path> roots = containedDistinctRoots(projectRoot, additionalSourceRoots);
         List<Path> files = collectJavaFiles(roots, classHint);
         List<JavaSourceFile> entries = new ArrayList<>();
         for (Path file : files) {
+            checkpoint();
             parseFile(file).ifPresent(entries::add);
         }
         return new JavaSourceIndex(files.size(), entries);
@@ -96,6 +99,7 @@ public class FileSystemJavaSourceDiscovery implements JavaSourceDiscovery {
     private List<Path> collectJavaFiles(List<Path> roots, String classHint) {
         Set<Path> unique = new HashSet<>();
         for (Path root : roots) {
+            checkpoint();
             try (Stream<Path> stream = Files.walk(root)) {
                 stream.filter(this::isAllowedJavaFile)
                         .forEach(unique::add);
@@ -118,6 +122,7 @@ public class FileSystemJavaSourceDiscovery implements JavaSourceDiscovery {
     }
 
     private boolean isAllowedJavaFile(Path path) {
+        checkpoint();
         if (!Files.isRegularFile(path) || !path.getFileName().toString().endsWith(".java")) {
             return false;
         }
@@ -139,7 +144,9 @@ public class FileSystemJavaSourceDiscovery implements JavaSourceDiscovery {
 
     private java.util.Optional<JavaSourceFile> parseFile(Path file) {
         try {
+            checkpoint();
             String text = Files.readString(file);
+            checkpoint();
             String packageName = matchGroup(PACKAGE_PATTERN, text);
             String className = matchClassName(text);
             List<JavaSourceMethod> methods = parseMethods(text);
@@ -164,6 +171,7 @@ public class FileSystemJavaSourceDiscovery implements JavaSourceDiscovery {
         Map<Integer, Integer> bracePairs = bracePairs(sanitized);
         List<JavaSourceMethod> methods = new ArrayList<>();
         for (Map.Entry<Integer, Integer> entry : bracePairs.entrySet()) {
+            checkpoint();
             addMethodIfPresent(text, sanitized, entry.getKey(), entry.getValue(), methods);
         }
         methods.sort(Comparator.comparingInt(JavaSourceMethod::declarationLine)
@@ -204,6 +212,9 @@ public class FileSystemJavaSourceDiscovery implements JavaSourceDiscovery {
         Deque<Integer> stack = new ArrayDeque<>();
         Map<Integer, Integer> pairs = new HashMap<>();
         for (int index = 0; index < sanitized.length(); index++) {
+            if ((index & 0x3fff) == 0) {
+                checkpoint();
+            }
             char value = sanitized.charAt(index);
             if (value == '{') {
                 stack.push(index);
@@ -219,6 +230,9 @@ public class FileSystemJavaSourceDiscovery implements JavaSourceDiscovery {
         SanitizeContext context = new SanitizeContext();
         int index = 0;
         while (index < output.length()) {
+            if ((index & 0x3fff) == 0) {
+                checkpoint();
+            }
             if (context.mode == SanitizeMode.LINE) {
                 index = sanitizeLine(output, index, context);
                 index++;
@@ -406,6 +420,13 @@ public class FileSystemJavaSourceDiscovery implements JavaSourceDiscovery {
 
     private String normalize(String value) {
         return value.replaceAll("\\s+", " ").trim();
+    }
+
+    private static void checkpoint() {
+        OperationExecutionContext context = OperationExecutionContext.current();
+        if (Thread.currentThread().isInterrupted() || context.cancellationRequested()) {
+            throw new java.util.concurrent.CancellationException("route source discovery was cancelled");
+        }
     }
 
     private record Identifier(String value, int start) {

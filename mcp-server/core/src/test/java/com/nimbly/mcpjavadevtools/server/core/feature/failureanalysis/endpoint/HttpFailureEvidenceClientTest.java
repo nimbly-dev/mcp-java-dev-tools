@@ -7,9 +7,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.endpoint.FailureAnalyzeEvidenceRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.endpoint.FailureEvidenceResponse;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.policy.FailureAnalysisPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
 
 class HttpFailureEvidenceClientTest {
@@ -64,6 +66,35 @@ class HttpFailureEvidenceClientTest {
                     .isInstanceOfSatisfying(FailureEvidenceClientException.class,
                             exception -> assertThat(exception.failureKind())
                                     .isEqualTo(FailureEvidenceFailureKind.TIMEOUT));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void consumesCoreCancellationBeforeStartingTheSidecarDelegate() {
+        OperationExecutionContext context = OperationExecutionContext.unbounded();
+        context.requestCancellation();
+
+        try (var ignored = context.install()) {
+            assertThatThrownBy(() -> client(64).analyze(new FailureAnalyzeEvidenceRequest(
+                    "http://127.0.0.1:1", "trace", null, Duration.ofSeconds(10))))
+                    .isInstanceOf(CancellationException.class);
+        }
+    }
+
+    @Test
+    void capsTheSidecarDelegateAtTheCoreDeadline() throws Exception {
+        HttpServer server = server("{}", Duration.ofSeconds(2));
+        try {
+            OperationExecutionContext context = OperationExecutionContext.forTimeout(100);
+            long started = System.nanoTime();
+            try (var ignored = context.install()) {
+                assertThatThrownBy(() -> client(64).analyze(new FailureAnalyzeEvidenceRequest(
+                        baseUrl(server), "trace", null, Duration.ofSeconds(10))))
+                        .isInstanceOf(FailureEvidenceClientException.class);
+            }
+            assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(1));
         } finally {
             server.stop(0);
         }

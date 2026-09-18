@@ -7,10 +7,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.requ
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.result.FailureAnalysisResult;
 import java.util.List;
 
-/** Complete production implementation of the consolidated Failure Analysis Feature. */
+/** COMPATIBILITY_RETAINED_UNTIL_611: used by FailureAnalysisMcpTool; delete with that #611 adapter. */
 public final class DefaultFailureAnalysisFeature implements FailureAnalysisFeature {
 
-    private final EnumActionDispatcher<FailureAnalysisAction, FailureAnalysisRequest, FailureAnalysisResult> dispatcher;
+    private final List<? extends FailureAnalysisActionHandler> handlers;
 
     /**
      * Creates a complete action dispatcher.
@@ -18,7 +18,13 @@ public final class DefaultFailureAnalysisFeature implements FailureAnalysisFeatu
      * @param handlers real action implementations
      */
     public DefaultFailureAnalysisFeature(List<? extends FailureAnalysisActionHandler> handlers) {
-        dispatcher = new EnumActionDispatcher<>(FailureAnalysisAction.class, handlers);
+        this.handlers = List.copyOf(handlers);
+        new EnumActionDispatcher<>(FailureAnalysisAction.class, this.handlers);
+    }
+
+    /** @return substantive owner for an action registered with the Core operation directory */
+    public FailureAnalysisActionHandler operationOwner(FailureAnalysisAction action) {
+        return handlers.stream().filter(handler -> handler.action() == action).findFirst().orElseThrow();
     }
 
     @Override
@@ -26,6 +32,6 @@ public final class DefaultFailureAnalysisFeature implements FailureAnalysisFeatu
         if (request == null || request.action() == null) {
             return FailureAnalysisResult.invalidRequest();
         }
-        return dispatcher.dispatch(request.action(), request);
+        return operationOwner(request.action()).execute(request);
     }
 }

@@ -7,13 +7,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.reque
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.result.RouteSynthesisResult;
 import java.util.List;
 
-/**
- * Complete dispatcher-backed Route Synthesis Feature implementation.
- */
+/** COMPATIBILITY_RETAINED_UNTIL_611: used by RouteSynthesisMcpTool; delete with that #611 adapter. */
 public class DefaultRouteSynthesisFeature implements RouteSynthesisFeature {
 
-    private final EnumActionDispatcher<RouteSynthesisAction, RouteSynthesisRequest, RouteSynthesisResult>
-            dispatcher;
+    private final List<? extends RouteSynthesisActionHandler> handlers;
 
     /**
      * Creates a Feature that rejects incomplete action wiring.
@@ -21,7 +18,13 @@ public class DefaultRouteSynthesisFeature implements RouteSynthesisFeature {
      * @param handlers complete action handler set
      */
     public DefaultRouteSynthesisFeature(List<? extends RouteSynthesisActionHandler> handlers) {
-        dispatcher = new EnumActionDispatcher<>(RouteSynthesisAction.class, handlers);
+        this.handlers = List.copyOf(handlers);
+        new EnumActionDispatcher<>(RouteSynthesisAction.class, this.handlers);
+    }
+
+    /** @return substantive owner for an action registered with the Core operation directory */
+    public RouteSynthesisActionHandler operationOwner(RouteSynthesisAction action) {
+        return handlers.stream().filter(handler -> handler.action() == action).findFirst().orElseThrow();
     }
 
     /**
@@ -33,13 +36,9 @@ public class DefaultRouteSynthesisFeature implements RouteSynthesisFeature {
     @Override
     public RouteSynthesisResult execute(RouteSynthesisRequest request) {
         if (request == null || request.action() == null) {
-            return RouteSynthesisResult.report(
-                    "blocked_invalid",
-                    "invalid_request",
-                    "input_validation",
-                    "invalid_request",
-                    "Provide a valid route_synthesis action and rerun.");
+            return RouteSynthesisResult.report("blocked_invalid", "invalid_request", "input_validation",
+                    "invalid_request", "Provide a valid route_synthesis action and rerun.");
         }
-        return dispatcher.dispatch(request.action(), request);
+        return operationOwner(request.action()).execute(request);
     }
 }

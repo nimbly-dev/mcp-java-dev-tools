@@ -1,7 +1,10 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.operation;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.DefaultFailureAnalysisFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.FailureAnalysisFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.FailureAnalysisAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.analyzetrace.AnalyzeTraceRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.verifyreproduction.FailureLineHitEvidence;
@@ -13,7 +16,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.resu
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.terminal.FailureTerminalState;
 import java.net.URI;
 import java.time.Duration;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -22,12 +24,17 @@ import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.oper
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.operation.FailureLineHitArguments;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.operation.FailureTerminalArguments;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.operation.FailureVerifyArguments;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
-import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
@@ -40,33 +47,38 @@ public class FailureAnalysisOperationRegistrations {
 
     public static List<OperationRegistration<?, ?>> create(
             FailureAnalysisFeature feature, ObjectMapper mapper) {
-        Objects.requireNonNull(feature, "failure analysis feature must not be null");
         Objects.requireNonNull(mapper, "mapper must not be null");
-        EnumMap<FailureAnalysisAction, Class<?>> requestTypes = new EnumMap<>(FailureAnalysisAction.class);
-        requestTypes.put(FailureAnalysisAction.ANALYZE_TRACE, FailureAnalyzeArguments.class);
-        requestTypes.put(FailureAnalysisAction.VERIFY_REPRODUCTION, FailureVerifyArguments.class);
-        return java.util.Arrays.stream(FailureAnalysisAction.values())
-                .<OperationRegistration<?, ?>>map(action ->
-                        register(action, requestTypes.get(action), feature, mapper))
-                .toList();
+        var defaultFeature = (DefaultFailureAnalysisFeature) Objects.requireNonNull(feature, "feature must not be null");
+        return List.of(
+                register(FailureAnalysisAction.ANALYZE_TRACE, FailureAnalyzeArguments.class, defaultFeature, mapper),
+                register(FailureAnalysisAction.VERIFY_REPRODUCTION, FailureVerifyArguments.class, defaultFeature, mapper));
     }
 
     static <I> OperationRegistration<I, FailureAnalysisResult> register(
             FailureAnalysisAction action, Class<I> requestType,
-            FailureAnalysisFeature feature, ObjectMapper mapper) {
-        OperationDescriptor descriptor = descriptor(action, requestType, feature);
+            DefaultFailureAnalysisFeature feature, ObjectMapper mapper) {
+        FailureAnalysisActionHandler owner = feature.operationOwner(action);
+        OperationDescriptor descriptor = descriptor(action, requestType, owner);
         return new OperationRegistration<I, FailureAnalysisResult>(
                 descriptor,
                 requestType,
                 FailureAnalysisResult.class,
                 new OperationRegistrationContract(
                         FailureAnalysisOperationSchemas.forAction(action),
-                        CoreOperationResultSchemas.failure(),
+                        FailureAnalysisResultSchema.create(),
                         CoreOperationSafetyPolicy.forOperation(
                                 descriptor.operationId().value(), descriptor.trace().sideEffect())),
-                input -> mapper.convertValue(input, requestType),
-                input -> feature.execute(decode(action, input)),
-                result -> mapper.valueToTree(FailureAnalysisResult.class.cast(result)),
+                OperationRequestDecoders.typed(mapper.copy()
+                                .setSerializationInclusion(JsonInclude.Include.NON_NULL), requestType),
+                ContextAwareOperationExecutor.declared(OperationCancellationState.CONTEXT_AWARE_CANCELLATION,
+                        OperationCancellationGuarantee.IDEMPOTENT,
+                        (input, context) -> {
+                            checkpoint(context);
+                            FailureAnalysisResult result = owner.execute(decode(action, input));
+                            checkpoint(context);
+                            return result;
+                        }),
+                OperationResultEncoders.typed(mapper, FailureAnalysisResult.class),
                 CoreOperationDirectory.class.getName(),
                 identity(action));
     }
@@ -110,20 +122,20 @@ public class FailureAnalysisOperationRegistrations {
     }
 
     static OperationDescriptor descriptor(
-            FailureAnalysisAction action, Class<?> requestType, FailureAnalysisFeature feature) {
+            FailureAnalysisAction action, Class<?> requestType, FailureAnalysisActionHandler owner) {
         String id = OperationId.fromLegacy("failure_analysis", action.value()).value();
-        String owner = feature.getClass().getName() + "#execute";
+        String executableOwner = owner.getClass().getName() + "#execute";
         return new OperationDescriptor(
                 "failure_analysis", action.value(), requestType.getName(),
-                FailureAnalysisResult.class.getName(), owner,
+                FailureAnalysisResult.class.getName(), executableOwner,
                 new OperationTraceMetadata(
                         "java_mcp_operation_directory_adapter",
                         FailureAnalysisOperationRegistrations.class.getName(),
-                        FailureAnalysisFeature.class.getName(),
+                        FailureAnalysisActionHandler.class.getName(),
                         FailureAnalysisOperationRegistrations.class.getName(),
                         "mcpjvm-610:" + id + ":typed-binding",
                         CoreOperationSafetyPolicy.sideEffect(id),
-                        Map.of("featureOwner", feature.getClass().getName(),
+                        Map.of("executableOwner", executableOwner,
                                 "operationId", id,
                                 "requestType", requestType.getName())));
     }
@@ -149,6 +161,12 @@ public class FailureAnalysisOperationRegistrations {
             return normalized;
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("sidecarBaseUrl must be a valid URL", exception);
+        }
+    }
+
+    private static void checkpoint(OperationExecutionContext context) {
+        if (Thread.currentThread().isInterrupted() || context.cancellationRequested()) {
+            throw new java.util.concurrent.CancellationException("failure analysis operation was cancelled");
         }
     }
 }

@@ -7,6 +7,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.endp
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.endpoint.FailureEvidenceResponse;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.endpoint.FailureVerifyEvidenceRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.policy.FailureAnalysisPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,8 +64,11 @@ public final class HttpFailureEvidenceClient implements FailureEvidenceClient {
     private FailureEvidenceResponse send(
             String baseUrl, String path, Map<String, Object> payload, String authorization, Duration timeout) {
         try {
+            OperationExecutionContext context = OperationExecutionContext.current();
+            checkpoint(context);
+            Duration effectiveTimeout = boundedTimeout(timeout, context.remainingMillis());
             HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint(baseUrl, path))
-                    .timeout(timeout)
+                    .timeout(effectiveTimeout)
                     .header("content-type", "application/json");
             if (authorization != null && !authorization.trim().isEmpty()) {
                 builder.header("Authorization", authorization.trim());
@@ -72,7 +76,9 @@ public final class HttpFailureEvidenceClient implements FailureEvidenceClient {
             HttpRequest request = builder
                     .POST(HttpRequest.BodyPublishers.ofString(writePayload(payload), StandardCharsets.UTF_8))
                     .build();
-            return exchange(request);
+            FailureEvidenceResponse response = exchange(request);
+            checkpoint(context);
+            return response;
         } catch (FailureEvidenceClientException exception) {
             throw exception;
         } catch (IllegalArgumentException | URISyntaxException exception) {
@@ -141,6 +147,7 @@ public final class HttpFailureEvidenceClient implements FailureEvidenceClient {
             byte[] buffer = new byte[BUFFER_SIZE];
             int read;
             while ((read = input.read(buffer)) >= 0) {
+                checkpoint(OperationExecutionContext.current());
                 if (output.size() + read > policy.maximumResponsePayloadBytes()) {
                     throw new FailureEvidenceClientException(
                             FailureEvidenceFailureKind.RESPONSE_LIMIT_EXCEEDED,
@@ -155,6 +162,19 @@ public final class HttpFailureEvidenceClient implements FailureEvidenceClient {
             throw new FailureEvidenceClientException(
                     FailureEvidenceFailureKind.RESPONSE_READ_FAILED,
                     "Sidecar failure response could not be read", exception);
+        }
+    }
+
+    private static Duration boundedTimeout(Duration requested, long remainingMillis) {
+        if (remainingMillis == Long.MAX_VALUE) {
+            return requested;
+        }
+        return Duration.ofMillis(Math.max(1, Math.min(requested.toMillis(), remainingMillis)));
+    }
+
+    private static void checkpoint(OperationExecutionContext context) {
+        if (Thread.currentThread().isInterrupted() || context.cancellationRequested()) {
+            throw new java.util.concurrent.CancellationException("failure evidence request was cancelled");
         }
     }
 
