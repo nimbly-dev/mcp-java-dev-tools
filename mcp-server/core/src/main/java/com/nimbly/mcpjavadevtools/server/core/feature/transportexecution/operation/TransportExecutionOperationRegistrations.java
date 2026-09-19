@@ -1,8 +1,12 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.operation;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.DefaultTransportExecutionFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.TransportExecutionActionHandler;
+import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.TransportExecutionAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.TransportProtocol;
@@ -10,11 +14,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.operation.TransportExecuteArguments;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
@@ -30,14 +40,16 @@ public class TransportExecutionOperationRegistrations {
 
     public static List<OperationRegistration<?, ?>> create(
             TransportExecutionFeature feature, ObjectMapper mapper) {
-        Objects.requireNonNull(feature, "transport feature must not be null");
         Objects.requireNonNull(mapper, "mapper must not be null");
-        return List.<OperationRegistration<?, ?>>of(register(feature, mapper));
+        var defaultFeature = (DefaultTransportExecutionFeature) Objects.requireNonNull(
+                feature, "transport feature must not be null");
+        return List.<OperationRegistration<?, ?>>of(register(defaultFeature, mapper));
     }
 
     static OperationRegistration<TransportExecuteArguments, ExecuteTransportResult> register(
-            TransportExecutionFeature feature, ObjectMapper mapper) {
-        OperationDescriptor descriptor = descriptor(feature);
+            DefaultTransportExecutionFeature feature, ObjectMapper mapper) {
+        TransportExecutionActionHandler owner = feature.operationOwner(TransportExecutionAction.EXECUTE);
+        OperationDescriptor descriptor = descriptor(owner);
         return new OperationRegistration<>(
                 descriptor,
                 TransportExecuteArguments.class,
@@ -46,9 +58,18 @@ public class TransportExecutionOperationRegistrations {
                         schema(), CoreOperationResultSchemas.transport(),
                         CoreOperationSafetyPolicy.forOperation(
                                 descriptor.operationId().value(), descriptor.trace().sideEffect())),
-                input -> mapper.convertValue(input, TransportExecuteArguments.class),
-                input -> feature.execute(decode((TransportExecuteArguments) input)),
-                result -> mapper.valueToTree(ExecuteTransportResult.class.cast(result)),
+                OperationRequestDecoders.typed(
+                        mapper.copy().setSerializationInclusion(JsonInclude.Include.NON_NULL),
+                        TransportExecuteArguments.class),
+                ContextAwareOperationExecutor.declared(OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION,
+                        OperationCancellationGuarantee.DELEGATED_DEADLINE,
+                        (input, context) -> {
+                            checkpoint(context);
+                            ExecuteTransportResult result = owner.execute(decode(input));
+                            checkpoint(context);
+                            return result;
+                        }),
+                OperationResultEncoders.typed(mapper, ExecuteTransportResult.class),
                 CoreOperationDirectory.class.getName(),
                 identity());
     }
@@ -75,19 +96,20 @@ public class TransportExecutionOperationRegistrations {
         return CanonicalOperationSchema.schema(root);
     }
 
-    static OperationDescriptor descriptor(TransportExecutionFeature feature) {
+    static OperationDescriptor descriptor(TransportExecutionActionHandler owner) {
         String id = OperationId.fromLegacy("transport_execute", "execute").value();
+        String executableOwner = owner.getClass().getName() + "#execute";
         return new OperationDescriptor(
                 "transport_execute", "execute", TransportExecuteArguments.class.getName(),
-                ExecuteTransportResult.class.getName(), feature.getClass().getName() + "#execute",
+                ExecuteTransportResult.class.getName(), executableOwner,
                 new OperationTraceMetadata(
                         "java_mcp_operation_directory_adapter",
                         TransportExecutionOperationRegistrations.class.getName(),
-                        TransportExecutionFeature.class.getName(),
+                        TransportExecutionActionHandler.class.getName(),
                         TransportExecutionOperationRegistrations.class.getName(),
                         "mcpjvm-610:" + id + ":typed-binding",
                         "transport_request",
-                        Map.of("featureOwner", feature.getClass().getName(),
+                        Map.of("executableOwner", executableOwner,
                                 "operationId", id,
                                 "bindingType", "actionless")));
     }
@@ -98,5 +120,11 @@ public class TransportExecutionOperationRegistrations {
                 "transport_protocol_request_options_to_typed_request",
                 "transport_status_protocol_headers_body_and_duration_preserved",
                 "transport_execute_public_request_contract");
+    }
+
+    private static void checkpoint(OperationExecutionContext context) {
+        if (Thread.currentThread().isInterrupted() || context.cancellationRequested()) {
+            throw new java.util.concurrent.CancellationException("transport execution was cancelled");
+        }
     }
 }

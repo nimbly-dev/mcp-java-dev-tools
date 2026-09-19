@@ -1,5 +1,6 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
@@ -10,12 +11,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.operation.ExecutionProfileExportArguments;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
@@ -48,13 +55,28 @@ public class ExecutionProfileExportOperationRegistrations {
                 ExecutionProfileExportResult.class,
                 new OperationRegistrationContract(
                         schema(), CoreOperationResultSchemas.export(),
-                        CoreOperationSafetyPolicy.forOperation(
-                                descriptor.operationId().value(), descriptor.trace().sideEffect())),
-                input -> mapper.convertValue(input, ExecutionProfileExportArguments.class),
-                input -> owner.execute(decode((ExecutionProfileExportArguments) input)),
-                result -> mapper.valueToTree(ExecutionProfileExportResult.class.cast(result)),
+                        safety(descriptor)),
+                OperationRequestDecoders.typedWithDefaults(
+                        mapper.copy().setSerializationInclusion(JsonInclude.Include.NON_NULL),
+                        ExecutionProfileExportArguments.class,
+                        Map.of("includeResolvedSecrets", com.fasterxml.jackson.databind.node.BooleanNode.FALSE,
+                                "contextBindings", mapper.createObjectNode(),
+                                "contextValues", mapper.createObjectNode())),
+                ContextAwareOperationExecutor.declared(OperationCancellationState.NOT_CANCELLABLE,
+                        OperationCancellationGuarantee.DETERMINISTIC_CONTINUATION,
+                        (input, context) -> owner.execute(decode(input))),
+                OperationResultEncoders.typed(mapper, ExecutionProfileExportResult.class),
                 CoreOperationDirectory.class.getName(),
                 identity());
+    }
+
+    static OperationSafetyPolicy safety(OperationDescriptor descriptor) {
+        OperationSafetyPolicy policy = CoreOperationSafetyPolicy.forOperation(
+                descriptor.operationId().value(), descriptor.trace().sideEffect());
+        return new OperationSafetyPolicy(
+                policy.sideEffect(), policy.confirmationRequired(), policy.credentialPolicy(),
+                policy.redactionPolicy(), policy.timeoutMillis(), false,
+                policy.maxInputBytes(), policy.maxOutputBytes());
     }
 
     static ExecutionProfileExportRequest decode(ExecutionProfileExportArguments arguments) {
@@ -67,11 +89,15 @@ public class ExecutionProfileExportOperationRegistrations {
                 arguments.when(),
                 arguments.mode(),
                 arguments.type(),
-                arguments.includeResolvedSecrets(),
+                defaultFalse(arguments.includeResolvedSecrets()),
                 arguments.includeRuntimeStartup(),
                 arguments.includeHealthcheckGate(),
                 arguments.contextBindings(),
                 arguments.contextValues());
+    }
+
+    private static boolean defaultFalse(Boolean value) {
+        return Boolean.TRUE.equals(value);
     }
 
     static OperationSchema schema() {
@@ -84,8 +110,8 @@ public class ExecutionProfileExportOperationRegistrations {
         CanonicalOperationSchema.enumString(root, "mode", "ps1", "sh", "postman");
         CanonicalOperationSchema.enumString(root, "type", "ps1", "sh", "postman");
         CanonicalOperationSchema.booleanValue(root, "includeResolvedSecrets").put("default", false);
-        CanonicalOperationSchema.booleanValue(root, "includeRuntimeStartup").put("default", false);
-        CanonicalOperationSchema.booleanValue(root, "includeHealthcheckGate").put("default", false);
+        CanonicalOperationSchema.booleanValue(root, "includeRuntimeStartup");
+        CanonicalOperationSchema.booleanValue(root, "includeHealthcheckGate");
         root.with("properties").putObject("contextBindings").put("type", "object")
                 .putObject("additionalProperties").put("type", "string");
         root.with("properties").putObject("contextValues").put("type", "object")

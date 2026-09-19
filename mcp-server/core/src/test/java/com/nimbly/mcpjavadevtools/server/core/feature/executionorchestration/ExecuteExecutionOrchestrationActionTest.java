@@ -1,6 +1,7 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,16 +17,28 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lea
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lifecycle.ExecutionRuntimeLifecycle;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionRunDirectoryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionSuiteStateStore;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.operation.ExecutionOrchestrationOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.result.PerformanceSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.result.RegressionSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.result.SecuritySuiteResult;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationDirectory;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
+import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
 
 class ExecuteExecutionOrchestrationActionTest {
@@ -182,6 +195,171 @@ class ExecuteExecutionOrchestrationActionTest {
         assertThat(result.toString()).doesNotContain("authorization").doesNotContain("secret");
     }
 
+    @Test
+    void registersTheOrchestrationRowWithBoundedResumeAndCancellationMetadata() throws Exception {
+        var feature = (DefaultExecutionOrchestrationFeature) feature(statefulArtifacts(new HashMap<>()));
+        var registration = ExecutionOrchestrationOperationRegistrations.create(feature, mapper).getFirst();
+
+        assertThat(registration.descriptor().operationId().value()).isEqualTo("execution_orchestration.execute");
+        assertThat(registration.descriptor().executableOwner())
+                .contains("ExecuteExecutionOrchestrationAction#execute");
+        assertThat(registration.legacyIdentity().actionless()).isFalse();
+        assertThat(registration.legacyIdentity().action()).isEqualTo("execute");
+        assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
+                .isEqualTo(OperationCancellationState.CONTEXT_AWARE_CANCELLATION);
+
+        JsonNode result = registration.execute(mapper.readTree("""
+                {"projectName":"demo","executionProfile":"nightly",
+                "suiteRunId":"registered-resume","maxPlansPerCall":1}
+                """));
+        assertThat(result.path("status").asText()).isEqualTo("in_progress");
+        assertThat(result.path("details").path("nextPlanOrder").asInt()).isEqualTo(2);
+
+        writeContractEvidence(registration);
+    }
+
+    @Test
+    void cancellationDuringActiveExecutionCleansRuntimeAndReleasesLease() throws Exception {
+        ExecutionRunLease lease = new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease();
+        AtomicInteger cleanupCalls = new AtomicInteger();
+        ExecutionRuntimeLifecycle lifecycle = lifecycle(cleanupCalls);
+        PerformanceSuiteFeature performance = request -> {
+            Thread.currentThread().interrupt();
+            return PerformanceSuiteResult.completed(runDetails());
+        };
+        ExecutionOrchestrationFeature feature = feature(artifacts(), performance, lifecycle, lease);
+        ExecutionOrchestrationRequest request = new ExecutionOrchestrationRequest(
+                ExecutionOrchestrationAction.EXECUTE,
+                mapper.readTree("{\"projectName\":\"demo\",\"executionProfile\":\"nightly\",\"suiteRunId\":\"cancelled\"}"));
+
+        try {
+            assertThatThrownBy(() -> feature.execute(request)).isInstanceOf(CancellationException.class);
+        } finally {
+            Thread.interrupted();
+        }
+        assertThat(cleanupCalls).hasValue(1);
+        assertThat(suiteStates.get("cancelled").get("runtimeLifecycle").toString()).contains("terminal");
+        assertThat(lease.acquire("demo", "cancelled")).isTrue();
+        lease.release("demo", "cancelled");
+    }
+
+    @Test
+    void cancellationAfterTerminalPlanPersistenceKeepsPromotedContextForResume() throws Exception {
+        Map<String, JsonNode> runs = new HashMap<>();
+        ArtifactManagementFeature delegate = statefulArtifacts(runs);
+        AtomicBoolean interruptAfterFirstPersist = new AtomicBoolean(true);
+        ArtifactManagementFeature artifacts = request -> {
+            ArtifactManagementResult result = delegate.execute(request);
+            if (request.artifactType() == ArtifactType.RUN_RESULT
+                    && request.action() == ArtifactAction.UPSERT
+                    && interruptAfterFirstPersist.getAndSet(false)) {
+                Thread.currentThread().interrupt();
+            }
+            return result;
+        };
+        ExecutionRunLease lease = new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease();
+        ExecutionOrchestrationFeature feature = feature(artifacts, lease);
+        ExecutionOrchestrationRequest request = new ExecutionOrchestrationRequest(
+                ExecutionOrchestrationAction.EXECUTE,
+                mapper.readTree("{\"projectName\":\"demo\",\"executionProfile\":\"nightly\",\"suiteRunId\":\"resume-context\"}"));
+
+        try {
+            assertThatThrownBy(() -> feature.execute(request)).isInstanceOf(CancellationException.class);
+        } finally {
+            Thread.interrupted();
+        }
+
+        assertThat(runs).containsKey("perf-smoke:resume-context-1");
+        assertThat(suiteStates.get("resume-context").get("suiteContext").toString()).contains("trace-from-plan");
+        var resumed = feature.execute(request);
+        assertThat(resumed.status()).isEqualTo("pass");
+        assertThat(resumed.details().get("suiteContext").toString()).contains("trace-from-plan");
+        assertThat(resumed.details().get("planRuns").toString()).contains("perf-smoke", "perf-load");
+    }
+
+    @Test
+    void deadlineDuringActiveExecutionCleansRuntimeAndReleasesLease() throws Exception {
+        ExecutionRunLease lease = new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease();
+        AtomicInteger cleanupCalls = new AtomicInteger();
+        PerformanceSuiteFeature performance = request -> {
+            while (!OperationExecutionContext.current().cancellationRequested()) {
+                Thread.onSpinWait();
+            }
+            return PerformanceSuiteResult.completed(runDetails());
+        };
+        ExecutionOrchestrationFeature feature = feature(
+                artifacts(), performance, lifecycle(cleanupCalls), lease);
+        ExecutionOrchestrationRequest request = new ExecutionOrchestrationRequest(
+                ExecutionOrchestrationAction.EXECUTE,
+                mapper.readTree("{\"projectName\":\"demo\",\"executionProfile\":\"nightly\",\"suiteRunId\":\"timed-out\"}"));
+
+        try (var ignored = OperationExecutionContext.forTimeout(100).install()) {
+            assertThatThrownBy(() -> feature.execute(request)).isInstanceOf(CancellationException.class);
+        }
+
+        assertThat(cleanupCalls).hasValue(1);
+        assertThat(suiteStates.get("timed-out").get("runtimeLifecycle").toString()).contains("terminal");
+        assertThat(lease.acquire("demo", "timed-out")).isTrue();
+        lease.release("demo", "timed-out");
+    }
+
+    private void writeContractEvidence(
+            com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration<?, ?> registration)
+            throws Exception {
+        OperationId id = registration.descriptor().operationId();
+        OperationManifestDocument all = OperationManifestLoader.loadBuiltIn();
+        OperationDirectory directory = new OperationDirectory(
+                List.of(registration),
+                new OperationManifestDocument(all.version(), Map.of(id, all.operations().get(id))), mapper);
+        Path evidence = Path.of("target", "mcpjvm-622-evidence");
+        Files.createDirectories(evidence);
+        mapper.writerWithDefaultPrettyPrinter().writeValue(
+                evidence.resolve("manifest-execution-orchestration.json").toFile(),
+                directory.manifest().descriptors());
+        mapper.writerWithDefaultPrettyPrinter().writeValue(
+                evidence.resolve("trace-execution-orchestration.json").toFile(), directory.traceInventory());
+
+        Path root = Path.of("src", "main", "java", "com", "nimbly", "mcpjavadevtools", "server", "core", "feature");
+        List<Map<String, Object>> measured = List.of(
+                measuredRoutingFile(root.resolve("transportexecution/DefaultTransportExecutionFeature.java"), 27),
+                measuredRoutingFile(root.resolve("executionprofileexport/DefaultExecutionProfileExportFeature.java"), 20),
+                measuredRoutingFile(root.resolve("executionorchestration/DefaultExecutionOrchestrationFeature.java"), 25));
+        int assessedDelta = measured.stream().mapToInt(value -> (Integer) value.get("delta")).sum();
+        assertThat(assessedDelta).isLessThanOrEqualTo(0);
+        mapper.writerWithDefaultPrettyPrinter().writeValue(
+                evidence.resolve("routing-inventory.json").toFile(),
+                Map.ofEntries(
+                        Map.entry("baselineRevision", "90b9ee6ee17876e532d182530424ce8e34cc5743"),
+                        Map.entry("operationIds", List.of(
+                                "execution_orchestration.execute", "execution_profile_export.export",
+                                "transport_execute.execute")),
+                        Map.entry("measure", "nonblank source lines"),
+                        Map.entry("routingShells", measured),
+                        Map.entry("routingPlumbingNonblankDelta", assessedDelta),
+                        Map.entry("added", List.of()),
+                        Map.entry("removed", List.of()),
+                        Map.entry("retained", List.of(
+                                "ExecuteTransportAction", "TransportExecutionActionHandler",
+                                "ExportExecutionProfileOperation", "ExecutionProfileExportOperationCatalog",
+                                "ExecuteExecutionOrchestrationAction", "ExecutionOrchestrationActionHandler",
+                                "TransportExecutionOperationRegistrations",
+                                "ExecutionProfileExportOperationRegistrations",
+                                "ExecutionOrchestrationOperationRegistrations")),
+                        Map.entry("compatibilityRetained", List.of(
+                                Map.of("path", root.resolve("transportexecution/DefaultTransportExecutionFeature.java").toString(),
+                                        "caller", "TransportExecuteMcpTool", "deletionCondition", "#611 adapter removal"),
+                                Map.of("path", root.resolve("executionorchestration/DefaultExecutionOrchestrationFeature.java").toString(),
+                                        "caller", "ExecutionOrchestrationMcpTool", "deletionCondition", "#611 adapter removal"))),
+                        Map.entry("excludedRequiredSubstantiveChanges", List.of(
+                                "operation registrations: schemas, binding, normalization, cancellation metadata",
+                                "orchestration action: cancellation cleanup and durable continuation"))));
+    }
+
+    private static Map<String, Object> measuredRoutingFile(Path path, int before) throws Exception {
+        int after = (int) Files.readAllLines(path).stream().filter(line -> !line.isBlank()).count();
+        return Map.of("path", path.toString(), "before", before, "after", after, "delta", after - before);
+    }
+
     private ExecutionOrchestrationFeature feature(ArtifactManagementFeature artifacts) {
         return feature(artifacts, new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease());
     }
@@ -193,13 +371,20 @@ class ExecuteExecutionOrchestrationActionTest {
 
     private ExecutionOrchestrationFeature feature(ArtifactManagementFeature artifacts, ExecutionRuntimeLifecycle lifecycle) {
         PerformanceSuiteFeature performance = request -> PerformanceSuiteResult.completed(runDetails());
+        return feature(artifacts, performance, lifecycle,
+                new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease());
+    }
+
+    private ExecutionOrchestrationFeature feature(
+            ArtifactManagementFeature artifacts,
+            PerformanceSuiteFeature performance,
+            ExecutionRuntimeLifecycle lifecycle,
+            ExecutionRunLease lease) {
         SecuritySuiteFeature security = request -> SecuritySuiteResult.completed(Map.of("runStatus", "pass"));
         RegressionSuiteFeature regression = request -> RegressionSuiteResult.ready(Map.of("runStatus", "pass"));
         ExecutionRunDirectoryProvider directories = (project, suite, plan, run) -> java.util.Optional.of("target/runs/" + run);
         return new DefaultExecutionOrchestrationFeature(List.of(new ExecuteExecutionOrchestrationAction(
-                artifacts, performance, security, regression, mapper, directories,
-                new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease(),
-                suiteState(), lifecycle)));
+                artifacts, performance, security, regression, mapper, directories, lease, suiteState(), lifecycle)));
     }
 
     private ExecutionOrchestrationFeature feature(

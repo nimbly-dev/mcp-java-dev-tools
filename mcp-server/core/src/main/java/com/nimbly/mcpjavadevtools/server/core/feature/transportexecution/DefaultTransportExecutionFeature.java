@@ -8,25 +8,24 @@ import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.r
 import java.util.List;
 import java.util.Objects;
 
-/** Complete dispatcher-backed Transport Execution Feature implementation. */
+/** COMPATIBILITY_RETAINED_UNTIL_611: used by TransportExecuteMcpTool; delete with that #611 adapter. */
 public final class DefaultTransportExecutionFeature implements TransportExecutionFeature {
 
-    private final EnumActionDispatcher<
-            TransportExecutionAction, TransportExecutionRequest, ExecuteTransportResult> dispatcher;
+    private final List<? extends TransportExecutionActionHandler> handlers;
 
-    /**
-     * Creates a complete dispatcher for the internal action allowlist.
-     *
-     * @param handlers real action implementations
-     */
     public DefaultTransportExecutionFeature(List<? extends TransportExecutionActionHandler> handlers) {
-        dispatcher = new EnumActionDispatcher<>(TransportExecutionAction.class, handlers);
+        this.handlers = List.copyOf(handlers);
+        new EnumActionDispatcher<>(TransportExecutionAction.class, this.handlers);
+    }
+
+    public TransportExecutionActionHandler operationOwner(TransportExecutionAction action) {
+        return handlers.stream().filter(handler -> handler.action() == action).findFirst().orElseThrow();
     }
 
     /** {@inheritDoc} */
     @Override
     public ExecuteTransportResult execute(TransportExecutionRequest request) {
         Objects.requireNonNull(request, "request must not be null");
-        return dispatcher.dispatch(request.action(), request);
+        return operationOwner(request.action()).execute(request);
     }
 }

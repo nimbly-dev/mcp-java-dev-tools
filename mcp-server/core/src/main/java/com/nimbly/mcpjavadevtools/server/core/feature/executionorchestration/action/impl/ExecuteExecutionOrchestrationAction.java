@@ -25,6 +25,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.req
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.action.SecuritySuiteAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.request.SecuritySuiteRequest;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.regex.Pattern;
 import java.time.Instant;
 import java.nio.charset.StandardCharsets;
@@ -99,6 +101,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
 
     @Override
     public ExecutionOrchestrationResult execute(ExecutionOrchestrationRequest request) {
+        checkpoint();
         Input input = Input.from(request.input());
         if (input.failure() != null) {
             return input.failure();
@@ -108,6 +111,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             return blocked("execution_suite_run_active", "wait for the active suiteRunId call to finish", input);
         }
         try {
+            checkpoint();
             ProfileContext resolvedProfile = profile(input);
             if (resolvedProfile == null) {
                 return blocked("runtime_suite_missing", "add the requested executionProfile to the selected project", input);
@@ -124,31 +128,65 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
     }
 
     private ExecutionOrchestrationResult executeProfile(Input input, JsonNode profile, JsonNode workspace) {
+        checkpoint();
         ExecutionRuntimeLifecycle.RuntimeLifecycleRequest lifecycleRequest = lifecycleRequest(input, profile, workspace);
         var prepared = runtimeLifecycle.prepare(lifecycleRequest);
         if (!prepared.successful()) {
             return persistCheckpoint(input, profile, lifecycleBlocked(input, prepared));
         }
         ExecutionRuntimeLifecycle.RuntimeLifecycleRequest cleanupRequest = withEvidence(lifecycleRequest, prepared.evidence());
-        if (prepared.enabled() && !persistLifecycle(input, profile, prepared.evidence())) {
+        try {
+            if (prepared.enabled() && !persistLifecycle(input, profile, prepared.evidence())) {
+                var cleaned = runtimeLifecycle.cleanup(cleanupRequest);
+                if (!cleaned.successful()) {
+                    return lifecycleBlocked(input, cleaned);
+                }
+                return blocked(
+                        "execution_suite_checkpoint_persist_failed",
+                        "restore suite checkpoint storage and retry",
+                        input);
+            }
+            checkpoint();
+            ExecutionOrchestrationResult executed = runProfileSafely(input, profile, workspace);
+            if (!prepared.enabled()) {
+                return persistCheckpoint(input, profile, executed);
+            }
+            if ("in_progress".equals(executed.status())) {
+                return persistCheckpoint(input, profile, withLifecycle(executed, prepared.evidence()));
+            }
             var cleaned = runtimeLifecycle.cleanup(cleanupRequest);
             if (!cleaned.successful()) {
-                return lifecycleBlocked(input, cleaned);
+                return persistCheckpoint(input, profile, lifecycleBlocked(input, cleaned));
             }
-            return blocked("execution_suite_checkpoint_persist_failed", "restore suite checkpoint storage and retry", input);
+            return persistCheckpoint(input, profile, withLifecycle(executed, cleaned.evidence()));
+        } catch (CancellationException exception) {
+            cleanupAfterCancellation(input, profile, prepared, cleanupRequest, exception);
+            throw exception;
         }
-        ExecutionOrchestrationResult executed = runProfileSafely(input, profile, workspace);
+    }
+
+    private void cleanupAfterCancellation(
+            Input input,
+            JsonNode profile,
+            ExecutionRuntimeLifecycle.RuntimeLifecycleResult prepared,
+            ExecutionRuntimeLifecycle.RuntimeLifecycleRequest cleanupRequest,
+            CancellationException cancellation) {
         if (!prepared.enabled()) {
-            return persistCheckpoint(input, profile, executed);
+            return;
         }
-        if ("in_progress".equals(executed.status())) {
-            return persistCheckpoint(input, profile, withLifecycle(executed, prepared.evidence()));
+        try {
+            var cleaned = runtimeLifecycle.cleanup(cleanupRequest);
+            if (!persistLifecycle(input, profile, cleaned.evidence())) {
+                cancellation.addSuppressed(new IllegalStateException(
+                        "cancelled runtime cleanup evidence could not be persisted"));
+            }
+            if (!cleaned.successful()) {
+                cancellation.addSuppressed(new IllegalStateException(
+                        "cancelled runtime cleanup was not verified: " + cleaned.reasonCode()));
+            }
+        } catch (RuntimeException cleanupFailure) {
+            cancellation.addSuppressed(cleanupFailure);
         }
-        var cleaned = runtimeLifecycle.cleanup(cleanupRequest);
-        if (!cleaned.successful()) {
-            return persistCheckpoint(input, profile, lifecycleBlocked(input, cleaned));
-        }
-        return persistCheckpoint(input, profile, withLifecycle(executed, cleaned.evidence()));
     }
 
     private ExecutionOrchestrationResult runProfileSafely(
@@ -157,6 +195,8 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             JsonNode workspace) {
         try {
             return runProfile(input, profile, workspace);
+        } catch (CancellationException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
             return blocked("execution_runtime_failed", "inspect the suite execution failure before retrying", input);
         }
@@ -178,7 +218,8 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
     }
 
     private boolean persistLifecycle(Input input, JsonNode profile, Map<String, Object> evidence) {
-        Map<String, Object> payload = new LinkedHashMap<>();
+        Map<String, Object> payload = suiteState.read(input.projectName(), input.suiteRunId())
+                .map(LinkedHashMap::new).orElseGet(LinkedHashMap::new);
         payload.put("resultType", "execution_orchestration");
         payload.put("action", "execute");
         payload.put("projectName", input.projectName());
@@ -340,20 +381,30 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             return blocked("execution_profile_invalid", "configure at least one ordered plan", input);
         }
         String suiteType = profile.path("suiteType").asText();
-        List<Map<String, Object>> prior = terminalOutcomes(input, suiteType, profile.path("plans"));
-        List<JsonNode> pending = pendingPlans(input, suiteType, profile.path("plans"));
         Map<String, Object> suiteContext = suiteContext(input);
+        List<Map<String, Object>> prior = terminalOutcomes(
+                input, suiteType, profile.path("plans"), suiteContext);
+        List<JsonNode> pending = pendingPlans(input, suiteType, profile.path("plans"));
         if (pending.isEmpty()) {
             return withSuiteContext(completed(input, profile, prior, false), suiteContext);
         }
         List<JsonNode> plans = limited(pending, input.maxPlansPerCall());
         List<Map<String, Object>> outcomes = new ArrayList<>();
         for (JsonNode plan : plans) {
+            checkpoint();
             Map<String, Object> outcome = runPlan(input, new ExecutionContext(profile, workspace, suiteContext), suiteType, plan);
+            checkpoint();
             outcome = redactOutcomeContext(outcome);
             outcome = persist(input, suiteType, plan, outcome);
             outcomes.add(outcome);
             promoteContext(suiteContext, plan, outcome);
+            ExecutionOrchestrationResult progress = persistCheckpoint(
+                    input, profile, withSuiteContext(
+                            completed(input, profile, merged(prior, outcomes), true), suiteContext));
+            if ("execution_suite_checkpoint_persist_failed".equals(progress.reasonCode())) {
+                return progress;
+            }
+            checkpoint();
             if (shouldStop(profile, plan, outcome)) {
                 return withSuiteContext(failed(input, profile, merged(prior, outcomes), String.valueOf(outcome.get("reasonCode"))), suiteContext);
             }
@@ -368,12 +419,17 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
                 .orElseGet(LinkedHashMap::new);
     }
 
-    private List<Map<String, Object>> terminalOutcomes(Input input, String suiteType, JsonNode plans) {
+    private List<Map<String, Object>> terminalOutcomes(
+            Input input,
+            String suiteType,
+            JsonNode plans,
+            Map<String, Object> suiteContext) {
         List<Map<String, Object>> outcomes = new ArrayList<>();
         for (JsonNode plan : ordered(plans)) {
             Map<String, Object> outcome = persistedOutcome(input, suiteType, plan);
             if (outcome != null) {
                 outcomes.add(outcome);
+                promoteContext(suiteContext, plan, outcome);
             }
         }
         return List.copyOf(outcomes);
@@ -513,6 +569,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         ObjectNode input = mapper.createObjectNode();
         input.put("projectName", projectName);
         input.put("planName", planName);
+        input.putObject("query").putArray("select").add("metadata").add("contract");
         var result = artifacts.execute(new ArtifactManagementRequest(type, ArtifactAction.READ, input));
         return "ok".equals(result.status()) ? mapper.valueToTree(result.details().get("artifact")) : null;
     }
@@ -703,6 +760,13 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             return true;
         }
         return !List.of("pass", "completed", "ready", "skipped").contains(String.valueOf(outcome.get("status")));
+    }
+
+    private static void checkpoint() {
+        if (Thread.currentThread().isInterrupted()
+                || OperationExecutionContext.current().cancellationRequested()) {
+            throw new CancellationException("execution orchestration was cancelled");
+        }
     }
 
     private static ExecutionOrchestrationResult failed(
