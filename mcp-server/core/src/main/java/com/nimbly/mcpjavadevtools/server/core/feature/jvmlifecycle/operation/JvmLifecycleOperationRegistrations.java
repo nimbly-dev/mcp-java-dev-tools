@@ -26,7 +26,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancella
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -120,11 +120,10 @@ public class JvmLifecycleOperationRegistrations {
                                 "operationId", id)));
     }
 
-    static OperationLegacyIdentity identity(JvmLifecycleAction action) {
-        return new OperationLegacyIdentity(
+    static OperationProvenance identity(JvmLifecycleAction action) {
+        return OperationProvenance.released(
                 JvmLifecycleOperationCatalog.TOOL_NAME,
                 action.value(),
-                false,
                 Map.of(),
                 "jvm_lifecycle_action_input_to_typed_request_factory",
                 "jvm_lifecycle_status_reason_and_action_result_preserved",

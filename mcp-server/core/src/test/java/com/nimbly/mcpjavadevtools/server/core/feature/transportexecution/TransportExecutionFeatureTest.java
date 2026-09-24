@@ -92,8 +92,8 @@ class TransportExecutionFeatureTest {
 
         assertThat(registration.descriptor().operationId().value()).isEqualTo("transport_execute.execute");
         assertThat(registration.descriptor().executableOwner()).contains("ExecuteTransportAction#execute");
-        assertThat(registration.legacyIdentity().actionless()).isTrue();
-        assertThat(registration.legacyIdentity().action()).isEmpty();
+        assertThat(registration.provenance().actionless()).isTrue();
+        assertThat(registration.provenance().invocationAction()).isEmpty();
         assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
                 .isEqualTo(OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION);
 
@@ -211,7 +211,7 @@ class TransportExecutionFeatureTest {
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), bounded),
                 registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.legacyIdentity());
+                registration.operationCatalog(), registration.provenance());
     }
 
     private DefaultTransportExecutionFeature realFeature() {

@@ -28,7 +28,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancella
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -114,9 +114,9 @@ public class TransportExecutionOperationRegistrations {
                                 "bindingType", "actionless")));
     }
 
-    static OperationLegacyIdentity identity() {
-        return new OperationLegacyIdentity(
-                "transport_execute", "", true, Map.of(),
+    static OperationProvenance identity() {
+        return OperationProvenance.releasedActionless(
+                "transport_execute", Map.of(),
                 "transport_protocol_request_options_to_typed_request",
                 "transport_status_protocol_headers_body_and_duration_preserved",
                 "transport_execute_public_request_contract");

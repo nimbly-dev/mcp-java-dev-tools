@@ -56,7 +56,8 @@ class OperationRelocationCompileTimeApiTest {
             com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy.class,
             com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy.class,
             com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationValueRedactor.class,
-            com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity.class,
+            com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance.class,
+            com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenanceKind.class,
             com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry.class,
             com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceInventory.class,
             com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata.class,
@@ -90,7 +91,7 @@ class OperationRelocationCompileTimeApiTest {
 
     @Test
     void everyPublicBaselineOperationTypeHasACompileTimeCandidate() {
-        assertThat(BASELINE_OPERATION_API_TYPES).hasSize(71);
+        assertThat(BASELINE_OPERATION_API_TYPES).hasSize(72);
     }
 
     @Test

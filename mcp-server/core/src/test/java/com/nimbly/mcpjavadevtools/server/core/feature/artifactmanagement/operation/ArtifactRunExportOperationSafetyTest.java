@@ -353,7 +353,7 @@ class ArtifactRunExportOperationSafetyTest {
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), safety),
                 registration.decoder(), registration.executor(), encoder,
-                registration.operationCatalog(), registration.legacyIdentity());
+                registration.operationCatalog(), registration.provenance());
     }
 
     private static void awaitUninterruptibly(CountDownLatch latch) {

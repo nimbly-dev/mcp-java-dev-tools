@@ -203,8 +203,8 @@ class ExecuteExecutionOrchestrationActionTest {
         assertThat(registration.descriptor().operationId().value()).isEqualTo("execution_orchestration.execute");
         assertThat(registration.descriptor().executableOwner())
                 .contains("ExecuteExecutionOrchestrationAction#execute");
-        assertThat(registration.legacyIdentity().actionless()).isFalse();
-        assertThat(registration.legacyIdentity().action()).isEqualTo("execute");
+        assertThat(registration.provenance().actionless()).isFalse();
+        assertThat(registration.provenance().invocationAction()).isEqualTo("execute");
         assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
                 .isEqualTo(OperationCancellationState.CONTEXT_AWARE_CANCELLATION);
 

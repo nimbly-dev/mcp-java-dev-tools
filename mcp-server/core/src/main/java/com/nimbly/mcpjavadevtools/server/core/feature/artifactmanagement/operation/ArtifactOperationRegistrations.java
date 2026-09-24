@@ -31,7 +31,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancella
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -236,12 +236,11 @@ public class ArtifactOperationRegistrations {
                                 "operationId", id)));
     }
 
-    static OperationLegacyIdentity identity(ArtifactManagementAction action) {
+    static OperationProvenance identity(ArtifactManagementAction action) {
         String scenario = "artifact_management_" + action.artifactType().value() + "_" + action.action().value();
-        return new OperationLegacyIdentity(
+        return OperationProvenance.released(
                 ArtifactOperationCatalog.TOOL_NAME,
                 action.routeId(),
-                false,
                 Map.of("artifactType", action.artifactType().value(),
                         "action", action.action().value()),
                 "unwrap_legacy_input_object_and_bind_to_" + scenario + "_typed_arguments",

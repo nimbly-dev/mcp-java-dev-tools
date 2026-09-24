@@ -9,7 +9,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescri
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 
 /** Explicit typed request/result binding used by the aggregate directory. */
 public record OperationRegistration<I, O>(
@@ -21,7 +21,7 @@ public record OperationRegistration<I, O>(
         OperationExecutor<I, O> executor,
         OperationResultEncoder<O> encoder,
         String operationCatalog,
-        OperationLegacyIdentity legacyIdentity) {
+        OperationProvenance provenance) {
 
     /** Creates an explicit registration owned by the aggregate directory. */
     public OperationRegistration(
@@ -33,7 +33,7 @@ public record OperationRegistration<I, O>(
             OperationExecutor<I, O> executor,
             OperationResultEncoder<O> encoder) {
         this(descriptor, requestType, resultType, contract, decoder, executor, encoder,
-                OperationRegistration.class.getName(), OperationLegacyIdentity.fromDescriptor(descriptor));
+                OperationRegistration.class.getName(), OperationProvenance.fromDescriptor(descriptor));
     }
 
     /** Creates an explicit registration with compatibility and catalog ownership metadata. */
@@ -49,7 +49,7 @@ public record OperationRegistration<I, O>(
         if (operationCatalog.isBlank() || operationCatalog.length() > 512) {
             throw new IllegalArgumentException("operationCatalog is outside its bounds");
         }
-        legacyIdentity = Objects.requireNonNull(legacyIdentity, "legacyIdentity must not be null");
+        provenance = Objects.requireNonNull(provenance, "provenance must not be null");
         if (!requestType.getName().equals(descriptor.requestType())
                 || !resultType.getName().equals(descriptor.resultType())) {
             throw new IllegalArgumentException("registration types do not match operation descriptor");
@@ -91,9 +91,9 @@ public record OperationRegistration<I, O>(
         return contract.safety();
     }
 
-    /** @return immutable legacy-to-CDE compatibility metadata */
+    /** @return immutable released-invocation or direct-CDE provenance metadata */
     public Map<String, String> compatibility() {
-        Map<String, String> values = new java.util.TreeMap<>(legacyIdentity.inventory(descriptor));
+        Map<String, String> values = new java.util.TreeMap<>(provenance.inventory(descriptor));
         values.put("cancellationState", OperationCancellationSupport.state(executor, safety()).name());
         return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(values));
     }
@@ -114,6 +114,6 @@ public record OperationRegistration<I, O>(
                 executor,
                 encoder,
                 operationCatalog,
-                legacyIdentity);
+                provenance);
     }
 }

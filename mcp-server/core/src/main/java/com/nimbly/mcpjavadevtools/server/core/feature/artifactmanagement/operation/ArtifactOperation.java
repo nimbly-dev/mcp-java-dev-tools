@@ -5,7 +5,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.r
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
 import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -67,7 +67,7 @@ final class ArtifactOperation implements Operation<
     }
 
     @Override
-    public OperationLegacyIdentity legacyIdentity() {
+    public OperationProvenance provenance() {
         return ArtifactOperationRegistrations.identity(operationId);
     }
 

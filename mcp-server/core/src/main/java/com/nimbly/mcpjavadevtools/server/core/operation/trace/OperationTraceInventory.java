@@ -34,11 +34,11 @@ public class OperationTraceInventory {
         for (Operation<A, I, O> operation : catalog.registeredOperations()) {
             OperationDescriptor descriptor = operation.descriptor();
             OperationTraceMetadata trace = descriptor.trace();
-            OperationLegacyIdentity identity = operation.legacyIdentity();
+            OperationProvenance provenance = operation.provenance();
             entries.add(new OperationTraceEntry(
                     exposure.toolName(),
-                    identity.action(),
-                    identity.actionless(),
+                    provenance.invocationAction(),
+                    provenance.actionless(),
                     descriptor.requestType(),
                     descriptor.resultType(),
                     exposure.adapterType(),
@@ -51,7 +51,7 @@ public class OperationTraceInventory {
                     trace.focusedEvidence(),
                     trace.sideEffect(),
                     trace.collaboratorRoles(),
-                    identity.inventory(descriptor),
+                    provenance.inventory(descriptor),
                     descriptor.operationId().value()));
         }
         return List.copyOf(entries);
@@ -65,11 +65,11 @@ public class OperationTraceInventory {
                 : manifest.registrations()) {
             OperationDescriptor descriptor = registration.descriptor();
             OperationTraceMetadata trace = descriptor.trace();
-            OperationLegacyIdentity identity = registration.legacyIdentity();
+            OperationProvenance provenance = registration.provenance();
             entries.add(new OperationTraceEntry(
-                    identity.toolName(),
-                    identity.action(),
-                    identity.actionless(),
+                    provenance.invocationTool(),
+                    provenance.invocationAction(),
+                    provenance.actionless(),
                     descriptor.requestType(),
                     descriptor.resultType(),
                     trace.mcpAdapter(),

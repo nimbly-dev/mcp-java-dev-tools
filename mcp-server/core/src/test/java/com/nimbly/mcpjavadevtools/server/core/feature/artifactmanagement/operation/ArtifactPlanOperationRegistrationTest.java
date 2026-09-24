@@ -108,16 +108,16 @@ class ArtifactPlanOperationRegistrationTest {
         assertThat(registration).isNotNull();
         assertThat(registration.descriptor().executableOwner())
                 .startsWith(PlanOperations.class.getName());
-        assertThat(registration.legacyIdentity().toolName()).isEqualTo("artifact_management");
-        assertThat(registration.legacyIdentity().action()).isEqualTo(action.routeId());
-        assertThat(registration.legacyIdentity().discriminators())
+        assertThat(registration.provenance().invocationTool()).isEqualTo("artifact_management");
+        assertThat(registration.provenance().invocationAction()).isEqualTo(action.routeId());
+        assertThat(registration.provenance().discriminators())
                 .containsEntry("artifactType", action.artifactType().value())
                 .containsEntry("action", action.action().value());
         String scenario = "artifact_management_" + action.artifactType().value()
                 + "_" + action.action().value();
-        assertThat(registration.legacyIdentity().normalization()).contains(scenario);
-        assertThat(registration.legacyIdentity().resultComparison()).contains(scenario);
-        assertThat(registration.legacyIdentity().parityScenario()).isEqualTo(scenario);
+        assertThat(registration.provenance().normalization()).contains(scenario);
+        assertThat(registration.provenance().resultComparison()).contains(scenario);
+        assertThat(registration.provenance().parityScenario()).isEqualTo(scenario);
         assertThat(registration.inputSchema().definition().path("$schema").asText())
                 .isEqualTo("https://json-schema.org/draft/2020-12/schema");
         assertThat(registration.inputSchema().definition().path("additionalProperties").asBoolean())

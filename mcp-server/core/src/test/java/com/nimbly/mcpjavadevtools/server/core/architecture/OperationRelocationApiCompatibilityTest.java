@@ -32,16 +32,31 @@ class OperationRelocationApiCompatibilityTest {
     private static final String BASELINE_OPERATION_PACKAGE = CORE_PACKAGE + "operation";
     private static final String BASELINE_RESOURCE =
             "/mcpjvm-613/baseline-operation-api.resolved.txt";
+    private static final Set<String> INTENTIONALLY_REMOVED_TYPES = Set.of(
+            BASELINE_OPERATION_PACKAGE + ".OperationLegacyIdentity");
+    private static final Set<String> INTENTIONALLY_REPLACED_API_TYPES = Set.of(
+            BASELINE_OPERATION_PACKAGE + ".Operation",
+            BASELINE_OPERATION_PACKAGE + ".OperationRegistration");
 
     @Test
     void baselineOperationTypesKeepTheirResolvedApiAfterRelocation() throws Exception {
         Path repository = repositoryRoot();
         Map<String, Set<String>> baseline = baselineApi();
-        Map<String, String> typeIdentities = approvedTypeIdentities(baseline.keySet());
+        Set<String> retainedTypes = baseline.keySet().stream()
+                .filter(type -> !INTENTIONALLY_REMOVED_TYPES.contains(type))
+                .collect(Collectors.toUnmodifiableSet());
+        Map<String, String> typeIdentities = approvedTypeIdentities(retainedTypes);
 
         assertThat(baseline).hasSize(74);
+        assertThat(Files.exists(repository.resolve(
+                "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/operation/trace/"
+                        + "OperationLegacyIdentity.java"))).isFalse();
         for (Map.Entry<String, Set<String>> entry : baseline.entrySet()) {
             String baselineType = entry.getKey();
+            if (INTENTIONALLY_REMOVED_TYPES.contains(baselineType)
+                    || INTENTIONALLY_REPLACED_API_TYPES.contains(baselineType)) {
+                continue;
+            }
             assertThat(entry.getValue())
                     .as("resolved API fixture for %s", baselineType)
                     .anyMatch(signature -> signature.startsWith("TYPE|"));
@@ -416,7 +431,8 @@ class OperationRelocationApiCompatibilityTest {
                     "OperationSchemaValidator.java" -> "operation/schema";
             case "CoreOperationSafetyPolicy.java", "OperationSafetyPolicy.java", "OperationValueRedactor.java" ->
                     "operation/safety";
-            case "OperationLegacyIdentity.java", "OperationTraceEntry.java", "OperationTraceInventory.java",
+            case "OperationProvenance.java", "OperationProvenanceKind.java",
+                    "OperationTraceEntry.java", "OperationTraceInventory.java",
                     "OperationTraceMetadata.java" -> "operation/trace";
             case "ArtifactOperationArguments.java" -> "feature/artifactmanagement/model/operation";
             case "ArtifactOperationRegistrations.java" -> "feature/artifactmanagement/operation";

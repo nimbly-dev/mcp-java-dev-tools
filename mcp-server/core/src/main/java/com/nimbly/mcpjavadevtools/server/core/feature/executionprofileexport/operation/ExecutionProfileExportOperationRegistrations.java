@@ -26,7 +26,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPo
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -142,11 +142,9 @@ public class ExecutionProfileExportOperationRegistrations {
                                 "operationId", id)));
     }
 
-    static OperationLegacyIdentity identity() {
-        return new OperationLegacyIdentity(
+    static OperationProvenance identity() {
+        return OperationProvenance.releasedActionless(
                 ExecutionProfileExportOperationCatalog.TOOL_NAME,
-                "",
-                true,
                 Map.of(),
                 "execution_profile_export_input_to_typed_artifact_request",
                 "export_result_fields_preserved_without_artifact_discriminators",

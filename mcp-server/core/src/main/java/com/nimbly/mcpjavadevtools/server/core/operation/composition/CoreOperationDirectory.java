@@ -19,11 +19,12 @@ import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.operation.
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.operation.RouteSynthesisOperationRegistrations;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.operation.PerformanceSuiteOperationRegistrations;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.operation.RegressionSuiteOperationRegistrations;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.operation.SecuritySuiteOperationRegistrations;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.operation.TrustedPerformanceSuiteRegistrations;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.operation.TrustedRegressionSuiteRegistrations;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.operation.TrustedSecuritySuiteRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.operation.TransportExecutionOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.TrustedSuiteExecution;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifest;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
@@ -42,11 +43,16 @@ public final class CoreOperationDirectory {
     public CoreOperationDirectory(
             CoreOperationDirectoryOwners owners,
             ObjectMapper mapper) {
+        this(owners, mapper, null);
+    }
+
+    CoreOperationDirectory(CoreOperationDirectoryOwners owners, ObjectMapper mapper,
+            TrustedSuiteExecution trusted) {
         ObjectMapper aggregateMapper = Objects.requireNonNull(mapper, "mapper must not be null")
                 .copy().registerModule(new Jdk8Module());
         directory = new OperationDirectory(
                 registrations(Objects.requireNonNull(owners, "owners must not be null"),
-                        aggregateMapper),
+                        aggregateMapper, trusted),
                 OperationManifestLoader.loadBuiltIn(),
                 aggregateMapper);
     }
@@ -66,7 +72,7 @@ public final class CoreOperationDirectory {
         return directory.manifest();
     }
 
-    /** @return the generated legacy-to-CDE trace inventory */
+    /** @return the generated operation provenance trace inventory */
     public List<OperationTraceEntry> traceInventory() {
         return directory.traceInventory();
     }
@@ -74,6 +80,11 @@ public final class CoreOperationDirectory {
     static List<OperationRegistration<?, ?>> registrations(
             CoreOperationDirectoryOwners owners,
             ObjectMapper mapper) {
+        return registrations(owners, mapper, null);
+    }
+
+    static List<OperationRegistration<?, ?>> registrations(
+            CoreOperationDirectoryOwners owners, ObjectMapper mapper, TrustedSuiteExecution trusted) {
         Objects.requireNonNull(mapper, "mapper must not be null");
         List<OperationRegistration<?, ?>> aggregate = Stream.of(
                 ArtifactOperationRegistrations.create(owners.artifact(), mapper),
@@ -84,9 +95,9 @@ public final class CoreOperationDirectory {
                 FailureAnalysisOperationRegistrations.create(owners.failures(), mapper),
                 TransportExecutionOperationRegistrations.create(owners.transport(), mapper),
                 ExecutionOrchestrationOperationRegistrations.create(owners.orchestration(), mapper),
-                RegressionSuiteOperationRegistrations.create(owners.regression(), mapper),
-                PerformanceSuiteOperationRegistrations.create(owners.performance(), mapper),
-                SecuritySuiteOperationRegistrations.create(owners.security(), mapper))
+                TrustedRegressionSuiteRegistrations.create(owners.regression(), mapper, trusted),
+                TrustedPerformanceSuiteRegistrations.create(owners.performance(), mapper, trusted),
+                TrustedSecuritySuiteRegistrations.create(owners.security(), mapper, trusted))
                 .flatMap(List::stream)
                 .toList();
         if (aggregate.size() != EXPECTED_OPERATION_COUNT) {

@@ -110,11 +110,11 @@ class RouteFailureOperationRegistrationTest {
         assertThat(registration.inputSchema().definition().path("$schema").asText())
                 .isEqualTo("https://json-schema.org/draft/2020-12/schema");
         assertThat(registration.inputSchema().definition().path("additionalProperties").asBoolean()).isFalse();
-        assertThat(registration.legacyIdentity().toolName())
+        assertThat(registration.provenance().invocationTool())
                 .isEqualTo(operationId.substring(0, operationId.indexOf('.')));
-        assertThat(registration.legacyIdentity().action())
+        assertThat(registration.provenance().invocationAction())
                 .isEqualTo(operationId.substring(operationId.indexOf('.') + 1));
-        assertThat(registration.legacyIdentity().parityScenario())
+        assertThat(registration.provenance().parityScenario())
                 .isEqualTo(operationId.replace('.', '_'));
         assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
                 .isEqualTo(OperationCancellationState.CONTEXT_AWARE_CANCELLATION);
@@ -216,7 +216,7 @@ class RouteFailureOperationRegistrationTest {
         assertThat(released.path("synthesis").path("synthesizerUsed").asText()).isEqualTo("spring");
         assertThat(recipe.result().path("actionResult").path("synthesizerUsed"))
                 .isEqualTo(released.path("synthesis").path("synthesizerUsed"));
-        var identity = registrations.get("route_synthesis.create_recipe").legacyIdentity();
+        var identity = registrations.get("route_synthesis.create_recipe").provenance();
         assertThat(identity.normalization()).isEqualTo(
                 "create_recipe.synthesizerUsed:java_owner=spring_http->cde=spring=typescript_released_spring");
         assertThat(identity.resultComparison()).isEqualTo(
@@ -545,7 +545,7 @@ class RouteFailureOperationRegistrationTest {
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), bounded),
                 registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.legacyIdentity());
+                registration.operationCatalog(), registration.provenance());
     }
 
     private ObjectNode input(String operationId) {

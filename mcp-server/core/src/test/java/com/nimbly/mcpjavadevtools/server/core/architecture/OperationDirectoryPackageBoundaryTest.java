@@ -65,9 +65,11 @@ class OperationDirectoryPackageBoundaryTest {
                     "OperationExecutor.java", "OperationResultEncoder.java",
                     "ContextAwareOperationExecutor.java", "DeclaredOperationExecutor.java",
                     "BoundedOperationResultEncoder.java",
-                    "OperationResultEncoders.java", "MapperOperationResultEncoder.java")),
+                    "OperationResultEncoders.java", "MapperOperationResultEncoder.java",
+                    "TrustedSuiteExecution.java")),
             Map.entry("operation/composition", List.of(
-                    "CoreOperationDirectory.java", "CoreOperationDirectoryOwners.java")),
+                    "CoreOperationDirectory.java", "CoreOperationDirectoryOwners.java",
+                    "TrustedCoreOperationDirectory.java")),
             Map.entry("operation/execution", List.of(
                     "OperationDirectoryException.java", "OperationExecutionException.java",
                     "OperationFailureException.java",
@@ -99,7 +101,7 @@ class OperationDirectoryPackageBoundaryTest {
                     "OperationJsonByteBuffer.java",
                     "OperationJsonSnapshot.java")),
             Map.entry("operation/trace", List.of(
-                    "OperationLegacyIdentity.java", "OperationTraceEntry.java",
+                    "OperationProvenance.java", "OperationProvenanceKind.java", "OperationTraceEntry.java",
                     "OperationTraceInventory.java", "OperationTraceMetadata.java")),
             Map.entry("feature/artifactmanagement/operation", List.of(
                     "ArtifactOperationRegistrations.java")),

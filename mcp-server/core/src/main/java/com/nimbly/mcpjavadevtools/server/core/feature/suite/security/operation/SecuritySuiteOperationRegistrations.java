@@ -3,85 +3,124 @@ package com.nimbly.mcpjavadevtools.server.core.feature.suite.security.operation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.TrustedSuiteExecution;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.action.SecuritySuiteAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.operation.SecuritySuiteOperationArguments;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.request.SecuritySuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.result.SecuritySuiteResult;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-/** Binds the Security Suite action to its bounded JSON contract. */
+/** Binds the direct Security Suite CDE operation to its substantive action owner. */
 public class SecuritySuiteOperationRegistrations {
+
+    private static final String OPERATION_ID = "security_suite.execute_plan";
 
     private SecuritySuiteOperationRegistrations() {
     }
 
     public static List<OperationRegistration<?, ?>> create(
             SecuritySuiteFeature feature, ObjectMapper mapper) {
-        Objects.requireNonNull(feature, "security suite feature must not be null");
+        return createTrusted(feature, mapper, null);
+    }
+
+    /** Binds a workspace-backed direct CDE execution context. */
+    static List<OperationRegistration<?, ?>> createTrusted(
+            SecuritySuiteFeature feature, ObjectMapper mapper, TrustedSuiteExecution trusted) {
         Objects.requireNonNull(mapper, "mapper must not be null");
-        return List.<OperationRegistration<?, ?>>of(register(feature, mapper));
+        SecuritySuiteFeature owner = Objects.requireNonNull(
+                feature, "security suite feature must not be null");
+        return List.of(register(owner, mapper, trusted));
     }
 
     static OperationRegistration<SecuritySuiteOperationArguments, SecuritySuiteResult> register(
-            SecuritySuiteFeature feature, ObjectMapper mapper) {
-        String id = "security_suite.execute_plan";
-        OperationDescriptor descriptor = new OperationDescriptor(
-                "security_suite", "execute_plan", SecuritySuiteOperationArguments.class.getName(),
-                SecuritySuiteResult.class.getName(), feature.getClass().getName() + "#execute",
-                new OperationTraceMetadata(
-                        "java_mcp_operation_directory_adapter",
-                        SecuritySuiteOperationRegistrations.class.getName(),
-                        SecuritySuiteFeature.class.getName(),
-                        SecuritySuiteOperationRegistrations.class.getName(),
-                        "mcpjvm-610:" + id + ":typed-binding",
-                        "filesystem_write",
-                        Map.of("featureOwner", feature.getClass().getName(),
-                                "operationId", id,
-                                "bindingType", "canonical-json-plan")));
+            SecuritySuiteFeature owner, ObjectMapper mapper, TrustedSuiteExecution trusted) {
+        String executableOwner = owner.getClass().getName() + "#execute";
+        OperationDescriptor descriptor = descriptor(executableOwner, owner);
         return new OperationRegistration<>(
                 descriptor,
                 SecuritySuiteOperationArguments.class,
                 SecuritySuiteResult.class,
                 new OperationRegistrationContract(
                         schema(), CoreOperationResultSchemas.suite(),
-                        CoreOperationSafetyPolicy.forOperation(id, "filesystem_write")),
-                input -> new SecuritySuiteOperationArguments(input),
-                input -> feature.execute(new SecuritySuiteRequest(
-                        SecuritySuiteAction.EXECUTE_PLAN, input.input())),
-                result -> mapper.valueToTree(SecuritySuiteResult.class.cast(result)),
+                        safetyPolicy()),
+                OperationRequestDecoders.wrap(
+                        mapper, SecuritySuiteOperationArguments.class,
+                        SecuritySuiteOperationArguments::new,
+                        SecuritySuiteOperationArguments::input),
+                ContextAwareOperationExecutor.declared(OperationCancellationState.NOT_CANCELLABLE,
+                        OperationCancellationGuarantee.DETERMINISTIC_CONTINUATION,
+                        (input, context) -> trusted == null
+                                ? SecuritySuiteResult.blocked("direct_suite_context_unavailable",
+                                        "bind a trusted Artifact workspace before direct execution", Map.of())
+                                : trusted.execute("security", input.input(), SecuritySuiteResult.class,
+                                        resolved -> owner.execute(new SecuritySuiteRequest(
+                                                SecuritySuiteAction.EXECUTE_PLAN, resolved)),
+                                        code -> SecuritySuiteResult.blocked(code,
+                                                "inspect the persisted plan and workspace", Map.of()), true)),
+                OperationResultEncoders.typed(mapper, SecuritySuiteResult.class),
                 CoreOperationDirectory.class.getName(),
-                new OperationLegacyIdentity(
-                        "security_suite", "execute_plan", false, Map.of(),
-                        "security_suite_plan_json_to_feature_request",
-                        "security_suite_status_reason_next_action_and_details_preserved",
-                        "security_suite_execute_plan_public_request_contract"));
+                provenance());
+    }
+
+    static OperationDescriptor descriptor(String executableOwner, SecuritySuiteFeature owner) {
+        return new OperationDescriptor(
+                "security_suite", "execute_plan", SecuritySuiteOperationArguments.class.getName(),
+                SecuritySuiteResult.class.getName(), executableOwner,
+                new OperationTraceMetadata(
+                        "java_mcp_operation_directory_adapter",
+                        SecuritySuiteOperationRegistrations.class.getName(),
+                        SecuritySuiteFeature.class.getName(),
+                        SecuritySuiteOperationRegistrations.class.getName(),
+                        "mcpjvm-623:" + OPERATION_ID + ":direct-binding",
+                        "filesystem_write",
+                        Map.of("executableOwner", executableOwner,
+                                "operationId", OPERATION_ID,
+                                "bindingType", "canonical-json-plan",
+                                "ownerType", owner.getClass().getName())));
+    }
+
+    static OperationSafetyPolicy safetyPolicy() {
+        OperationSafetyPolicy base = CoreOperationSafetyPolicy.forOperation(OPERATION_ID, "filesystem_write");
+        return new OperationSafetyPolicy(base.sideEffect(), base.confirmationRequired(),
+                base.credentialPolicy(), base.redactionPolicy(), base.timeoutMillis(), false,
+                base.maxInputBytes(), base.maxOutputBytes());
     }
 
     static OperationSchema schema() {
         ObjectNode root = CanonicalOperationSchema.object();
-        root.with("properties").putObject("metadata").put("type", "object").put("additionalProperties", true);
-        root.with("properties").putObject("contract").put("type", "object").put("additionalProperties", true);
-        root.with("properties").putObject("credentialBindings")
-                .put("type", "object").put("additionalProperties", true);
-        root.with("properties").putObject("credentialSource")
-                .put("type", "object").put("additionalProperties", true);
         CanonicalOperationSchema.string(root, "projectName");
         CanonicalOperationSchema.string(root, "planName");
+        CanonicalOperationSchema.string(root, "executionProfile");
         CanonicalOperationSchema.string(root, "suiteRunId");
-        CanonicalOperationSchema.string(root, "workspaceRootAbs");
-        CanonicalOperationSchema.required(root, "contract");
+        CanonicalOperationSchema.required(root, "projectName", "executionProfile", "planName", "suiteRunId");
         return CanonicalOperationSchema.schema(root);
     }
+
+    static OperationProvenance provenance() {
+        return OperationProvenance.direct(
+                "execution_orchestration", "execute",
+                Map.of("suiteType", "security", "suiteAction", "execute_plan"),
+                "execution_orchestration_security_plan_to_direct_suite_request",
+                "persisted_run_status_coverage_findings_probe_and_redaction_semantics_preserved",
+                "execution_orchestration_security_execute_plan_direct_cde_parity");
+    }
+
 }

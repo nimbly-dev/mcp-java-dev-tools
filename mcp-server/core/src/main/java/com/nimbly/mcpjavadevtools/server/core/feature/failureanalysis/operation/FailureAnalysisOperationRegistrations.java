@@ -35,7 +35,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafe
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -140,9 +140,9 @@ public class FailureAnalysisOperationRegistrations {
                                 "requestType", requestType.getName())));
     }
 
-    static OperationLegacyIdentity identity(FailureAnalysisAction action) {
-        return new OperationLegacyIdentity(
-                "failure_analysis", action.value(), false, Map.of(),
+    static OperationProvenance identity(FailureAnalysisAction action) {
+        return OperationProvenance.released(
+                "failure_analysis", action.value(), Map.of(),
                 "failure_analysis_action_to_typed_evidence_request",
                 "failure_outcome_fingerprint_line_hit_and_attempt_evidence_preserved",
                 "failure_analysis_" + action.value());

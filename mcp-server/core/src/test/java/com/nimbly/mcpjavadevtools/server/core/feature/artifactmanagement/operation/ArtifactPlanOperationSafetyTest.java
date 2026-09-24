@@ -305,7 +305,7 @@ class ArtifactPlanOperationSafetyTest {
         return new OperationRegistration<>(
                 registration.descriptor(), registration.requestType(), registration.resultType(),
                 registration.contract(), registration.decoder(), registration.executor(), observed,
-                registration.operationCatalog(), registration.legacyIdentity());
+                registration.operationCatalog(), registration.provenance());
     }
 
     private static <I, O> OperationRegistration<I, O> rebind(
@@ -317,7 +317,7 @@ class ArtifactPlanOperationSafetyTest {
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), safety),
                 registration.decoder(), executor, registration.encoder(),
-                registration.operationCatalog(), registration.legacyIdentity());
+                registration.operationCatalog(), registration.provenance());
     }
 
     private static void await(CountDownLatch latch) {

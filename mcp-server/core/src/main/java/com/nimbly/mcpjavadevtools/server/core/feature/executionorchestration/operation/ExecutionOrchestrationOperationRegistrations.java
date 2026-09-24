@@ -27,7 +27,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancella
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 
 /** Binds execution orchestration to its explicit persisted-state request contract. */
@@ -82,8 +82,8 @@ public class ExecutionOrchestrationOperationRegistrations {
                         }),
                 OperationResultEncoders.typed(mapper, ExecutionOrchestrationResult.class),
                 CoreOperationDirectory.class.getName(),
-                new OperationLegacyIdentity(
-                        "execution_orchestration", "execute", false, Map.of(),
+                OperationProvenance.released(
+                        "execution_orchestration", "execute", Map.of(),
                         "execution_orchestration_payload_to_typed_core_request",
                         "execution_orchestration_status_reason_next_action_and_details_preserved",
                         "execution_orchestration_execute_public_request_contract"));

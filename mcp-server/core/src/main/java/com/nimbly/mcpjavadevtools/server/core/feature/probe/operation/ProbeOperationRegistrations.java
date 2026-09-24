@@ -24,7 +24,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafe
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -120,11 +120,10 @@ public class ProbeOperationRegistrations {
                                 "operationId", id)));
     }
 
-    static OperationLegacyIdentity identity(ProbeAction action) {
-        return new OperationLegacyIdentity(
+    static OperationProvenance identity(ProbeAction action) {
+        return OperationProvenance.released(
                 ProbeOperationCatalog.TOOL_NAME,
                 action.value(),
-                false,
                 Map.of(),
                 "probe_action_input_to_typed_request_factory",
                 "probe_result_status_reason_and_action_result_preserved",

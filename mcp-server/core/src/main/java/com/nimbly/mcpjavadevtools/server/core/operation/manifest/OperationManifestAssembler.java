@@ -12,7 +12,8 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperation
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationRequestDecoder;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenanceKind;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationJsonSize;
 
@@ -84,7 +85,7 @@ public class OperationManifestAssembler {
                 && !registration.safety().sideEffect().equals(documentation.safety().sideEffect())) {
             throw new IllegalArgumentException("manifest safety side effect mismatch: " + id.value());
         }
-        validateAliases(descriptor, documentation.aliases(), registration.legacyIdentity());
+        validateAliases(descriptor, documentation.aliases(), registration.provenance());
         OperationSchema inputSchema = registration.inputSchema();
         OperationSchema resultSchema = registration.resultSchema();
         if (!migrationCompatibilityMode) {
@@ -222,15 +223,22 @@ public class OperationManifestAssembler {
     static void validateAliases(
             OperationDescriptor descriptor,
             List<OperationAlias> aliases,
-            OperationLegacyIdentity legacyIdentity) {
+            OperationProvenance provenance) {
+        if (provenance.kind() == OperationProvenanceKind.NEW_DIRECT_CDE_OPERATION) {
+            if (!aliases.isEmpty()) {
+                throw new IllegalArgumentException("direct CDE operation must not declare a released alias: "
+                        + descriptor.operationId().value());
+            }
+            return;
+        }
         if (aliases.isEmpty()) {
             throw new IllegalArgumentException("released inventory alias is missing: "
                     + descriptor.operationId().value());
         }
         for (OperationAlias alias : aliases) {
-            if (!legacyIdentity.toolName().equals(alias.toolName())
-                    || !legacyIdentity.action().equals(alias.action())
-                    || legacyIdentity.actionless() != alias.actionless()) {
+            if (!provenance.invocationTool().equals(alias.toolName())
+                    || !provenance.invocationAction().equals(alias.action())
+                    || provenance.actionless() != alias.actionless()) {
                 throw new IllegalArgumentException("released inventory alias mismatch: "
                         + descriptor.operationId().value());
             }

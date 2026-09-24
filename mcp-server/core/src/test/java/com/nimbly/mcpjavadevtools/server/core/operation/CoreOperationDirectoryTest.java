@@ -133,8 +133,21 @@ class CoreOperationDirectoryTest {
                 .containsOnly(CoreOperationDirectory.class.getName());
         assertThat(directory.traceInventory()).allSatisfy(entry ->
                 assertThat(entry.compatibility()).containsKeys(
-                        "legacyTool", "legacyAction", "actionless", "normalization",
-                        "resultComparison", "parityScenario"));
+                        "provenanceKind", "normalization", "resultComparison", "parityScenario"));
+        assertThat(directory.traceInventory().stream()
+                .filter(entry -> "RELEASED_LEGACY_INVOCATION".equals(
+                        entry.compatibility().get("provenanceKind"))))
+                .hasSize(50)
+                .allSatisfy(entry -> assertThat(entry.compatibility())
+                        .containsKeys("releasedTool", "releasedAction", "actionless"));
+        assertThat(directory.traceInventory().stream()
+                .filter(entry -> "NEW_DIRECT_CDE_OPERATION".equals(
+                        entry.compatibility().get("provenanceKind"))))
+                .hasSize(4)
+                .allSatisfy(entry -> assertThat(entry.compatibility())
+                        .containsEntry("provenanceTool", "execution_orchestration")
+                        .containsEntry("provenanceAction", "execute")
+                        .doesNotContainKeys("releasedTool", "releasedAction", "actionless"));
         assertThat(directory.traceInventory().stream()
                 .filter(entry -> "true".equals(entry.compatibility().get("actionless")))
                 .map(OperationTraceEntry::operationId)
@@ -151,7 +164,7 @@ class CoreOperationDirectoryTest {
     }
 
     @Test
-    void generatedManifestAndTraceAgreeForEveryReleasedInvocation() {
+    void generatedManifestAndTraceAgreeForEveryOperationProvenance() {
         CoreOperationDirectory aggregate = aggregate();
         Map<String, OperationTraceEntry> traces = aggregate.traceInventory().stream()
                 .collect(java.util.stream.Collectors.toMap(
@@ -162,8 +175,8 @@ class CoreOperationDirectoryTest {
             OperationDescriptor descriptor = registration.descriptor();
             OperationTraceEntry trace = traces.get(descriptor.operationId().value());
             assertThat(trace).as(descriptor.operationId().value()).isNotNull();
-            assertThat(trace.actionless()).isEqualTo(registration.legacyIdentity().actionless());
-            assertThat(trace.action()).isEqualTo(registration.legacyIdentity().action());
+            assertThat(trace.actionless()).isEqualTo(registration.provenance().actionless());
+            assertThat(trace.action()).isEqualTo(registration.provenance().invocationAction());
             assertThat(trace.compatibility()).containsAllEntriesOf(registration.compatibility());
         }
     }
@@ -255,7 +268,7 @@ class CoreOperationDirectoryTest {
                 .isFalse();
         assertThat(artifact.inputSchema().definition().path("properties").has("action"))
                 .isFalse();
-        assertThat(artifact.legacyIdentity().discriminators())
+        assertThat(artifact.provenance().discriminators())
                 .containsEntry("artifactType", "probe_config")
                 .containsEntry("action", "read");
 

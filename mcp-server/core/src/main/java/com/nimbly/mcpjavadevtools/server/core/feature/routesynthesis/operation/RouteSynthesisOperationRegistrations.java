@@ -27,7 +27,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancella
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationLegacyIdentity;
+import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -97,7 +97,7 @@ public class RouteSynthesisOperationRegistrations {
                                 "requestType", requestType.getName())));
     }
 
-    static OperationLegacyIdentity identity(RouteSynthesisAction action) {
+    static OperationProvenance identity(RouteSynthesisAction action) {
         boolean recipe = action == RouteSynthesisAction.CREATE_RECIPE;
         String normalization = recipe
                 ? "create_recipe.synthesizerUsed:java_owner=spring_http->cde=spring=typescript_released_spring"
@@ -105,8 +105,8 @@ public class RouteSynthesisOperationRegistrations {
         String comparison = recipe
                 ? "MCPJVM-621_approved_cde_spring_mapping_and_recipe_semantics"
                 : "typed_action_result_preserved";
-        return new OperationLegacyIdentity(
-                "route_synthesis", action.value(), false, Map.of(),
+        return OperationProvenance.released(
+                "route_synthesis", action.value(), Map.of(),
                 normalization,
                 "route_result_envelope_and_" + comparison,
                 "route_synthesis_" + action.value());

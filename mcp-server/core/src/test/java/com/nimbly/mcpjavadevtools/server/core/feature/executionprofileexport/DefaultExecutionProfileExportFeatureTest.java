@@ -103,8 +103,8 @@ class DefaultExecutionProfileExportFeatureTest {
         var registration = ExecutionProfileExportOperationRegistrations.create(catalog, mapper).getFirst();
 
         assertThat(registration.descriptor().operationId().value()).isEqualTo("execution_profile_export.export");
-        assertThat(registration.legacyIdentity().actionless()).isTrue();
-        assertThat(registration.legacyIdentity().action()).isEmpty();
+        assertThat(registration.provenance().actionless()).isTrue();
+        assertThat(registration.provenance().invocationAction()).isEmpty();
         assertThat(registration.safety().cancellationSupported()).isFalse();
         assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
                 .isEqualTo(OperationCancellationState.NOT_CANCELLABLE);
@@ -275,7 +275,7 @@ class DefaultExecutionProfileExportFeatureTest {
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), bounded),
                 registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.legacyIdentity());
+                registration.operationCatalog(), registration.provenance());
     }
 
     private static com.fasterxml.jackson.databind.node.ObjectNode exportInput(

@@ -70,8 +70,13 @@ class OperationDirectoryTest {
 
         assertThat(document.version()).isEqualTo(1);
         assertThat(document.operations()).hasSize(54);
-        assertThat(document.operations().values()).allSatisfy(operation ->
-                assertThat(operation.aliases()).isNotEmpty());
+        assertThat(document.operations().values())
+                .filteredOn(operation -> !operation.aliases().isEmpty())
+                .hasSize(50);
+        assertThat(document.operations().values())
+                .filteredOn(operation -> operation.aliases().isEmpty())
+                .extracting(operation -> operation.tags())
+                .allSatisfy(tags -> assertThat(tags).contains("suite"));
         assertThat(document.documentation(OperationId.of("probe.status")).safety().sideEffect())
                 .isEqualTo("probe_endpoint_read");
     }
@@ -103,7 +108,7 @@ class OperationDirectoryTest {
                 .satisfies(trace -> {
                     assertThat(trace.operationId()).isEqualTo("demo.echo");
                     assertThat(trace.compatibility()).containsEntry(
-                            "normalization", "legacy_tool_action_to_canonical_operation_id");
+                            "normalization", "released_tool_action_to_canonical_operation_id");
                 });
     }
 

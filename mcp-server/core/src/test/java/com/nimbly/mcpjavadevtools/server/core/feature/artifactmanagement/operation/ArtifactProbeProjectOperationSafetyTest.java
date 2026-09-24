@@ -431,7 +431,7 @@ class ArtifactProbeProjectOperationSafetyTest {
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), safety),
                 registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.legacyIdentity());
+                registration.operationCatalog(), registration.provenance());
     }
 
     private static String operationId(ArtifactManagementAction action) {

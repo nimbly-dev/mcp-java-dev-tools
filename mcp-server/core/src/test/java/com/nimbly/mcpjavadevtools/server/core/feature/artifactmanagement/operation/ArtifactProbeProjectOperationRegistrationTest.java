@@ -109,17 +109,17 @@ class ArtifactProbeProjectOperationRegistrationTest {
                 .startsWith(action.artifactType().value().equals("probe_config")
                         ? ProbeConfigOperations.class.getName()
                         : ProjectContextOperations.class.getName());
-        assertThat(registration.legacyIdentity().toolName()).isEqualTo("artifact_management");
-        assertThat(registration.legacyIdentity().action()).isEqualTo(action.routeId());
-        assertThat(registration.legacyIdentity().discriminators())
+        assertThat(registration.provenance().invocationTool()).isEqualTo("artifact_management");
+        assertThat(registration.provenance().invocationAction()).isEqualTo(action.routeId());
+        assertThat(registration.provenance().discriminators())
                 .containsEntry("artifactType", action.artifactType().value())
                 .containsEntry("action", action.action().value());
         String scenario = "artifact_management_" + action.artifactType().value()
                 + "_" + action.action().value();
-        assertThat(registration.legacyIdentity().normalization()).contains(scenario);
-        assertThat(registration.legacyIdentity().resultComparison()).contains(scenario)
+        assertThat(registration.provenance().normalization()).contains(scenario);
+        assertThat(registration.provenance().resultComparison()).contains(scenario)
                 .contains("persisted_artifacts");
-        assertThat(registration.legacyIdentity().parityScenario()).isEqualTo(scenario);
+        assertThat(registration.provenance().parityScenario()).isEqualTo(scenario);
         assertThat(registration.inputSchema().definition().path("properties").has("artifactType"))
                 .isFalse();
         assertThat(registration.inputSchema().definition().path("properties").has("action"))
