@@ -274,8 +274,7 @@ class OperationManifestFragmentTest {
                 + "<description>description</description></action></tool>";
         String oversizedAttribute = "<tool name=\"probe\" formatVersion=\"2\"><action "
                 + "name=\"status\" classification=\"runtime\"><summary>s</summary>"
-                + "<description>d</description><compatibility since=\""
-                + "x".repeat(1_048_577) + "\"/></action></tool>";
+                + "<description d=\"" + "x".repeat(1_048_577) + "\">d</description></action></tool>";
         String oversizedMiscellaneous = "<tool name=\"probe\" formatVersion=\"2\"><action "
                 + "name=\"status\" classification=\"runtime\"><summary>s</summary>"
                 + "<description>d</description><!--" + "x".repeat(524_290)

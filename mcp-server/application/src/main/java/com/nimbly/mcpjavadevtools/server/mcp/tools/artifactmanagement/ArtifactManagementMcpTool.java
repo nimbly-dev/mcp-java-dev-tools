@@ -16,10 +16,8 @@ import java.util.Map;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /** Thin Spring AI Application Adapter for the complete Artifact Management MCP Tool. */
-@Component
 public final class ArtifactManagementMcpTool {
 
     /** Stable public MCP Tool name shared with the Core operation catalog. */

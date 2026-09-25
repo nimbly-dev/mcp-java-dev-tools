@@ -83,9 +83,9 @@ class OperationDirectoryTest {
 
     @Test
     void joinsDocumentationToTypedSchemasAndExecutesWithoutDescribe() throws Exception {
-        OperationDirectory directory = directory("demo.echo", false, false, 60_000,
+        OperationDirectory directory = directory("demo.echo", false, 60_000,
                 request -> new EchoResult(((EchoRequest) request).message()), EchoResult.class,
-                documentation("demo.echo", "none", false, null,
+                documentation("demo.echo", "none", false,
                         List.of(new OperationArgumentDocumentation(
                                 "message", "text to echo", "string", true, null)),
                         JSON.readTree("{\"message\":\"hello\"}")));
@@ -117,15 +117,15 @@ class OperationDirectoryTest {
         OperationDirectory directory = new OperationDirectory(
                 List.of(
                         registration("demo.beta", request -> new EchoResult("beta"), EchoResult.class,
-                                documentation("demo.beta", "none", false, null, echoArguments(),
+                                documentation("demo.beta", "none", false, echoArguments(),
                                         JSON.readTree("{\"message\":\"beta\"}"))),
                         registration("demo.alpha", request -> new EchoResult("alpha"), EchoResult.class,
-                                documentation("demo.alpha", "none", false, null, echoArguments(),
+                                documentation("demo.alpha", "none", false, echoArguments(),
                                         JSON.readTree("{\"message\":\"alpha\"}")))),
                 document(
-                        documentation("demo.beta", "none", false, null, echoArguments(),
+                        documentation("demo.beta", "none", false, echoArguments(),
                                 JSON.readTree("{\"message\":\"beta\"}")),
-                        documentation("demo.alpha", "none", false, null, echoArguments(),
+                        documentation("demo.alpha", "none", false, echoArguments(),
                                 JSON.readTree("{\"message\":\"alpha\"}"))));
 
         CatalogPage page = directory.catalog(new CatalogQuery(null, "demo", "demo", 1, null));
@@ -140,8 +140,11 @@ class OperationDirectoryTest {
                 .isThrownBy(() -> directory.catalog(new CatalogQuery("other", "demo", "demo", 1,
                         page.nextCursor())))
                 .withMessageContaining("catalog cursor is invalid");
-        assertThat(new CatalogQuery(null, null, null, 0, null).limit())
+        assertThat(new CatalogQuery().limit())
                 .isEqualTo(CatalogQuery.DEFAULT_LIMIT);
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new CatalogQuery(null, null, null, 0, null))
+                .withMessageContaining("catalog limit");
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new CatalogQuery(null, null, null, CatalogQuery.MAX_LIMIT + 1, null))
                 .withMessageContaining("catalog limit");
@@ -151,21 +154,21 @@ class OperationDirectoryTest {
     void rejectsOrphanDocumentationInvalidExamplesAndUnsafeXml() throws Exception {
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.echo", request -> new EchoResult(((EchoRequest) request).message()), EchoResult.class,
-                documentation("demo.echo", "none", false, null,
+                documentation("demo.echo", "none", false,
                         List.of(new OperationArgumentDocumentation(
                                 "message", "text", "string", true, null)),
                         JSON.readTree("{\"message\":3}")));
 
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new OperationDirectory(List.of(registration),
-                        document(documentation("demo.echo", "none", false, null,
+                        document(documentation("demo.echo", "none", false,
                                 List.of(new OperationArgumentDocumentation(
                                         "message", "text", "string", true, null)),
                                 JSON.readTree("{\"message\":3}")))))
                 .withMessageContaining("manifest example is invalid");
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new OperationDirectory(List.of(registration),
-                        document(documentation("demo.other", "none", false, null, List.of(), JSON.readTree("{}")))))
+                        document(documentation("demo.other", "none", false, List.of(), JSON.readTree("{}")))))
                 .withMessageContaining("missing operation documentation");
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new OperationManifestLoader().load(new ByteArrayInputStream(
@@ -219,8 +222,7 @@ class OperationDirectoryTest {
                 OperationRequestDecoders.typed(JSON, EchoRequest.class),
                 request -> new EchoResult(request.message()),
                 OperationResultEncoders.typed(JSON, EchoResult.class));
-        OperationDocumentation documentation = documentation(
-                "demo.echo", "none", true, null,
+        OperationDocumentation documentation = documentation("demo.echo", "none", true,
                 List.of(new OperationArgumentDocumentation(
                         "message", "text", "string", true, null)),
                 JSON.readTree("{\"message\":\"hello\"}"));
@@ -344,8 +346,7 @@ class OperationDirectoryTest {
 
     @Test
     void enforcesConfirmationDeprecationBoundsAndRedactsResults() throws Exception {
-        OperationDocumentation documentation = documentation(
-                "demo.secret", "filesystem_write", true, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.secret", "filesystem_write", true, echoArguments(),
                 JSON.readTree("{\"message\":\"secret\"}"));
         OperationRegistration<EchoRequest, SecretResult> registration = registration(
                 "demo.secret", request -> new SecretResult("safe", "do-not-leak"), SecretResult.class,
@@ -365,8 +366,7 @@ class OperationDirectoryTest {
     @Test
     void returnsTimeoutAndDoesNotExposeExecutorFailureDetails() throws Exception {
         AtomicInteger calls = new AtomicInteger();
-        OperationDocumentation documentation = documentation(
-                "demo.slow", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.slow", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"slow\"}"), 100);
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.slow", request -> {
@@ -394,8 +394,7 @@ class OperationDirectoryTest {
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch finished = new CountDownLatch(1);
         AtomicBoolean interrupted = new AtomicBoolean();
-        OperationDocumentation documentation = documentation(
-                "demo.non_cancellable", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.non_cancellable", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"wait\"}"), 100, false);
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.non_cancellable", boundedNonCancellable(request -> {
@@ -427,8 +426,7 @@ class OperationDirectoryTest {
     void snapshotsInputBeforeAsynchronousBinding() throws Exception {
         CountDownLatch decoderEntered = new CountDownLatch(1);
         CountDownLatch releaseDecoder = new CountDownLatch(1);
-        OperationDocumentation documentation = documentation(
-                "demo.snapshot", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.snapshot", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"original\"}"));
         OperationRequestDecoder<EchoRequest> decoder = input -> {
             decoderEntered.countDown();
@@ -468,8 +466,7 @@ class OperationDirectoryTest {
 
     @Test
     void snapshotsInvocationInputAtConstruction() throws Exception {
-        OperationDocumentation documentation = documentation(
-                "demo.construction_snapshot", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.construction_snapshot", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"original\"}"));
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.construction_snapshot", request -> new EchoResult(request.message()),
@@ -490,8 +487,7 @@ class OperationDirectoryTest {
     @Test
     void rejectsOversizedTypedResultBeforeMaterializingItsJsonTree() throws Exception {
         AtomicBoolean materialized = new AtomicBoolean();
-        OperationDocumentation documentation = documentation(
-                "demo.typed_limit", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.typed_limit", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"large\"}"));
         BoundedOperationResultEncoder<EchoResult> encoder = new BoundedOperationResultEncoder<>() {
             @Override
@@ -542,8 +538,7 @@ class OperationDirectoryTest {
                 descriptor, JsonNode.class, JsonNode.class,
                 new OperationRegistrationContract(boundedNumber, OperationSchema.empty(), safety),
                 JSON, request -> request);
-        OperationDocumentation documentation = documentation(
-                "demo.precise", "none", false, null, List.of(), JSON.readTree("1"));
+        OperationDocumentation documentation = documentation("demo.precise", "none", false, List.of(), JSON.readTree("1"));
         OperationDirectory directory = new OperationDirectory(
                 List.of(registration), document(documentation), JSON);
 
@@ -560,8 +555,7 @@ class OperationDirectoryTest {
         OperationSafetyPolicy safety = hardSafety();
         OperationRegistration<JsonNode, JsonNode> registration = jsonRegistration(
                 "demo.non_finite", safety, ignored -> JSON.createObjectNode());
-        OperationDocumentation documentation = documentation(
-                "demo.non_finite", "none", false, null, List.of(), JSON.readTree("{}"));
+        OperationDocumentation documentation = documentation("demo.non_finite", "none", false, List.of(), JSON.readTree("{}"));
         OperationDirectory directory = new OperationDirectory(
                 List.of(registration), document(documentation), JSON);
 
@@ -578,8 +572,7 @@ class OperationDirectoryTest {
         AtomicReference<JsonNode> output = new AtomicReference<>();
         OperationRegistration<JsonNode, JsonNode> registration = jsonRegistration(
                 "demo.non_finite_result", safety, ignored -> output.get());
-        OperationDocumentation documentation = documentation(
-                "demo.non_finite_result", "none", false, null, List.of(), JSON.readTree("{}"));
+        OperationDocumentation documentation = documentation("demo.non_finite_result", "none", false, List.of(), JSON.readTree("{}"));
         OperationDirectory directory = new OperationDirectory(
                 List.of(registration), document(documentation), JSON);
 
@@ -595,8 +588,7 @@ class OperationDirectoryTest {
     @Test
     void rejectsNonFiniteNumbersFromMapperBackedPojoResults() throws Exception {
         AtomicReference<Double> output = new AtomicReference<>(Double.NaN);
-        OperationDocumentation documentation = documentation(
-                "demo.non_finite_pojo", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.non_finite_pojo", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"ok\"}"));
         OperationRegistration<EchoRequest, NonFiniteResult> registration = registration(
                 "demo.non_finite_pojo", request -> new NonFiniteResult(output.get()),
@@ -630,8 +622,7 @@ class OperationDirectoryTest {
                 OperationRequestDecoders.wrap(JSON, Integer.class, input -> input.intValue()),
                 value -> JSON.getNodeFactory().numberNode(value),
                 OperationResultEncoders.typed(JSON, JsonNode.class));
-        OperationDocumentation documentation = documentation(
-                "demo.lossless", "none", false, null, List.of(), JSON.readTree("1.9"));
+        OperationDocumentation documentation = documentation("demo.lossless", "none", false, List.of(), JSON.readTree("1.9"));
         OperationDirectory directory = new OperationDirectory(
                 List.of(registration), document(documentation), JSON);
 
@@ -665,8 +656,7 @@ class OperationDirectoryTest {
                     return JSON.createObjectNode();
                 },
                 OperationResultEncoders.typed(JSON, JsonNode.class));
-        OperationDocumentation documentation = documentation(
-                "demo.mutating_lossy", "none", false, null, List.of(),
+        OperationDocumentation documentation = documentation("demo.mutating_lossy", "none", false, List.of(),
                 JSON.readTree("{\"amount\":1.9}"));
         OperationDirectory directory = new OperationDirectory(
                 List.of(registration), document(documentation), JSON);
@@ -703,8 +693,7 @@ class OperationDirectoryTest {
                     return JSON.createObjectNode();
                 },
                 OperationResultEncoders.typed(JSON, JsonNode.class));
-        OperationDocumentation documentation = documentation(
-                "demo.injected", "none", false, null, List.of(), JSON.readTree("{}"));
+        OperationDocumentation documentation = documentation("demo.injected", "none", false, List.of(), JSON.readTree("{}"));
         OperationDirectory directory = new OperationDirectory(
                 List.of(registration), document(documentation), JSON);
 
@@ -721,11 +710,9 @@ class OperationDirectoryTest {
         List<OperationArgumentDocumentation> arguments = List.of(
                 new OperationArgumentDocumentation("message", "text", "string", true, null),
                 new OperationArgumentDocumentation("extra", "optional text", "string", false, null));
-        OperationDocumentation rejectedDocumentation = documentation(
-                "demo.null_added_rejected", "none", false, null, arguments,
+        OperationDocumentation rejectedDocumentation = documentation("demo.null_added_rejected", "none", false, arguments,
                 JSON.readTree("{\"message\":\"ok\"}"));
-        OperationDocumentation acceptedDocumentation = documentation(
-                "demo.null_added_allowed", "none", false, null, arguments,
+        OperationDocumentation acceptedDocumentation = documentation("demo.null_added_allowed", "none", false, arguments,
                 JSON.readTree("{\"message\":\"ok\"}"));
 
         OperationDirectory rejected = new OperationDirectory(
@@ -781,8 +768,7 @@ class OperationDirectoryTest {
                             return JSON.createObjectNode();
                         },
                         OperationResultEncoders.typed(mapper, JsonNode.class));
-        OperationDocumentation documentation = documentation(
-                "demo.typed_defaults", "none", false, null, List.of(), JSON.readTree("{}"));
+        OperationDocumentation documentation = documentation("demo.typed_defaults", "none", false, List.of(), JSON.readTree("{}"));
         OperationDirectory directory = new OperationDirectory(
                 List.of(registration), document(documentation), mapper);
 
@@ -796,13 +782,11 @@ class OperationDirectoryTest {
 
     @Test
     void acceptsExactDefaultsOnlyWhenTheyAreOwnedByTheInputSchema() throws Exception {
-        OperationDocumentation acceptedDocumentation = documentation(
-                "demo.schema_default", "none", false, null,
+        OperationDocumentation acceptedDocumentation = documentation("demo.schema_default", "none", false,
                 List.of(new OperationArgumentDocumentation(
                         "items", "optional items", "array", false, null)),
                 JSON.createObjectNode());
-        OperationDocumentation rejectedDocumentation = documentation(
-                "demo.schema_forbidden_default", "none", false, null, List.of(),
+        OperationDocumentation rejectedDocumentation = documentation("demo.schema_forbidden_default", "none", false, List.of(),
                 JSON.createObjectNode());
         OperationDirectory accepted = new OperationDirectory(
                 List.of(defaultContainerRegistration(
@@ -833,7 +817,7 @@ class OperationDirectoryTest {
         OperationDocumentation documentation = new OperationDocumentation(
                 "demo.output_limit", "Documentation for output limit", "demo", echoArguments(),
                 List.of(JSON.readTree("{\"message\":\"exact\"}")), List.of("demo"),
-                List.of(new OperationAlias("demo", "output_limit")), "1", false, null, safety);
+                List.of(new OperationAlias("demo", "output_limit")), safety);
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.output_limit", request -> new EchoResult(request.message()),
                 EchoResult.class, documentation);
@@ -859,7 +843,7 @@ class OperationDirectoryTest {
         OperationDocumentation documentation = new OperationDocumentation(
                 "demo.input_limit", "Documentation for input limit", "demo", echoArguments(),
                 List.of(JSON.readTree("{\"message\":\"exact\"}")), List.of("demo"),
-                List.of(new OperationAlias("demo", "input_limit")), "1", false, null, safety);
+                List.of(new OperationAlias("demo", "input_limit")), safety);
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.input_limit", request -> new EchoResult(request.message()),
                 EchoResult.class, documentation);
@@ -878,8 +862,7 @@ class OperationDirectoryTest {
     @Test
     void enforcesTheActualHardPayloadCeilingsThroughTheDirectory() throws Exception {
         OperationSafetyPolicy safety = hardSafety();
-        OperationDocumentation inputDocumentation = documentation(
-                "demo.hard_input", "none", false, null, List.of(), JSON.readTree("{}"));
+        OperationDocumentation inputDocumentation = documentation("demo.hard_input", "none", false, List.of(), JSON.readTree("{}"));
         OperationRegistration<JsonNode, JsonNode> inputRegistration = jsonRegistration(
                 "demo.hard_input", safety, ignored -> JSON.createObjectNode());
         OperationDirectory inputDirectory = new OperationDirectory(
@@ -897,8 +880,7 @@ class OperationDirectoryTest {
 
         AtomicReference<JsonNode> output = new AtomicReference<>(
                 hardSizedObject(OperationSafetyLimits.MAX_OUTPUT_BYTES, 15));
-        OperationDocumentation outputDocumentation = documentation(
-                "demo.hard_output", "none", false, null, List.of(), JSON.readTree("{}"));
+        OperationDocumentation outputDocumentation = documentation("demo.hard_output", "none", false, List.of(), JSON.readTree("{}"));
         OperationRegistration<JsonNode, JsonNode> outputRegistration = jsonRegistration(
                 "demo.hard_output", safety, ignored -> output.get());
         OperationDirectory outputDirectory = new OperationDirectory(
@@ -953,8 +935,7 @@ class OperationDirectoryTest {
     void rejectsAResultNormalizerThatMutatesAndReturnsTheSameTree() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         ObjectNode shared = JSON.createObjectNode();
-        OperationDocumentation documentation = documentation(
-                "demo.mutable", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.mutable", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"ok\"}"));
         BoundedOperationResultEncoder<EchoResult> encoder = new BoundedOperationResultEncoder<>() {
             @Override
@@ -982,8 +963,7 @@ class OperationDirectoryTest {
 
     @Test
     void rejectsTrailingJsonFromAnAuthoritativeResultStream() throws Exception {
-        OperationDocumentation documentation = documentation(
-                "demo.trailing_result", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.trailing_result", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"ok\"}"));
         BoundedOperationResultEncoder<EchoResult> encoder = new BoundedOperationResultEncoder<>() {
             @Override
@@ -1011,8 +991,7 @@ class OperationDirectoryTest {
 
     @Test
     void rejectsTrailingJsonFromAnAuthoritativeRequestStream() throws Exception {
-        OperationDocumentation documentation = documentation(
-                "demo.trailing_request", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.trailing_request", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"ok\"}"));
         BoundedOperationRequestDecoder<EchoRequest> decoder = new BoundedOperationRequestDecoder<>() {
             @Override
@@ -1051,8 +1030,7 @@ class OperationDirectoryTest {
 
     @Test
     void rejectsUnboundedResultEncodersDuringDirectoryAssembly() throws Exception {
-        OperationDocumentation documentation = documentation(
-                "demo.unbounded", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.unbounded", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"ok\"}"));
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.unbounded", request -> new EchoResult("ok"), EchoResult.class,
@@ -1075,8 +1053,7 @@ class OperationDirectoryTest {
             }
             return oversized;
         };
-        OperationDocumentation documentation = documentation(
-                "demo.legacy_structure", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.legacy_structure", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"ok\"}"));
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.legacy_structure", request -> new EchoResult("ok"), EchoResult.class,
@@ -1104,8 +1081,7 @@ class OperationDirectoryTest {
                 throw new IllegalStateException("test result could not be sized", exception);
             }
         };
-        OperationDocumentation documentation = documentation(
-                "demo.legacy_byte_limit", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.legacy_byte_limit", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"ok\"}"));
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.legacy_byte_limit", request -> new EchoResult("ok"), EchoResult.class,
@@ -1143,8 +1119,7 @@ class OperationDirectoryTest {
                 JSON.writeValue(output, JSON.createObjectNode().put("message", "ok"));
             }
         };
-        OperationDocumentation documentation = documentation(
-                "demo.authoritative", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.authoritative", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"ok\"}"));
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.authoritative", request -> new EchoResult("ok"), EchoResult.class,
@@ -1182,8 +1157,7 @@ class OperationDirectoryTest {
                 output.write(']');
             }
         };
-        OperationDocumentation documentation = documentation(
-                "demo.typed_node_limit", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.typed_node_limit", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"ok\"}"));
         OperationDescriptor descriptor = new OperationDescriptor(
                 "demo", "typed_node_limit", EchoRequest.class.getName(),
@@ -1216,8 +1190,7 @@ class OperationDirectoryTest {
         CountDownLatch started = new CountDownLatch(16);
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch finished = new CountDownLatch(16);
-        OperationDocumentation documentation = documentation(
-                "demo.non_cancellable_saturation", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.non_cancellable_saturation", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"wait\"}"), 100, false);
         ContextAwareOperationExecutor<EchoRequest, EchoResult> executor =
                 boundedNonCancellable(request -> {
@@ -1275,8 +1248,7 @@ class OperationDirectoryTest {
     void interruptsAnUncooperativeContextAwareOwnerAfterTheCancellationGracePeriod() throws Exception {
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch interrupted = new CountDownLatch(1);
-        OperationDocumentation documentation = documentation(
-                "demo.grace", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.grace", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"wait\"}"), 100);
         ContextAwareOperationExecutor<EchoRequest, EchoResult> executor = (request, context) -> {
             started.countDown();
@@ -1306,8 +1278,7 @@ class OperationDirectoryTest {
     @Test
     void cancelsAContextAwareBoundedDelegateAtTheDeadline() throws Exception {
         AtomicBoolean stopped = new AtomicBoolean();
-        OperationDocumentation documentation = documentation(
-                "demo.bounded_delegate", "filesystem_write", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.bounded_delegate", "filesystem_write", false, echoArguments(),
                 JSON.readTree("{\"message\":\"wait\"}"), 100);
         ContextAwareOperationExecutor<EchoRequest, EchoResult> executor = ContextAwareOperationExecutor.declared(
                 OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION,
@@ -1333,8 +1304,7 @@ class OperationDirectoryTest {
 
     @Test
     void reportsCooperativeCancellationWithADistinctReasonCode() throws Exception {
-        OperationDocumentation documentation = documentation(
-                "demo.cooperative_cancel", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.cooperative_cancel", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"cancel\"}"));
         ContextAwareOperationExecutor<EchoRequest, EchoResult> executor = (request, context) -> {
             context.requestCancellation();
@@ -1355,8 +1325,7 @@ class OperationDirectoryTest {
 
     @Test
     void preservesCooperativeCancellationWhenTheOwnerThrows() throws Exception {
-        OperationDocumentation documentation = documentation(
-                "demo.cooperative_throw", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.cooperative_throw", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"cancel\"}"));
         ContextAwareOperationExecutor<EchoRequest, EchoResult> executor = (request, context) -> {
             context.requestCancellation();
@@ -1381,8 +1350,7 @@ class OperationDirectoryTest {
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch completed = new CountDownLatch(1);
         AtomicReference<OperationExecutionResult> observed = new AtomicReference<>();
-        OperationDocumentation documentation = documentation(
-                "demo.caller_interrupt", "none", false, null, echoArguments(),
+        OperationDocumentation documentation = documentation("demo.caller_interrupt", "none", false, echoArguments(),
                 JSON.readTree("{\"message\":\"interrupt\"}"));
         ContextAwareOperationExecutor<EchoRequest, EchoResult> executor = (request, context) -> {
             started.countDown();
@@ -1421,7 +1389,6 @@ class OperationDirectoryTest {
     private <O> OperationDirectory directory(
             String id,
             boolean confirmation,
-            boolean deprecated,
             long timeout,
             OperationExecutor<EchoRequest, O> executor,
             Class<O> resultType,
@@ -1689,28 +1656,25 @@ class OperationDirectoryTest {
             String id,
             String sideEffect,
             boolean confirmation,
-            String replacement,
             List<OperationArgumentDocumentation> arguments,
             JsonNode example) {
-        return documentation(id, sideEffect, confirmation, replacement, arguments, example, 60_000);
+        return documentation(id, sideEffect, confirmation, arguments, example, 60_000);
     }
 
     private OperationDocumentation documentation(
             String id,
             String sideEffect,
             boolean confirmation,
-            String replacement,
             List<OperationArgumentDocumentation> arguments,
             JsonNode example,
             long timeout) {
-        return documentation(id, sideEffect, confirmation, replacement, arguments, example, timeout, true);
+        return documentation(id, sideEffect, confirmation, arguments, example, timeout, true);
     }
 
     private OperationDocumentation documentation(
             String id,
             String sideEffect,
             boolean confirmation,
-            String replacement,
             List<OperationArgumentDocumentation> arguments,
             JsonNode example,
             long timeout,
@@ -1724,9 +1688,6 @@ class OperationDirectoryTest {
                 List.of(id.substring(0, id.indexOf('.'))),
                 List.of(new OperationAlias(
                         id.substring(0, id.indexOf('.')), id.substring(id.indexOf('.') + 1))),
-                "1",
-                false,
-                replacement,
                 new OperationSafetyPolicy(
                         sideEffect, confirmation, "caller_must_not_supply_credentials",
                         "redact_sensitive_fields", timeout, cancellationSupported,

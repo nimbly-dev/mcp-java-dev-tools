@@ -89,24 +89,6 @@ public final class OperationManifestXmlReader {
         summary = summary == null ? text(element, "summary", true) : summary;
         description = description == null ? text(element, "description", true) : description;
         classification = classification == null ? text(element, "classification", true) : classification;
-        Element compatibility = child(element, "compatibility", false);
-        String since = attribute(element, "since", false);
-        String replacement = attribute(element, "replacement", false);
-        String deprecatedValue = attribute(element, "deprecated", false);
-        if (compatibility != null) {
-            since = since == null ? attribute(compatibility, "since", false) : since;
-            replacement = replacement == null ? attribute(compatibility, "replacement", false) : replacement;
-            deprecatedValue = deprecatedValue == null
-                    ? attribute(compatibility, "deprecated", false) : deprecatedValue;
-        }
-        boolean deprecated = false;
-        if (deprecatedValue != null) {
-            if (!("true".equals(deprecatedValue) || "false".equals(deprecatedValue)
-                    || (schemaValidated && ("1".equals(deprecatedValue) || "0".equals(deprecatedValue))))) {
-                throw new IllegalArgumentException("manifest deprecated attribute is invalid");
-            }
-            deprecated = "true".equals(deprecatedValue) || "1".equals(deprecatedValue);
-        }
         Element tags = child(element, "tags", false);
         List<String> tagValues = new ArrayList<>();
         if (tags != null) {
@@ -117,7 +99,6 @@ public final class OperationManifestXmlReader {
         return new OperationDocumentation(summary, description, classification,
                 readArguments(element, schemaValidated), readExamples(element), tagValues,
                 readAliases(element, schemaValidated),
-                since == null ? "1" : since, deprecated, replacement,
                 readSafety(child(element, "safety", false), schemaValidated));
     }
 

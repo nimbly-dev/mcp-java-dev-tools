@@ -6,9 +6,6 @@ import static org.assertj.core.api.Assertions.fail;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,20 +13,18 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.URISyntaxException;
-import java.net.URLDecoder;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -38,9 +33,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -53,73 +47,9 @@ class McpServerStdioIT {
     private static final String PROTOCOL_VERSION = "2025-03-26";
 
     @Test
-    void executableJarContainsClassifiedExecutionProfileExportBoundaryFailure() throws Exception {
-        try (McpServerProcess server = McpServerProcess.startWithBoundaryFailure(jarPath(), workspaceRoot())) {
-            server.send(initializeRequest());
-            assertThat(server.responseFor(1).path("result").path("protocolVersion").asText())
-                    .isEqualTo(PROTOCOL_VERSION);
-            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
-
-            server.send(request(2, "tools/call", Map.of(
-                    "name", "execution_profile_export",
-                    "arguments", Map.of("mode", "postman"))));
-            JsonNode response = server.responseFor(2);
-            JsonNode payload = toolPayload(response);
-
-            assertThat(payload.path("status").asText()).isEqualTo("internal_error");
-            assertThat(payload.path("reasonCode").asText()).isEqualTo("internal_error");
-            assertThat(payload.path("reasonMeta").path("failedStep").asText())
-                    .isEqualTo("configuration_invariant");
-            assertThat(payload.toString()).doesNotContain(
-                    "mcp605-controlled-secret", "secret", "stack", "path");
-            assertThat(response.path("result").path("isError").asBoolean()).isFalse();
-            assertThat(server.stdoutLines()).allSatisfy(line -> {
-                assertJsonRpcMessage(line);
-                assertThat(line).doesNotContain("mcp605-controlled-secret", "secret", "stack", "path");
-            });
-        }
-    }
-
-    @Test
     void executableJarStartsInStdioModeWithoutContaminatingStdout() throws Exception {
-        Path workspaceRoot = workspaceRoot();
-        resetArtifactFixture(workspaceRoot.resolve(".mcpjvm"));
-        writeStdioFixture(workspaceRoot);
-        HttpServer routeProbe = HttpServer.create(new InetSocketAddress(0), 0);
-        AtomicInteger performanceProbeHits = new AtomicInteger();
-        routeProbe.createContext("/__probe/status", exchange -> respondProbe(exchange, """
-                {"probe":{"key":"example.StdioController#run:7","hitCount":%d,"lastHitEpoch":%d,
-                "lineResolvable":true,"lineValidation":"resolvable"}}
-                """.formatted(performanceProbeHits.incrementAndGet(), System.currentTimeMillis())));
-        routeProbe.createContext("/__probe/reset", exchange -> respondProbe(exchange, """
-                {"results":[{"key":"example.StdioController#run:7","ok":true,
-                "lineResolvable":true,"lineValidation":"resolvable"}]}
-                """));
-        routeProbe.createContext("/actuator/mappings", exchange -> respondProbe(exchange, """
-                {"handler":"example.StdioController#run()",
-                "predicate":"{GET [/stdio/run]}"}
-                """));
-        routeProbe.createContext("/__probe/failure/analyze", exchange -> respondProbe(exchange, """
-                {"fingerprint":{"exceptionType":"java.lang.IllegalStateException",
-                "rootCauseType":"java.lang.IllegalArgumentException",
-                "nearestApplicationMethodKey":"example.StdioController#run:7",
-                "complete":true,"normalizedMessage":"safe failure"}}
-                """));
-        routeProbe.createContext("/__probe/failure/verify", exchange -> respondProbe(exchange, """
-                {"outcome":"matched","observedFingerprint":{"exceptionType":"java.lang.IllegalStateException",
-                "rootCauseType":"java.lang.IllegalArgumentException",
-                "nearestApplicationMethodKey":"example.StdioController#run:7","complete":true}}
-                """));
-        routeProbe.createContext("/transport", exchange -> {
-            int status = exchange.getRequestURI().getRawQuery() == null ? 200 : 403;
-            respondProbe(exchange, status, """
-                    {"safe":"transport-ok","authorization":"Bearer should-not-escape"}
-                    """);
-        });
-        routeProbe.start();
-        try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
+        try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot())) {
             server.send(initializeRequest());
-
             JsonNode initialize = server.responseFor(1);
             assertThat(initialize.path("result").path("protocolVersion").asText())
                     .isEqualTo(PROTOCOL_VERSION);
@@ -128,524 +58,24 @@ class McpServerStdioIT {
             server.send(request(2, "tools/list", Map.of()));
             JsonNode tools = server.responseFor(2).path("result").path("tools");
             assertThat(tools.isArray()).isTrue();
-            assertThat(tools).extracting(node -> node.path("name").asText())
-                    .containsExactlyInAnyOrder(
-                            "debug_check", "jvm_lifecycle", "probe", "route_synthesis", "failure_analysis",
-                            "artifact_management", "execution_profile_export", "transport_execute",
-                            "execution_orchestration");
-            JsonNode routeTool = null;
+            assertThat(tools).extracting(tool -> tool.path("name").asText())
+                    .containsExactlyInAnyOrder("operation_catalog", "operation_describe", "operation_execute");
             for (JsonNode tool : tools) {
-                if ("route_synthesis".equals(tool.path("name").asText())) {
-                    routeTool = tool;
-                    break;
-                }
+                assertThat(tool.has("outputSchema")).isTrue();
             }
-            assertThat(routeTool).isNotNull();
-            JsonNode routeSchema = routeTool.path("inputSchema");
-            assertThat(routeSchema.path("oneOf").isArray())
-                    .as("route_synthesis schema: %s", routeSchema)
-                    .isTrue();
-            assertThat(routeSchema.path("oneOf").size()).isEqualTo(4);
-            JsonNode targetInputSchema = routeSchema.path("oneOf").get(0).path("properties").path("input");
-            JsonNode recipeInputSchema = routeSchema.path("oneOf").get(3).path("properties").path("input");
-            assertThat(routeSchema.path("oneOf").get(0).path("properties").path("action").path("const").asText())
-                    .isEqualTo("infer_target");
-            assertThat(routeSchema.path("oneOf").get(1).path("properties").path("action").path("const").asText())
-                    .isEqualTo("class_methods");
-            assertThat(routeSchema.path("oneOf").get(2).path("properties").path("action").path("const").asText())
-                    .isEqualTo("discover_handlers");
-            assertThat(routeSchema.path("oneOf").get(3).path("properties").path("action").path("const").asText())
-                    .isEqualTo("create_recipe");
-            assertThat(targetInputSchema.path("required"))
-                    .isEqualTo(JSON.readTree("[\"projectRootAbs\"]"));
-            assertThat(recipeInputSchema.path("required"))
-                    .isEqualTo(JSON.readTree(
-                            "[\"projectRootAbs\",\"classHint\",\"methodHint\",\"intentMode\"]"));
-            assertThat(recipeInputSchema.path("properties").path("intentMode").path("enum"))
-                    .isEqualTo(JSON.readTree("[\"line_probe\",\"regression\"]"));
-            assertThat(recipeInputSchema.path("properties").path("discoveryPreference").path("enum"))
-                    .isEqualTo(JSON.readTree("[\"static_only\",\"runtime_first\",\"runtime_only\"]"));
-            assertThat(targetInputSchema.path("properties").path("lineHint").path("minimum").asInt())
-                    .isEqualTo(1);
-            assertThat(targetInputSchema.path("properties").path("additionalSourceRoots").path("maxItems").asInt())
-                    .isEqualTo(10);
-            assertThat(targetInputSchema.path("properties").path("maxCandidates").path("minimum").asInt())
-                    .isEqualTo(1);
-            JsonNode failureTool = null;
-            for (JsonNode tool : tools) {
-                if ("failure_analysis".equals(tool.path("name").asText())) {
-                    failureTool = tool;
-                    break;
-                }
-            }
-            assertThat(failureTool).isNotNull();
-            JsonNode failureSchema = failureTool.path("inputSchema");
-            assertThat(failureSchema.path("oneOf")).hasSize(2);
-            assertThat(failureSchema.path("oneOf").get(0).path("properties").path("action").path("const").asText())
-                    .isEqualTo("analyze_trace");
-            JsonNode verifySchema = failureSchema.path("oneOf").get(1).path("properties").path("input");
-            assertThat(verifySchema.path("oneOf")).hasSize(2);
-            JsonNode artifactTool = null;
-            for (JsonNode tool : tools) {
-                if ("artifact_management".equals(tool.path("name").asText())) {
-                    artifactTool = tool;
-                    break;
-                }
-            }
-            assertThat(artifactTool).isNotNull();
-            assertThat(schemaFingerprint(artifactTool.path("inputSchema")))
-                    .as("tools/list artifact_management schema fingerprint")
-                    .isEqualTo("d767c5a28b9d3c65f21c2d208140320f38737d7ea56507507e53e889a94352f7");
-            assertThat(artifactTool.path("inputSchema").path("oneOf")).hasSize(31);
-            List<String> artifactRoutes = new ArrayList<>();
-            for (JsonNode branch : artifactTool.path("inputSchema").path("oneOf")) {
-                artifactRoutes.add(branch.path("properties").path("artifactType").path("const").asText()
-                        + "/" + branch.path("properties").path("action").path("const").asText());
-            }
-            assertThat(artifactRoutes).containsExactlyElementsOf(Arrays.stream(ArtifactManagementAction.values())
-                    .map(ArtifactManagementAction::routeId).toList());
-            JsonNode transportTool = null;
-            for (JsonNode tool : tools) {
-                if ("transport_execute".equals(tool.path("name").asText())) {
-                    transportTool = tool;
-                    break;
-                }
-            }
-            assertThat(transportTool).isNotNull();
-            JsonNode transportSchema = transportTool.path("inputSchema");
-            assertThat(transportSchema.path("properties").has("action")).isFalse();
-            assertThat(transportSchema.path("properties").has("protocol")).isTrue();
-            assertThat(transportSchema.path("properties").path("protocol").path("enum"))
-                    .isEqualTo(JSON.readTree("[\"http\",\"grpc\",\"kafka\",\"custom\"]"));
-            assertThat(transportSchema.path("properties").has("request")).isTrue();
-            assertThat(transportSchema.path("properties").has("options")).isTrue();
 
-            JsonNode exportTool = null;
-            for (JsonNode tool : tools) {
-                if ("execution_profile_export".equals(tool.path("name").asText())) {
-                    exportTool = tool;
-                    break;
-                }
-            }
-            assertThat(exportTool).isNotNull();
-            assertThat(exportTool.path("description").asText())
-                    .isEqualTo("Export one persisted Execution Profile into deterministic replay artifacts.");
-            assertThat(exportTool.path("inputSchema").path("type").asText()).isEqualTo("object");
-            assertThat(exportTool.path("inputSchema").path("additionalProperties").asBoolean()).isFalse();
-            assertThat(exportTool.path("inputSchema").path("properties").has("mode")).isTrue();
-            assertThat(exportTool.path("inputSchema").path("properties").has("contextBindings")).isTrue();
-            assertThat(exportTool.path("inputSchema").path("properties").path("mode").path("enum"))
-                    .isEqualTo(JSON.readTree("[\"ps1\",\"sh\",\"postman\"]"));
-
-            JsonNode orchestrationTool = findTool(tools, "execution_orchestration");
-            assertThat(orchestrationTool).isNotNull();
-            JsonNode orchestrationSchema = orchestrationTool.path("inputSchema");
-            assertThat(orchestrationSchema.path("required"))
-                    .isEqualTo(JSON.readTree("[\"action\",\"input\"]"));
-            assertThat(orchestrationSchema.path("properties").path("action").path("const").asText())
-                    .isEqualTo("execute");
-            JsonNode orchestrationInput = orchestrationSchema.path("properties").path("input");
-            assertThat(orchestrationInput.path("required"))
-                    .isEqualTo(JSON.readTree("[\"projectName\",\"executionProfile\"]"));
-            assertThat(orchestrationInput.path("properties").path("maxPlansPerCall").path("minimum").asInt())
-                    .isEqualTo(1);
-
-            server.send(request(3, "tools/call", Map.of("name", "debug_check", "arguments", Map.of())));
-            JsonNode debugCheck = server.responseFor(3);
-            JsonNode debugCheckPayload = toolPayload(debugCheck);
-            JsonNode structuredDebugCheck = debugCheck.path("result").path("structuredContent");
-            assertThat(debugCheckPayload.path("ok").asBoolean()).isTrue();
-            assertThat(debugCheckPayload.path("version").asText()).isEqualTo("0.1.9");
-            assertThat(debugCheckPayload.path("workspaceRoot").asText()).isEqualTo(workspaceRoot.toString());
-            assertThat(structuredDebugCheck.isObject()).isTrue();
-            assertThat(structuredDebugCheck.path("ok").asBoolean()).isTrue();
-            assertThat(structuredDebugCheck.path("workspaceRoot").asText()).isEqualTo(workspaceRoot.toString());
-
-            server.send(request(7, "tools/call", Map.of(
-                    "name", "execution_profile_export",
-                    "arguments", Map.of("mode", "postman"))));
-            JsonNode exportFailure = toolPayload(server.responseFor(7));
-            assertThat(exportFailure.path("status").asText()).isEqualTo("project_artifact_missing");
-            assertThat(exportFailure.path("reasonCode").asText()).isEqualTo("project_artifact_missing");
-
-            server.send(request(8, "tools/call", Map.of(
-                    "name", "execution_profile_export",
-                    "arguments", Map.of("mode", 123))));
-            JsonNode exportSchemaValidation = server.responseFor(8);
-            assertThat(exportSchemaValidation.path("result").path("isError").asBoolean()).isTrue();
-            String exportSchemaValidationText = exportSchemaValidation.path("result").path("content").get(0)
-                    .path("text").asText();
-            assertThat(exportSchemaValidationText)
-                    .contains("Tool (execution_profile_export) input validation failed")
-                    .doesNotContain("secret", "stack", "path");
-
-            server.send(request(10, "tools/call", Map.of(
-                    "name", "execution_profile_export")));
-            JsonNode exportMissingArguments = toolPayload(server.responseFor(10));
-            assertThat(exportMissingArguments.path("resultType").asText()).isEqualTo("report");
-            assertThat(exportMissingArguments.path("status").asText())
-                    .isEqualTo("execution_export_mode_required");
-            assertThat(exportMissingArguments.path("reasonCode").asText())
-                    .isEqualTo("execution_export_mode_required");
-            assertThat(exportMissingArguments.toString()).doesNotContain("secret", "stack", "path");
-
-            server.send(request(32, "tools/call", Map.of(
-                    "name", "execution_orchestration",
-                    "arguments", Map.of("action", "execute", "input", Map.of(
-                            "projectName", "demo", "executionProfile", "missing")))));
-            JsonNode orchestrationFailure = toolPayload(server.responseFor(32));
-            assertThat(orchestrationFailure.path("status").asText()).isEqualTo("blocked");
-            assertThat(orchestrationFailure.path("reasonCode").asText()).isNotBlank();
-
-            writeExecutionProfileExportFixture(workspaceRoot);
-            server.send(request(31, "tools/call", Map.of(
-                    "name", "execution_profile_export",
-                    "arguments", Map.of(
-                            "projectName", "demo",
-                            "executionProfile", "smoke",
-                            "mode", "sh",
-                            "exportId", "stdio-export"))));
-            JsonNode exportSuccess = toolPayload(server.responseFor(31));
-            assertThat(exportSuccess.path("resultType").asText()).isEqualTo("execution_profile_export");
-            assertThat(exportSuccess.path("status").asText()).isEqualTo("ok");
-            assertThat(exportSuccess.path("exportId").asText()).isEqualTo("stdio-export");
-            Path exportedScript = Path.of(exportSuccess.path("output").path("scriptPathAbs").asText());
-            assertThat(Files.isRegularFile(exportedScript)).isTrue();
-            assertThat(Files.readString(exportedScript)).contains("curl --fail")
-                    .contains("http://127.0.0.1:9196/health");
-            JsonNode exportManifest = JSON.readTree(Files.readString(exportedScript.getParent().resolve("manifest.json")));
-            assertThat(exportManifest.path("exportId").asText()).isEqualTo("stdio-export");
-
-            server.send(request(9, "tools/call", Map.of(
-                    "name", "execution_profile_export",
-                    "arguments", Map.of(
-                            "projectName", "demo",
-                            "executionProfile", "smoke",
-                            "mode", "sh",
-                            "exportId", "../escape"))));
-            JsonNode exportProductValidation = toolPayload(server.responseFor(9));
-            assertThat(exportProductValidation.path("status").asText()).isEqualTo("export_id_invalid");
-            assertThat(exportProductValidation.path("reasonCode").asText()).isEqualTo("export_id_invalid");
-            assertThat(exportProductValidation.path("reasonMeta").has("failedStep")).isFalse();
-
-            writeSecurityOrchestrationFixture(workspaceRoot, routeProbe.getAddress().getPort());
-            server.send(request(33, "tools/call", Map.of(
-                    "name", "execution_orchestration",
-                    "arguments", Map.of("action", "execute", "input", Map.of(
-                            "projectName", "demo", "executionProfile", "security-smoke", "maxPlansPerCall", 1)))));
-            JsonNode securityOrchestration = toolPayload(server.responseFor(33));
-            assertThat(securityOrchestration.path("status").asText())
-                    .as("security orchestration: %s", securityOrchestration)
-                    .isEqualTo("pass");
-            assertThat(securityOrchestration.path("action").asText()).isEqualTo("execute");
-            assertThat(securityOrchestration.path("suiteRunId").asText()).isNotBlank();
-            assertThat(securityOrchestration.path("progressSummary").path("status").asText()).isEqualTo("pass");
-
-            writePerformanceOrchestrationFixture(workspaceRoot, routeProbe.getAddress().getPort());
-            server.send(request(34, "tools/call", Map.of(
-                    "name", "execution_orchestration",
-                    "arguments", Map.of("action", "execute", "input", Map.of(
-                            "projectName", "demo", "executionProfile", "performance-smoke", "suiteRunId", "performance-resume")))));
-            JsonNode performanceOrchestration = toolPayload(server.responseFor(34));
-            assertThat(performanceOrchestration.path("status").asText())
-                    .as("performance orchestration: %s", performanceOrchestration)
-                    .isEqualTo("pass");
-            assertThat(performanceOrchestration.path("planRuns").toString())
-                    .contains("performance-smoke").contains("thresholdResults");
-
-            server.send(request(35, "tools/call", Map.of(
-                    "name", "execution_orchestration",
-                    "arguments", Map.of("action", "execute", "input", Map.of(
-                            "projectName", "demo", "executionProfile", "performance-smoke", "suiteRunId", "performance-resume")))));
-            JsonNode performanceResume = toolPayload(server.responseFor(35));
-            assertThat(performanceResume.path("status").asText()).isEqualTo("pass");
-            assertThat(performanceResume.path("suiteRunId").asText()).isEqualTo("performance-resume");
-
-            writeSecuritySidecarOrchestrationFixture(workspaceRoot, routeProbe.getAddress().getPort());
-            server.send(request(36, "tools/call", Map.of(
-                    "name", "execution_orchestration",
-                    "arguments", Map.of("action", "execute", "input", Map.of(
-                            "projectName", "demo", "executionProfile", "security-sidecar")))));
-            JsonNode sidecarSecurity = toolPayload(server.responseFor(36));
-            assertThat(sidecarSecurity.path("status").asText()).isEqualTo("pass");
-            assertThat(sidecarSecurity.path("planRuns").toString()).contains("sidecar_assisted");
-
-            writeRegressionOrchestrationFixture(workspaceRoot, routeProbe.getAddress().getPort());
-            server.send(request(37, "tools/call", Map.of(
-                    "name", "execution_orchestration",
-                    "arguments", Map.of("action", "execute", "input", Map.of(
-                            "projectName", "demo", "executionProfile", "regression-smoke")))));
-            JsonNode regressionOrchestration = toolPayload(server.responseFor(37));
-            assertThat(regressionOrchestration.path("status").asText())
-                    .as("regression orchestration: %s", regressionOrchestration).isEqualTo("pass");
-            assertThat(regressionOrchestration.path("planRuns").toString()).contains("regression-smoke");
-
-            server.send(request(6, "tools/call", Map.of(
-                    "name", "probe",
-                    "arguments", Map.of("action", "capture", "input", Map.of("captureId", "capture-1")))));
-            JsonNode probe = toolPayload(server.responseFor(6));
-            assertThat(probe.path("status").asText()).isEqualTo("probe_selection_failed");
-            assertThat(probe.path("reasonCode").asText()).isEqualTo("probe_id_required");
-            assertThat(probe.path("nextActionCode").asText()).isEqualTo("provide_probe_id");
-
-            assertMissingProbeTarget(server, 7, "check", Map.of());
-            assertMissingProbeTarget(server, 8, "status", Map.of("key", "example.Work#doIt:17"));
-            assertMissingProbeTarget(server, 9, "reset", Map.of("className", "example.Work"));
-            assertMissingProbeTarget(server, 10, "wait_for_hit", Map.of("key", "example.Work#doIt:17"));
-            assertMissingProbeTarget(server, 11, "actuate", Map.of(
-                    "action", "arm",
-                    "sessionId", "session-1",
-                    "targetKey", "example.Work#doIt:17",
-                    "returnBoolean", true,
-                    "ttlMs", 1000));
-            assertMissingProbeTarget(server, 12, "profiler", Map.of("action", "status"));
-
-            server.send(request(13, "tools/call", Map.of(
-                    "name", "route_synthesis",
-                    "arguments", Map.of("action", "infer_target", "input", Map.of(
-                            "projectRootAbs", workspaceRoot.toString(), "classHint", "example.Missing")))));
-            JsonNode routeSynthesis = toolPayload(server.responseFor(13));
-            assertThat(routeSynthesis.path("resultType").asText()).isEqualTo("report");
-            assertThat(routeSynthesis.path("reasonCode").asText()).isNotBlank();
-            Map<String, Object> routeInput = Map.of(
-                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.Missing");
-            assertRouteSynthesisReport(server, 14, "class_methods", routeInput);
-            assertRouteSynthesisReport(server, 15, "discover_handlers", routeInput);
-            Map<String, Object> recipeFailureInput = Map.of(
-                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.Missing",
-                    "methodHint", "missing", "intentMode", "regression");
-            assertRouteSynthesisReport(server, 16, "create_recipe", recipeFailureInput);
-            Map<String, Object> successfulInferInput = Map.of(
-                    "projectRootAbs", workspaceRoot.toString(),
-                    "classHint", "example.StdioController", "methodHint", "run",
-                    "probeBaseUrl", "http://127.0.0.1:" + routeProbe.getAddress().getPort());
-            assertRouteSynthesisSuccess(server, 17, "infer_target", successfulInferInput, "ranked_candidates");
-            Map<String, Object> successfulClassInput = Map.of(
-                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.StdioController");
-            assertRouteSynthesisSuccess(server, 18, "class_methods", successfulClassInput, "class_methods");
-            assertRouteSynthesisSuccess(server, 19, "discover_handlers", successfulClassInput, "handler_inventory");
-            Map<String, Object> successfulRecipeInput = Map.of(
-                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.StdioController",
-                    "methodHint", "run", "lineHint", 7, "intentMode", "line_probe",
-                    "discoveryPreference", "static_only",
-                    "probeBaseUrl", "http://127.0.0.1:" + routeProbe.getAddress().getPort());
-            assertRouteSynthesisSuccess(server, 20, "create_recipe", successfulRecipeInput, "recipe");
-            Map<String, Object> runtimeRecipeInput = Map.of(
-                    "projectRootAbs", workspaceRoot.toString(), "classHint", "example.StdioController",
-                    "methodHint", "run", "intentMode", "regression", "discoveryPreference", "runtime_only",
-                    "mappingsBaseUrl", "http://127.0.0.1:" + routeProbe.getAddress().getPort()
-                            + "/actuator/mappings");
-            assertRuntimeRouteSynthesisSuccess(server, 21, runtimeRecipeInput);
-            String sidecarBaseUrl = "http://127.0.0.1:" + routeProbe.getAddress().getPort();
-            server.send(request(22, "tools/call", Map.of(
-                    "name", "failure_analysis",
-                    "arguments", Map.of(
-                            "action", "analyze_trace",
-                            "input", Map.of(
-                                    "trace", "java.lang.IllegalStateException: secret-token\\n"
-                                            + "    at example.StdioController.run(StdioController.java:7)",
-                                    "sidecarBaseUrl", sidecarBaseUrl,
-                                    "sidecarAuthorization", "Bearer stdio-secret",
-                                    "timeoutMs", 15000)))));
-            JsonNode analyzedFailure = toolPayload(server.responseFor(22));
-            assertThat(analyzedFailure.path("outcome").asText()).isEqualTo("ANALYZED");
-            assertThat(analyzedFailure.path("fingerprint").path("exceptionType").asText())
-                    .isEqualTo("java.lang.IllegalStateException");
-            assertThat(analyzedFailure.toString()).doesNotContain("secret-token", "stdio-secret");
-
-            server.send(request(23, "tools/call", Map.of(
-                    "name", "failure_analysis",
-                    "arguments", Map.of(
-                            "action", "verify_reproduction",
-                            "input", Map.of(
-                                    "captureId", "capture-stdio",
-                                    "expectedFingerprint", Map.of(
-                                            "exceptionType", "java.lang.IllegalStateException",
-                                            "rootCauseType", "java.lang.IllegalArgumentException",
-                                            "nearestApplicationMethodKey", "example.StdioController#run:7"),
-                                    "lineHit", Map.of(
-                                            "strictLineKey", "example.StdioController#run:7", "hitCount", 1),
-                                    "sidecarBaseUrl", sidecarBaseUrl,
-                                    "sidecarAuthorization", "Bearer stdio-secret",
-                                    "timeoutMs", 15000)))));
-            JsonNode reproducedFailure = toolPayload(server.responseFor(23));
-            assertThat(reproducedFailure.path("outcome").asText()).isEqualTo("REPRODUCED");
-            assertThat(reproducedFailure.path("reasonCode").asText()).isEqualTo("ok");
-            assertThat(reproducedFailure.path("lineHit").path("hitCount").asInt()).isEqualTo(1);
-            assertThat(reproducedFailure.toString()).doesNotContain("stdio-secret");
-
-            server.send(request(24, "tools/call", Map.of(
-                    "name", "failure_analysis",
-                    "arguments", Map.of(
-                            "action", "verify_reproduction",
-                            "input", Map.of("terminalState", Map.of(
-                                    "outcome", "BLOCKED_MISSING_AUTH",
-                                    "reasonCode", "missing_auth",
-                                    "cleanupStatus", "cleanup_confirmed",
-                                    "attemptCount", 1))))));
-            JsonNode failureAnalysis = toolPayload(server.responseFor(24));
-            assertThat(failureAnalysis.path("outcome").asText()).isEqualTo("BLOCKED_MISSING_AUTH");
-            assertThat(failureAnalysis.path("reasonCode").asText()).isEqualTo("missing_auth");
-
-            server.send(request(25, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "probe_config",
-                            "action", "read",
-                            "input", Map.of()))));
-            JsonNode artifactRead = toolPayload(server.responseFor(25));
-            assertThat(artifactRead.path("status").asText()).isEqualTo("not_configured");
-            assertThat(artifactRead.path("reasonCode").asText()).isEqualTo("probe_registry_not_configured");
-            assertThat(artifactRead.path("artifactType").asText()).isEqualTo("probe_config");
-            assertThat(artifactRead.path("nextActionCode").asText()).isEqualTo("set_probe_registry_config");
-
-            server.send(request(26, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "probe_config",
-                            "action", "upsert",
-                            "input", Map.of("payload", Map.of())))));
-            JsonNode artifactUpserted = toolPayload(server.responseFor(26));
-            assertThat(artifactUpserted.path("status").asText()).isEqualTo("ok");
-            assertThat(artifactUpserted.path("artifactType").asText()).isEqualTo("probe_config");
-
-            server.send(request(27, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "project_context",
-                            "action", "list",
-                            "input", Map.of()))));
-            JsonNode projectList = toolPayload(server.responseFor(27));
-            assertThat(projectList.path("status").asText()).isEqualTo("ok");
-            assertThat(projectList.path("projectNames").isArray()).isTrue();
-
-            server.send(request(28, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "performance_plan",
-                            "action", "list",
-                            "input", Map.of("projectName", "demo")))));
-            JsonNode performanceList = toolPayload(server.responseFor(28));
-            assertThat(performanceList.path("status").asText()).isEqualTo("ok");
-            assertThat(performanceList.path("planNames").isArray()).isTrue();
-
-            server.send(request(38, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "regression_plan",
-                            "action", "list",
-                            "input", Map.of("projectName", "demo")))));
-            JsonNode regressionList = toolPayload(server.responseFor(38));
-            assertThat(regressionList.path("status").asText()).isEqualTo("ok");
-            assertThat(regressionList.path("planNames").isArray()).isTrue();
-
-            server.send(request(39, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "security_plan",
-                            "action", "list",
-                            "input", Map.of("projectName", "demo")))));
-            JsonNode securityList = toolPayload(server.responseFor(39));
-            assertThat(securityList.path("status").asText()).isEqualTo("ok");
-            assertThat(securityList.path("planNames").isArray()).isTrue();
-
-            server.send(request(40, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "run_result",
-                            "action", "list",
-                            "input", Map.of(
-                                    "projectName", "demo",
-                                    "suiteType", "regression",
-                                    "planName", "health")))));
-            JsonNode runList = toolPayload(server.responseFor(40));
-            assertThat(runList.path("status").asText()).isEqualTo("ok");
-            assertThat(runList.path("runIds").isArray()).isTrue();
-
-            server.send(request(41, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "execution_export",
-                            "action", "list",
-                            "input", Map.of("projectName", "demo")))));
-            JsonNode exportList = toolPayload(server.responseFor(41));
-            assertThat(exportList.path("status").asText()).isEqualTo("ok");
-            assertThat(exportList.path("exportFolders").isArray()).isTrue();
-
-            server.send(request(42, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "execution_export",
-                            "action", "read",
-                            "input", Map.of(
-                                    "projectName", "demo",
-                                    "query", Map.of("exportId", "stdio-export"))))));
-            JsonNode exportRead = toolPayload(server.responseFor(42));
-            assertThat(exportRead.path("status").asText()).isEqualTo("ok");
-            assertThat(exportRead.path("files").isArray()).isTrue();
-
-            server.send(request(43, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "probe_config",
-                            "action", "query",
-                            "input", Map.of()))));
-            assertToolValidationFailure(server.responseFor(43));
-
-            server.send(request(44, "tools/call", Map.of(
-                    "name", "artifact_management",
-                    "arguments", Map.of(
-                            "artifactType", "unknown",
-                            "action", "read",
-                            "input", Map.of()))));
-            assertToolValidationFailure(server.responseFor(44));
-
-            writeTransportPolicyFixture(workspaceRoot, routeProbe.getAddress().getPort());
-            server.send(request(29, "tools/call", Map.of(
-                    "name", "transport_execute",
-                    "arguments", Map.of(
-                            "protocol", "http",
-                            "request", Map.of(
-                                    "method", "GET",
-                                    "url", "http://127.0.0.1:" + routeProbe.getAddress().getPort() + "/transport"),
-                            "options", Map.of("wrappedOnly", false)))));
-            JsonNode transport = toolPayload(server.responseFor(29));
-            assertThat(transport.path("status").asText()).isEqualTo("pass");
-            assertThat(transport.path("statusCode").asInt()).isEqualTo(200);
-            assertThat(transport.path("bodyPreview").asText()).contains("transport-ok");
-            assertThat(transport.toString()).doesNotContain("should-not-escape");
-
-            server.send(request(30, "tools/call", Map.of(
-                    "name", "transport_execute",
-                    "arguments", Map.of(
-                            "protocol", "http",
-                            "request", Map.of(
-                                    "method", "GET",
-                                    "url", "http://127.0.0.1:1/should-not-run")))));
-            JsonNode transportFailure = toolPayload(server.responseFor(30));
-            assertThat(transportFailure.path("status").asText()).isEqualTo("blocked_invalid");
-            assertThat(transportFailure.path("reasonCode").asText()).isEqualTo("wrapper_policy_violation");
-            assertThat(transportFailure.path("reasonMeta").path("failedStep").asText())
-                    .isEqualTo("transport_execute_policy");
-            assertThat(transportFailure.path("reasonMeta").path("protocol").asText()).isEqualTo("http");
-
-            server.send(request(4, "resources/list", Map.of()));
-            JsonNode resources = server.responseFor(4).path("result").path("resources");
-            assertThat(resources).extracting(node -> node.path("uri").asText())
-                    .contains("mcp-java-dev-tools://status");
-
-            server.send(request(5, "resources/read", Map.of("uri", "mcp-java-dev-tools://status")));
-            JsonNode status = server.responseFor(5);
-            JsonNode statusPayload = resourcePayload(status);
-            assertThat(statusPayload.path("ok").asBoolean()).isTrue();
-            assertThat(statusPayload.path("workspaceRootSource").asText()).isEqualTo("roots");
-            assertThat(statusPayload.path("rootsDiscoveryStatus").asText()).isEqualTo("available");
+            JsonNode catalog = findTool(tools, "operation_catalog");
+            JsonNode describe = findTool(tools, "operation_describe");
+            JsonNode execute = findTool(tools, "operation_execute");
+            assertThat(catalog.path("inputSchema").path("properties").has("query")).isTrue();
+            assertThat(catalog.path("inputSchema").path("properties").has("input")).isFalse();
+            assertThat(describe.path("inputSchema").path("properties").has("operationId")).isTrue();
+            assertThat(execute.path("inputSchema").path("properties").has("operationId")).isTrue();
+            assertThat(execute.path("inputSchema").path("properties").has("arguments")).isTrue();
 
             server.closeInputAndAwaitTermination();
             assertThat(server.stdoutLines()).allSatisfy(this::assertJsonRpcMessage);
-            assertThat(server.stderrText()).isNotBlank();
-        } finally {
-            routeProbe.stop(0);
+            assertThat(server.exitCode()).isZero();
         }
     }
 
@@ -664,234 +94,249 @@ class McpServerStdioIT {
     }
 
     @Test
-    void executableJarPreservesLargeAuthorizationHeaderValues() throws Exception {
-        assertLargeAuthorizationHeader(1536, "POST");
-    }
-
-    @Test
-    void executableJarAcceptsAuthorizationHeaderLargerThanSdkDefault() throws Exception {
-        assertLargeAuthorizationHeader(10_600_000, "GET");
-    }
-
-    @Test
-    void executableJarReachesAllJvmLifecycleActionsThroughStdio() throws Exception {
-        Path workspaceRoot = workspaceRoot();
-        try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
-            server.send(initializeRequest());
-            server.responseFor(1);
-            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
-
-            server.send(request(2, "tools/call", Map.of(
-                    "name", "jvm_lifecycle",
-                    "arguments", Map.of("action", "list_jvms", "input", Map.of()))));
-            JsonNode discovery = toolPayload(server.responseFor(2));
-            assertThat(discovery.path("status").asText()).isIn("ok", "blocked");
-            assertThat(discovery.path("reasonCode").asText()).isNotBlank();
-
-            Map<String, Object> fencedInput = Map.of(
-                    "pid", Long.toString(server.pid()),
-                    "expectedProcessStartEpochMs", server.processStartEpochMs(),
-                    "confirm", true);
-            server.send(request(3, "tools/call", Map.of(
-                    "name", "jvm_lifecycle",
-                    "arguments", Map.of("action", "attach", "input", fencedInput))));
-            assertThat(toolPayload(server.responseFor(3)).path("reasonCode").asText())
-                    .isEqualTo("mcp_server_attach_forbidden");
-
-            server.send(request(4, "tools/call", Map.of(
-                    "name", "jvm_lifecycle",
-                    "arguments", Map.of("action", "deactivate", "input", fencedInput))));
-            assertThat(toolPayload(server.responseFor(4)).path("reasonCode").asText())
-                    .isEqualTo("mcp_server_attach_forbidden");
-        }
-    }
-
-    @Test
-    void executableJarPerformsRealAttachAndDeactivateAgainstSurvivingTarget() throws Exception {
+    void executableJarUsesCdeJvmLifecycleAgainstSocialPlatformUserApp() throws Exception {
+        Path fixtureJar = repositoryRoot().resolve(
+                "test/fixtures/spring-apps/social-platform/user-service/user-app/target/"
+                        + "user-app-0.1.0-SNAPSHOT.jar");
+        Assumptions.assumeTrue(Files.isRegularFile(fixtureJar),
+                "Package the social-platform user-app fixture before the CDE lifecycle acceptance test.");
         Path serverJar = jarPath();
-        assertThat(serverJar.getParent().resolve("sidecar/jvm-attach-helper.jar"))
-                .isRegularFile();
-        assertThat(serverJar.getParent().resolve("sidecar/sidecar-agent.jar"))
-                .isRegularFile();
-        try (LifecycleTargetProcess target = LifecycleTargetProcess.start();
+        List<Map<String, Object>> transcript = new ArrayList<>();
+        try (SpringFixtureTargetProcess target = SpringFixtureTargetProcess.start(fixtureJar);
                 McpServerProcess server = McpServerProcess.start(serverJar, workspaceRoot())) {
-            server.send(initializeRequest());
-            server.responseFor(1);
-            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
+            target.awaitHealthy();
 
-            server.send(request(2, "tools/call", Map.of(
-                    "name", "jvm_lifecycle",
-                    "arguments", Map.of("action", "list_jvms", "input", Map.of()))));
-            JsonNode discovery = toolPayload(server.responseFor(2));
+            Map<String, Object> initialize = initializeRequest();
+            server.send(initialize);
+            JsonNode initializeResponse = server.responseFor(1);
+            assertThat(initializeResponse.path("result").path("protocolVersion").asText())
+                    .isEqualTo(PROTOCOL_VERSION);
+            transcript.add(Map.of("request", initialize, "response", initializeResponse));
+            Map<String, Object> initialized = Map.of(
+                    "jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of());
+            server.send(initialized);
+
+            Map<String, Object> toolsListRequest = request(2, "tools/list", Map.of());
+            server.send(toolsListRequest);
+            JsonNode toolsListResponse = server.responseFor(2);
+            JsonNode tools = toolsListResponse.path("result").path("tools");
+            List<String> toolNames = new ArrayList<>();
+            for (JsonNode tool : tools) {
+                toolNames.add(tool.path("name").asText());
+                assertThat(tool.has("outputSchema")).isTrue();
+            }
+            assertThat(toolNames).containsExactlyInAnyOrder(
+                    "operation_catalog", "operation_describe", "operation_execute");
+            JsonNode catalogTool = findTool(tools, "operation_catalog");
+            JsonNode describeTool = findTool(tools, "operation_describe");
+            JsonNode executeTool = findTool(tools, "operation_execute");
+            assertThat(catalogTool.path("inputSchema").path("properties").has("query")).isTrue();
+            assertThat(catalogTool.path("inputSchema").path("properties").has("limit")).isTrue();
+            assertThat(catalogTool.path("inputSchema").path("properties").has("input")).isFalse();
+            assertThat(describeTool.path("inputSchema").path("properties").has("operationId")).isTrue();
+            assertThat(describeTool.path("inputSchema").path("properties").has("input")).isFalse();
+            assertThat(executeTool.path("inputSchema").path("properties").has("operationId")).isTrue();
+            assertThat(executeTool.path("inputSchema").path("properties").has("arguments")).isTrue();
+            assertThat(executeTool.path("inputSchema").path("properties").has("confirmed")).isTrue();
+            assertThat(executeTool.path("inputSchema").path("properties").has("input")).isFalse();
+            transcript.add(Map.of("request", toolsListRequest, "response", toolsListResponse));
+
+            Map<String, Object> catalogRequest = request(3, "tools/call", Map.of(
+                    "name", "operation_catalog",
+                    "arguments", Map.of("query", "jvm_lifecycle")));
+            server.send(catalogRequest);
+            JsonNode catalogResponse = server.responseFor(3);
+            JsonNode catalog = toolPayload(catalogResponse);
+            assertThat(catalog.path("status").asText()).isEqualTo("succeeded");
+            List<String> operationIds = new ArrayList<>();
+            for (JsonNode entry : catalog.path("entries")) {
+                operationIds.add(entry.path("operationId").asText());
+            }
+            assertThat(operationIds).containsExactlyInAnyOrder(
+                    "jvm_lifecycle.list_jvms", "jvm_lifecycle.attach", "jvm_lifecycle.deactivate");
+            transcript.add(Map.of("request", catalogRequest, "response", catalogResponse));
+
+            Map<String, Object> zeroLimitCatalogRequest = request(13, "tools/call", Map.of(
+                    "name", "operation_catalog",
+                    "arguments", Map.of("limit", 0)));
+            server.send(zeroLimitCatalogRequest);
+            JsonNode zeroLimitCatalogResponse = server.responseFor(13);
+            JsonNode zeroLimitCatalog = toolPayload(zeroLimitCatalogResponse);
+            assertThat(zeroLimitCatalog.path("status").asText()).isEqualTo("invalid_input");
+            assertThat(zeroLimitCatalog.path("reasonCode").asText()).isEqualTo("catalog_limit_invalid");
+            transcript.add(Map.of("request", zeroLimitCatalogRequest, "response", zeroLimitCatalogResponse));
+
+            Map<String, Object> describeRequest = request(4, "tools/call", Map.of(
+                    "name", "operation_describe",
+                    "arguments", Map.of("operationId", "jvm_lifecycle.attach")));
+            server.send(describeRequest);
+            JsonNode describeResponse = server.responseFor(4);
+            JsonNode description = toolPayload(describeResponse);
+            JsonNode details = description.path("operation");
+            assertThat(description.path("status").asText()).isEqualTo("succeeded");
+            assertThat(details.path("safety").path("confirmationRequired").asBoolean()).isTrue();
+            assertThat(details.path("inputSchema").path("properties").has("confirm")).isFalse();
+            List<String> documentedArguments = new ArrayList<>();
+            for (JsonNode argument : details.path("arguments")) {
+                documentedArguments.add(argument.path("name").asText());
+            }
+            assertThat(documentedArguments).contains("pid", "expectedProcessStartEpochMs")
+                    .doesNotContain("confirm");
+            assertThat(description.toString().toLowerCase(java.util.Locale.ROOT))
+                    .doesNotContain("deprecated", "replacement", "alias");
+            transcript.add(Map.of("request", describeRequest, "response", describeResponse));
+
+            Map<String, Object> listRequest = request(5, "tools/call", Map.of(
+                    "name", "operation_execute",
+                    "arguments", Map.of("operationId", "jvm_lifecycle.list_jvms", "arguments", Map.of())));
+            server.send(listRequest);
+            JsonNode listResponse = server.responseFor(5);
+            JsonNode discovery = toolPayload(listResponse);
+            assertThat(discovery.path("status").asText()).isEqualTo("succeeded");
+            JsonNode candidates = discovery.path("result").path("actionResult").path("jvms");
             JsonNode selected = null;
-            for (JsonNode candidate : discovery.path("jvms")) {
+            for (JsonNode candidate : candidates) {
                 if (Long.toString(target.pid()).equals(candidate.path("pid").asText())) {
                     selected = candidate;
                     break;
                 }
             }
-            assertThat(selected).isNotNull();
-            assertThat(selected.path("processStartEpochMs").asLong())
-                    .isEqualTo(target.processStartEpochMs());
-            assertThat(selected.path("attachmentState").asText()).isEqualTo("unverified");
-            assertThat(selected.path("probeState").asText()).isEqualTo("unverified");
+            assertThat(candidates.isArray()).isTrue();
+            assertThat(selected)
+                    .as("list_jvms must return the fixture candidate")
+                    .isNotNull();
+            boolean fixtureDiscovered = true;
+            String selectedPid = selected.path("pid").asText();
+            long selectedProcessStartEpochMs = selected.path("processStartEpochMs").asLong();
+            assertThat(selectedPid).isEqualTo(Long.toString(target.pid()));
+            assertThat(selectedProcessStartEpochMs).isEqualTo(target.processStartEpochMs());
+            transcript.add(Map.of("request", listRequest, "response", listResponse));
 
             int probePort = freePort();
-            Map<String, Object> attachInput = Map.of(
-                    "pid", Long.toString(target.pid()),
-                    "expectedProcessStartEpochMs", target.processStartEpochMs(),
-                    "confirm", true,
+            Map<String, Object> attachArguments = Map.of(
+                    "pid", selectedPid,
+                    "expectedProcessStartEpochMs", selectedProcessStartEpochMs,
                     "probeHost", "127.0.0.1",
                     "probePort", probePort);
-            server.send(request(3, "tools/call", Map.of(
-                    "name", "jvm_lifecycle",
-                    "arguments", Map.of("action", "attach", "input", attachInput))));
-            JsonNode attach = toolPayload(server.responseFor(3));
-            assertThat(attach.path("status").asText()).isEqualTo("ok");
-            assertThat(attach.path("reasonCode").asText()).isEqualTo("active");
-            assertThat(attach.path("lifecycle").path("outcome").asText()).isEqualTo("active");
-            assertThat(target.isAlive()).isTrue();
+            Map<String, Object> confirmationRequest = request(6, "tools/call", Map.of(
+                    "name", "operation_execute",
+                    "arguments", Map.of(
+                            "operationId", "jvm_lifecycle.attach",
+                            "arguments", attachArguments,
+                            "confirmed", false)));
+            server.send(confirmationRequest);
+            JsonNode confirmationResponse = server.responseFor(6);
+            JsonNode confirmation = toolPayload(confirmationResponse);
+            assertThat(confirmation.path("status").asText()).isEqualTo("confirmation_required");
+            assertThat(target.awaitSidecarReachability(probePort, false, Duration.ofSeconds(1))).isTrue();
+            transcript.add(Map.of("request", confirmationRequest, "response", confirmationResponse));
 
-            server.send(request(4, "tools/call", Map.of(
-                    "name", "jvm_lifecycle",
-                    "arguments", Map.of("action", "deactivate", "input", Map.of(
-                            "pid", Long.toString(target.pid()),
-                            "expectedProcessStartEpochMs", target.processStartEpochMs(),
-                            "confirm", true)))));
-            JsonNode deactivate = toolPayload(server.responseFor(4));
-            assertThat(deactivate.path("status").asText()).isEqualTo("ok");
-            assertThat(deactivate.path("reasonCode").asText()).isEqualTo("deactivated");
-            assertThat(deactivate.path("lifecycle").path("outcome").asText())
+            Map<String, Object> attachRequest = request(7, "tools/call", Map.of(
+                    "name", "operation_execute",
+                    "arguments", Map.of(
+                            "operationId", "jvm_lifecycle.attach",
+                            "arguments", attachArguments,
+                            "confirmed", true)));
+            server.send(attachRequest);
+            JsonNode attachResponse = server.responseFor(7, Duration.ofSeconds(90));
+            JsonNode attach = toolPayload(attachResponse);
+            assertThat(attach.path("status").asText()).isEqualTo("succeeded");
+            assertThat(attach.path("result").path("reasonCode").asText()).isEqualTo("active");
+            assertThat(attach.path("result").path("actionResult").path("outcome").asText())
+                    .isEqualTo("active");
+            assertThat(target.awaitSidecarReachability(probePort, true, Duration.ofSeconds(15))).isTrue();
+            assertThat(target.isAlive()).isTrue();
+            transcript.add(Map.of("request", attachRequest, "response", attachResponse));
+
+            Map<String, Object> deactivateRequest = request(8, "tools/call", Map.of(
+                    "name", "operation_execute",
+                    "arguments", Map.of(
+                            "operationId", "jvm_lifecycle.deactivate",
+                            "arguments", Map.of(
+                                    "pid", selectedPid,
+                                    "expectedProcessStartEpochMs", selectedProcessStartEpochMs),
+                            "confirmed", true)));
+            server.send(deactivateRequest);
+            JsonNode deactivateResponse = server.responseFor(8, Duration.ofSeconds(90));
+            JsonNode deactivate = toolPayload(deactivateResponse);
+            assertThat(deactivate.path("status").asText()).isEqualTo("succeeded");
+            assertThat(deactivate.path("result").path("reasonCode").asText()).isEqualTo("deactivated");
+            assertThat(deactivate.path("result").path("actionResult").path("outcome").asText())
                     .isEqualTo("deactivated");
-            assertThat(target.isAlive()).isTrue();
-        }
-    }
+            assertThat(target.awaitSidecarReachability(probePort, false, Duration.ofSeconds(15))).isTrue();
+            assertThat(target.isHealthy()).isTrue();
+            transcript.add(Map.of("request", deactivateRequest, "response", deactivateResponse));
 
-    @Test
-    void executableJarInvokesARegisteredProbeThroughStdio() throws Exception {
-        AtomicBoolean resetCalled = new AtomicBoolean();
-        AtomicReference<String> statusQuery = new AtomicReference<>();
-        HttpServer sidecar = HttpServer.create(new InetSocketAddress(0), 0);
-        sidecar.createContext("/__probe/reset", exchange -> {
-            resetCalled.set(true);
-            respondProbe(exchange, "{\"ok\":true}");
-        });
-        sidecar.createContext("/__probe/status", exchange -> {
-            statusQuery.set(exchange.getRequestURI().getRawQuery());
-            respondProbe(exchange, "{\"probe\":{\"key\":\"mcp.jvm.diagnose#key\",\"hitCount\":0}}");
-        });
-        sidecar.start();
-        try (McpServerProcess server = McpServerProcess.start(
-                jarPath(),
-                workspaceRoot(),
-                "--mcpjvm.probe.registry.registrations[0].id=orders",
-                "--mcpjvm.probe.registry.registrations[0].base-url=http://127.0.0.1:" + sidecar.getAddress().getPort())) {
-            server.send(initializeRequest());
-            server.responseFor(1);
-            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
-            server.send(request(13, "tools/call", Map.of(
-                    "name", "probe",
-                    "arguments", Map.of("action", "check", "input", Map.of("probeId", "orders")))));
+            Map<String, Object> invalidTargetRequest = request(9, "tools/call", Map.of(
+                    "name", "operation_execute",
+                    "arguments", Map.of(
+                            "operationId", "jvm_lifecycle.attach",
+                            "arguments", Map.of(
+                                    "pid", "not-a-pid", "expectedProcessStartEpochMs", 1),
+                            "confirmed", true)));
+            server.send(invalidTargetRequest);
+            JsonNode invalidTargetResponse = server.responseFor(9);
+            JsonNode invalidTarget = toolPayload(invalidTargetResponse);
+            assertThat(invalidTarget.path("status").asText()).isEqualTo("invalid_input");
+            assertThat(invalidTarget.toString()).doesNotContain(repositoryRoot().toString());
+            transcript.add(Map.of("request", invalidTargetRequest, "response", invalidTargetResponse));
 
-            JsonNode response = toolPayload(server.responseFor(13));
-            assertThat(response.path("status").asText()).isEqualTo("ok");
-            assertThat(response.path("reasonCode").asText()).isEqualTo("success");
-            assertThat(response.path("nextActionCode").isMissingNode()).isTrue();
-            assertThat(resetCalled).isTrue();
-            assertThat(statusQuery.get()).isEqualTo("key=mcp.jvm.diagnose%23key");
-        } finally {
-            sidecar.stop(0);
-        }
-    }
+            Map<String, Object> unknownOperationRequest = request(10, "tools/call", Map.of(
+                    "name", "operation_execute",
+                    "arguments", Map.of("operationId", "unknown.operation", "arguments", Map.of())));
+            server.send(unknownOperationRequest);
+            JsonNode unknownOperationResponse = server.responseFor(10);
+            JsonNode unknownOperation = toolPayload(unknownOperationResponse);
+            assertThat(unknownOperation.path("status").asText()).isEqualTo("unsupported_operation");
+            assertThat(unknownOperation.toString()).doesNotContain(repositoryRoot().toString());
+            transcript.add(Map.of("request", unknownOperationRequest, "response", unknownOperationResponse));
 
-    @Test
-    void executableJarInvokesEveryProbeActionThroughStdio() throws Exception {
-        AtomicInteger statusCalls = new AtomicInteger();
-        HttpServer sidecar = HttpServer.create(new InetSocketAddress(0), 0);
-        sidecar.createContext("/__probe/reset", exchange -> {
-            String key = JSON.readTree(exchange.getRequestBody()).path("key").asText();
-            respondProbe(exchange, """
-                    {"key":"%s","ok":true,"lineResolvable":true,"lineValidation":"resolvable"}
-                    """.formatted(key));
-        });
-        sidecar.createContext("/__probe/status", exchange -> {
-            int call = statusCalls.incrementAndGet();
-            String key = queryValue(exchange.getRequestURI().getRawQuery(), "key");
-            long hitCount = call > 3 ? 1 : 0;
-            long lastHitEpoch = hitCount == 0 ? 0 : System.currentTimeMillis();
-            respondProbe(exchange, """
-                    {"probe":{"key":"%s","hitCount":%d,"lastHitEpoch":%d,
-                    "lineResolvable":true,"lineValidation":"resolvable"}}
-                    """.formatted(key, hitCount, lastHitEpoch));
-        });
-        sidecar.createContext("/__probe/capture", exchange -> respondProbe(exchange, """
-                {"capture":{"captureId":"capture-1","methodKey":"example.Work#doIt",
-                "capturedAtEpoch":1,"args":[],"executionPaths":[]}}
-                """));
-        sidecar.createContext("/__probe/actuate", exchange -> respondProbe(exchange, """
-                {"ok":true,"action":"arm","sessionId":"session-1","targetKey":"example.Work#doIt:17",
-                "returnBoolean":true,"ttlMs":1000,"scopeState":"armed","mode":"actuate"}
-                """));
-        sidecar.createContext("/__probe/profiler", exchange -> respondProbe(exchange, """
-                {"ok":true,"profiler":{"status":"idle","supported":true}}
-                """));
-        sidecar.start();
-        try (McpServerProcess server = McpServerProcess.start(
-                jarPath(),
-                workspaceRoot(),
-                "--mcpjvm.probe.registry.registrations[0].id=orders",
-                "--mcpjvm.probe.registry.registrations[0].base-url=http://127.0.0.1:" + sidecar.getAddress().getPort())) {
-            server.send(initializeRequest());
-            server.responseFor(1);
-            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
+            Map<String, Object> malformedOperationRequest = request(11, "tools/call", Map.of(
+                    "name", "operation_execute",
+                    "arguments", Map.of("operationId", "invalid id", "arguments", Map.of())));
+            server.send(malformedOperationRequest);
+            JsonNode malformedOperationResponse = server.responseFor(11);
+            JsonNode malformedOperation = toolPayload(malformedOperationResponse);
+            assertThat(malformedOperation.path("status").asText()).isEqualTo("unsupported_operation");
+            assertThat(malformedOperation.path("operationId").isNull()).isTrue();
+            assertThat(malformedOperation.path("result").isNull()).isTrue();
+            transcript.add(Map.of("request", malformedOperationRequest, "response", malformedOperationResponse));
 
-            server.send(request(20, "tools/call", Map.of(
-                    "name", "probe",
-                    "arguments", Map.of("action", "check", "input", Map.of("probeId", "orders")))));
-            assertSuccessfulProbe(server.responseFor(20), "check");
-
-            server.send(request(21, "tools/call", Map.of(
-                    "name", "probe",
-                    "arguments", Map.of("action", "status", "input", Map.of(
-                            "probeId", "orders", "key", "example.Work#doIt:17")))));
-            assertSuccessfulProbe(server.responseFor(21), "status");
-
-            server.send(request(22, "tools/call", Map.of(
-                    "name", "probe",
-                    "arguments", Map.of("action", "reset", "input", Map.of(
-                            "probeId", "orders", "key", "example.Work#doIt:17")))));
-            assertSuccessfulProbe(server.responseFor(22), "reset");
-
-            server.send(request(23, "tools/call", Map.of(
-                    "name", "probe",
-                    "arguments", Map.of("action", "wait_for_hit", "input", Map.of(
-                            "probeId", "orders", "key", "example.Work#doIt:17",
-                            "timeoutMs", 1000, "pollIntervalMs", 100, "maxRetries", 1)))));
-            assertSuccessfulProbe(server.responseFor(23), "wait_for_hit");
-
-            server.send(request(24, "tools/call", Map.of(
-                    "name", "probe",
-                    "arguments", Map.of("action", "capture", "input", Map.of(
-                            "probeId", "orders", "captureId", "capture-1")))));
-            assertSuccessfulProbe(server.responseFor(24), "capture");
-
-            server.send(request(25, "tools/call", Map.of(
-                    "name", "probe",
-                    "arguments", Map.of("action", "actuate", "input", Map.of(
-                            "probeId", "orders", "action", "arm", "sessionId", "session-1",
-                            "targetKey", "example.Work#doIt:17", "returnBoolean", true, "ttlMs", 1000)))));
-            assertSuccessfulProbe(server.responseFor(25), "actuate");
-
-            server.send(request(26, "tools/call", Map.of(
-                    "name", "probe",
-                    "arguments", Map.of("action", "profiler", "input", Map.of(
-                            "probeId", "orders", "action", "status")))));
-            assertSuccessfulProbe(server.responseFor(26), "profiler");
+            Map<String, Object> unknownDescriptionRequest = request(12, "tools/call", Map.of(
+                    "name", "operation_describe",
+                    "arguments", Map.of("operationId", "invalid id")));
+            server.send(unknownDescriptionRequest);
+            JsonNode unknownDescriptionResponse = server.responseFor(12);
+            JsonNode unknownDescription = toolPayload(unknownDescriptionResponse);
+            assertThat(unknownDescription.path("status").asText()).isEqualTo("unsupported");
+            assertThat(unknownDescription.path("operation").isNull()).isTrue();
+            transcript.add(Map.of("request", unknownDescriptionRequest, "response", unknownDescriptionResponse));
 
             server.closeInputAndAwaitTermination();
             assertThat(server.stdoutLines()).allSatisfy(this::assertJsonRpcMessage);
-        } finally {
-            sidecar.stop(0);
+            assertThat(server.exitCode()).isZero();
+
+            Path report = serverJar.getParent().resolve("mcpjvm-633-stdio-acceptance.json");
+            JSON.writerWithDefaultPrettyPrinter().writeValue(report.toFile(), Map.ofEntries(
+                    Map.entry("javaVersion", System.getProperty("java.version")),
+                    Map.entry("serverCommand", List.of(
+                            McpServerProcess.javaBinary(), "-jar", serverJar.toString())),
+                    Map.entry("fixtureCommand", List.of(
+                            McpServerProcess.javaBinary(), "-jar", fixtureJar.toString(),
+                            "--server.port=" + target.port())),
+                    Map.entry("tools", toolNames),
+                    Map.entry("mcpTranscript", transcript),
+                    Map.entry("fixtureDiscoveredByListJvms", fixtureDiscovered),
+                    Map.entry("acceptanceGap", fixtureDiscovered ? "none"
+                            : "The list_jvms response contained no candidate for the running fixture."),
+                    Map.entry("sidecar", Map.of("host", "127.0.0.1", "port", probePort,
+                            "reachableAfterAttach", true, "reachableAfterDeactivate", false)),
+                    Map.entry("fixtureHealthAfterDeactivate", true),
+                    Map.entry("stdoutContainsOnlyJsonRpc", true),
+                    Map.entry("serverExitCode", server.exitCode())));
+            assertThat(fixtureDiscovered)
+                    .as("list_jvms must return the fixture candidate; see %s", report)
+                    .isTrue();
         }
     }
 
@@ -927,9 +372,17 @@ class McpServerStdioIT {
         return null;
     }
 
-    private static String schemaFingerprint(JsonNode schema) throws Exception {
-        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                .digest(schema.toString().getBytes(StandardCharsets.UTF_8)));
+
+    private static Path repositoryRoot() {
+        Path candidate = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        for (int depth = 0; depth < 6 && candidate != null; depth++) {
+            if (Files.isRegularFile(candidate.resolve("mcp-server/pom.xml"))
+                    && Files.isDirectory(candidate.resolve("test/fixtures/spring-apps/social-platform"))) {
+                return candidate;
+            }
+            candidate = candidate.getParent();
+        }
+        throw new IllegalStateException("Repository root could not be located for fixture acceptance.");
     }
 
     private static Path jarPath() {
@@ -953,226 +406,21 @@ class McpServerStdioIT {
         return Path.of(System.getProperty("java.io.tmpdir"), "mcp-java-dev-tools-stdio-it-workspace");
     }
 
-    private static void writeStdioFixture(Path workspaceRoot) throws IOException {
-        Files.deleteIfExists(workspaceRoot.resolve(".mcpjvm/probe-config.json"));
-        Path sourceRoot = workspaceRoot.resolve("src/main/java/example");
-        Files.createDirectories(sourceRoot);
-        Files.writeString(sourceRoot.resolve("StdioController.java"), """
-                package example;
-                import org.springframework.web.bind.annotation.GetMapping;
-                import org.springframework.web.bind.annotation.RestController;
-                @RestController
-                public class StdioController {
-                    @GetMapping("/stdio/run")
-                    public String run() {
-                        return "ok";
-                    }
-                }
-        """);
-    }
 
-    private static void resetArtifactFixture(Path root) throws IOException {
-        if (!Files.exists(root)) {
-            return;
-        }
-        List<Path> paths;
-        try (var stream = Files.walk(root)) {
-            paths = stream.sorted(Comparator.reverseOrder()).toList();
-        }
-        for (Path path : paths) {
-            Files.deleteIfExists(path);
-        }
-    }
 
-    private static void writeExecutionProfileExportFixture(Path workspaceRoot) throws IOException {
-        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
-        Files.createDirectories(projectRoot.resolve("plans/regression/health"));
-        ObjectNode project = JSON.createObjectNode();
-        ObjectNode workspace = project.putArray("workspaces").addObject();
-        workspace.put("projectRoot", workspaceRoot.toString());
-        workspace.putObject("defaults").putObject("orchestrator")
-                .put("resumePollMax", 1).put("resumePollIntervalMs", 10).put("resumePollTimeoutMs", 100);
-        workspace.putArray("executionProfiles").addObject()
-                .put("executionProfile", "smoke")
-                .put("executionPolicy", "stop_on_fail")
-                .put("suiteType", "regression")
-                .putArray("plans").addObject().put("order", 1).put("planName", "health");
-        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
-        Files.writeString(projectRoot.resolve("plans/regression/health/contract.json"), """
-                {
-                  "steps": [{
-                    "order": 1,
-                    "id": "health",
-                    "protocol": "http",
-                    "transport": {"http": {
-                      "method": "GET",
-                      "url": "http://127.0.0.1:9196/health"
-                    }}
-                  }]
-                }
-                """);
-    }
 
-    private static void writeSecurityOrchestrationFixture(Path workspaceRoot, int port) throws IOException {
-        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
-        Path planRoot = projectRoot.resolve("plans/security/security-smoke");
-        Files.createDirectories(planRoot);
-        ObjectNode project = (ObjectNode) JSON.readTree(Files.readString(projectRoot.resolve("projects.json")));
-        ObjectNode workspace = (ObjectNode) project.path("workspaces").get(0);
-        workspace.putArray("executionProfiles").addObject()
-                .put("executionProfile", "security-smoke")
-                .put("executionPolicy", "stop_on_fail")
-                .put("suiteType", "security")
-                .putArray("plans").addObject().put("order", 1).put("planName", "security-smoke");
-        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
-        Files.writeString(planRoot.resolve("metadata.json"), "{\"suiteType\":\"security\"}");
-        Files.writeString(planRoot.resolve("contract.json"), """
-                {"suiteType":"security","securityMode":"blackbox",
-                "targetBoundary":{"environment":"local-ci","baseUrl":"http://127.0.0.1:%d",
-                "allowedHosts":["127.0.0.1"],"allowedPorts":[%d]},
-                "entrypoints":[{"id":"transport","transport":{"type":"http","method":"GET","path":"/transport"}}],
-                "authenticationProfiles":[{"id":"anonymous","kind":"anonymous"}]}
-                """.formatted(port, port));
-    }
 
-    private static void writePerformanceOrchestrationFixture(Path workspaceRoot, int port) throws IOException {
-        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
-        Path planRoot = projectRoot.resolve("plans/performance/performance-smoke");
-        Path jmeter = workspaceRoot.resolve("fixture-jmeter.cmd");
-        Files.createDirectories(planRoot);
-        Files.writeString(jmeter, """
-                @echo off
-                > "%5" echo elapsed,success
-                >> "%5" echo 10,true
-                exit /b 0
-                """);
-        ObjectNode project = (ObjectNode) JSON.readTree(Files.readString(projectRoot.resolve("projects.json")));
-        ObjectNode workspace = (ObjectNode) project.path("workspaces").get(0);
-        workspace.putArray("executionProfiles").addObject()
-                .put("executionProfile", "performance-smoke")
-                .put("executionPolicy", "stop_on_fail")
-                .put("suiteType", "performance")
-                .putArray("plans").addObject().put("order", 1).put("planName", "performance-smoke");
-        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
-        Files.writeString(planRoot.resolve("metadata.json"), "{\"suiteType\":\"performance\"}");
-        Files.writeString(planRoot.resolve("contract.json"), """
-                {"workloadProvider":{"type":"jmeter","mode":"generated_http",
-                "options":{"installationPath":%s}},
-                "entrypoints":[{"transport":{"protocol":"http","baseUrl":"http://127.0.0.1:%d",
-                "healthCheckPath":"/transport"},"request":{"method":"GET","path":"/transport"}}],
-                "loadModel":{"mode":"concurrency","concurrency":1,"rampUpSeconds":0,"durationSeconds":1},
-                "observationTargets":{"probeBaseUrl":"http://127.0.0.1:%d",
-                "requiredLineHits":["example.StdioController#run:7"]},
-                "successCriteria":{"maxErrorRatePct":0,"minThroughputPerSec":1,"p95LatencyMs":100}}
-                """.formatted(JSON.writeValueAsString(jmeter.toString()), port, port));
-    }
 
-    private static void writeSecuritySidecarOrchestrationFixture(Path workspaceRoot, int port) throws IOException {
-        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
-        Path planRoot = projectRoot.resolve("plans/security/security-sidecar");
-        Files.createDirectories(planRoot);
-        ObjectNode project = (ObjectNode) JSON.readTree(Files.readString(projectRoot.resolve("projects.json")));
-        ObjectNode workspace = (ObjectNode) project.path("workspaces").get(0);
-        workspace.putArray("executionProfiles").addObject()
-                .put("executionProfile", "security-sidecar")
-                .put("executionPolicy", "stop_on_fail")
-                .put("suiteType", "security")
-                .putArray("plans").addObject().put("order", 1).put("planName", "security-sidecar");
-        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
-        Files.writeString(planRoot.resolve("metadata.json"), "{\"suiteType\":\"security\"}");
-        Files.writeString(planRoot.resolve("contract.json"), """
-                {"suiteType":"security","securityMode":"sidecar_assisted",
-                "targetBoundary":{"environment":"local-ci","baseUrl":"http://127.0.0.1:%d",
-                "allowedHosts":["127.0.0.1"],"allowedPorts":[%d]},
-                "entrypoints":[{"id":"transport","transport":{"type":"http","method":"GET","path":"/transport"}}],
-                "authenticationProfiles":[{"id":"anonymous","kind":"anonymous"}],
-                "runtimeTargets":[{"id":"controller","entrypointRef":"transport","probeBaseUrl":"http://127.0.0.1:%d",
-                "strictLineKey":"example.StdioController#run:7"}],
-                "attackProfiles":[{"id":"sidecar-deny","entrypointRef":"transport","authenticationProfileRef":"anonymous",
-                "baseline":{"expect":{"outcome":"allow","mustHitRuntimeTargets":["controller"]}},
-                "attack":{"query":{"securityProbe":"sidecar"},"expect":{"outcome":"deny","mustHitRuntimeTargets":["controller"]}}}]}
-                """.formatted(port, port, port));
-    }
 
-    private static void writeRegressionOrchestrationFixture(Path workspaceRoot, int port) throws IOException {
-        Path projectRoot = workspaceRoot.resolve(".mcpjvm/demo");
-        Path planRoot = projectRoot.resolve("plans/regression/regression-smoke");
-        Files.createDirectories(planRoot);
-        ObjectNode project = (ObjectNode) JSON.readTree(Files.readString(projectRoot.resolve("projects.json")));
-        ObjectNode workspace = (ObjectNode) project.path("workspaces").get(0);
-        workspace.putArray("executionProfiles").addObject()
-                .put("executionProfile", "regression-smoke")
-                .put("executionPolicy", "stop_on_fail")
-                .put("suiteType", "regression")
-                .putArray("plans").addObject().put("order", 1).put("planName", "regression-smoke");
-        Files.writeString(projectRoot.resolve("projects.json"), project.toPrettyString());
-        Files.writeString(planRoot.resolve("metadata.json"),
-                "{\"suiteType\":\"regression\",\"execution\":{\"intent\":\"regression\"}}");
-        Files.writeString(planRoot.resolve("contract.json"), """
-                {"targets":[{}],"steps":[{"order":1,"id":"transport","protocol":"http",
-                "transport":{"http":{"method":"GET","url":"http://127.0.0.1:%d/transport"}},
-                "expect":[{"id":"status","actualPath":"response.status","operator":"field_equals","expected":200}]}]}
-                """.formatted(port));
-    }
 
-    private static void writeTransportPolicyFixture(Path workspaceRoot, int probePort) throws IOException {
-        Path registryDirectory = workspaceRoot.resolve(".mcpjvm");
-        Files.createDirectories(registryDirectory);
-        Files.writeString(registryDirectory.resolve("probe-config.json"), """
-                {
-                  "defaultProfile": "stdio",
-                  "profiles": {
-                    "stdio": {
-                      "global": {"allowNonWrappedExecutable": true},
-                      "probes": {
-                        "stdio-a": {"baseUrl": "http://127.0.0.1:%d"},
-                        "stdio-b": {"baseUrl": "http://127.0.0.1:%d"}
-                      }
-                    }
-                  }
-                }
-                """.formatted(probePort, probePort));
-    }
+
+
 
     private static int freePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }
     }
-
-    private void assertLargeAuthorizationHeader(int tokenCharacters, String method) throws Exception {
-        Path workspaceRoot = workspaceRoot();
-        writeStdioFixture(workspaceRoot);
-        String authorization = "Bearer eyJ." + "A".repeat(tokenCharacters) + ".sig";
-        try (LargeAuthorizationServer upstream = new LargeAuthorizationServer(authorization);
-                McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot)) {
-            server.send(initializeRequest());
-            server.responseFor(1);
-            server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
-            int requestId = tokenCharacters > 2_000 ? 32 : 31;
-            server.send(request(requestId, "tools/call", Map.of(
-                    "name", "transport_execute",
-                    "arguments", Map.of(
-                            "protocol", "http",
-                            "request", Map.of(
-                                    "method", method,
-                                    "url", upstream.url(),
-                                    "headers", Map.of("Authorization", authorization)),
-                            "options", Map.of("wrappedOnly", true)))));
-
-            JsonNode response = server.responseFor(requestId);
-            JsonNode payload = toolPayload(response);
-            assertThat(payload.path("status").asText()).isEqualTo("pass");
-            assertThat(payload.path("statusCode").asInt()).isEqualTo(200);
-            JsonNode observed = JSON.readTree(payload.path("bodyPreview").asText());
-            assertThat(observed.path("observedLength").asInt()).isEqualTo(authorization.length());
-            assertThat(observed.path("expectedLength").asInt()).isEqualTo(authorization.length());
-            assertThat(observed.path("exactMatch").asBoolean()).isTrue();
-            assertThat(response.toString()).doesNotContain(authorization);
-            upstream.awaitRequest();
-        }
-    }
-
     private void assertPosixSignalStopsExecutable(String signal) throws Exception {
         try (McpServerProcess server = McpServerProcess.start(jarPath(), workspaceRoot())) {
             server.send(initializeRequest());
@@ -1191,180 +439,22 @@ class McpServerStdioIT {
         }
     }
 
-    private static void assertToolValidationFailure(JsonNode response) {
-        String text = response.path("result").path("content").get(0).path("text").asText();
-        assertThat(text).contains("Tool (artifact_management) input validation failed");
-    }
 
-    private static JsonNode resourcePayload(JsonNode response) throws IOException {
-        String text = response.path("result").path("contents").get(0).path("text").asText();
-        return JSON.readTree(text);
-    }
 
-    private static void respondProbe(HttpExchange exchange, String payload) throws IOException {
-        respondProbe(exchange, 200, payload);
-    }
 
-    private static void respondProbe(HttpExchange exchange, int status, String payload) throws IOException {
-        byte[] body = payload.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set("content-type", "application/json");
-        exchange.sendResponseHeaders(status, body.length);
-        exchange.getResponseBody().write(body);
-        exchange.close();
-    }
 
-    private static String queryValue(String query, String key) {
-        if (query == null) {
-            return "";
-        }
-        for (String parameter : query.split("&")) {
-            String[] pair = parameter.split("=", 2);
-            if (pair.length == 2 && key.equals(pair[0])) {
-                return URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
-            }
-        }
-        return "";
-    }
 
-    private static void assertRouteSynthesisReport(
-            McpServerProcess server,
-            int requestId,
-            String action,
-            Map<String, Object> input) throws Exception {
-        server.send(request(requestId, "tools/call", Map.of(
-                "name", "route_synthesis",
-                "arguments", Map.of("action", action, "input", input))));
-        JsonNode payload = toolPayload(server.responseFor(requestId));
-        assertThat(payload.path("resultType").asText()).as("result type for %s", action)
-                .isNotBlank();
-        assertThat(payload.path("status").asText()).as("status for %s", action).isNotBlank();
-        assertThat(payload.path("reasonCode").asText()).as("reason code for %s", action).isNotBlank();
-    }
 
-    private static void assertRouteSynthesisSuccess(
-            McpServerProcess server,
-            int requestId,
-            String action,
-            Map<String, Object> input,
-            String resultType) throws Exception {
-        server.send(request(requestId, "tools/call", Map.of(
-                "name", "route_synthesis",
-                "arguments", Map.of("action", action, "input", input))));
-        JsonNode payload = toolPayload(server.responseFor(requestId));
-        assertThat(payload.path("resultType").asText()).as("result type for %s payload=%s", action, payload)
-                .isEqualTo(resultType);
-        assertThat(payload.path("status").asText()).as("status for %s", action)
-                .isIn("ok", "ready", "partial");
-        JsonNode details = payload.path("details");
-        assertThat(details.isObject()).as("details for %s", action).isTrue();
-        if ("recipe".equals(resultType)) {
-            assertThat(details.path("requestCandidates").isArray()).isTrue();
-            assertThat(details.path("requestCandidates")).isNotEmpty();
-            assertThat(details.path("requestCandidates").get(0).path("path").asText())
-                    .isEqualTo("/stdio/run");
-            assertThat(details.path("executionPlan").isObject()).isTrue();
-            assertThat(details.path("executionPlan").path("selectedMode").asText())
-                    .isEqualTo("single_line_probe");
-            assertThat(details.path("runtimeCapture").path("status").asText())
-                    .isEqualTo("available");
-        }
-    }
 
-    private static void assertRuntimeRouteSynthesisSuccess(
-            McpServerProcess server,
-            int requestId,
-            Map<String, Object> input) throws Exception {
-        server.send(request(requestId, "tools/call", Map.of(
-                "name", "route_synthesis",
-                "arguments", Map.of("action", "create_recipe", "input", input))));
-        JsonNode payload = toolPayload(server.responseFor(requestId));
-        assertThat(payload.path("resultType").asText()).isEqualTo("recipe");
-        assertThat(payload.path("status").asText()).isEqualTo("ready");
-        JsonNode details = payload.path("details");
-        assertThat(details.path("requestCandidates").get(0).path("path").asText())
-                .isEqualTo("/stdio/run");
-        assertThat(details.path("executionPlan").path("selectedMode").asText())
-                .isEqualTo("regression");
-        assertThat(payload.toString()).doesNotContain("mappingsBaseUrl");
-    }
 
-    private static void assertSuccessfulProbe(JsonNode response, String action) throws IOException {
-        JsonNode payload = toolPayload(response);
-        assertThat(payload.path("status").asText()).as("status for %s", action).isEqualTo("ok");
-        assertThat(payload.path("reasonCode").asText()).as("reason code for %s", action).isEqualTo("success");
-        assertThat(payload.path("resultType").asText()).as("result type for %s", action).isEqualTo("report");
-        assertThat(payload.path("request").isObject()).as("request details for %s", action).isTrue();
-        JsonNode details = payload.path("details");
-        assertThat(details.isObject()).as("details envelope for %s", action).isTrue();
-        assertThat(details.path("request").isObject()).as("nested request for %s", action).isTrue();
-        switch (action) {
-            case "check" -> assertCheckCompatibility(details);
-            case "status" -> assertStatusCompatibility(details);
-            case "reset" -> assertResetCompatibility(details, payload);
-            case "wait_for_hit" -> assertWaitCompatibility(details);
-            case "capture" -> assertCaptureCompatibility(details, payload);
-            case "actuate" -> assertActuateCompatibility(details, payload);
-            case "profiler" -> assertProfilerCompatibility(details, payload);
-            default -> fail("Unknown Probe action in compatibility matrix: " + action);
-        }
-    }
 
-    private static void assertCheckCompatibility(JsonNode details) {
-        assertThat(details.path("config").isObject()).isTrue();
-        assertThat(details.path("checks").path("reset").isObject()).isTrue();
-        assertThat(details.path("checks").path("status").isObject()).isTrue();
-        assertThat(details.path("recommendations").isArray()).isTrue();
-    }
 
-    private static void assertStatusCompatibility(JsonNode details) {
-        assertThat(details.path("targetKey").asText()).isEqualTo("example.Work#doIt:17");
-        assertThat(details.path("executionHit").asText()).isEqualTo("not_hit");
-        assertThat(details.path("response").path("json").path("key").asText())
-                .isEqualTo("example.Work#doIt:17");
-    }
 
-    private static void assertResetCompatibility(JsonNode details, JsonNode payload) {
-        assertThat(details.path("response").path("status").asInt()).isEqualTo(200);
-        assertThat(payload.path("result").path("entries").isArray()).isTrue();
-    }
 
-    private static void assertWaitCompatibility(JsonNode details) {
-        assertThat(details.path("targetKey").asText()).isEqualTo("example.Work#doIt:17");
-        assertThat(details.path("executionHit").asText()).isEqualTo("line_hit");
-        assertThat(details.path("probeHit").asText()).startsWith("hitCount=");
-    }
 
-    private static void assertCaptureCompatibility(JsonNode details, JsonNode payload) {
-        assertThat(details.path("request").path("captureId").asText()).isEqualTo("capture-1");
-        assertThat(details.path("targetKey").asText()).isEqualTo("example.Work#doIt");
-        assertThat(payload.path("result").path("found").asBoolean()).isTrue();
-    }
 
-    private static void assertActuateCompatibility(JsonNode details, JsonNode payload) {
-        assertThat(details.path("response").path("json").path("action").asText()).isEqualTo("arm");
-        assertThat(details.path("apiOutcome").asText()).isEqualTo("ok");
-        assertThat(payload.path("result").path("actuated").asBoolean()).isTrue();
-    }
 
-    private static void assertProfilerCompatibility(JsonNode details, JsonNode payload) {
-        assertThat(details.path("response").path("json").path("status").asText()).isEqualTo("idle");
-        assertThat(details.path("apiOutcome").asText()).isEqualTo("ok");
-        assertThat(payload.path("result").path("status").asText()).isEqualTo("idle");
-    }
 
-    private static void assertMissingProbeTarget(
-            McpServerProcess server,
-            int requestId,
-            String action,
-            Map<String, Object> input) throws Exception {
-        server.send(request(requestId, "tools/call", Map.of(
-                "name", "probe",
-                "arguments", Map.of("action", action, "input", input))));
-        JsonNode response = toolPayload(server.responseFor(requestId));
-        assertThat(response.path("status").asText()).isEqualTo("probe_selection_failed");
-        assertThat(response.path("reasonCode").asText()).isEqualTo("probe_id_required");
-        assertThat(response.path("nextActionCode").asText()).isEqualTo("provide_probe_id");
-    }
 
     private void assertJsonRpcMessage(String line) {
         try {
@@ -1375,22 +465,26 @@ class McpServerStdioIT {
         }
     }
 
-    private static final class LifecycleTargetProcess implements AutoCloseable {
+    private static final class SpringFixtureTargetProcess implements AutoCloseable {
 
         private final Process process;
+        private final int port;
+        private final HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(1)).build();
 
-        private LifecycleTargetProcess(Process process) {
+        private SpringFixtureTargetProcess(Process process, int port) {
             this.process = process;
+            this.port = port;
         }
 
-        static LifecycleTargetProcess start() throws IOException {
+        static SpringFixtureTargetProcess start(Path fixtureJar) throws IOException {
+            int port = freePort();
             Process process = new ProcessBuilder(
-                    McpServerProcess.javaBinary(),
-                    "-cp", System.getProperty("java.class.path"),
-                    LifecycleTargetMain.class.getName())
-                    .redirectErrorStream(true)
+                    McpServerProcess.javaBinary(), "-jar", fixtureJar.toString(), "--server.port=" + port)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start();
-            return new LifecycleTargetProcess(process);
+            return new SpringFixtureTargetProcess(process, port);
         }
 
         long pid() {
@@ -1401,8 +495,64 @@ class McpServerStdioIT {
             return process.toHandle().info().startInstant().orElseThrow().toEpochMilli();
         }
 
+        int port() {
+            return port;
+        }
+
         boolean isAlive() {
             return process.isAlive();
+        }
+
+        boolean isHealthy() throws IOException, InterruptedException {
+            HttpResponse<String> response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/actuator/health"))
+                            .timeout(Duration.ofSeconds(2)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            return response.statusCode() == 200 && JSON.readTree(response.body()).path("status").asText()
+                    .equalsIgnoreCase("up");
+        }
+
+        void awaitHealthy() throws Exception {
+            Instant deadline = Instant.now().plus(Duration.ofSeconds(30));
+            while (Instant.now().isBefore(deadline)) {
+                if (!process.isAlive()) {
+                    fail("Spring social-platform fixture exited before readiness.");
+                }
+                try {
+                    if (isHealthy()) {
+                        return;
+                    }
+                } catch (IOException ignored) {
+                    // The Spring fixture is still starting its embedded server.
+                }
+                Thread.sleep(250);
+            }
+            fail("Spring social-platform fixture did not become healthy within 30 seconds.");
+        }
+
+        boolean awaitSidecarReachability(int sidecarPort, boolean expected, Duration timeout) throws Exception {
+            Instant deadline = Instant.now().plus(timeout);
+            while (Instant.now().isBefore(deadline)) {
+                if (sidecarReachable(sidecarPort) == expected) {
+                    return true;
+                }
+                Thread.sleep(250);
+            }
+            return false;
+        }
+
+        private boolean sidecarReachable(int sidecarPort) throws InterruptedException {
+            try {
+                HttpResponse<String> response = httpClient.send(
+                        HttpRequest.newBuilder(URI.create(
+                                "http://127.0.0.1:" + sidecarPort
+                                        + "/__probe/status?key=mcpjvm633.acceptance.HealthCheck%23status%3A1"))
+                                .timeout(Duration.ofSeconds(2)).GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+                return response.statusCode() == 200;
+            } catch (IOException ignored) {
+                return false;
+            }
         }
 
         @Override
@@ -1413,73 +563,6 @@ class McpServerStdioIT {
                 process.waitFor(2, TimeUnit.SECONDS);
             }
             assertThat(process.isAlive()).isFalse();
-        }
-    }
-
-    private static final class LargeAuthorizationServer implements AutoCloseable {
-
-        private final ServerSocket serverSocket;
-        private final String expectedAuthorization;
-        private final CountDownLatch requestObserved = new CountDownLatch(1);
-        private final AtomicReference<Throwable> failure = new AtomicReference<>();
-        private final ExecutorService executor = Executors.newSingleThreadExecutor();
-
-        private LargeAuthorizationServer(String expectedAuthorization) throws IOException {
-            this.expectedAuthorization = expectedAuthorization;
-            serverSocket = new ServerSocket();
-            serverSocket.bind(new InetSocketAddress("127.0.0.1", 0));
-            executor.submit(this::serve);
-        }
-
-        String url() {
-            return "http://127.0.0.1:" + serverSocket.getLocalPort() + "/authorization-check";
-        }
-
-        void awaitRequest() throws Exception {
-            assertThat(requestObserved.await(RESPONSE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)).isTrue();
-            Throwable observedFailure = failure.get();
-            if (observedFailure != null) {
-                throw new AssertionError("Large Authorization server failed", observedFailure);
-            }
-        }
-
-        private void serve() {
-            try (Socket socket = serverSocket.accept();
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(
-                            socket.getInputStream(), StandardCharsets.ISO_8859_1))) {
-                String authorization = null;
-                String line;
-                while ((line = reader.readLine()) != null && !line.isEmpty()) {
-                    if (line.regionMatches(true, 0, "Authorization:", 0, "Authorization:".length())) {
-                        authorization = line.substring("Authorization:".length()).trim();
-                    }
-                }
-                String observed = authorization == null ? "" : authorization;
-                byte[] body = JSON.writeValueAsBytes(Map.of(
-                        "observedLength", observed.length(),
-                        "expectedLength", expectedAuthorization.length(),
-                        "exactMatch", expectedAuthorization.equals(observed)));
-                OutputStream output = socket.getOutputStream();
-                output.write(("HTTP/1.1 200 OK\r\n"
-                        + "Content-Type: application/json\r\n"
-                        + "Content-Length: " + body.length + "\r\n"
-                        + "Connection: close\r\n\r\n").getBytes(StandardCharsets.ISO_8859_1));
-                output.write(body);
-                output.flush();
-            } catch (Throwable throwable) {
-                if (!serverSocket.isClosed()) {
-                    failure.set(throwable);
-                }
-            } finally {
-                requestObserved.countDown();
-            }
-        }
-
-        @Override
-        public void close() throws Exception {
-            serverSocket.close();
-            executor.shutdownNow();
-            assertThat(executor.awaitTermination(RESPONSE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)).isTrue();
         }
     }
 
@@ -1509,17 +592,6 @@ class McpServerStdioIT {
             return startProcess(command, workspaceRoot);
         }
 
-        static McpServerProcess startWithBoundaryFailure(Path jar, Path workspaceRoot) throws IOException {
-            List<String> command = new ArrayList<>(List.of(
-                    javaBinary(),
-                    "-Dmcp605.stdio.boundary-failure=true",
-                    "-Dloader.path=" + testClassesPath(),
-                    "-cp",
-                    jar.toString(),
-                    "org.springframework.boot.loader.launch.PropertiesLauncher"));
-            return startProcess(command, workspaceRoot);
-        }
-
         private static McpServerProcess startProcess(List<String> command, Path workspaceRoot) throws IOException {
             Process process = new ProcessBuilder(command)
                     .redirectErrorStream(false)
@@ -1528,9 +600,16 @@ class McpServerStdioIT {
         }
 
         void send(Map<String, Object> message) throws IOException {
-            stdin.write(JSON.writeValueAsBytes(message));
-            stdin.write('\n');
-            stdin.flush();
+            try {
+                stdin.write(JSON.writeValueAsBytes(message));
+                stdin.write('\n');
+                stdin.flush();
+            } catch (IOException failure) {
+                throw new IOException(
+                        "Could not write to the MCP server process (alive=" + process.isAlive()
+                                + ", stderr=" + stderrText() + ").",
+                        failure);
+            }
         }
 
         void send(JsonNode message) throws IOException {
@@ -1540,7 +619,11 @@ class McpServerStdioIT {
         }
 
         JsonNode responseFor(int id) throws Exception {
-            Instant deadline = Instant.now().plus(RESPONSE_TIMEOUT);
+            return responseFor(id, RESPONSE_TIMEOUT);
+        }
+
+        JsonNode responseFor(int id, Duration timeout) throws Exception {
+            Instant deadline = Instant.now().plus(timeout);
             while (Instant.now().isBefore(deadline)) {
                 String line = stdoutQueue.poll(100, TimeUnit.MILLISECONDS);
                 if (line == null) {
@@ -1564,6 +647,10 @@ class McpServerStdioIT {
 
         long processStartEpochMs() {
             return process.toHandle().info().startInstant().orElseThrow().toEpochMilli();
+        }
+
+        int exitCode() {
+            return process.exitValue();
         }
 
         private void respondToRootsRequest(JsonNode request) throws IOException {

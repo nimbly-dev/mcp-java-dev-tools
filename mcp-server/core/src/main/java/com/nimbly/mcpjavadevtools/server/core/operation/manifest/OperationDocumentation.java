@@ -21,9 +21,6 @@ public record OperationDocumentation(
         List<JsonNode> examples,
         List<String> tags,
         List<OperationAlias> aliases,
-        String since,
-        boolean deprecated,
-        String replacementOperationId,
         OperationSafetyPolicy safety) {
 
     /** Validates and deterministically copies documentation supplied by XML. */
@@ -35,8 +32,7 @@ public record OperationDocumentation(
         Objects.requireNonNull(examples, "operation examples must not be null");
         Objects.requireNonNull(tags, "operation tags must not be null");
         Objects.requireNonNull(aliases, "operation aliases must not be null");
-        Objects.requireNonNull(since, "operation since must not be null");
-        if (summary.isBlank() || description.isBlank() || classification.isBlank() || since.isBlank()
+        if (summary.isBlank() || description.isBlank() || classification.isBlank()
                 || summary.length() > 512 || description.length() > 8192) {
             throw new IllegalArgumentException("operation documentation is outside the supported bounds");
         }
@@ -74,15 +70,6 @@ public record OperationDocumentation(
             throw new IllegalArgumentException("duplicate operation alias");
         }
         aliases = normalizedAliases.stream().sorted().toList();
-        if (deprecated && (replacementOperationId == null || replacementOperationId.isBlank())) {
-            throw new IllegalArgumentException("deprecated operation must name a replacement");
-        }
-        if (!deprecated && replacementOperationId != null && !replacementOperationId.isBlank()) {
-            throw new IllegalArgumentException("replacement requires a deprecated operation");
-        }
-        if (replacementOperationId != null) {
-            OperationId.of(replacementOperationId);
-        }
     }
 
     @Override
@@ -93,8 +80,7 @@ public record OperationDocumentation(
     /** Returns documentation with the Java-owned safety policy applied. */
     public OperationDocumentation withSafety(OperationSafetyPolicy replacement) {
         return new OperationDocumentation(
-                summary, description, classification, arguments, examples, tags, aliases,
-                since, deprecated, replacementOperationId, replacement);
+                summary, description, classification, arguments, examples, tags, aliases, replacement);
     }
 
     /** Creates minimal documentation for a pre-manifest descriptor. */
@@ -107,9 +93,6 @@ public record OperationDocumentation(
                 List.of(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode()),
                 List.of(operationId.api()),
                 List.of(),
-                "legacy",
-                false,
-                null,
                 OperationSafetyPolicy.legacy(sideEffect));
     }
 }

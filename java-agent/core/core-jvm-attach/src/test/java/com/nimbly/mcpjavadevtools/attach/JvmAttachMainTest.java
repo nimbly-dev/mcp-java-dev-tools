@@ -48,6 +48,32 @@ class JvmAttachMainTest {
   }
 
   @Test
+  void discoversRunningJvmFromProcessHandlesWhenAttachIsDisabled() throws Exception {
+    Process fixture = new ProcessBuilder(
+        javaExecutable(),
+        "-XX:-UsePerfData",
+        "-XX:+DisableAttachMechanism",
+        "-cp",
+        System.getProperty("java.class.path"),
+        AttachFixture.class.getName()).start();
+    try {
+      assertTrue(fixture.isAlive());
+      String pid = Long.toString(fixture.pid());
+      JvmAttachMain.JvmCandidate candidate = JvmAttachMain.processHandleCandidates().stream()
+          .filter(value -> pid.equals(value.pid()))
+          .findFirst()
+          .orElseThrow();
+
+      assertEquals("sanitized_executable_basename", candidate.identitySource());
+      assertNotEquals("unavailable", candidate.identityHint());
+      assertTrue(candidate.processStartEpochMs() != null);
+    } finally {
+      fixture.destroyForcibly();
+      fixture.waitFor();
+    }
+  }
+
+  @Test
   void discoveryDoesNotClaimTargetAttachabilityOrProbeState() {
     JvmAttachMain.AttachResult result = JvmAttachMain.run(new String[] {"discover"});
 

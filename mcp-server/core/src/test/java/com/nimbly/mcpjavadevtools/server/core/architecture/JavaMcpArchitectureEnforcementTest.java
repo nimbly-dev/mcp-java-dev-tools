@@ -4,15 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
-import com.sun.source.tree.ExpressionTree;
-import com.sun.source.tree.IdentifierTree;
-import com.sun.source.tree.MemberSelectTree;
-import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.SourcePositions;
 import com.sun.source.util.TreePathScanner;
-import com.sun.source.util.TreeScanner;
 import com.sun.source.util.Trees;
 import java.io.IOException;
 import java.net.URI;
@@ -22,7 +17,6 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -40,7 +34,6 @@ class JavaMcpArchitectureEnforcementTest {
 
     private static final int MAX_CLASS_LINES = 250;
     private static final int MAX_METHODS = 12;
-    private static final int MAX_PRIVATE_BEHAVIOR_METHODS = 1;
     private static final Set<String> GENERIC_OWNER_NAMES = Set.of(
             "service", "manager", "helper", "util", "utility", "common", "shared");
     private static final Set<String> VISIBILITY_LAUNDERING_NAMES = Set.of(
@@ -75,7 +68,8 @@ class JavaMcpArchitectureEnforcementTest {
                 .isTrue();
         assertThat(Files.readString(contract))
                 .contains(
-                        "Status: normative for migrated Java MCP capabilities.",
+                        "Status: normative for existing capability-owned Java MCP catalogs;",
+                        "## #610/#611 CDE target and transition",
                         "## Catalog-Describe-Execute",
                         "OperationExposure",
                         "maximum 250 source lines per class",
@@ -95,17 +89,17 @@ class JavaMcpArchitectureEnforcementTest {
     }
 
     @Test
-    void rejectsPrivateWidthAndDepthInFixtures() {
+    void acceptsCohesivePrivateMethodCalls() {
         SourceShape shape = SourceShape.from(
-                "fixtures/PrivateWidthAndDepth.java",
+                "fixtures/PrivateMethods.java",
                 "package fixtures;\n"
-                        + "public class PrivateWidthAndDepth {\n"
+                        + "public class PrivateMethods {\n"
+                        + "    public String execute() { return first(); }\n"
                         + "    private String first() { return second(); }\n"
                         + "    private String second() { return \"done\"; }\n"
                         + "}\n");
 
-        assertThat(shape.violations())
-                .contains("private behavior method count: 2", "private helper chain: first -> second");
+        assertThat(shape.violations()).isEmpty();
     }
 
     @Test
@@ -466,37 +460,17 @@ class JavaMcpArchitectureEnforcementTest {
             long start = positions.getStartPosition(unit, type);
             long end = positions.getEndPosition(unit, type);
             int lineCount = lineCount(source, unit, start, end);
-            Set<String> privateNames = new HashSet<>();
-            for (MethodShape method : methods) {
-                if (method.privateBehavior()) {
-                    privateNames.add(method.name());
-                }
-            }
-            List<String> privateChains = new ArrayList<>();
-            for (MethodShape method : methods) {
-                if (!method.privateBehavior()) {
-                    continue;
-                }
-                for (String calledName : method.calledNames()) {
-                    if (privateNames.contains(calledName) && !calledName.equals(method.name())) {
-                        privateChains.add(method.name() + " -> " + calledName);
-                    }
-                }
-            }
             List<String> launderingNames = methods.stream()
                     .filter(MethodShape::publicOrProtected)
                     .map(MethodShape::name)
                     .filter(TypeBuilder::isVisibilityLaunderingName)
                     .toList();
-            int privateMethodCount = (int) methods.stream().filter(MethodShape::privateBehavior).count();
             return new SourceShape(
                     sourceName,
                     typeName,
                     lineCount,
                     methods.size(),
-                    privateMethodCount,
                     nestedTypeCount,
-                    List.copyOf(privateChains),
                     launderingNames);
         }
 
@@ -515,31 +489,13 @@ class JavaMcpArchitectureEnforcementTest {
         }
     }
 
-    private record MethodShape(
-            String name, boolean privateBehavior, boolean publicOrProtected, Set<String> calledNames) {
+    private record MethodShape(String name, boolean publicOrProtected) {
 
         private static MethodShape from(MethodTree method) {
             Set<Modifier> modifiers = method.getModifiers().getFlags();
-            Set<String> calledNames = new HashSet<>();
-            if (method.getBody() != null) {
-                new TreeScanner<Void, Set<String>>() {
-                    @Override
-                    public Void visitMethodInvocation(MethodInvocationTree node, Set<String> names) {
-                        ExpressionTree select = node.getMethodSelect();
-                        if (select instanceof IdentifierTree identifier) {
-                            names.add(identifier.getName().toString());
-                        } else if (select instanceof MemberSelectTree member) {
-                            names.add(member.getIdentifier().toString());
-                        }
-                        return super.visitMethodInvocation(node, names);
-                    }
-                }.scan(method.getBody(), calledNames);
-            }
             return new MethodShape(
                     method.getName().toString(),
-                    modifiers.contains(Modifier.PRIVATE),
-                    modifiers.contains(Modifier.PUBLIC) || modifiers.contains(Modifier.PROTECTED),
-                    Set.copyOf(calledNames));
+                    modifiers.contains(Modifier.PUBLIC) || modifiers.contains(Modifier.PROTECTED));
         }
     }
 
@@ -548,9 +504,7 @@ class JavaMcpArchitectureEnforcementTest {
             String typeName,
             int lineCount,
             int methodCount,
-            int privateBehaviorMethodCount,
             int nestedTypeCount,
-            List<String> privateHelperChains,
             List<String> visibilityLaunderingNames) {
 
         private static List<SourceShape> from(Path sourceFile) throws IOException {
@@ -574,12 +528,6 @@ class JavaMcpArchitectureEnforcementTest {
             }
             if (methodCount > MAX_METHODS) {
                 violations.add("method count: " + methodCount);
-            }
-            if (privateBehaviorMethodCount > MAX_PRIVATE_BEHAVIOR_METHODS) {
-                violations.add("private behavior method count: " + privateBehaviorMethodCount);
-            }
-            for (String privateHelperChain : privateHelperChains) {
-                violations.add("private helper chain: " + privateHelperChain);
             }
             if (nestedTypeCount > 0) {
                 violations.add("nested workflow types: " + nestedTypeCount);

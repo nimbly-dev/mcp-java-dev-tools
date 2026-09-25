@@ -338,13 +338,13 @@ class ProbeJvmLifecycleOperationRegistrationTest {
             assertThat(row.get("before")).isInstanceOf(Map.class);
             assertThat(row.get("after")).isInstanceOf(Map.class);
         });
-        assertThat(files).hasSize(24).allSatisfy(row ->
+        assertThat(files).hasSize(25).allSatisfy(row ->
                 assertThat(routingPath((String) row.get("path"))).isRegularFile());
         assertThat(files).filteredOn(row ->
-                "COMPATIBILITY_RETAINED_UNTIL_611".equals(row.get("classification")))
-                .hasSize(2).allSatisfy(row -> {
+                "MIGRATION_SOURCE_RETAINED_UNTIL_634".equals(row.get("classification")))
+                .hasSize(1).allSatisfy(row -> {
                     assertThat(row.get("caller")).isNotNull();
-                    assertThat(row.get("deletionCondition")).asString().contains("#611");
+                    assertThat(row.get("deletionCondition")).asString().contains("#634");
                 });
         Path evidence = Path.of("target", "mcpjvm-620-evidence");
         Files.createDirectories(evidence);
@@ -525,8 +525,12 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 routingFile(core + "jvmlifecycle/operation/JvmLifecycleOperationRegistrations.java", "CDE_REGISTRATION",
                         "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/operation/composition/"
                                 + "CoreOperationDirectory.java"),
-                compatibilityFile(app + "mcp/tools/probe/ProbeMcpTool.java", app + "configuration/ProbeConfiguration.java"),
-                compatibilityFile(app + "mcp/tools/jvmlifecycle/JvmLifecycleMcpTool.java", app + "configuration/JvmLifecycleConfiguration.java"));
+                migrationSourceFile(app + "mcp/tools/probe/ProbeMcpTool.java", app + "configuration/ProbeConfiguration.java"),
+                routingFile(app + "mcp/tools/operation/OperationMcpTools.java", "CDE_APPLICATION_ADAPTER",
+                        app + "configuration/OperationDirectoryConfiguration.java"),
+                routingFile(app + "configuration/OperationDirectoryConfiguration.java", "CDE_CORE_COMPOSITION",
+                        "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/operation/composition/"
+                                + "CoreOperationDirectory.java"));
     }
 
     private static Map<String, Object> routingFile(String path, String category, String caller) {
@@ -534,11 +538,11 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 "classification", "RETAINED", "caller", caller);
     }
 
-    private static Map<String, Object> compatibilityFile(String path, String caller) {
+    private static Map<String, Object> migrationSourceFile(String path, String caller) {
         return Map.of("path", path, "category", "LEGACY_APPLICATION_ADAPTER", "before", "PRESENT",
-                "after", "RETAINED", "classification", "COMPATIBILITY_RETAINED_UNTIL_611",
+                "after", "SOURCE_ONLY", "classification", "MIGRATION_SOURCE_RETAINED_UNTIL_634",
                 "caller", caller, "deletionCondition",
-                "#611 approves public CDE cutover, raw-STDIO parity passes, and removes this legacy Tool registration");
+                "#634 validates the Probe capability through CDE and removes this legacy adapter source");
     }
 
     private static Path routingPath(String repositoryPath) {
@@ -808,7 +812,7 @@ class ProbeJvmLifecycleOperationRegistrationTest {
     }
 
     private static ObjectNode mutationInput(ObjectNode input, boolean attach) {
-        input.put("pid", "1234").put("expectedProcessStartEpochMs", 1).put("confirm", true);
+        input.put("pid", "1234").put("expectedProcessStartEpochMs", 1);
         if (attach) {
             input.put("probeHost", "127.0.0.1").put("probePort", 9191);
         }

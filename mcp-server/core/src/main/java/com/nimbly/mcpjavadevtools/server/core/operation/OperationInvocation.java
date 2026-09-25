@@ -11,22 +11,16 @@ import java.util.Objects;
 public record OperationInvocation(
         OperationId operationId,
         JsonNode input,
-        boolean confirmed,
-        boolean allowDeprecated) {
+        boolean confirmed) {
 
     /** Normalizes absent JSON input while retaining exact operation identity. */
     public OperationInvocation {
         input = input == null ? NullNode.getInstance() : boundedSnapshot(input);
     }
 
-    /** Creates an invocation with no confirmation and no deprecated override. */
+    /** Creates an invocation with no confirmation. */
     public OperationInvocation(OperationId operationId, JsonNode input) {
-        this(operationId, input, false, false);
-    }
-
-    /** Creates an invocation with optional safety confirmation. */
-    public OperationInvocation(OperationId operationId, JsonNode input, boolean confirmed) {
-        this(operationId, input, confirmed, false);
+        this(operationId, input, false);
     }
 
     @Override

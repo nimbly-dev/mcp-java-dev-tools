@@ -363,12 +363,12 @@ class CoreOperationDirectoryTest {
         assertThat(OperationSchemaValidator.violations(original.inputSchema(), input))
                 .as(operationId.value()).isEmpty();
         OperationExecutionResult invalid = directory.execute(new OperationInvocation(
-                operationId, JSON.getNodeFactory().textNode("invalid-root"), true, true));
+                operationId, JSON.getNodeFactory().textNode("invalid-root"), true));
         assertThat(invalid.status()).isEqualTo(OperationExecutionStatus.INVALID_INPUT);
         assertThat(calls).as(operationId.value()).hasValue(0);
 
         OperationExecutionResult execution = directory.execute(
-                new OperationInvocation(operationId, input, true, true));
+                new OperationInvocation(operationId, input, true));
 
         assertThat(calls).as(operationId.value() + ": " + execution.reasonCode()).hasValue(1);
         assertThat(request.get()).isInstanceOf(original.requestType());

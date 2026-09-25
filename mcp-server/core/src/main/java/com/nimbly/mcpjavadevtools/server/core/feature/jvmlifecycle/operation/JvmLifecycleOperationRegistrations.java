@@ -12,6 +12,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationRequestDecoder;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
@@ -62,15 +63,27 @@ public class JvmLifecycleOperationRegistrations {
                         schema(action), CoreOperationResultSchemas.jvmLifecycle(),
                         CoreOperationSafetyPolicy.forOperation(
                                 descriptor.operationId().value(), descriptor.trace().sideEffect())),
-                OperationRequestDecoders.typed(mapper.copy()
-                                .setSerializationInclusion(JsonInclude.Include.NON_NULL),
-                        JvmLifecycleInput.class),
+                cdeInputDecoder(action, mapper.copy()
+                        .setSerializationInclusion(JsonInclude.Include.NON_NULL)),
                 ContextAwareOperationExecutor.declared(OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION,
                         OperationCancellationGuarantee.DELEGATED_DEADLINE,
                         (input, context) -> owner.execute(factory.create(action, input))),
                 OperationResultEncoders.typed(mapper, JvmLifecycleResult.class),
                 CoreOperationDirectory.class.getName(),
                 identity(action));
+    }
+
+    private static BoundedOperationRequestDecoder<JvmLifecycleInput>
+            cdeInputDecoder(JvmLifecycleAction action, ObjectMapper mapper) {
+        return OperationRequestDecoders.wrap(mapper, JvmLifecycleInput.class, input -> {
+            JvmLifecycleInput decoded = mapper.convertValue(input, JvmLifecycleInput.class);
+            Boolean confirmed = action == JvmLifecycleAction.LIST_JVMS ? null : Boolean.TRUE;
+            return new JvmLifecycleInput(
+                    decoded.pid(), decoded.expectedProcessStartEpochMs(), confirmed,
+                    decoded.probeHost(), decoded.probePort(), decoded.include(), decoded.exclude());
+        }, request -> mapper.valueToTree(new JvmLifecycleInput(
+                request.pid(), request.expectedProcessStartEpochMs(), null,
+                request.probeHost(), request.probePort(), request.include(), request.exclude())));
     }
 
     @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
@@ -81,9 +94,7 @@ public class JvmLifecycleOperationRegistrations {
                     .put("pattern", "[1-9][0-9]*");
             root.with("properties").putObject("expectedProcessStartEpochMs")
                     .put("type", "integer").put("minimum", 1);
-            root.with("properties").putObject("confirm").put("type", "boolean")
-                    .putArray("enum").add(true);
-            CanonicalOperationSchema.required(root, "pid", "expectedProcessStartEpochMs", "confirm");
+            CanonicalOperationSchema.required(root, "pid", "expectedProcessStartEpochMs");
         }
         if (action == JvmLifecycleAction.ATTACH) {
             CanonicalOperationSchema.string(root, "probeHost").put("minLength", 1).put("maxLength", 255)

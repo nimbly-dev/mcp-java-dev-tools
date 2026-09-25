@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -57,7 +58,94 @@ public final class JvmAttachMain {
         candidates.add(candidate(descriptor));
       }
     }
+    if (candidates.size() < MAX_DISCOVERED_PROCESSES) {
+      for (JvmCandidate candidate : processHandleCandidates()) {
+        if (candidates.size() == MAX_DISCOVERED_PROCESSES) {
+          break;
+        }
+        if (!pids.contains(candidate.pid())) {
+          pids.add(candidate.pid());
+          candidates.add(candidate);
+        }
+      }
+    }
     return AttachResult.discovered(pids, candidates);
+  }
+
+  static List<JvmCandidate> processHandleCandidates() {
+    List<ProcessHandle> processes;
+    try (var running = ProcessHandle.allProcesses()) {
+      processes = running
+          .sorted(Comparator.comparingLong(ProcessHandle::pid))
+          .toList();
+    } catch (SecurityException | UnsupportedOperationException exception) {
+      return List.of();
+    }
+
+    String selfPid = Long.toString(ProcessHandle.current().pid());
+    List<JvmCandidate> candidates = new ArrayList<>();
+    for (ProcessHandle process : processes) {
+      if (candidates.size() == MAX_DISCOVERED_PROCESSES) {
+        break;
+      }
+      String pid = Long.toString(process.pid());
+      if (selfPid.equals(pid)) {
+        continue;
+      }
+      ProcessHandle.Info info;
+      try {
+        info = process.info();
+      } catch (SecurityException exception) {
+        continue;
+      }
+      String command = info.command().orElse(null);
+      if (isJvmExecutable(command)) {
+        candidates.add(candidate(process, info, command));
+      }
+    }
+    return List.copyOf(candidates);
+  }
+
+  private static boolean isJvmExecutable(String command) {
+    String executable = basename(command);
+    return "java".equalsIgnoreCase(executable)
+        || "java.exe".equalsIgnoreCase(executable)
+        || "javaw".equalsIgnoreCase(executable)
+        || "javaw.exe".equalsIgnoreCase(executable);
+  }
+
+  private static JvmCandidate candidate(
+      ProcessHandle process, ProcessHandle.Info info, String command) {
+    String identityHint = sanitizeToken(basename(command));
+    String identitySource = identityHint == null
+        ? "unavailable"
+        : "sanitized_executable_basename";
+    Set<String> evidence = processFrameworkEvidence(info.arguments().orElse(new String[0]));
+    String frameworkHint = evidence.isEmpty() ? "unknown" : "spring_boot_candidate";
+    Long processStart = info.startInstant().map(Instant::toEpochMilli).orElse(null);
+    return new JvmCandidate(
+        Long.toString(process.pid()),
+        identityHint,
+        identitySource,
+        frameworkHint,
+        List.copyOf(evidence),
+        processStart);
+  }
+
+  private static Set<String> processFrameworkEvidence(String[] arguments) {
+    Set<String> evidence = new LinkedHashSet<>();
+    for (int index = 0; index < arguments.length; index++) {
+      String argument = stripQuotes(arguments[index]);
+      if (isSpringBootLauncher(argument)) {
+        evidence.add("spring_boot_launcher");
+      }
+      if ("-jar".equals(argument)
+          && index + 1 < arguments.length
+          && isExecutableJar(basename(stripQuotes(arguments[index + 1])))) {
+        evidence.add("executable_jar_name");
+      }
+    }
+    return evidence;
   }
 
   private static JvmCandidate candidate(VirtualMachineDescriptor descriptor) {

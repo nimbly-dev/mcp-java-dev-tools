@@ -83,7 +83,7 @@ public class OperationDirectory {
 
     /** Convenience exact-ID execution entry point. */
     public OperationExecutionResult execute(OperationId operationId, JsonNode input) {
-        return OperationInvocationExecution.run(manifest, mapper, operationId, input, false, false);
+        return OperationInvocationExecution.run(manifest, mapper, operationId, input, false);
     }
 
     /** @return the immutable assembled manifest */

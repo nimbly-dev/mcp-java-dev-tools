@@ -17,6 +17,6 @@ public class OperationInvocationExecutionBridge {
         Objects.requireNonNull(invocation, "invocation must not be null");
         return OperationInvocationExecution.run(
                 manifest, mapper, invocation.operationId(), invocation.rawInput(),
-                invocation.confirmed(), invocation.allowDeprecated());
+                invocation.confirmed());
     }
 }

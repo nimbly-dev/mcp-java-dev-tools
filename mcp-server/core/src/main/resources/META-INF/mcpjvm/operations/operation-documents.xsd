@@ -53,7 +53,6 @@
       <xs:element name="aliases" type="aliasesType" minOccurs="0"/>
       <xs:element name="arguments" type="argumentsType" minOccurs="0"/>
       <xs:element name="examples" type="examplesType" minOccurs="0"/>
-      <xs:element name="compatibility" type="compatibilityType" minOccurs="0"/>
       <xs:element name="safety" type="safetyType" minOccurs="0"/>
     </xs:sequence>
     <xs:attribute name="name" type="identifierType" use="required"/>
@@ -93,11 +92,6 @@
     <xs:sequence>
       <xs:element name="example" type="xs:string" minOccurs="1" maxOccurs="16"/>
     </xs:sequence>
-  </xs:complexType>
-  <xs:complexType name="compatibilityType">
-    <xs:attribute name="since" type="xs:string" use="optional"/>
-    <xs:attribute name="replacement" type="xs:string" use="optional"/>
-    <xs:attribute name="deprecated" type="xs:boolean" use="optional"/>
   </xs:complexType>
   <xs:complexType name="safetyType">
     <xs:attribute name="sideEffect" type="xs:string" use="required"/>

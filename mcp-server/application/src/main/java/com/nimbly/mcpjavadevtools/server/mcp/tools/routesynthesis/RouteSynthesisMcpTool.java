@@ -14,7 +14,6 @@ import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /**
  * Thin Spring AI adapter for the complete Route Synthesis MCP Tool.
@@ -24,7 +23,6 @@ import org.springframework.stereotype.Component;
  * because the SDK's generated carrier cannot preserve the action/input
  * {@code oneOf} relationship.</p>
  */
-@Component
 public class RouteSynthesisMcpTool {
 
     private final RouteSynthesisFeature feature;

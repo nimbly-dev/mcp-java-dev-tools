@@ -20,7 +20,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
-import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifest;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationValueRedactor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
@@ -62,8 +61,7 @@ public class OperationInvocationExecution {
             ObjectMapper mapper,
             OperationId operationId,
             JsonNode input,
-            boolean confirmed,
-            boolean allowDeprecated) {
+            boolean confirmed) {
         Objects.requireNonNull(manifest, "manifest must not be null");
         Objects.requireNonNull(mapper, "mapper must not be null");
         if (operationId == null) {
@@ -74,11 +72,6 @@ public class OperationInvocationExecution {
         if (registration == null) {
             return failure(operationId, OperationExecutionStatus.UNSUPPORTED_OPERATION,
                     "unsupported_operation", "The operation ID is not registered.");
-        }
-        OperationDescriptor descriptor = registration.descriptor();
-        if (descriptor.documentation().deprecated() && !allowDeprecated) {
-            return failure(operationId, OperationExecutionStatus.DEPRECATED_OPERATION,
-                    "operation_deprecated", "The operation is deprecated.");
         }
         if (registration.safety().confirmationRequired() && !confirmed) {
             return failure(operationId, OperationExecutionStatus.CONFIRMATION_REQUIRED,
@@ -217,7 +210,6 @@ public class OperationInvocationExecution {
             ObjectMapper mapper,
             JsonNode result,
             OperationExecutionContext context) {
-        OperationDescriptor descriptor = registration.descriptor();
         OperationExecutionResult preflight = OperationPayloadValidation.output(
                 registration, mapper, result, false, context);
         if (preflight != null) {
@@ -228,11 +220,11 @@ public class OperationInvocationExecution {
             safeResult = OperationValueRedactor.redact(
                     result, registration.safety().redactionPolicy(), context::cancellationRequested);
             if (safeResult == null) {
-                return context.deadlineExpired() ? timeout(descriptor.operationId())
-                        : cancelled(descriptor.operationId());
+                return context.deadlineExpired() ? timeout(registration.descriptor().operationId())
+                        : cancelled(registration.descriptor().operationId());
             }
         } catch (RuntimeException exception) {
-            return failure(descriptor.operationId(), OperationExecutionStatus.FAILED,
+            return failure(registration.descriptor().operationId(), OperationExecutionStatus.FAILED,
                     "operation_redaction_failed", "The operation result could not be redacted safely.");
         }
         OperationExecutionResult validation = OperationPayloadValidation.output(
@@ -241,7 +233,7 @@ public class OperationInvocationExecution {
             return validation;
         }
         return new OperationExecutionResult(
-                descriptor.operationId(),
+                registration.descriptor().operationId(),
                 OperationExecutionStatus.SUCCEEDED,
                 safeResult,
                 "operation_succeeded",

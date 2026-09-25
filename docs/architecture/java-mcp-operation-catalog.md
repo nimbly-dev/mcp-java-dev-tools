@@ -160,24 +160,22 @@ Application composition for the rollout group is covered separately by the
 configuration, MCP adapter, parity, and packaged STDIO tests; it is not part of
 this Core AST structural enforcement test.
 
-The test uses the Java compiler AST for class, method, visibility, nesting, and
-private-call analysis. It does not use source regular expressions, so comments,
+The test uses the Java compiler AST for class, method, visibility, and
+nesting analysis. It does not use source regular expressions, so comments,
 strings, formatting, and equivalent syntax cannot bypass the checks.
 
 - maximum 250 source lines per class file;
 - maximum 12 declared methods per class file;
-- at most one private behavior method per class file;
-- no private-helper call chains;
 - no nested workflow types;
 - no generic `Service`, `Manager`, `Helper`, `Util`, `Common`, or `Shared`
   owners or package segments;
 - no public visibility-laundering methods named as helpers, delegates, utility,
   internal, or pass-through code.
 
-The same test contains compliant and non-compliant source fixtures for private
-width/depth, class/method sprawl, nested types, generic owners, and visibility
-laundering. Checkstyle and PMD continue to provide the existing method-level
-limits; this focused test adds the operation-ownership rules without imposing a
+The same test accepts cohesive private-method calls and contains compliant and
+non-compliant source fixtures for class/method sprawl, nested types, generic
+owners, and visibility laundering. Checkstyle and PMD continue to provide the
+existing method-level limits; this focused test adds the operation-ownership rules without imposing a
 retroactive bulk refactor on capabilities assigned to later migration stories.
 
 ## Migration guidance

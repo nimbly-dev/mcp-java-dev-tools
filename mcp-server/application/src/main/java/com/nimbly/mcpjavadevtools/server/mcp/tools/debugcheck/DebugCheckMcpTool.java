@@ -6,9 +6,7 @@ import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
-import org.springframework.stereotype.Component;
 
-@Component
 @RequiredArgsConstructor
 public class DebugCheckMcpTool {
 

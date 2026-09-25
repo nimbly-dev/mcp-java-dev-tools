@@ -472,7 +472,7 @@ public class OperationKernelTest {
         OperationDocumentation documentation = new OperationDocumentation(
                 "Echo", "Echoes a request.", "demo", List.of(),
                 List.of(JSON.createObjectNode()), List.of("kernel"),
-                List.of(new OperationAlias("demo", "echo")), "1", false, null, policy);
+                List.of(new OperationAlias("demo", "echo")), policy);
         return new OperationDirectory(
                 List.of(registration), new com.nimbly.mcpjavadevtools.server.core.operation.manifest
                         .OperationManifestDocument(1, Map.of(OperationId.of(id), documentation)));

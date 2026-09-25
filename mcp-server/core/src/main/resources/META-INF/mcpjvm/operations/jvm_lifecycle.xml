@@ -29,7 +29,6 @@
     <arguments>
       <argument name="pid" description="Target JVM process identifier." type="string" required="true" />
       <argument name="expectedProcessStartEpochMs" description="Expected JVM start time." type="integer" required="true" />
-      <argument name="confirm" description="Confirmation flag." type="boolean" required="true" />
       <argument name="probeHost" description="Probe host override." type="string" required="false">
         <default>"127.0.0.1"</default>
       </argument>
@@ -40,7 +39,7 @@
       <argument name="exclude" description="Probe exclude selector." type="string" required="false" />
     </arguments>
     <examples>
-      <example>{"pid":"1234","expectedProcessStartEpochMs":1,"confirm":true}</example>
+      <example>{"pid":"1234","expectedProcessStartEpochMs":1}</example>
     </examples>
     <safety sideEffect="sidecar_agent_attach" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
@@ -57,10 +56,9 @@
     <arguments>
       <argument name="pid" description="Target JVM process identifier." type="string" required="true" />
       <argument name="expectedProcessStartEpochMs" description="Expected JVM start time." type="integer" required="true" />
-      <argument name="confirm" description="Confirmation flag." type="boolean" required="true" />
     </arguments>
     <examples>
-      <example>{"pid":"1234","expectedProcessStartEpochMs":1,"confirm":true}</example>
+      <example>{"pid":"1234","expectedProcessStartEpochMs":1}</example>
     </examples>
     <safety sideEffect="sidecar_agent_deactivate" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>

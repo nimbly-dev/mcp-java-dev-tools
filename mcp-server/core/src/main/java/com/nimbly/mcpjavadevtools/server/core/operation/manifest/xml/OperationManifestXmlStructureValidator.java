@@ -24,7 +24,7 @@ final class OperationManifestXmlStructureValidator {
     private static final int MAX_ALIASES = 16;
     private static final int MAX_EXAMPLES = 16;
     private static final Set<String> LEGACY_OPERATION_ATTRIBUTES = Set.of(
-            "id", "summary", "description", "classification", "since", "replacement", "deprecated");
+            "id", "summary", "description", "classification");
 
     private OperationManifestXmlStructureValidator() {
     }
@@ -53,7 +53,6 @@ final class OperationManifestXmlStructureValidator {
                 case "safety" -> attributes(child, Set.of(
                         "sideEffect", "confirmationRequired", "credentialPolicy", "redactionPolicy",
                         "timeoutMs", "cancellable", "maxInputBytes", "maxOutputBytes"));
-                case "compatibility" -> attributes(child, Set.of("since", "replacement", "deprecated"));
                 default -> throw new IllegalArgumentException(
                         "operation documentation contains an unsupported element");
             }
@@ -67,7 +66,7 @@ final class OperationManifestXmlStructureValidator {
             case "examples" -> validateExamples(element);
             case "tags" -> validateTags(element);
             case "aliases" -> validateAliases(element);
-            case "safety", "compatibility", "summary", "description", "classification" -> {
+            case "safety", "summary", "description", "classification" -> {
                 if (!children(element, null).isEmpty()) {
                     throw new IllegalArgumentException("operation documentation contains unsupported nesting");
                 }

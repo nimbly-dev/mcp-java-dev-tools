@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
 class RouteSynthesisConfigurationTest {
 
     @Test
-    void registersTheFullCorrelatedRouteSynthesisSchema() throws Exception {
-        assertThat(RouteSynthesisMcpTool.class.isAnnotationPresent(Component.class)).isTrue();
+    void keepsTheLegacySchemaCorrelatedWithoutSpringRegistration() throws Exception {
+        assertThat(RouteSynthesisMcpTool.class.isAnnotationPresent(Component.class)).isFalse();
         assertThat(RouteSynthesisMcpTool.class
                 .getDeclaredMethod("execute", String.class,
                         com.nimbly.mcpjavadevtools.server.mcp.tools.routesynthesis.RouteSynthesisMcpActionInput.class)

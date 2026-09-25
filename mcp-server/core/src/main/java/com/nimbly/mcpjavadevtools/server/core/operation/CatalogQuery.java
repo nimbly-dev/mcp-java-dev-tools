@@ -23,9 +23,6 @@ public record CatalogQuery(
         search = normalize(search);
         api = normalize(api);
         classification = normalize(classification);
-        if (limit == 0) {
-            limit = DEFAULT_LIMIT;
-        }
         if (limit < 1 || limit > MAX_LIMIT) {
             throw new OperationDirectoryException(
                     OperationExecutionStatus.INVALID_INPUT,

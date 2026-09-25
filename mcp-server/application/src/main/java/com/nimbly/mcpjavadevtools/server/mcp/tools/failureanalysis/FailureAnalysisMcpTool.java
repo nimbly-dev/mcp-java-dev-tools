@@ -14,10 +14,8 @@ import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /** Thin Spring AI Application Adapter for the complete failure_analysis Tool. */
-@Component
 public class FailureAnalysisMcpTool {
 
     private final FailureAnalysisFeature feature;

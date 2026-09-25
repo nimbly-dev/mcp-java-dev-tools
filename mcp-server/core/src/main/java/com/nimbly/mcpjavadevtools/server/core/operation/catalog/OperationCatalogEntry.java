@@ -13,8 +13,7 @@ public record OperationCatalogEntry(
         String operation,
         String classification,
         String summary,
-        List<String> tags,
-        boolean deprecated) {
+        List<String> tags) {
 
     /** Validates and copies one compact catalog row. */
     public OperationCatalogEntry {
@@ -35,7 +34,6 @@ public record OperationCatalogEntry(
                 descriptor.operation(),
                 descriptor.classification(),
                 descriptor.summary(),
-                descriptor.documentation().tags(),
-                descriptor.documentation().deprecated());
+                descriptor.documentation().tags());
     }
 }

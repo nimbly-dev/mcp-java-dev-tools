@@ -36,7 +36,11 @@ class OperationRelocationApiCompatibilityTest {
             BASELINE_OPERATION_PACKAGE + ".OperationLegacyIdentity");
     private static final Set<String> INTENTIONALLY_REPLACED_API_TYPES = Set.of(
             BASELINE_OPERATION_PACKAGE + ".Operation",
-            BASELINE_OPERATION_PACKAGE + ".OperationRegistration");
+            BASELINE_OPERATION_PACKAGE + ".OperationRegistration",
+            BASELINE_OPERATION_PACKAGE + ".OperationInvocation",
+            BASELINE_OPERATION_PACKAGE + ".OperationCatalogEntry",
+            BASELINE_OPERATION_PACKAGE + ".OperationDocumentation",
+            BASELINE_OPERATION_PACKAGE + ".OperationExecutionStatus");
 
     @Test
     void baselineOperationTypesKeepTheirResolvedApiAfterRelocation() throws Exception {
@@ -111,9 +115,9 @@ class OperationRelocationApiCompatibilityTest {
                     + BASELINE_OPERATION_PACKAGE + ".OperationExecutionResult|name=run|params=["
                     + BASELINE_OPERATION_PACKAGE + ".OperationManifest, "
                     + "com.fasterxml.jackson.databind.ObjectMapper, " + BASELINE_OPERATION_PACKAGE
-                    + ".OperationId, com.fasterxml.jackson.databind.JsonNode, boolean, boolean]|throws=[]|descriptor=(L"
+                    + ".OperationId, com.fasterxml.jackson.databind.JsonNode, boolean]|throws=[]|descriptor=(L"
                     + descriptorPackage + "/OperationManifest;Lcom/fasterxml/jackson/databind/ObjectMapper;L"
-                    + descriptorPackage + "/OperationId;Lcom/fasterxml/jackson/databind/JsonNode;ZZ)L"
+                    + descriptorPackage + "/OperationId;Lcom/fasterxml/jackson/databind/JsonNode;Z)L"
                     + descriptorPackage + "/OperationExecutionResult;|varargs=false");
         }
         return Set.of();

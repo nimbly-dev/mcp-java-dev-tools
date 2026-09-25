@@ -16,12 +16,10 @@ import java.util.List;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /**
  * Thin Spring AI Application Adapter for the complete consolidated Probe MCP Tool.
  */
-@Component
 public final class ProbeMcpTool {
 
     /** Stable MCP Tool name consumed by the Probe operation catalog. */

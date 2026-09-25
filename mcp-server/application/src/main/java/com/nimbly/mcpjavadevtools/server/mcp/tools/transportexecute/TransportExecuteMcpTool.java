@@ -16,10 +16,8 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /** Thin Spring AI Application Adapter for the complete transport_execute Tool. */
-@Component
 public class TransportExecuteMcpTool {
 
     private final TransportExecutionFeature feature;

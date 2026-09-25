@@ -10,10 +10,8 @@ import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionRequest;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.action.McpActionResponse;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.stereotype.Component;
 
 /** Thin Spring AI adapter exposing execution_orchestration's execute action. */
-@Component
 public final class ExecutionOrchestrationMcpTool {
 
     private final ExecutionOrchestrationFeature feature;

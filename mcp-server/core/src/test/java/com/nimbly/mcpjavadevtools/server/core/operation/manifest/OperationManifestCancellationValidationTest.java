@@ -44,7 +44,7 @@ public class OperationManifestCancellationValidationTest {
         OperationDocumentation documentation = new OperationDocumentation(
                 "Echo", "Echoes a request.", "demo", List.of(),
                 List.of(JSON.createObjectNode()), List.of("demo"),
-                List.of(new OperationAlias("demo", "echo")), "1", false, null, policy);
+                List.of(new OperationAlias("demo", "echo")), policy);
         OperationManifestDocument document = new OperationManifestDocument(
                 1, Map.of(id, documentation));
 
@@ -210,7 +210,7 @@ public class OperationManifestCancellationValidationTest {
                 OperationId.of("demo.echo"), new OperationDocumentation(
                         "Echo", "Echoes a request.", "demo", List.of(),
                         List.of(JSON.createObjectNode()), List.of("demo"),
-                        List.of(new OperationAlias("demo", "echo")), "1", false, null, policy)));
+                        List.of(new OperationAlias("demo", "echo")), policy)));
     }
 
     private ContextAwareOperationExecutor<Request, Result> boundedNonCancellable(
