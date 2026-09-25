@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.DefaultExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
@@ -47,7 +46,7 @@ class ExecutionProfileExportConfigurationTest {
             assertThat(context.getBeansOfType(ExecutionProfileExportArtifactInputMapper.class)).isEmpty();
             assertThat(context.getBeansOfType(ExportExecutionProfileOperation.class)).isEmpty();
             assertThat(context.getBean(ExecutionProfileExportFeature.class))
-                    .isInstanceOf(DefaultExecutionProfileExportFeature.class);
+                    .isInstanceOf(ExecutionProfileExportOperationCatalog.class);
 
             ExecutionProfileExportOperationCatalog catalog =
                     context.getBean(ExecutionProfileExportOperationCatalog.class);
@@ -76,7 +75,7 @@ class ExecutionProfileExportConfigurationTest {
     }
 
     @Test
-    void retainsOnlyTheThreeIntentionalReferenceConfigurationBeans() {
+    void retainsOnlyTheTwoIntentionalReferenceConfigurationBeans() {
         List<String> beanMethods = Arrays.stream(ExecutionProfileExportConfiguration.class.getDeclaredMethods())
                 .filter(method -> method.isAnnotationPresent(Bean.class))
                 .map(Method::getName)
@@ -84,8 +83,7 @@ class ExecutionProfileExportConfigurationTest {
 
         assertThat(beanMethods).containsExactlyInAnyOrder(
                 "executionProfileExportMcpSchemaPostProcessor",
-                "executionProfileExportOperationCatalog",
-                "executionProfileExportFeature");
+                "executionProfileExportOperationCatalog");
     }
 
     @Test

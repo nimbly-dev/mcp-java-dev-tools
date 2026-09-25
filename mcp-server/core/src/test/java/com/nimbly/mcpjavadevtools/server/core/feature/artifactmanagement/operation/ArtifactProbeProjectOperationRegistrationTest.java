@@ -17,6 +17,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.operation.ArtifactOperationArguments;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.registry.ProbeRegistration;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistry;
@@ -279,6 +280,10 @@ class ArtifactProbeProjectOperationRegistrationTest {
         seed(action, canonicalRoot);
         seed(action, legacyRoot);
         ObjectNode input = parityInput(action);
+        ArtifactManagementRequest expectedRequest = new ArtifactManagementRequest(
+                action.artifactType(), action.action(), input);
+        assertThat(ArtifactOperationRegistrations.decode(
+                action, new ArtifactOperationArguments(input))).isEqualTo(expectedRequest);
 
         OperationExecutionResult canonicalResult = canonical.directory().execute(new OperationInvocation(
                 OperationId.of(operationId(action)), input, mutating(action)));

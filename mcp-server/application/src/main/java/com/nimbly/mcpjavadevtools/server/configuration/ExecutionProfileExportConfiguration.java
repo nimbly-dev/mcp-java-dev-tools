@@ -2,7 +2,6 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.DefaultExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
@@ -31,12 +30,6 @@ public class ExecutionProfileExportConfiguration {
             ObjectMapper objectMapper, ExecutionExportArtifactGateway artifactGateway) {
         return createExecutionProfileExportOperationCatalog(
                 objectMapper, artifactGateway, ExecutionProfileExportMcpTool.operationExposure());
-    }
-
-    @Bean
-    ExecutionProfileExportFeature executionProfileExportFeature(
-            ExecutionProfileExportOperationCatalog operationCatalog) {
-        return new DefaultExecutionProfileExportFeature(operationCatalog);
     }
 
     static ExecutionProfileExportOperationCatalog createExecutionProfileExportOperationCatalog(

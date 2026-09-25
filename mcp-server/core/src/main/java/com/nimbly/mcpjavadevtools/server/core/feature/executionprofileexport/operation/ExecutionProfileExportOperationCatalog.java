@@ -1,5 +1,6 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation;
 
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
@@ -12,7 +13,7 @@ import java.util.List;
 import java.util.Objects;
 
 /** Capability-owned Catalog-Describe-Execute surface for export. */
-public class ExecutionProfileExportOperationCatalog {
+public class ExecutionProfileExportOperationCatalog implements ExecutionProfileExportFeature {
 
     public static final String TOOL_NAME = "execution_profile_export";
     public static final String ACTION = "export";
@@ -58,6 +59,14 @@ public class ExecutionProfileExportOperationCatalog {
         return catalog.execute(action, request);
     }
 
+    /** Executes the exported action through the same capability catalog. */
+    @Override
+    public ExecutionProfileExportResult execute(ExecutionProfileExportRequest request) {
+        if (request == null || request.action() == null) {
+            return ExecutionProfileExportResult.invalidRequest();
+        }
+        return execute(request.action(), request);
+    }
     /** @return generated Tool-to-Operation inventory */
     public List<OperationTraceEntry> traceInventory() {
         return catalog.traceInventory();

@@ -10,9 +10,11 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.Artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.ExecutionOrchestrationActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.impl.ExecuteExecutionOrchestrationAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.action.ExecutionOrchestrationAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.request.ExecutionOrchestrationRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.result.ExecutionOrchestrationResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.ExecutionRunLease;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lifecycle.ExecutionRuntimeLifecycle;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionRunDirectoryProvider;
@@ -28,6 +30,11 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancella
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationInvocation;
+import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationJsonSize;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationValueRedactor;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
@@ -38,6 +45,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
 
@@ -219,6 +228,94 @@ class ExecuteExecutionOrchestrationActionTest {
     }
 
     @Test
+    void canonicalDirectoryExecutesPersistedOrchestrationWithResultPolicy() throws Exception {
+        Map<String, JsonNode> runs = new HashMap<>();
+        var feature = (DefaultExecutionOrchestrationFeature) feature(statefulArtifacts(runs));
+        ExecutionOrchestrationActionHandler realOwner =
+                feature.operationOwner(ExecutionOrchestrationAction.EXECUTE);
+        AtomicInteger ownerCalls = new AtomicInteger();
+        AtomicReference<ExecutionOrchestrationRequest> typedRequest = new AtomicReference<>();
+        AtomicReference<ExecutionOrchestrationResult> ownerResult = new AtomicReference<>();
+        OperationDirectory directory = orchestrationDirectory(orchestrationHandler(request -> {
+            ownerCalls.incrementAndGet();
+            typedRequest.set(request);
+            ExecutionOrchestrationResult result = realOwner.execute(request);
+            ownerResult.set(result);
+            return result;
+        }));
+        OperationId id = OperationId.of("execution_orchestration.execute");
+        var registration = directory.manifest().registration(id);
+        JsonNode input = mapper.readTree("""
+                {"projectName":"demo","executionProfile":"nightly",
+                "suiteRunId":"canonical-proof","maxPlansPerCall":1}
+                """);
+
+        assertThat(OperationSchemaValidator.violations(registration.inputSchema(), input)).isEmpty();
+        var execution = directory.execute(new OperationInvocation(id, input, true));
+
+        assertThat(execution.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
+        assertThat(ownerCalls).hasValue(1);
+        assertThat(typedRequest.get().action()).isEqualTo(ExecutionOrchestrationAction.EXECUTE);
+        assertThat(typedRequest.get().input()).isEqualTo(input);
+        assertThat(registration.provenance().resultComparison())
+                .isEqualTo("execution_orchestration_status_reason_next_action_and_details_preserved");
+        assertThat(registration.provenance().parityScenario())
+                .isEqualTo("execution_orchestration_execute_public_request_contract");
+        assertThat(execution.result().path("status").asText()).isEqualTo("in_progress");
+        assertThat(execution.result().path("details").path("nextPlanOrder").asInt()).isEqualTo(2);
+        JsonNode expected = OperationValueRedactor.redact(
+                mapper.valueToTree(ownerResult.get()), registration.safety().redactionPolicy());
+        assertThat(execution.result().toString()).isEqualTo(expected.toString());
+        assertThat(OperationSchemaValidator.violations(registration.resultSchema(), execution.result()))
+                .isEmpty();
+        assertThat(OperationJsonSize.measure(mapper, execution.result(),
+                registration.safety().maxOutputBytes())).isPositive();
+        assertThat(execution.result().toString()).doesNotContain("authorization", "secret");
+        assertThat(runs).isNotEmpty();
+
+        OperationDirectory redacted = orchestrationDirectory(orchestrationHandler(request ->
+                new ExecutionOrchestrationResult("pass", "ok", null, Map.of(),
+                        Map.of("authorization", "directory-secret", "safe", "visible"))));
+        var redactedResult = redacted.execute(new OperationInvocation(id, input, true));
+        assertThat(redactedResult.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
+        assertThat(redactedResult.result().path("details").path("authorization").asText())
+                .isEqualTo("***REDACTED***");
+        assertThat(redactedResult.result().path("details").path("safe").asText())
+                .isEqualTo("visible");
+        assertThat(redactedResult.result().toString()).doesNotContain("directory-secret");
+
+        OperationDirectory oversized = orchestrationDirectory(orchestrationHandler(request ->
+                new ExecutionOrchestrationResult("pass", "ok", null, Map.of(),
+                        Map.of("blob", "x".repeat(registration.safety().maxOutputBytes() + 1)))));
+        var oversizedResult = oversized.execute(new OperationInvocation(id, input, true));
+        assertThat(oversizedResult.status()).isEqualTo(OperationExecutionStatus.FAILED);
+        assertThat(oversizedResult.reasonCode()).isEqualTo("operation_output_too_large");
+    }
+
+    private OperationDirectory orchestrationDirectory(ExecutionOrchestrationActionHandler handler) {
+        var feature = new DefaultExecutionOrchestrationFeature(List.of(handler));
+        var registration = ExecutionOrchestrationOperationRegistrations.create(feature, mapper).getFirst();
+        OperationId id = registration.descriptor().operationId();
+        OperationManifestDocument all = OperationManifestLoader.loadBuiltIn();
+        return new OperationDirectory(List.of(registration),
+                new OperationManifestDocument(all.version(), Map.of(id, all.operations().get(id))), mapper);
+    }
+
+    private static ExecutionOrchestrationActionHandler orchestrationHandler(
+            Function<ExecutionOrchestrationRequest, ExecutionOrchestrationResult> action) {
+        return new ExecutionOrchestrationActionHandler() {
+            @Override
+            public ExecutionOrchestrationAction action() {
+                return ExecutionOrchestrationAction.EXECUTE;
+            }
+
+            @Override
+            public ExecutionOrchestrationResult execute(ExecutionOrchestrationRequest request) {
+                return action.apply(request);
+            }
+        };
+    }
+    @Test
     void cancellationDuringActiveExecutionCleansRuntimeAndReleasesLease() throws Exception {
         ExecutionRunLease lease = new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease();
         AtomicInteger cleanupCalls = new AtomicInteger();
@@ -337,7 +434,7 @@ class ExecuteExecutionOrchestrationActionTest {
                         Map.entry("routingShells", measured),
                         Map.entry("routingPlumbingNonblankDelta", assessedDelta),
                         Map.entry("added", List.of()),
-                        Map.entry("removed", List.of()),
+                        Map.entry("removed", List.of("DefaultExecutionProfileExportFeature.java")),
                         Map.entry("retained", List.of(
                                 "ExecuteTransportAction", "TransportExecutionActionHandler",
                                 "ExportExecutionProfileOperation", "ExecutionProfileExportOperationCatalog",
@@ -356,7 +453,9 @@ class ExecuteExecutionOrchestrationActionTest {
     }
 
     private static Map<String, Object> measuredRoutingFile(Path path, int before) throws Exception {
-        int after = (int) Files.readAllLines(path).stream().filter(line -> !line.isBlank()).count();
+        int after = Files.exists(path)
+                ? (int) Files.readAllLines(path).stream().filter(line -> !line.isBlank()).count()
+                : 0;
         return Map.of("path", path.toString(), "before", before, "after", after, "delta", after - before);
     }
 

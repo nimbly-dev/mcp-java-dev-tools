@@ -79,6 +79,17 @@ class OperationRelocationApiCompatibilityTest {
     }
 
     private Set<String> intentional616Additions(String candidateType) {
+        if (candidateType.endsWith(".OperationDirectory")) {
+            String owner = BASELINE_OPERATION_PACKAGE + ".OperationDirectory";
+            String packagePath = BASELINE_OPERATION_PACKAGE.replace('.', '/');
+            return Set.of("METHOD|" + owner + "|public static|typeParameters=[]|return="
+                    + owner + "|name=strict|params=[java.util.List<? extends "
+                    + BASELINE_OPERATION_PACKAGE + ".OperationRegistration<?, ?>>, "
+                    + BASELINE_OPERATION_PACKAGE + ".OperationManifestDocument, "
+                    + "com.fasterxml.jackson.databind.ObjectMapper]|throws=[]|descriptor=(Ljava/util/List;L"
+                    + packagePath + "/OperationManifestDocument;Lcom/fasterxml/jackson/databind/"
+                    + "ObjectMapper;)L" + packagePath + "/OperationDirectory;|varargs=false");
+        }
         Set<String> consolidationAdditions = intentional626Additions(candidateType);
         if (!consolidationAdditions.isEmpty()) {
             return consolidationAdditions;

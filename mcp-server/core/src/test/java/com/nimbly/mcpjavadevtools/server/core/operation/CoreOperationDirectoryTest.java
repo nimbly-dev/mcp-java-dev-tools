@@ -67,12 +67,15 @@ import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.TransportExecutionAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.request.TransportExecutionRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -81,6 +84,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.o
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.operation.ProbeOperationArguments;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.operation.TransportExecuteArguments;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.operation.TransportExecutionOperationRegistrations;
+import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
@@ -102,6 +106,10 @@ import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaVa
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceEntry;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationJsonSize;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationValueRedactor;
 
 /** Acceptance coverage for the production 610 operation aggregate. */
 class CoreOperationDirectoryTest {
@@ -109,7 +117,6 @@ class CoreOperationDirectoryTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final AtomicInteger PROBE_CALLS = new AtomicInteger();
     private static final AtomicInteger JVM_CALLS = new AtomicInteger();
-
     @Test
     void assemblesAllApprovedOperationsFromRealCoreOwners() {
         CoreOperationDirectory aggregate = aggregate();
@@ -298,6 +305,126 @@ class CoreOperationDirectoryTest {
         assertThat(actionless.compatibility()).containsEntry("actionless", "true");
     }
 
+    @Test
+    void catalogsEveryApprovedIdInBoundedStablePages() {
+        OperationDirectory directory = aggregate().directory();
+        CatalogPage first = directory.catalog(new CatalogQuery());
+        assertThat(first.entries()).hasSize(10);
+        assertThat(first.totalMatches()).isEqualTo(54);
+        assertThat(first.nextCursor()).isNotBlank();
+
+        CatalogPage maximum = directory.catalog(new CatalogQuery(null, null, null, 50, null));
+        assertThat(maximum.entries()).hasSize(50);
+        CatalogPage remaining = directory.catalog(
+                new CatalogQuery(null, null, null, 50, maximum.nextCursor()));
+        assertThat(remaining.entries()).hasSize(4);
+        assertThat(remaining.nextCursor()).isNull();
+        assertThat(Stream.concat(maximum.entries().stream(), remaining.entries().stream())
+                .map(entry -> entry.operationId().value()).toList())
+                .containsExactlyElementsOf(directory.manifest().registrations().stream()
+                        .map(registration -> registration.descriptor().operationId().value()).toList());
+
+        CatalogPage filtered = directory.catalog(new CatalogQuery("  PROBE  ", "  PROBE  ", null));
+        assertThat(filtered.entries()).isNotEmpty().allSatisfy(entry -> {
+            assertThat(entry.api()).isEqualTo("probe");
+            assertThat(entry.operationId().value()).contains("probe");
+        });
+    }
+
+    @ParameterizedTest(name = "strict cancellation and pre-owner rejection {0}")
+    @MethodSource("approvedOperationIds")
+    void everyApprovedRowHasProvenCancellationAndRejectsInvalidInput(OperationId operationId) {
+        OperationDirectory directory = aggregate().directory();
+        OperationRegistration<?, ?> registration = directory.manifest().registration(operationId);
+        OperationCancellationState state = OperationCancellationSupport.state(
+                registration.executor(), registration.safety());
+        assertThat(state).isNotEqualTo(OperationCancellationState.LEGACY_UNVERIFIED_CANCELLATION);
+        assertThat(registration.compatibility()).containsEntry("cancellationState", state.name());
+        OperationExecutionResult rejected = directory.execute(new OperationInvocation(
+                operationId, JSON.getNodeFactory().textNode("invalid-root"), true));
+        assertThat(rejected.status()).as(operationId.value())
+                .isEqualTo(OperationExecutionStatus.INVALID_INPUT);
+        assertThat(rejected.reasonCode()).isEqualTo("operation_input_schema_invalid");
+    }
+
+    @ParameterizedTest(name = "one typed owner call {0}")
+    @MethodSource("approvedOperationIds")
+    void bindsAndInvokesTypedOwnerForOneDocumentedScenario(OperationId operationId) throws Exception {
+        OperationRegistration<?, ?> original = aggregate().manifest().registration(operationId);
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<Object> request = new AtomicReference<>();
+        AtomicReference<Object> ownerResult = new AtomicReference<>();
+        OperationRegistration<?, ?> counted = countOwnerCalls(original, calls, request, ownerResult);
+        OperationManifestDocument builtIn = OperationManifestLoader.loadBuiltIn();
+        OperationManifestDocument document = new OperationManifestDocument(
+                builtIn.version(), Map.of(operationId, builtIn.documentation(operationId)));
+        OperationDirectory directory = OperationDirectory.strict(List.of(counted), document, JSON);
+        JsonNode input = directory.describe(operationId).documentation().examples().getFirst();
+        assertThat(OperationSchemaValidator.violations(original.inputSchema(), input))
+                .as(operationId.value()).isEmpty();
+        OperationExecutionResult invalid = directory.execute(new OperationInvocation(
+                operationId, JSON.getNodeFactory().textNode("invalid-root"), true, true));
+        assertThat(invalid.status()).isEqualTo(OperationExecutionStatus.INVALID_INPUT);
+        assertThat(calls).as(operationId.value()).hasValue(0);
+
+        OperationExecutionResult execution = directory.execute(
+                new OperationInvocation(operationId, input, true, true));
+
+        assertThat(calls).as(operationId.value() + ": " + execution.reasonCode()).hasValue(1);
+        assertThat(request.get()).isInstanceOf(original.requestType());
+        assertThat(execution.status()).as(operationId.value() + ": " + execution.reasonCode())
+                .isEqualTo(OperationExecutionStatus.SUCCEEDED);
+        assertThat(OperationSchemaValidator.violations(original.resultSchema(), execution.result()))
+                .as(operationId.value()).isEmpty();
+        assertThat(execution.result().toString())
+                .isEqualTo(expectedNormalized(original, ownerResult.get()).toString());
+        assertThat(OperationJsonSize.measure(JSON, execution.result(),
+                original.safety().maxOutputBytes())).isPositive();
+        JsonNode redactionSentinel = JSON.readTree(
+                "{\"details\":{\"authorization\":\"row-secret\",\"nested\":{\"apiKey\":\"row-secret\"}}}");
+        assertThat(OperationValueRedactor.redact(
+                redactionSentinel, original.safety().redactionPolicy()).toString())
+                .as(operationId.value()).doesNotContain("row-secret");
+    }
+
+    private static <I, O> OperationRegistration<I, O> countOwnerCalls(
+            OperationRegistration<I, O> original,
+            AtomicInteger calls,
+            AtomicReference<Object> request,
+            AtomicReference<Object> result) {
+        ContextAwareOperationExecutor<I, O> counted = ContextAwareOperationExecutor.declared(
+                OperationCancellationSupport.state(original.executor(), original.safety()),
+                OperationCancellationSupport.guarantee(original.executor()),
+                (value, context) -> {
+                    calls.incrementAndGet();
+                    request.set(value);
+                    O outcome = original.executor().execute(value);
+                    result.set(outcome);
+                    return outcome;
+                });
+        return new OperationRegistration<>(original.descriptor(), original.requestType(),
+                original.resultType(), original.contract(), original.decoder(), counted,
+                original.encoder(), original.operationCatalog(), original.provenance());
+    }
+
+    private static <I, O> JsonNode expectedNormalized(
+            OperationRegistration<I, O> original, Object result) {
+        JsonNode encoded = original.encoder().encode(original.resultType().cast(result));
+        return OperationValueRedactor.redact(encoded, original.safety().redactionPolicy());
+    }
+    @Test
+    void writesGeneratedAggregateManifestAndTrace() throws Exception {
+        CoreOperationDirectory aggregate = aggregate();
+        Path evidence = Path.of("target", "mcpjvm-operation-evidence");
+        Files.createDirectories(evidence);
+        JSON.writerWithDefaultPrettyPrinter().writeValue(
+                evidence.resolve("aggregate-fixture-manifest.json").toFile(), aggregate.manifest().descriptors());
+        JSON.writerWithDefaultPrettyPrinter().writeValue(
+                evidence.resolve("aggregate-fixture-trace-inventory.json").toFile(), aggregate.traceInventory());
+        assertThat(JSON.readTree(evidence.resolve("aggregate-fixture-manifest.json").toFile()).size()).isEqualTo(54);
+        assertThat(JSON.readTree(evidence.resolve("aggregate-fixture-trace-inventory.json").toFile()).size()).isEqualTo(54);
+    }
+
     static Stream<OperationId> approvedOperationIds() {
         return aggregate().manifest().registrations().stream()
                 .map(registration -> registration.descriptor().operationId());
@@ -417,7 +544,9 @@ class CoreOperationDirectoryTest {
             public RouteSynthesisAction action() { return action; }
 
             @Override
-            public RouteSynthesisResult execute(RouteSynthesisRequest request) { return null; }
+            public RouteSynthesisResult execute(RouteSynthesisRequest request) {
+                return RouteSynthesisResult.report("ok", "success", null, null, null);
+            }
         };
     }
 
@@ -432,7 +561,9 @@ class CoreOperationDirectoryTest {
             public FailureAnalysisAction action() { return action; }
 
             @Override
-            public FailureAnalysisResult execute(FailureAnalysisRequest request) { return null; }
+            public FailureAnalysisResult execute(FailureAnalysisRequest request) {
+                return FailureAnalysisResult.invalidRequest();
+            }
         };
     }
 
@@ -447,7 +578,10 @@ class CoreOperationDirectoryTest {
             public TransportExecutionAction action() { return action; }
 
             @Override
-            public ExecuteTransportResult execute(TransportExecutionRequest request) { return null; }
+            public ExecuteTransportResult execute(TransportExecutionRequest request) {
+                return ExecuteTransportResult.httpResponse(
+                        "ok", "http", 200, Map.of(), "fixture", 1);
+            }
         };
     }
 
@@ -464,7 +598,8 @@ class CoreOperationDirectoryTest {
 
             @Override
             public ExecutionOrchestrationResult execute(ExecutionOrchestrationRequest request) {
-                return null;
+                return new ExecutionOrchestrationResult(
+                        "pass", "ok", null, Map.of(), Map.of());
             }
         };
     }
@@ -480,7 +615,9 @@ class CoreOperationDirectoryTest {
             public RegressionSuiteAction action() { return action; }
 
             @Override
-            public RegressionSuiteResult execute(RegressionSuiteRequest request) { return null; }
+            public RegressionSuiteResult execute(RegressionSuiteRequest request) {
+                return RegressionSuiteResult.ready(Map.of());
+            }
         };
     }
 
@@ -495,7 +632,9 @@ class CoreOperationDirectoryTest {
             public PerformanceSuiteAction action() { return action; }
 
             @Override
-            public PerformanceSuiteResult execute(PerformanceSuiteRequest request) { return null; }
+            public PerformanceSuiteResult execute(PerformanceSuiteRequest request) {
+                return PerformanceSuiteResult.completed(Map.of());
+            }
         };
     }
 
@@ -510,7 +649,9 @@ class CoreOperationDirectoryTest {
             public SecuritySuiteAction action() { return action; }
 
             @Override
-            public SecuritySuiteResult execute(SecuritySuiteRequest request) { return null; }
+            public SecuritySuiteResult execute(SecuritySuiteRequest request) {
+                return SecuritySuiteResult.completed(Map.of());
+            }
         };
     }
 

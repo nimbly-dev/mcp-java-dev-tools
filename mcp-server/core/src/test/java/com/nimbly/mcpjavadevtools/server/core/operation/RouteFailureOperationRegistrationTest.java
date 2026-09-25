@@ -16,6 +16,11 @@ import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.endpoint.H
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.endpoint.FailureAnalyzeEvidenceRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.endpoint.FailureEvidenceResponse;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.endpoint.FailureVerifyEvidenceRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.request.FailureAnalysisRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.analyzetrace.AnalyzeTraceRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.verifyreproduction.FailureLineHitEvidence;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.verifyreproduction.VerifyReproductionRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.fingerprint.FailureFingerprint;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.operation.FailureAnalysisOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.policy.FailureAnalysisPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.action.RouteSynthesisActionHandler;
@@ -31,6 +36,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.routi
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.runtime.RouteSynthesisRuntimeLineResolution;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.workspace.RouteSynthesisWorkspaceSnapshot;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.createrecipe.CreateRecipeRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.classmethods.ClassMethodsRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.discoverhandlers.DiscoverHandlersRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.infertarget.InferTargetRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.request.RouteSynthesisRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.operation.RouteSynthesisOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.ranking.DeterministicRouteTargetRanker;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationRequestDecoder;
@@ -62,6 +71,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -137,6 +147,73 @@ class RouteFailureOperationRegistrationTest {
         assertThat(emptyResult.result()).isEqualTo(omittedResult.result());
     }
 
+    @ParameterizedTest(name = "real typed owner {0}")
+    @MethodSource("ownedIds")
+    void bindsEachCanonicalInputToOneRealActionOwner(String operationId) {
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<Object> captured = new AtomicReference<>();
+        OperationDirectory observed = observedDirectory(calls, captured);
+        ObjectNode canonical = input(operationId);
+        OperationExecutionResult result = observed.execute(new OperationInvocation(
+                OperationId.of(operationId), canonical, false));
+
+        assertThat(result.status()).as(operationId).isEqualTo(OperationExecutionStatus.SUCCEEDED);
+        assertThat(calls).as(operationId).hasValue(1);
+        Object expectedRequest = switch (operationId) {
+            case "route_synthesis.infer_target" -> new InferTargetRequest(
+                    workspace.toString(), List.of(), "example.StdioController", "run",
+                    null, null, null, "http://127.0.0.1:9191");
+            case "route_synthesis.class_methods" -> new ClassMethodsRequest(
+                    workspace.toString(), List.of(), "example.StdioController", null,
+                    "http://127.0.0.1:9191");
+            case "route_synthesis.discover_handlers" -> new DiscoverHandlersRequest(
+                    workspace.toString(), List.of(), "example.StdioController", null,
+                    "http://127.0.0.1:9191");
+            case "route_synthesis.create_recipe" -> new CreateRecipeRequest(
+                    workspace.toString(), List.of(), "example.StdioController", "run",
+                    null, null, "static_only", null, "regression", null, null, null,
+                    null, null, null, null, null, "http://127.0.0.1:9191");
+            case "failure_analysis.analyze_trace" -> new AnalyzeTraceRequest(
+                    "java.lang.IllegalStateException: trace-secret", "http://127.0.0.1:9191",
+                    "Bearer sidecar-secret", null, Duration.ofMillis(2_000));
+            case "failure_analysis.verify_reproduction" -> new VerifyReproductionRequest(
+                    "capture-621", FailureFingerprint.expected("java.lang.IllegalStateException",
+                    "java.lang.IllegalArgumentException", "example.StdioController#run:7"),
+                    new FailureLineHitEvidence("example.StdioController#run:7", 1),
+                    "http://127.0.0.1:9191", null, null, Duration.ofMillis(2_000), null);
+            default -> throw new IllegalArgumentException("unexpected operation: " + operationId);
+        };
+        assertThat(captured.get()).as(operationId + " complete typed owner request")
+                .isEqualTo(expectedRequest);
+        String action = operationId.substring(operationId.indexOf('.') + 1);
+        if (operationId.startsWith("route_synthesis.")) {
+            RouteSynthesisRequest request = (RouteSynthesisRequest) captured.get();
+            assertThat(request.action().value()).isEqualTo(action);
+            JsonNode typed = JSON.valueToTree(request);
+            for (String field : List.of("projectRootAbs", "classHint", "probeBaseUrl")) {
+                assertThat(typed.path(field)).as(operationId + " " + field)
+                        .isEqualTo(canonical.path(field));
+            }
+            if (canonical.has("methodHint")) {
+                assertThat(typed.path("methodHint")).isEqualTo(canonical.path("methodHint"));
+            }
+        } else {
+            FailureAnalysisRequest request = (FailureAnalysisRequest) captured.get();
+            assertThat(request.action().value()).isEqualTo(action);
+            if (request instanceof AnalyzeTraceRequest analyze) {
+                assertThat(analyze.trace()).isEqualTo(canonical.path("trace").asText());
+                assertThat(analyze.sidecarBaseUrl()).isEqualTo(canonical.path("sidecarBaseUrl").asText());
+                assertThat(analyze.sidecarAuthorization())
+                        .isEqualTo(canonical.path("sidecarAuthorization").asText());
+                assertThat(analyze.timeout().toMillis()).isEqualTo(canonical.path("timeoutMs").asLong());
+            } else {
+                VerifyReproductionRequest verify = (VerifyReproductionRequest) request;
+                assertThat(verify.captureId()).isEqualTo(canonical.path("captureId").asText());
+                assertThat(verify.sidecarBaseUrl()).isEqualTo(canonical.path("sidecarBaseUrl").asText());
+                assertThat(verify.timeout().toMillis()).isEqualTo(canonical.path("timeoutMs").asLong());
+            }
+        }
+    }
     @ParameterizedTest(name = "execute {0}")
     @MethodSource("ownedIds")
     void executesEveryCanonicalInputThroughTheRealOwner(String operationId) {
@@ -378,6 +455,47 @@ class RouteFailureOperationRegistrationTest {
         return current;
     }
 
+    private OperationDirectory observedDirectory(
+            AtomicInteger calls, AtomicReference<Object> captured) {
+        List<RouteSynthesisActionHandler> routes = routeHandlers().stream().<RouteSynthesisActionHandler>map(owner ->
+                new RouteSynthesisActionHandler() {
+                    @Override
+                    public com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.RouteSynthesisAction
+                            action() {
+                        return owner.action();
+                    }
+
+                    @Override
+                    public com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.result.RouteSynthesisResult
+                            execute(RouteSynthesisRequest request) {
+                        calls.incrementAndGet();
+                        captured.set(request);
+                        return owner.execute(request);
+                    }
+                }).toList();
+        List<FailureAnalysisActionHandler> failures = failureHandlers().stream().<FailureAnalysisActionHandler>map(owner ->
+                new FailureAnalysisActionHandler() {
+                    @Override
+                    public com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.FailureAnalysisAction
+                            action() {
+                        return owner.action();
+                    }
+
+                    @Override
+                    public com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.result.FailureAnalysisResult
+                            execute(FailureAnalysisRequest request) {
+                        calls.incrementAndGet();
+                        captured.set(request);
+                        return owner.execute(request);
+                    }
+                }).toList();
+        List<OperationRegistration<?, ?>> owned = Stream.concat(
+                RouteSynthesisOperationRegistrations.create(
+                        new DefaultRouteSynthesisFeature(routes), JSON).stream(),
+                FailureAnalysisOperationRegistrations.create(
+                        new DefaultFailureAnalysisFeature(failures), JSON).stream()).toList();
+        return new OperationDirectory(owned, ownedDocument(), JSON);
+    }
     private List<OperationRegistration<?, ?>> substantiveRegistrations() {
         return Stream.concat(
                 RouteSynthesisOperationRegistrations.create(

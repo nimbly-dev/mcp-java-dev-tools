@@ -3,7 +3,9 @@ package com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.operatio
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.MissingNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactJsonStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
@@ -107,6 +109,8 @@ class SuiteOperationRegistrationTest {
 
     @TempDir
     Path workspace;
+    private final AtomicInteger rowOwnerCalls = new AtomicInteger();
+    private final AtomicReference<Object> rowOwnerRequest = new AtomicReference<>();
 
     @Test
     void registersExactlyFourDirectOperationsWithOrchestrationProvenance() {
@@ -327,21 +331,57 @@ class SuiteOperationRegistrationTest {
     void routesAllFourOperationsToTheirExactSubstantiveOwners() {
         AtomicReference<RegressionSuiteAction> invoked = new AtomicReference<>();
         Map<String, OperationRegistration<?, ?>> registrations = byId(registrations(invoked));
-        ObjectNode input = input("regression_suite.execute_plan");
+        for (String id : IDS) {
+            rowOwnerCalls.set(0);
+            rowOwnerRequest.set(null);
+            ObjectNode canonicalInput = input(id);
+            var registration = registrations.get(id);
+            var result = directory(registration).execute(new OperationInvocation(
+                    OperationId.of(id), canonicalInput, true));
 
-        assertThat(registrations.get("regression_suite.preflight").execute(input).path("status").asText())
-                .isEqualTo("ready");
-        assertThat(invoked).hasValue(RegressionSuiteAction.PREFLIGHT);
-        assertThat(registrations.get("regression_suite.execute_plan").execute(input).path("status").asText())
-                .isEqualTo("ready");
-        assertThat(invoked).hasValue(RegressionSuiteAction.EXECUTE_PLAN);
-        ObjectNode suiteInput = input("performance_suite.execute_plan");
-        assertThat(registrations.get("performance_suite.execute_plan")
-                .execute(suiteInput).path("status").asText()).isEqualTo("completed");
-        assertThat(registrations.get("security_suite.execute_plan")
-                .execute(input("security_suite.execute_plan")).path("status").asText()).isEqualTo("completed");
+            assertThat(result.status()).as(id).isEqualTo(OperationExecutionStatus.SUCCEEDED);
+            assertThat(OperationSchemaValidator.violations(
+                    registration.resultSchema(), result.result())).as(id).isEmpty();
+            assertThat(rowOwnerCalls).as(id).hasValue(1);
+            assertThat(result.result().toString()).as(id).doesNotContain("suite-secret");
+            if (id.equals("regression_suite.preflight")) {
+                assertThat(invoked).hasValue(RegressionSuiteAction.PREFLIGHT);
+                RegressionSuiteRequest request = (RegressionSuiteRequest) rowOwnerRequest.get();
+                assertThat(request.action()).isEqualTo(RegressionSuiteAction.PREFLIGHT);
+                assertTrustedRequest(id, request.input(), canonicalInput, regressionInput());
+            } else if (id.equals("regression_suite.execute_plan")) {
+                assertThat(invoked).hasValue(RegressionSuiteAction.EXECUTE_PLAN);
+                RegressionSuiteRequest request = (RegressionSuiteRequest) rowOwnerRequest.get();
+                assertThat(request.action()).isEqualTo(RegressionSuiteAction.EXECUTE_PLAN);
+                assertTrustedRequest(id, request.input(), canonicalInput, regressionInput());
+            } else if (id.equals("performance_suite.execute_plan")) {
+                PerformanceSuiteRequest request = (PerformanceSuiteRequest) rowOwnerRequest.get();
+                assertThat(request.action()).isEqualTo(PerformanceSuiteAction.EXECUTE_PLAN);
+                assertTrustedRequest(id, request.input(), canonicalInput, performanceInput());
+            } else {
+                SecuritySuiteRequest request = (SecuritySuiteRequest) rowOwnerRequest.get();
+                assertThat(request.action()).isEqualTo(SecuritySuiteAction.EXECUTE_PLAN);
+                assertTrustedRequest(id, request.input(), canonicalInput, securityInput());
+            }
+        }
     }
-
+    private void assertTrustedRequest(String id, JsonNode actual, JsonNode canonical, JsonNode plan) {
+        ObjectNode expected = ((ObjectNode) canonical).deepCopy();
+        expected.set("metadata", plan.path("metadata"));
+        expected.set("contract", plan.path("contract"));
+        if (id.equals("performance_suite.execute_plan")) {
+            expected.put("runDirectory", workspace.resolve(".mcpjvm/demo/plans/performance/performance-smoke")
+                    .resolve("runs/direct-performance-1").toString());
+        } else if (id.equals("security_suite.execute_plan")) {
+            expected.set("credentialBindings", MissingNode.getInstance());
+            ObjectNode source = expected.putObject("credentialSource");
+            source.put("workspaceRoot", workspace.toString());
+            source.put("envFile", "");
+            source.set("scripts", MissingNode.getInstance());
+            source.set("profileScriptRefs", MissingNode.getInstance());
+        }
+        assertThat(actual).as(id).isEqualTo(expected);
+    }
     private List<OperationRegistration<?, ?>> registrations(
             AtomicReference<RegressionSuiteAction> invoked) {
         var regression = new DefaultRegressionSuiteFeature(List.of(
@@ -356,7 +396,7 @@ class SuiteOperationRegistrationTest {
                 .flatMap(List::stream).toList();
     }
 
-    private static RegressionSuiteActionHandler regressionHandler(
+    private RegressionSuiteActionHandler regressionHandler(
             RegressionSuiteAction action, AtomicReference<RegressionSuiteAction> invoked) {
         return new RegressionSuiteActionHandler() {
             @Override
@@ -367,12 +407,15 @@ class SuiteOperationRegistrationTest {
             @Override
             public RegressionSuiteResult execute(RegressionSuiteRequest request) {
                 invoked.set(request.action());
-                return RegressionSuiteResult.ready(Map.of("ownerAction", request.action().name()));
+                rowOwnerCalls.incrementAndGet();
+                rowOwnerRequest.set(request);
+                return RegressionSuiteResult.ready(Map.of(
+                        "ownerAction", request.action().name(), "authorization", "suite-secret"));
             }
         };
     }
 
-    private static PerformanceSuiteActionHandler performanceHandler() {
+    private PerformanceSuiteActionHandler performanceHandler() {
         return new PerformanceSuiteActionHandler() {
             @Override
             public PerformanceSuiteAction action() {
@@ -381,12 +424,15 @@ class SuiteOperationRegistrationTest {
 
             @Override
             public PerformanceSuiteResult execute(PerformanceSuiteRequest request) {
-                return PerformanceSuiteResult.completed(Map.of("thresholdStatus", "pass"));
+                rowOwnerCalls.incrementAndGet();
+                rowOwnerRequest.set(request);
+                return PerformanceSuiteResult.completed(Map.of(
+                        "thresholdStatus", "pass", "authorization", "suite-secret"));
             }
         };
     }
 
-    private static SecuritySuiteActionHandler securityHandler() {
+    private SecuritySuiteActionHandler securityHandler() {
         return new SecuritySuiteActionHandler() {
             @Override
             public SecuritySuiteAction action() {
@@ -395,7 +441,10 @@ class SuiteOperationRegistrationTest {
 
             @Override
             public SecuritySuiteResult execute(SecuritySuiteRequest request) {
-                return SecuritySuiteResult.completed(Map.of("coverageComplete", true));
+                rowOwnerCalls.incrementAndGet();
+                rowOwnerRequest.set(request);
+                return SecuritySuiteResult.completed(Map.of(
+                        "coverageComplete", true, "authorization", "suite-secret"));
             }
         };
     }

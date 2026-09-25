@@ -41,6 +41,15 @@ public class OperationDirectory {
         this(OperationManifestAssembler.assemble(registrations, document), mapper);
     }
 
+    /** Creates the production aggregate with strict migration validation. */
+    public static OperationDirectory strict(
+            List<? extends OperationRegistration<?, ?>> registrations,
+            OperationManifestDocument document,
+            ObjectMapper mapper) {
+        return new OperationDirectory(
+                OperationManifestAssembler.assembleStrict(registrations, document), mapper);
+    }
+
     /** Creates a directory with an explicitly supplied transport-neutral mapper. */
     OperationDirectory(OperationManifest manifest, ObjectMapper mapper) {
         this.manifest = Objects.requireNonNull(manifest, "manifest must not be null");

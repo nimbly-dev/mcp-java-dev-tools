@@ -18,6 +18,9 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.action.JvmLif
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.JvmLifecycleAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.candidate.JvmCandidate;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.request.JvmLifecycleRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.attach.AttachRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.deactivate.DeactivateRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.listjvms.ListJvmsRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.JvmLifecycleResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationRegistrations;
@@ -43,6 +46,17 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.endpoint.Probe
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.endpoint.ProbeRequestBounds;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.endpoint.ProbeRequestPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.key.ProbeKeySelector;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.target.ProbeTargetSelector;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.actuate.ProbeActuateCommand;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.actuate.ProbeActuateRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.capture.ProbeCaptureRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.check.ProbeCheckRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.profiler.ProbeProfilerCommand;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.profiler.ProbeProfilerRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.reset.ProbeSingleResetRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeSingleStatusRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitForHitRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.response.ProbeResponseCompactionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
@@ -98,13 +112,17 @@ class ProbeJvmLifecycleOperationRegistrationTest {
 
     private Map<String, OperationRegistration<?, ?>> registrations;
     private OperationDirectory directory;
+    private final AtomicInteger capturedOwnerCalls = new AtomicInteger();
+    private final AtomicReference<Object> capturedOwnerRequest = new AtomicReference<>();
 
     @BeforeEach
     void setUp() {
         List<ProbeActionHandler> probeHandlers = Arrays.stream(ProbeAction.values())
-                .map(CapturingProbeHandler::new).map(ProbeActionHandler.class::cast).toList();
+                .map(action -> new CapturingProbeHandler(action, capturedOwnerCalls, capturedOwnerRequest))
+                .map(ProbeActionHandler.class::cast).toList();
         List<JvmLifecycleActionHandler> jvmHandlers = Arrays.stream(JvmLifecycleAction.values())
-                .map(CapturingJvmHandler::new).map(JvmLifecycleActionHandler.class::cast).toList();
+                .map(action -> new CapturingJvmHandler(action, capturedOwnerCalls, capturedOwnerRequest))
+                .map(JvmLifecycleActionHandler.class::cast).toList();
         List<OperationRegistration<?, ?>> owned = Stream.concat(
                         ProbeOperationRegistrations.create(
                                 new ProbeOperationCatalog(probeHandlers), JSON).stream(),
@@ -142,6 +160,58 @@ class ProbeJvmLifecycleOperationRegistrationTest {
         assertThat(registration.safety().cancellationSupported()).isTrue();
     }
 
+    @ParameterizedTest(name = "typed binding {0}")
+    @MethodSource("ownedIds")
+    void bindsCanonicalInputToOneSelectedTypedOwner(String operationId) {
+        capturedOwnerCalls.set(0);
+        capturedOwnerRequest.set(null);
+        OperationRegistration<?, ?> registration = registrations.get(operationId);
+        OperationExecutionResult result = directory.execute(new OperationInvocation(
+                OperationId.of(operationId), input(operationId), mutating(operationId)));
+
+        assertThat(result.status()).as(operationId).isEqualTo(OperationExecutionStatus.SUCCEEDED);
+        assertThat(capturedOwnerCalls).as(operationId).hasValue(1);
+        assertThat(OperationSchemaValidator.violations(
+                registration.resultSchema(), result.result())).as(operationId).isEmpty();
+        String action = operationId.substring(operationId.indexOf('.') + 1);
+        if (operationId.startsWith("probe.")) {
+            assertThat(capturedOwnerRequest.get()).isInstanceOf(ProbeRequest.class);
+            assertThat(((ProbeRequest) capturedOwnerRequest.get()).action().value()).isEqualTo(action);
+            assertProbeRequest(operationId, (ProbeRequest) capturedOwnerRequest.get());
+        } else {
+            assertThat(capturedOwnerRequest.get()).isInstanceOf(JvmLifecycleRequest.class);
+            assertThat(((JvmLifecycleRequest) capturedOwnerRequest.get()).action().value())
+                    .isEqualTo(action);
+            assertJvmRequest(operationId, (JvmLifecycleRequest) capturedOwnerRequest.get());
+        }
+    }
+    private static void assertProbeRequest(String id, ProbeRequest request) {
+        ProbeTargetSelector target = new ProbeTargetSelector(null, null);
+        ProbeKeySelector key = new ProbeKeySelector("com.example.Sample#run:42", null);
+        ProbeRequest expected = switch (id) {
+            case "probe.actuate" -> new ProbeActuateRequest(
+                    target, ProbeActuateCommand.DISARM, "session-1", null, null, null, null, null);
+            case "probe.capture" -> new ProbeCaptureRequest(target, "capture-1", null);
+            case "probe.check" -> new ProbeCheckRequest(target, Map.of(), null);
+            case "probe.profiler" -> new ProbeProfilerRequest(
+                    target, ProbeProfilerCommand.START, "session-1", null, null, null, null, null, null);
+            case "probe.reset" -> new ProbeSingleResetRequest(target, key, null);
+            case "probe.status" -> new ProbeSingleStatusRequest(target, key, null);
+            case "probe.wait_for_hit" -> new ProbeWaitForHitRequest(target, key, null, null, null);
+            default -> throw new IllegalArgumentException("unexpected Probe operation: " + id);
+        };
+        assertThat(request).as(id).isEqualTo(expected);
+    }
+    private static void assertJvmRequest(String id, JvmLifecycleRequest request) {
+        switch (id) {
+            case "jvm_lifecycle.attach" -> assertThat(request).isEqualTo(
+                    new AttachRequest("1234", 1L, true, "127.0.0.1", 9191, null, null));
+            case "jvm_lifecycle.deactivate" -> assertThat(request).isEqualTo(
+                    new DeactivateRequest("1234", 1L, true));
+            case "jvm_lifecycle.list_jvms" -> assertThat(request).isEqualTo(new ListJvmsRequest());
+            default -> throw new IllegalArgumentException("unexpected JVM operation: " + id);
+        }
+    }
     @ParameterizedTest(name = "execute {0}")
     @MethodSource("ownedIds")
     void routesEveryCanonicalInputThroughItsExactTypedOwner(String operationId) {
@@ -401,7 +471,9 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
                         + "probe/operation/ProbeOperationRegistrations.java",
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
-                        + "jvmlifecycle/operation/JvmLifecycleOperationRegistrations.java"));
+                        + "jvmlifecycle/operation/JvmLifecycleOperationRegistrations.java",
+                "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
+                        + "jvmlifecycle/operation/JvmLifecycleOperationCatalog.java"));
         inventory.put("absentRoutingCategories", Map.of(
                 "HANDLER_ALIAS", "none; substantive owners implement the shared handler contracts directly",
                 "STANDALONE_DISPATCHER", "none; each capability catalog owns its closed action dispatch"));
@@ -748,16 +820,22 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 "jvm_lifecycle.attach", "jvm_lifecycle.deactivate").contains(operationId);
     }
 
-    private record CapturingProbeHandler(ProbeAction action) implements ProbeActionHandler {
+    private record CapturingProbeHandler(ProbeAction action, AtomicInteger calls,
+            AtomicReference<Object> request) implements ProbeActionHandler {
         @Override
-        public ProbeResult execute(ProbeRequest request) {
+        public ProbeResult execute(ProbeRequest input) {
+            calls.incrementAndGet();
+            request.set(input);
             return ProbeResult.success();
         }
     }
 
-    private record CapturingJvmHandler(JvmLifecycleAction action) implements JvmLifecycleActionHandler {
+    private record CapturingJvmHandler(JvmLifecycleAction action, AtomicInteger calls,
+            AtomicReference<Object> request) implements JvmLifecycleActionHandler {
         @Override
-        public JvmLifecycleResult execute(JvmLifecycleRequest request) {
+        public JvmLifecycleResult execute(JvmLifecycleRequest input) {
+            calls.incrementAndGet();
+            request.set(input);
             return JvmLifecycleResult.blocked("fixture_success");
         }
     }

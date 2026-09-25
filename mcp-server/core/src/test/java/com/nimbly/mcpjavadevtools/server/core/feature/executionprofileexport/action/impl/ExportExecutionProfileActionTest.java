@@ -69,7 +69,7 @@ class ExportExecutionProfileActionTest {
                 new OperationTraceMetadata(
                         "ExecutionProfileExportMcpTool",
                         "ExecutionProfileExportMcpRequestMapper",
-                        "DefaultExecutionProfileExportFeature",
+                        "ExecutionProfileExportOperationCatalog",
                         "ExecutionProfileExportMcpResponseMapper",
                         "ExportExecutionProfileActionTest",
                         "filesystem_artifact_export",

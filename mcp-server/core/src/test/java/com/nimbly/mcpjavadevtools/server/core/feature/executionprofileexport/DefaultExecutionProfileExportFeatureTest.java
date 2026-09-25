@@ -55,7 +55,7 @@ class DefaultExecutionProfileExportFeatureTest {
                 new com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult(
                         "execution_profile_export", "ok", "success", null, null, "", Map.of(),
                         Map.of("exportId", "export-1"));
-        ExecutionProfileExportFeature feature = new DefaultExecutionProfileExportFeature(catalog(gateway));
+        ExecutionProfileExportFeature feature = catalog(gateway);
 
         var result = feature.execute(new ExecutionProfileExportRequest(
                 ExecutionProfileExportAction.EXPORT, null, null, null, null, null,
@@ -70,7 +70,7 @@ class DefaultExecutionProfileExportFeatureTest {
         ExecutionExportArtifactGateway gateway = request ->
                 new com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult(
                         "execution_profile_export", "ok", "success", null, null, "", Map.of(), Map.of());
-        ExecutionProfileExportFeature feature = new DefaultExecutionProfileExportFeature(catalog(gateway));
+        ExecutionProfileExportFeature feature = catalog(gateway);
 
         var result = feature.execute(null);
 
@@ -125,7 +125,7 @@ class DefaultExecutionProfileExportFeatureTest {
         ObjectMapper mapper = new ObjectMapper();
         seedExportArtifacts(mapper);
         ExecutionProfileExportOperationCatalog catalog = realCatalog(mapper, () -> Optional.of(workspace));
-        ExecutionProfileExportFeature feature = new DefaultExecutionProfileExportFeature(catalog);
+        ExecutionProfileExportFeature feature = catalog;
         var registration = ExecutionProfileExportOperationRegistrations.create(catalog, mapper).getFirst();
         OperationDirectory directory = directory(registration, mapper);
 
@@ -155,7 +155,7 @@ class DefaultExecutionProfileExportFeatureTest {
         ObjectMapper mapper = new ObjectMapper();
         seedExportArtifacts(mapper);
         ExecutionProfileExportOperationCatalog catalog = realCatalog(mapper, () -> Optional.of(workspace));
-        ExecutionProfileExportFeature feature = new DefaultExecutionProfileExportFeature(catalog);
+        ExecutionProfileExportFeature feature = catalog;
         var registration = ExecutionProfileExportOperationRegistrations.create(catalog, mapper).getFirst();
 
         var typed = feature.execute(new ExecutionProfileExportRequest(
@@ -342,7 +342,7 @@ class DefaultExecutionProfileExportFeatureTest {
                         new OperationTraceMetadata(
                                 "ExecutionProfileExportMcpTool",
                                 "ExecutionProfileExportMcpRequestMapper",
-                                "DefaultExecutionProfileExportFeature",
+                                "ExecutionProfileExportOperationCatalog",
                                 "ExecutionProfileExportMcpResponseMapper",
                                 "DefaultExecutionProfileExportFeatureTest",
                                 "filesystem_artifact_export",

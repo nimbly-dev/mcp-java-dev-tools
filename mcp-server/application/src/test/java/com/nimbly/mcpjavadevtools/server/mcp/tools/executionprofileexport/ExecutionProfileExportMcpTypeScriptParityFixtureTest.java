@@ -10,7 +10,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.DefaultExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
@@ -46,12 +45,11 @@ class ExecutionProfileExportMcpTypeScriptParityFixtureTest {
         ArtifactManagementSupport support = new ArtifactManagementSupport(
                 () -> Optional.of(workspace), store, new SqliteRunStateStore(JSON), JSON);
         ExecutionExportArtifactGateway gateway = new ExecutionExportOperations(support);
-        ExecutionProfileExportFeature feature = new DefaultExecutionProfileExportFeature(
-                new ExecutionProfileExportOperationCatalog(new ExportExecutionProfileOperation(
+        ExecutionProfileExportFeature feature = new ExecutionProfileExportOperationCatalog(new ExportExecutionProfileOperation(
                         gateway,
                         new ExecutionProfileExportArtifactInputMapper(JSON),
                         trace()),
-                        ExecutionProfileExportMcpTool.operationExposure()));
+                        ExecutionProfileExportMcpTool.operationExposure());
         tool = new ExecutionProfileExportMcpTool(feature, JSON);
     }
 

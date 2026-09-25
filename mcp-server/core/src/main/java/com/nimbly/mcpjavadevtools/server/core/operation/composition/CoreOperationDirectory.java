@@ -50,7 +50,7 @@ public final class CoreOperationDirectory {
             TrustedSuiteExecution trusted) {
         ObjectMapper aggregateMapper = Objects.requireNonNull(mapper, "mapper must not be null")
                 .copy().registerModule(new Jdk8Module());
-        directory = new OperationDirectory(
+        directory = OperationDirectory.strict(
                 registrations(Objects.requireNonNull(owners, "owners must not be null"),
                         aggregateMapper, trusted),
                 OperationManifestLoader.loadBuiltIn(),

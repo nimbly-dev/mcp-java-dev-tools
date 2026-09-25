@@ -106,15 +106,25 @@ Tool/action identity (including explicit actionless rows), canonical operation
 ID, CDE schema, normalization rule, result comparison rule, and parity
 scenario.
 
+The #624 aggregate closure exercise runs one bounded Core scenario for every
+operation and checks binding, executor invocation, result normalization, schema,
+payload, redaction, and invalid-input behavior. Some aggregate fixtures use
+substitute execution collaborators; the generated production owner trace is
+joined independently to capability registrations and each substituted row is
+identified in the crosswalk. This Core proof does not execute legacy Java or
+TypeScript Tools or claim runtime parity. Public facade verification and
+cutover remain with #611.
+
 The Core kernel applies these named hard ceilings before argument binding or Core
 execution: 1 MiB input, 4 MiB output, depth 64, 100,000 JSON nodes, and 262,144
 UTF-8 bytes per string value. Input snapshots use exact decimal parsing after
 capped serialization. Strict kernel assembly requires every request decoder and
 result encoder to support bounded round-trip streaming; mapper-backed bindings
 stream through the hard ceiling before tree materialization, and the streamed
-JSON representation is authoritative for normalization. The normal aggregate
-assembly remains an explicit migration-compatibility path for the unchanged
-legacy capability registrations. Its ordinary encoders are validated for
+JSON representation is authoritative for normalization. The production
+54-operation aggregate uses strict assembly. Generic OperationDirectory
+constructors remain migration-compatibility paths for focused legacy fixtures.
+In that compatibility path, ordinary encoders are validated for
 structure and encoded bytes immediately after their first returned tree and
 before any defensive copy or repeated normalization; this compatibility path is
 not proof of a future bounded capability migration. Custom request decoders and
@@ -131,12 +141,11 @@ Operation timeouts are monotonic and bounded to 100–300,000 ms, defaulting to
 allows a 1,000 ms cooperative-cancellation grace period.
 
 Typed owners that consume `OperationExecutionContext` receive the monotonic
-deadline and cooperative cancellation signal explicitly. Existing owners remain
-in `LEGACY_UNVERIFIED_CANCELLATION` compatibility state until
-their owning migration story proves context-aware, bounded-delegate, or
-explicitly non-cancellable semantics. That state is surfaced in generated
-trace compatibility evidence and is accepted only by the current migration
-assembly path; strict future aggregate validation rejects it. Thread
+deadline and cooperative cancellation signal explicitly. Every production
+aggregate registration declares context-aware, bounded-delegate, or
+explicitly non-cancellable semantics. `LEGACY_UNVERIFIED_CANCELLATION`
+remains representable only in migration-compatibility fixtures; strict production
+aggregate validation rejects it. Thread
 interruption alone is not treated as cancellation proof.
 
 ## Structural enforcement

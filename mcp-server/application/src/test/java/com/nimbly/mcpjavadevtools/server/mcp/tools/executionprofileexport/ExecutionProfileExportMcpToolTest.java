@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.DefaultExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
@@ -295,7 +294,7 @@ class ExecutionProfileExportMcpToolTest {
                     "execution_profile_export", "ok", "success", null, null, "", Map.of(), Map.of());
         });
         ExecutionProfileExportMcpTool tool = new ExecutionProfileExportMcpTool(
-                new DefaultExecutionProfileExportFeature(catalog), new ObjectMapper());
+                catalog, new ObjectMapper());
 
         McpActionResponse response = tool.execute(new ExecutionProfileExportMcpRequest(
                 "demo", "export-1", "nightly", "smoke", null, "sh", "sh",

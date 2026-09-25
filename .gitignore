@@ -34,3 +34,4 @@ test/*.test.d.ts.map
 AGENTS.md
 test/.tmp/
 .idea
+mcp-server/core/src/test/scripts/operation-evidence/*.ps1
