@@ -58,7 +58,7 @@ public class InferTargetRuntimeLineResolver {
             return candidate.withLineSelection(null, "unresolved", "runtime_probe_validation");
         }
         RouteSynthesisRuntimeLineResolution evidence = runtimeEvidenceProvider.resolveLine(
-                candidate.key(), candidate.declarationLine(), candidate.endLine(), route);
+                candidate.key(), candidate.firstExecutableLine(), candidate.endLine(), route);
         return candidate.withLineSelection(evidence.line(), evidence.status(), evidence.source());
     }
 }

@@ -96,7 +96,10 @@ public class SpringHttpHandlerDiscovery implements RouteSynthesisHandlerDiscover
             JavaSourceFile sourceFile,
             JavaSourceMethod method,
             String classPath) {
-        String annotation = mappingAt(source, method.declarationLine());
+        if (method.name().equals(sourceFile.className())) {
+            return java.util.Optional.empty();
+        }
+        String annotation = mappingForMethod(source, sourceFile, method);
         if (annotation == null) {
             return java.util.Optional.empty();
         }
@@ -119,8 +122,23 @@ public class SpringHttpHandlerDiscovery implements RouteSynthesisHandlerDiscover
     }
 
     private String mappingAt(String source, int line) {
-        int startLine = Math.max(1, line - ANNOTATION_LOOKBACK_LINES);
-        String region = lines(source, startLine, line);
+        return mappingAt(source, Math.max(1, line - ANNOTATION_LOOKBACK_LINES), line);
+    }
+
+    private String mappingForMethod(String source, JavaSourceFile sourceFile, JavaSourceMethod method) {
+        int previousEndLine = sourceLine(source, sourceFile.className());
+        for (JavaSourceMethod candidate : sourceFile.methods()) {
+            if (candidate.declarationLine() < method.declarationLine()) {
+                previousEndLine = Math.max(previousEndLine, candidate.endLine());
+            }
+        }
+        int startLine = Math.max(previousEndLine + 1,
+                method.declarationLine() - ANNOTATION_LOOKBACK_LINES);
+        return mappingAt(source, startLine, method.declarationLine());
+    }
+
+    private String mappingAt(String source, int startLine, int endLine) {
+        String region = lines(source, startLine, endLine);
         Matcher matcher = MAPPING_PATTERN.matcher(region);
         String value = null;
         while (matcher.find()) {
@@ -162,7 +180,9 @@ public class SpringHttpHandlerDiscovery implements RouteSynthesisHandlerDiscover
         String left = parent == null || parent.isBlank() ? "" : parent.trim();
         String right = child == null || child.isBlank() ? "" : child.trim();
         String joined = (left + "/" + right).replaceAll("/{2,}", "/");
-        return joined.startsWith("/") ? joined : "/" + joined;
+        String absolute = joined.startsWith("/") ? joined : "/" + joined;
+        return absolute.length() > 1 && absolute.endsWith("/")
+                ? absolute.substring(0, absolute.length() - 1) : absolute;
     }
 
     private boolean isSpringController(String source, String className) {

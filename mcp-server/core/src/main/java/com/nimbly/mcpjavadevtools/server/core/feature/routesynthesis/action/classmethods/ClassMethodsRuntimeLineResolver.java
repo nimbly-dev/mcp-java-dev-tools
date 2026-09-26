@@ -55,7 +55,7 @@ public class ClassMethodsRuntimeLineResolver {
         RouteSynthesisRuntimeLineResolution line = route.resolved()
                 ? runtimeEvidenceProvider.resolveLine(
                         probeKey,
-                        method.declarationLine(),
+                        method.firstExecutableLine(),
                         method.endLine(),
                         route)
                 : RouteSynthesisRuntimeLineResolution.unresolved("runtime_route_unresolved");

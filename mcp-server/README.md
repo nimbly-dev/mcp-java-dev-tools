@@ -44,7 +44,7 @@ ready without registering unsupported placeholder MCP Tools.
 | `mcp-java-dev-tools://status` | `mcp/resource/status` | registered |
 | `jvm_lifecycle` | `mcp/tools/jvmlifecycle` | registered; #572 |
 | `probe` | `mcp/tools/probe` | registered; #571 |
-| `route_synthesis` | `mcp/tools/routesynthesis` | registered; #573 |
+| Route Synthesis operations | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated; #635 |
 | `failure_analysis` | `mcp/tools/failureanalysis` | registered; #574 |
 | `transport_execute` | `mcp/tools/transportexecute` | registered; #576 |
 | `artifact_management` | `mcp/tools/artifactmanagement` | Feature migration required |

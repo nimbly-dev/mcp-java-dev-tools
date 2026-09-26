@@ -32,7 +32,7 @@ public class DiscoverHandlersRuntimeLineResolver {
     private RouteSynthesisHandler resolve(
             RouteSynthesisHandler handler,
             RouteSynthesisProbeRouteResolution route) {
-        if (!route.resolved()) {
+        if (!route.resolved() || handler.firstExecutableLine() == null) {
             return new RouteSynthesisHandler(
                     handler.httpMethod(), handler.path(), handler.methodName(), handler.signature(),
                     handler.runtimeClassFqcn(), handler.declarationLine(), handler.endLine(), null,
@@ -40,7 +40,7 @@ public class DiscoverHandlersRuntimeLineResolver {
         }
         RouteSynthesisRuntimeLineResolution line = runtimeEvidenceProvider.resolveLine(
                 handler.runtimeClassFqcn() + "#" + handler.methodName(),
-                handler.declarationLine(),
+                handler.firstExecutableLine(),
                 handler.endLine(),
                 route);
         String strictLineKey = line.line() == null ? null : handler.runtimeClassFqcn() + "#"

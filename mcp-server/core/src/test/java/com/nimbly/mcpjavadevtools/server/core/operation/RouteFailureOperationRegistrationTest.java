@@ -130,6 +130,28 @@ class RouteFailureOperationRegistrationTest {
                 .isEqualTo(OperationCancellationState.CONTEXT_AWARE_CANCELLATION);
     }
 
+    @Test
+    void createRecipeRequiresConfirmationBeforeCallingItsOwner() {
+        String operationId = "route_synthesis.create_recipe";
+        OperationId id = OperationId.of(operationId);
+        AtomicInteger calls = new AtomicInteger();
+        OperationDirectory observed = observedDirectory(calls, new AtomicReference<>());
+
+        assertThat(observed.describe(id).safety().confirmationRequired()).isTrue();
+        assertThat(observed.describe(id).safety().credentialPolicy())
+                .isEqualTo("caller_may_supply_credentials");
+        OperationExecutionResult rejected = observed.execute(new OperationInvocation(
+                id, recipeInput(), false));
+        assertThat(rejected.status()).isEqualTo(OperationExecutionStatus.CONFIRMATION_REQUIRED);
+        assertThat(rejected.reasonCode()).isEqualTo("operation_confirmation_required");
+        assertThat(calls).hasValue(0);
+
+        OperationExecutionResult accepted = observed.execute(new OperationInvocation(
+                id, recipeInput(), true));
+        assertThat(accepted.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
+        assertThat(calls).hasValue(1);
+    }
+
     @ParameterizedTest(name = "omitted versus empty roots {0}")
     @MethodSource("routeIds")
     void preservesOmittedAndExplicitlyEmptyAdditionalSourceRoots(String operationId) {
@@ -138,9 +160,9 @@ class RouteFailureOperationRegistrationTest {
         explicitEmpty.putArray("additionalSourceRoots");
 
         OperationExecutionResult omittedResult = directory.execute(new OperationInvocation(
-                OperationId.of(operationId), omitted, false));
+                OperationId.of(operationId), omitted, confirmed(operationId)));
         OperationExecutionResult emptyResult = directory.execute(new OperationInvocation(
-                OperationId.of(operationId), explicitEmpty, false));
+                OperationId.of(operationId), explicitEmpty, confirmed(operationId)));
 
         assertThat(omittedResult.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
         assertThat(emptyResult.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
@@ -155,7 +177,7 @@ class RouteFailureOperationRegistrationTest {
         OperationDirectory observed = observedDirectory(calls, captured);
         ObjectNode canonical = input(operationId);
         OperationExecutionResult result = observed.execute(new OperationInvocation(
-                OperationId.of(operationId), canonical, false));
+                OperationId.of(operationId), canonical, confirmed(operationId)));
 
         assertThat(result.status()).as(operationId).isEqualTo(OperationExecutionStatus.SUCCEEDED);
         assertThat(calls).as(operationId).hasValue(1);
@@ -218,7 +240,7 @@ class RouteFailureOperationRegistrationTest {
     @MethodSource("ownedIds")
     void executesEveryCanonicalInputThroughTheRealOwner(String operationId) {
         OperationExecutionResult result = directory.execute(new OperationInvocation(
-                OperationId.of(operationId), input(operationId), false));
+                OperationId.of(operationId), input(operationId), confirmed(operationId)));
 
         assertThat(result.status()).as("%s: %s", result.reasonCode(), result.reason())
                 .isEqualTo(OperationExecutionStatus.SUCCEEDED);
@@ -236,7 +258,7 @@ class RouteFailureOperationRegistrationTest {
         invalid.put("unknown", true);
 
         OperationExecutionResult result = directory.execute(new OperationInvocation(
-                OperationId.of(operationId), invalid, false));
+                OperationId.of(operationId), invalid, confirmed(operationId)));
 
         assertThat(result.status()).isEqualTo(OperationExecutionStatus.INVALID_INPUT);
         assertThat(result.reasonCode()).isEqualTo("operation_input_schema_invalid");
@@ -269,6 +291,37 @@ class RouteFailureOperationRegistrationTest {
     }
 
     @Test
+    void discoversOnlyAnnotatedMethodsAndCanonicalPaths() throws Exception {
+        Path source = workspace.resolve("src/main/java/example/MappedController.java");
+        Files.writeString(source, """
+                package example;
+                import org.springframework.web.bind.annotation.*;
+                @RestController
+                @RequestMapping("/api/v2/tags")
+                public class MappedController {
+                    public MappedController() {}
+                    @PostMapping
+                    public String create() { return "ok"; }
+                    @RequestMapping(path={"/search"}, method={RequestMethod.GET})
+                    public String search() { return "found"; }
+                    public String helper() { return "internal"; }
+                }
+                """);
+        var discovered = new SpringHttpHandlerDiscovery(
+                new FileSystemJavaSourceDiscovery(new RouteSynthesisWorkspaceSnapshot(workspace)))
+                .discover(workspace, List.of(), "example.MappedController");
+
+        assertThat(discovered.status()).isEqualTo("ok");
+        assertThat(discovered.handlers()).hasSize(2);
+        assertThat(discovered.handlers().getFirst().methodName()).isEqualTo("create");
+        assertThat(discovered.handlers().getFirst().httpMethod()).isEqualTo("POST");
+        assertThat(discovered.handlers().getFirst().path()).isEqualTo("/api/v2/tags");
+        assertThat(discovered.handlers().get(1).methodName()).isEqualTo("search");
+        assertThat(discovered.handlers().get(1).httpMethod()).isEqualTo("GET");
+        assertThat(discovered.handlers().get(1).path()).isEqualTo("/api/v2/tags/search");
+    }
+
+    @Test
     void comparesReleasedTypeScriptMapperAndSynthesizerSemanticsThroughCdeBindings() throws Exception {
         JsonNode released = releasedTypeScriptRouteResult();
         JsonNode javaOwner = JSON.valueToTree(new DefaultRouteSynthesisFeature(routeHandlers())
@@ -277,7 +330,7 @@ class RouteFailureOperationRegistrationTest {
                 OperationId.of("route_synthesis.discover_handlers"),
                 routeInput("example.StdioController", null), false));
         OperationExecutionResult recipe = directory.execute(new OperationInvocation(
-                OperationId.of("route_synthesis.create_recipe"), recipeInput(), false));
+                OperationId.of("route_synthesis.create_recipe"), recipeInput(), true));
 
         JsonNode mapperCandidate = released.path("mapping").path("requestCandidate");
         JsonNode synthesizerCandidate = released.path("synthesis").path("requestCandidate");
@@ -307,11 +360,14 @@ class RouteFailureOperationRegistrationTest {
         ObjectNode recipe = input("route_synthesis.create_recipe");
         recipe.put("authToken", "Bearer route-secret");
         OperationExecutionResult route = directory.execute(new OperationInvocation(
-                OperationId.of("route_synthesis.create_recipe"), recipe, false));
+                OperationId.of("route_synthesis.create_recipe"), recipe, true));
         OperationExecutionResult failure = directory.execute(new OperationInvocation(
                 OperationId.of("failure_analysis.analyze_trace"),
                 input("failure_analysis.analyze_trace"), false));
 
+        assertThat(route.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
+        assertThat(route.result().path("actionResult").path("auth").path("strategy").asText())
+                .isEqualTo("bearer");
         assertThat(route.result().toString()).doesNotContain("route-secret", workspace.toString());
         assertThat(failure.result().toString()).doesNotContain("trace-secret", "sidecar-secret");
         assertThat(failure.result().path("fingerprint").path("normalizedMessage").asText())
@@ -335,7 +391,7 @@ class RouteFailureOperationRegistrationTest {
         try {
             OperationDirectory bounded = boundedDirectory(operationId, handlers);
             OperationExecutionResult result = bounded.execute(new OperationInvocation(
-                    OperationId.of(operationId), request, false));
+                    OperationId.of(operationId), request, confirmed(operationId)));
 
             assertThat(result.status()).isEqualTo(OperationExecutionStatus.TIMEOUT);
             assertThat(result.reasonCode()).isEqualTo("operation_timeout");
@@ -394,6 +450,10 @@ class RouteFailureOperationRegistrationTest {
 
     static Stream<String> routeIds() {
         return OWNED_IDS.stream().filter(id -> id.startsWith("route_synthesis.")).sorted();
+    }
+
+    private static boolean confirmed(String operationId) {
+        return "route_synthesis.create_recipe".equals(operationId);
     }
 
     private JsonNode releasedTypeScriptRouteResult() throws Exception {
@@ -739,8 +799,6 @@ class RouteFailureOperationRegistrationTest {
     private Map<String, Object> routingInventory() throws Exception {
         Path root = Path.of("src", "main", "java", "com", "nimbly", "mcpjavadevtools", "server", "core", "feature");
         List<Map<String, String>> compatibility = List.of(
-                retained(root.resolve("routesynthesis/DefaultRouteSynthesisFeature.java"),
-                        "RouteSynthesisMcpTool"),
                 retained(root.resolve("failureanalysis/DefaultFailureAnalysisFeature.java"),
                         "FailureAnalysisMcpTool"));
         for (Map<String, String> entry : compatibility) {
@@ -781,6 +839,7 @@ class RouteFailureOperationRegistrationTest {
                 Map.entry("substantiveAdded", List.of("RouteSynthesisResultEncoder")),
                 Map.entry("removed", List.of()),
                 Map.entry("retained", List.of(
+                        "DefaultRouteSynthesisFeature (validates Core owners)",
                         "RouteSynthesisActionHandler", "FailureAnalysisActionHandler",
                         "RouteSynthesisOperationRegistrations", "FailureAnalysisOperationRegistrations")),
                 Map.entry("compatibilityRetained", compatibility));

@@ -7,7 +7,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.reque
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.result.RouteSynthesisResult;
 import java.util.List;
 
-/** COMPATIBILITY_RETAINED_UNTIL_611: used by RouteSynthesisMcpTool; delete with that #611 adapter. */
+/** Validates the four substantive Route Synthesis owners for Core directory registration. */
 public class DefaultRouteSynthesisFeature implements RouteSynthesisFeature {
 
     private final List<? extends RouteSynthesisActionHandler> handlers;

@@ -31,12 +31,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.workspace.R
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.workspace.RouteSynthesisWorkspaceSnapshot;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceSnapshot;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.routesynthesis.RouteSynthesisMcpSchemaPostProcessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Optional;
 import java.net.http.HttpClient;
-import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -49,11 +47,6 @@ import org.springframework.context.annotation.Configuration;
         RouteSynthesisConfigurationProperties.class,
         RouteSynthesisRuntimeMappingsProperties.class})
 public class RouteSynthesisConfiguration {
-
-    @Bean
-    static BeanPostProcessor routeSynthesisMcpSchemaPostProcessor() {
-        return new RouteSynthesisMcpSchemaPostProcessor();
-    }
 
     /** Binds the current Application workspace snapshot into a Core contract. */
     @Bean

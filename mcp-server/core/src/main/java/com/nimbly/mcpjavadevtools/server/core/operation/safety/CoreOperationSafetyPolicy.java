@@ -24,6 +24,7 @@ public class CoreOperationSafetyPolicy {
             "probe.actuate",
             "probe.profiler",
             "probe.reset",
+            "route_synthesis.create_recipe",
             "execution_profile_export.export",
             "transport_execute.execute",
             "execution_orchestration.execute",
@@ -46,7 +47,8 @@ public class CoreOperationSafetyPolicy {
         return new OperationSafetyPolicy(
                 sideEffect,
                 CONFIRMATION_REQUIRED.contains(operationId),
-                "caller_must_not_supply_credentials",
+                operationId.equals("route_synthesis.create_recipe")
+                        ? "caller_may_supply_credentials" : "caller_must_not_supply_credentials",
                 "redact_sensitive_fields",
                 OperationSafetyLimits.DEFAULT_TIMEOUT_MILLIS,
                 true,
