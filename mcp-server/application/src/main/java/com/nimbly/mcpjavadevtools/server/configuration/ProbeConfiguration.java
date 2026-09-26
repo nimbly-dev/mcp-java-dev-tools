@@ -24,14 +24,9 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.response.Probe
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.routing.ProbeTargetResolver;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.probe.ProbeMcpRequestMapper;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.probe.ProbeMcpResponseMapper;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.probe.ProbeMcpTool;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -151,21 +146,7 @@ public class ProbeConfiguration {
     /** Assembles the capability-owned operation catalog from action-owned Spring beans. */
     @Bean
     ProbeOperationCatalog probeOperationCatalog(List<ProbeActionHandler> handlers) {
-        return new ProbeOperationCatalog(
-                handlers,
-                ProbeMcpTool.operationExposure(),
-                new OperationTraceMetadata(
-                        ProbeMcpTool.class.getName(),
-                        ProbeMcpRequestMapper.class.getName(),
-                        ProbeFeature.class.getName(),
-                        ProbeMcpResponseMapper.class.getName(),
-                        "mcp-server/application/src/test/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
-                                + "probe/ProbeMcpTypeScriptParityFixtureTest.java",
-                        "probe_runtime",
-                        Map.of(
-                                "actionHandlers", ProbeActionHandler.class.getName(),
-                                "endpointClient", ProbeEndpointClient.class.getName(),
-                                "targetResolver", ProbeTargetResolver.class.getName())));
+        return new ProbeOperationCatalog(handlers);
     }
 
     /** Assembles the public Core Feature from the complete operation catalog. */

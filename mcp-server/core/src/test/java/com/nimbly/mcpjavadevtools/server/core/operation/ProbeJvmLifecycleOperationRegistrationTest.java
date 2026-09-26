@@ -334,18 +334,19 @@ class ProbeJvmLifecycleOperationRegistrationTest {
         List<Map<String, Object>> mappings = (List<Map<String, Object>>) routing.get("operationMappings");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> files = (List<Map<String, Object>>) routing.get("routingFiles");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> removedFiles = (List<Map<String, Object>>) routing.get("removedRoutingFiles");
         assertThat(mappings).hasSize(10).allSatisfy(row -> {
             assertThat(row.get("before")).isInstanceOf(Map.class);
             assertThat(row.get("after")).isInstanceOf(Map.class);
         });
-        assertThat(files).hasSize(25).allSatisfy(row ->
+        assertThat(files).hasSize(24).allSatisfy(row ->
                 assertThat(routingPath((String) row.get("path"))).isRegularFile());
-        assertThat(files).filteredOn(row ->
-                "MIGRATION_SOURCE_RETAINED_UNTIL_634".equals(row.get("classification")))
-                .hasSize(1).allSatisfy(row -> {
-                    assertThat(row.get("caller")).isNotNull();
-                    assertThat(row.get("deletionCondition")).asString().contains("#634");
-                });
+        assertThat(removedFiles).hasSize(8).allSatisfy(row -> {
+            assertThat(row.get("before")).isEqualTo("PRESENT");
+            assertThat(row.get("after")).isEqualTo("REMOVED");
+            assertThat(Files.exists(routingPath((String) row.get("path")))).isFalse();
+        });
         Path evidence = Path.of("target", "mcpjvm-620-evidence");
         Files.createDirectories(evidence);
         JSON.writerWithDefaultPrettyPrinter().writeValue(
@@ -466,14 +467,16 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 probeRoutingFiles(), jvmRoutingFiles(), compatibilityRoutingFiles())
                 .flatMap(List::stream).toList());
         inventory.put("addedRoutingFiles", List.of());
-        inventory.put("removedRoutingFiles", List.of());
+        inventory.put("removedRoutingFiles", removedProbeAdapterFiles());
         inventory.put("modifiedRoutingFiles", List.of(
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
                         + "probe/operation/ProbeOperationRegistrations.java",
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
                         + "jvmlifecycle/operation/JvmLifecycleOperationRegistrations.java",
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
-                        + "jvmlifecycle/operation/JvmLifecycleOperationCatalog.java"));
+                        + "jvmlifecycle/operation/JvmLifecycleOperationCatalog.java",
+                "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/"
+                        + "configuration/ProbeConfiguration.java"));
         inventory.put("absentRoutingCategories", Map.of(
                 "HANDLER_ALIAS", "none; substantive owners implement the shared handler contracts directly",
                 "STANDALONE_DISPATCHER", "none; each capability catalog owns its closed action dispatch"));
@@ -525,7 +528,6 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 routingFile(core + "jvmlifecycle/operation/JvmLifecycleOperationRegistrations.java", "CDE_REGISTRATION",
                         "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/operation/composition/"
                                 + "CoreOperationDirectory.java"),
-                migrationSourceFile(app + "mcp/tools/probe/ProbeMcpTool.java", app + "configuration/ProbeConfiguration.java"),
                 routingFile(app + "mcp/tools/operation/OperationMcpTools.java", "CDE_APPLICATION_ADAPTER",
                         app + "configuration/OperationDirectoryConfiguration.java"),
                 routingFile(app + "configuration/OperationDirectoryConfiguration.java", "CDE_CORE_COMPOSITION",
@@ -538,11 +540,24 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 "classification", "RETAINED", "caller", caller);
     }
 
-    private static Map<String, Object> migrationSourceFile(String path, String caller) {
-        return Map.of("path", path, "category", "LEGACY_APPLICATION_ADAPTER", "before", "PRESENT",
-                "after", "SOURCE_ONLY", "classification", "MIGRATION_SOURCE_RETAINED_UNTIL_634",
-                "caller", caller, "deletionCondition",
-                "#634 validates the Probe capability through CDE and removes this legacy adapter source");
+    private static List<Map<String, Object>> removedProbeAdapterFiles() {
+        String app = "mcp-server/application/src/";
+        String main = app + "main/java/com/nimbly/mcpjavadevtools/server/mcp/tools/probe/";
+        String test = app + "test/java/com/nimbly/mcpjavadevtools/server/mcp/tools/probe/";
+        return List.of(
+                removedRoutingFile(main + "ProbeMcpTool.java", "LEGACY_APPLICATION_ADAPTER"),
+                removedRoutingFile(main + "ProbeMcpActionInput.java", "LEGACY_APPLICATION_ADAPTER"),
+                removedRoutingFile(main + "ProbeMcpRequestMapper.java", "LEGACY_APPLICATION_ADAPTER"),
+                removedRoutingFile(main + "ProbeMcpResponseMapper.java", "LEGACY_APPLICATION_ADAPTER"),
+                removedRoutingFile(main + "package-info.java", "LEGACY_APPLICATION_ADAPTER"),
+                removedRoutingFile(test + "ProbeMcpToolTest.java", "MIGRATION_ONLY_TEST"),
+                removedRoutingFile(test + "ProbeMcpTypeScriptParityFixtureTest.java", "MIGRATION_ONLY_TEST"),
+                removedRoutingFile(app + "test/resources/probe/probe-typescript-java-parity.json", "MIGRATION_ONLY_FIXTURE"));
+    }
+
+    private static Map<String, Object> removedRoutingFile(String path, String category) {
+        return Map.of("path", path, "category", category, "before", "PRESENT", "after", "REMOVED",
+                "classification", "REMOVED_LEGACY_PROBE_ADAPTER");
     }
 
     private static Path routingPath(String repositoryPath) {
