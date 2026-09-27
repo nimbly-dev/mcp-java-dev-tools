@@ -45,7 +45,7 @@ ready without registering unsupported placeholder MCP Tools.
 | `jvm_lifecycle` | `mcp/tools/jvmlifecycle` | registered; #572 |
 | `probe` | `mcp/tools/probe` | registered; #571 |
 | Route Synthesis operations | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated; #635 |
-| `failure_analysis` | `mcp/tools/failureanalysis` | registered; #574 |
+| `failure_analysis` | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated and live-validated; #636 |
 | `transport_execute` | `mcp/tools/transportexecute` | registered; #576 |
 | `artifact_management` | `mcp/tools/artifactmanagement` | Feature migration required |
 | `execution_profile_export` | `mcp/tools/executionprofileexport` | registered; #604 Catalog-Describe-Execute reference |

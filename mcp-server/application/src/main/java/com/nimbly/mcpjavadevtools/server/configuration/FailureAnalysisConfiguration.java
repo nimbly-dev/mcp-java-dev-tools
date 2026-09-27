@@ -1,32 +1,21 @@
 package com.nimbly.mcpjavadevtools.server.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.DefaultFailureAnalysisFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.FailureAnalysisFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.impl.AnalyzeTraceAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.impl.VerifyReproductionAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.endpoint.FailureEvidenceClient;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.endpoint.FailureEvidenceResponseMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.endpoint.HttpFailureEvidenceClient;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.policy.FailureAnalysisPolicy;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.failureanalysis.FailureAnalysisMcpSchemaPostProcessor;
 import java.time.Duration;
-import java.util.List;
-import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** Spring composition for the complete Failure Analysis Core Feature. */
+/** Spring composition for Failure Analysis policy and action handlers. */
 @Configuration
 @EnableConfigurationProperties(FailureAnalysisConfigurationProperties.class)
 public class FailureAnalysisConfiguration {
-
-    @Bean
-    static BeanPostProcessor failureAnalysisMcpSchemaPostProcessor() {
-        return new FailureAnalysisMcpSchemaPostProcessor();
-    }
 
     @Bean
     FailureAnalysisPolicy failureAnalysisPolicy(FailureAnalysisConfigurationProperties properties) {
@@ -66,8 +55,4 @@ public class FailureAnalysisConfiguration {
         return new VerifyReproductionAction(client, responseMapper, policy);
     }
 
-    @Bean
-    FailureAnalysisFeature failureAnalysisFeature(List<FailureAnalysisActionHandler> handlers) {
-        return new DefaultFailureAnalysisFeature(handlers);
-    }
 }

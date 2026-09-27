@@ -92,7 +92,7 @@ public final class CoreOperationDirectory {
                 ProbeOperationRegistrations.create(owners.probe(), mapper),
                 ExecutionProfileExportOperationRegistrations.create(owners.export(), mapper),
                 RouteSynthesisOperationRegistrations.create(owners.routes(), mapper),
-                FailureAnalysisOperationRegistrations.create(owners.failures(), mapper),
+                FailureAnalysisOperationRegistrations.create(owners.failureAnalysisHandlers(), mapper),
                 TransportExecutionOperationRegistrations.create(owners.transport(), mapper),
                 ExecutionOrchestrationOperationRegistrations.create(owners.orchestration(), mapper),
                 TrustedRegressionSuiteRegistrations.create(owners.regression(), mapper, trusted),

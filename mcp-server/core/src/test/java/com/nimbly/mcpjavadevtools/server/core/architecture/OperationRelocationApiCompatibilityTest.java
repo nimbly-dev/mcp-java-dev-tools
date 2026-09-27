@@ -40,7 +40,9 @@ class OperationRelocationApiCompatibilityTest {
             BASELINE_OPERATION_PACKAGE + ".OperationInvocation",
             BASELINE_OPERATION_PACKAGE + ".OperationCatalogEntry",
             BASELINE_OPERATION_PACKAGE + ".OperationDocumentation",
-            BASELINE_OPERATION_PACKAGE + ".OperationExecutionStatus");
+            BASELINE_OPERATION_PACKAGE + ".OperationExecutionStatus",
+            BASELINE_OPERATION_PACKAGE + ".CoreOperationDirectoryOwners",
+            BASELINE_OPERATION_PACKAGE + ".FailureAnalysisOperationRegistrations");
 
     @Test
     void baselineOperationTypesKeepTheirResolvedApiAfterRelocation() throws Exception {

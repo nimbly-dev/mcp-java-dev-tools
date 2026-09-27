@@ -1,9 +1,11 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.FailureAnalysisAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.impl.AnalyzeTraceAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.impl.VerifyReproductionAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.endpoint.FailureEvidenceClient;
@@ -20,16 +22,30 @@ import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.inve
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.result.FailureAnalysisOutcome;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.result.FailureAnalysisResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.terminal.FailureTerminalState;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.operation.FailureAnalysisOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.policy.FailureAnalysisPolicy;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class FailureAnalysisFeatureTest {
+class FailureAnalysisActionHandlerTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final FailureAnalysisPolicy POLICY = new FailureAnalysisPolicy(
             Duration.ofSeconds(15), 200_000, 65_536, 256, 8, 8);
+
+    @Test
+    void requiresExactlyOneHandlerForEveryFailureAnalysisAction() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> FailureAnalysisOperationRegistrations.create(
+                        List.of(handler(FailureAnalysisAction.ANALYZE_TRACE)), JSON))
+                .withMessage("missing action handler: VERIFY_REPRODUCTION");
+
+        FailureAnalysisActionHandler analyze = handler(FailureAnalysisAction.ANALYZE_TRACE);
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> FailureAnalysisOperationRegistrations.create(List.of(analyze, analyze), JSON))
+                .withMessage("duplicate action handler: ANALYZE_TRACE");
+    }
 
     @Test
     void analyzesCompleteFingerprintAndRedactsSensitiveMessage() throws Exception {
@@ -42,7 +58,7 @@ class FailureAnalysisFeatureTest {
                         "normalizedMessage":"Bearer secret-value","complete":true},
                         "investigationCandidates":[],"exceptionSections":[],"reasons":[]}
                         """)), null);
-        FailureAnalysisResult result = feature(client).execute(new AnalyzeTraceRequest(
+        FailureAnalysisResult result = analyzeAction(client).execute(new AnalyzeTraceRequest(
                 "java.lang.IllegalStateException: failure", "http://sidecar.example", "Bearer secret-value",
                 investigation(), Duration.ofSeconds(2)));
 
@@ -61,7 +77,7 @@ class FailureAnalysisFeatureTest {
                         "complete":false,"incompletenessReasons":["source_line_missing"]}}
                         """)), null);
 
-        FailureAnalysisResult result = feature(client).execute(new AnalyzeTraceRequest(
+        FailureAnalysisResult result = analyzeAction(client).execute(new AnalyzeTraceRequest(
                 "trace", "http://sidecar.example", null, null, Duration.ofSeconds(2)));
 
         assertThat(result.outcome()).isEqualTo(FailureAnalysisOutcome.INCONCLUSIVE);
@@ -83,7 +99,7 @@ class FailureAnalysisFeatureTest {
                 new FailureLineHitEvidence("example.OrderService#submit:42", 1),
                 "http://sidecar.example", null, investigation(), Duration.ofSeconds(2), null);
 
-        FailureAnalysisResult result = feature(client).execute(request);
+        FailureAnalysisResult result = verifyAction(client).execute(request);
 
         assertThat(result.outcome()).isEqualTo(FailureAnalysisOutcome.REPRODUCED);
         assertThat(result.diagnosisClaimed()).isTrue();
@@ -98,7 +114,7 @@ class FailureAnalysisFeatureTest {
                 new FailureTerminalState(
                         "BLOCKED_MISSING_AUTH", "missing_auth", "cleanup_confirmed", 1));
 
-        FailureAnalysisResult result = feature(client).execute(request);
+        FailureAnalysisResult result = verifyAction(client).execute(request);
 
         assertThat(result.outcome()).isEqualTo(FailureAnalysisOutcome.BLOCKED_MISSING_AUTH);
         assertThat(result.attemptEvidence().attemptCount()).isEqualTo(1);
@@ -114,7 +130,7 @@ class FailureAnalysisFeatureTest {
                         "lineNumber":42},"complete":true}}
                         """)), null);
 
-        FailureAnalysisResult result = feature(client).execute(new AnalyzeTraceRequest(
+        FailureAnalysisResult result = analyzeAction(client).execute(new AnalyzeTraceRequest(
                 "trace", "http://sidecar.example", null, null, null));
 
         assertThat(result.outcome()).isEqualTo(FailureAnalysisOutcome.ANALYZED);
@@ -128,7 +144,7 @@ class FailureAnalysisFeatureTest {
                 StubClient client = new StubClient(null, null);
                 client.analyzeFailure = new FailureEvidenceClientException(kind, "Bearer internal-secret");
 
-                FailureAnalysisResult result = feature(client).execute(new AnalyzeTraceRequest(
+                FailureAnalysisResult result = analyzeAction(client).execute(new AnalyzeTraceRequest(
                         "trace", "http://sidecar.example", null, null, null));
 
                 assertThat(result.outcome()).isEqualTo(FailureAnalysisOutcome.BLOCKED_SIDECAR_UNAVAILABLE);
@@ -151,7 +167,7 @@ class FailureAnalysisFeatureTest {
         for (String outcome : outcomes) {
             for (String cleanupStatus : cleanupStatuses) {
                 StubClient client = new StubClient(null, null);
-                FailureAnalysisResult result = feature(client).execute(new VerifyReproductionRequest(
+                FailureAnalysisResult result = verifyAction(client).execute(new VerifyReproductionRequest(
                         null, null, null, null, null, null, null,
                         new FailureTerminalState(outcome, "terminal_reason", cleanupStatus, 2)));
 
@@ -170,7 +186,7 @@ class FailureAnalysisFeatureTest {
             client.analyzeFailure = new FailureEvidenceClientException(
                     FailureEvidenceFailureKind.INTERRUPTED, "transport interrupted");
 
-            FailureAnalysisResult result = feature(client).execute(new AnalyzeTraceRequest(
+            FailureAnalysisResult result = analyzeAction(client).execute(new AnalyzeTraceRequest(
                     "trace", "http://sidecar.example", null, null, null));
 
             assertThat(result.outcome()).isEqualTo(FailureAnalysisOutcome.BLOCKED_SIDECAR_UNAVAILABLE);
@@ -184,11 +200,11 @@ class FailureAnalysisFeatureTest {
     void rejectsMalformedEvidenceWithoutClaimingDiagnosis() throws Exception {
         StubClient analyzeClient = new StubClient(
                 new FailureEvidenceResponse(200, JSON.readTree("{}")), null);
-        FailureAnalysisResult analyzed = feature(analyzeClient).execute(new AnalyzeTraceRequest(
+        FailureAnalysisResult analyzed = analyzeAction(analyzeClient).execute(new AnalyzeTraceRequest(
                 "trace", "http://sidecar.example", null, null, null));
 
         StubClient verifyClient = new StubClient(null, new FailureEvidenceResponse(200, JSON.readTree("{}")));
-        FailureAnalysisResult verified = feature(verifyClient).execute(runtimeRequest());
+        FailureAnalysisResult verified = verifyAction(verifyClient).execute(runtimeRequest());
 
         assertThat(analyzed.reasonCode()).isEqualTo("failure_fingerprint_incomplete");
         assertThat(analyzed.diagnosisClaimed()).isFalse();
@@ -234,12 +250,28 @@ class FailureAnalysisFeatureTest {
         assertThat(evidence.exceptionSections().get(0).exceptionType()).isNull();
     }
 
-    private FailureAnalysisFeature feature(StubClient client) {
-        FailureEvidenceResponseMapper mapper = new FailureEvidenceResponseMapper(POLICY);
-        List<FailureAnalysisActionHandler> handlers = List.of(
-                new AnalyzeTraceAction(client, mapper, POLICY),
-                new VerifyReproductionAction(client, mapper, POLICY));
-        return new DefaultFailureAnalysisFeature(handlers);
+    private AnalyzeTraceAction analyzeAction(StubClient client) {
+        return new AnalyzeTraceAction(client, new FailureEvidenceResponseMapper(POLICY), POLICY);
+    }
+
+    private VerifyReproductionAction verifyAction(StubClient client) {
+        return new VerifyReproductionAction(client, new FailureEvidenceResponseMapper(POLICY), POLICY);
+    }
+
+    private static FailureAnalysisActionHandler handler(FailureAnalysisAction action) {
+        return new FailureAnalysisActionHandler() {
+            @Override
+            public FailureAnalysisAction action() {
+                return action;
+            }
+
+            @Override
+            public FailureAnalysisResult execute(
+                    com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.request
+                            .FailureAnalysisRequest request) {
+                return FailureAnalysisResult.invalidRequest();
+            }
+        };
     }
 
     private FailureInvestigationContext investigation() {

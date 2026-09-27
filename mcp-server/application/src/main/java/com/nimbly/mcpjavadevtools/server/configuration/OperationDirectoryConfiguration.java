@@ -6,7 +6,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.Exe
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionRunDirectoryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.TrustedDirectSuiteRun;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.FailureAnalysisFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.RouteSynthesisFeature;
@@ -20,6 +20,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperatio
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectoryOwners;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.TrustedCoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.operation.OperationMcpOutputSchemaPostProcessor;
+import java.util.List;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,8 +41,9 @@ public class OperationDirectoryConfiguration {
             ProbeOperationCatalog probe,
             ExecutionProfileExportOperationCatalog export,
             RouteSynthesisFeature routes,
-            FailureAnalysisFeature failures) {
-        return new CoreCatalogOwners(artifact, jvmLifecycle, probe, export, routes, failures);
+            List<FailureAnalysisActionHandler> failureAnalysisHandlers) {
+        return new CoreCatalogOwners(
+                artifact, jvmLifecycle, probe, export, routes, failureAnalysisHandlers);
     }
 
     @Bean
@@ -63,7 +65,7 @@ public class OperationDirectoryConfiguration {
                 catalogOwners.probe(),
                 catalogOwners.export(),
                 catalogOwners.routes(),
-                catalogOwners.failures(),
+                catalogOwners.failureAnalysisHandlers(),
                 featureOwners.transport(),
                 featureOwners.orchestration(),
                 featureOwners.regression(),
@@ -98,7 +100,7 @@ public class OperationDirectoryConfiguration {
             ProbeOperationCatalog probe,
             ExecutionProfileExportOperationCatalog export,
             RouteSynthesisFeature routes,
-            FailureAnalysisFeature failures) {
+            List<FailureAnalysisActionHandler> failureAnalysisHandlers) {
     }
 
     private record CoreFeatureOwners(

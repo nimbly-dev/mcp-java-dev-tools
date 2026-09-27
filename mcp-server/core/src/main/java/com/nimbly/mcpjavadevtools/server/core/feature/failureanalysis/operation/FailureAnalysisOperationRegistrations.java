@@ -2,8 +2,6 @@ package com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.operation
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.DefaultFailureAnalysisFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.FailureAnalysisFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.FailureAnalysisAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.analyzetrace.AnalyzeTraceRequest;
@@ -16,6 +14,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.resu
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.terminal.FailureTerminalState;
 import java.net.URI;
 import java.time.Duration;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,19 +45,43 @@ public class FailureAnalysisOperationRegistrations {
     }
 
     public static List<OperationRegistration<?, ?>> create(
-            FailureAnalysisFeature feature, ObjectMapper mapper) {
+            List<? extends FailureAnalysisActionHandler> actionHandlers, ObjectMapper mapper) {
         Objects.requireNonNull(mapper, "mapper must not be null");
-        var defaultFeature = (DefaultFailureAnalysisFeature) Objects.requireNonNull(feature, "feature must not be null");
+        Map<FailureAnalysisAction, FailureAnalysisActionHandler> handlers = completeHandlers(actionHandlers);
         return List.of(
-                register(FailureAnalysisAction.ANALYZE_TRACE, FailureAnalyzeArguments.class, defaultFeature, mapper),
-                register(FailureAnalysisAction.VERIFY_REPRODUCTION, FailureVerifyArguments.class, defaultFeature, mapper));
+                register(FailureAnalysisAction.ANALYZE_TRACE, FailureAnalyzeArguments.class,
+                        handlers.get(FailureAnalysisAction.ANALYZE_TRACE), mapper),
+                register(FailureAnalysisAction.VERIFY_REPRODUCTION, FailureVerifyArguments.class,
+                        handlers.get(FailureAnalysisAction.VERIFY_REPRODUCTION), mapper));
+    }
+
+    private static Map<FailureAnalysisAction, FailureAnalysisActionHandler> completeHandlers(
+            List<? extends FailureAnalysisActionHandler> actionHandlers) {
+        Objects.requireNonNull(actionHandlers, "handlers must not be null");
+        Map<FailureAnalysisAction, FailureAnalysisActionHandler> handlers =
+                new EnumMap<>(FailureAnalysisAction.class);
+        for (FailureAnalysisActionHandler handler : actionHandlers) {
+            Objects.requireNonNull(handler, "handlers must not contain null");
+            FailureAnalysisAction action = Objects.requireNonNull(
+                    handler.action(), "handler action must not be null");
+            if (handlers.putIfAbsent(action, handler) != null) {
+                throw new IllegalArgumentException("duplicate action handler: " + action.name());
+            }
+        }
+        for (FailureAnalysisAction action : FailureAnalysisAction.values()) {
+            if (!handlers.containsKey(action)) {
+                throw new IllegalArgumentException("missing action handler: " + action.name());
+            }
+        }
+        return Map.copyOf(handlers);
     }
 
     static <I> OperationRegistration<I, FailureAnalysisResult> register(
             FailureAnalysisAction action, Class<I> requestType,
-            DefaultFailureAnalysisFeature feature, ObjectMapper mapper) {
-        FailureAnalysisActionHandler owner = feature.operationOwner(action);
-        OperationDescriptor descriptor = descriptor(action, requestType, owner);
+            FailureAnalysisActionHandler handler,
+            ObjectMapper mapper) {
+        Objects.requireNonNull(handler, "handler must not be null");
+        OperationDescriptor descriptor = descriptor(action, requestType, handler);
         return new OperationRegistration<I, FailureAnalysisResult>(
                 descriptor,
                 requestType,
@@ -74,7 +97,7 @@ public class FailureAnalysisOperationRegistrations {
                         OperationCancellationGuarantee.IDEMPOTENT,
                         (input, context) -> {
                             checkpoint(context);
-                            FailureAnalysisResult result = owner.execute(decode(action, input));
+                            FailureAnalysisResult result = handler.execute(decode(action, input));
                             checkpoint(context);
                             return result;
                         }),
@@ -122,16 +145,17 @@ public class FailureAnalysisOperationRegistrations {
     }
 
     static OperationDescriptor descriptor(
-            FailureAnalysisAction action, Class<?> requestType, FailureAnalysisActionHandler owner) {
+            FailureAnalysisAction action, Class<?> requestType,
+            FailureAnalysisActionHandler handler) {
         String id = OperationId.fromLegacy("failure_analysis", action.value()).value();
-        String executableOwner = owner.getClass().getName() + "#execute";
+        String executableOwner = handler.getClass().getName() + "#execute";
         return new OperationDescriptor(
                 "failure_analysis", action.value(), requestType.getName(),
                 FailureAnalysisResult.class.getName(), executableOwner,
                 new OperationTraceMetadata(
                         "java_mcp_operation_directory_adapter",
                         FailureAnalysisOperationRegistrations.class.getName(),
-                        FailureAnalysisActionHandler.class.getName(),
+                        handler.getClass().getName(),
                         FailureAnalysisOperationRegistrations.class.getName(),
                         "mcpjvm-610:" + id + ":typed-binding",
                         CoreOperationSafetyPolicy.sideEffect(id),

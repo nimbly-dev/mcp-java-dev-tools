@@ -27,7 +27,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.mod
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExportExecutionProfileOperation;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.DefaultFailureAnalysisFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.FailureAnalysisAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.request.FailureAnalysisRequest;
@@ -489,7 +488,7 @@ class CoreOperationDirectoryTest {
                         new ProbeOperationCatalog(probeHandlers()),
                         export,
                         new DefaultRouteSynthesisFeature(routeHandlers()),
-                        new DefaultFailureAnalysisFeature(failureHandlers()),
+                        failureHandlers(),
                         new DefaultTransportExecutionFeature(transportHandlers()),
                         new DefaultExecutionOrchestrationFeature(orchestrationHandlers()),
                         new DefaultRegressionSuiteFeature(regressionHandlers()),

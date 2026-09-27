@@ -18,8 +18,7 @@ final class FailureAnalysisOperationSchemas {
     static OperationSchema analyzeSchema() {
         ObjectNode root = CanonicalOperationSchema.object();
         CanonicalOperationSchema.string(root, "trace");
-        root.with("properties").with("trace").put("minLength", 1).put("maxLength", 200000)
-                .put("pattern", "\\S");
+        root.with("properties").with("trace").put("minLength", 1).put("maxLength", 200000);
         CanonicalOperationSchema.string(root, "sidecarBaseUrl").put("minLength", 1)
                 .put("pattern", "\\S");
         CanonicalOperationSchema.string(root, "sidecarAuthorization");

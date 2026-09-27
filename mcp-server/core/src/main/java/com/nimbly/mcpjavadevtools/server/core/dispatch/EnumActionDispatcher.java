@@ -36,6 +36,16 @@ public final class EnumActionDispatcher<A extends Enum<A>, I, O> {
      * @return handler output
      */
     public O dispatch(A action, I input) {
+        return handler(action).execute(input);
+    }
+
+    /**
+     * Resolves the substantive handler for one action.
+     *
+     * @param action selected action
+     * @return the complete action's handler
+     */
+    private ActionHandler<A, I, O> handler(A action) {
         if (action == null) {
             throw new IllegalArgumentException("unsupported action: null");
         }
@@ -43,7 +53,7 @@ public final class EnumActionDispatcher<A extends Enum<A>, I, O> {
         if (handler == null) {
             throw new IllegalArgumentException("unsupported action: " + action.name());
         }
-        return handler.execute(input);
+        return handler;
     }
 
     private static <A extends Enum<A>, I, O> Map<A, ActionHandler<A, I, O>> createCompleteMap(

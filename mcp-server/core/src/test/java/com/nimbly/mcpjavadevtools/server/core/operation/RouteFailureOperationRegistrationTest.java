@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.DefaultFailureAnalysisFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.impl.AnalyzeTraceAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.impl.VerifyReproductionAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.endpoint.FailureEvidenceClient;
@@ -53,6 +52,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManife
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
+import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
 import com.nimbly.mcpjavadevtools.server.core.synthesis.registry.DefaultSynthesizerRegistry;
 import com.nimbly.mcpjavadevtools.server.core.synthesis.springhttp.SpringHttpSynthesizer;
 import com.sun.net.httpserver.HttpExchange;
@@ -113,8 +113,16 @@ class RouteFailureOperationRegistrationTest {
         OperationRegistration<?, ?> registration = registrations.get(operationId);
 
         assertThat(registration).isNotNull();
-        assertThat(registration.descriptor().executableOwner())
-                .doesNotContain("DefaultRouteSynthesisFeature", "DefaultFailureAnalysisFeature");
+        if (operationId.startsWith("failure_analysis.")) {
+            String expectedOwner = operationId.endsWith(".analyze_trace")
+                    ? AnalyzeTraceAction.class.getName()
+                    : VerifyReproductionAction.class.getName();
+            assertThat(registration.descriptor().executableOwner())
+                    .isEqualTo(expectedOwner + "#execute");
+        } else {
+            assertThat(registration.descriptor().executableOwner())
+                    .doesNotContain("DefaultRouteSynthesisFeature", "FailureAnalysisFeature");
+        }
         assertThat(registration.decoder()).isInstanceOf(BoundedOperationRequestDecoder.class);
         assertThat(registration.encoder()).isInstanceOf(BoundedOperationResultEncoder.class);
         assertThat(registration.inputSchema().definition().path("$schema").asText())
@@ -262,6 +270,16 @@ class RouteFailureOperationRegistrationTest {
 
         assertThat(result.status()).isEqualTo(OperationExecutionStatus.INVALID_INPUT);
         assertThat(result.reasonCode()).isEqualTo("operation_input_schema_invalid");
+    }
+
+    @Test
+    void acceptsFullFailureTracesWithinTheDocumentedTraceLimit() {
+        OperationRegistration<?, ?> registration = registrations.get("failure_analysis.analyze_trace");
+        ObjectNode input = analyzeInput();
+        input.put("trace", "java.lang.IllegalStateException: fixture failure\n"
+                + "\tat example.Fixture.deleteTag(Fixture.java:26)\n" + "x".repeat(16_384));
+
+        assertThat(OperationSchemaValidator.violations(registration.inputSchema(), input)).isEmpty();
     }
 
     @Test
@@ -552,8 +570,7 @@ class RouteFailureOperationRegistrationTest {
         List<OperationRegistration<?, ?>> owned = Stream.concat(
                 RouteSynthesisOperationRegistrations.create(
                         new DefaultRouteSynthesisFeature(routes), JSON).stream(),
-                FailureAnalysisOperationRegistrations.create(
-                        new DefaultFailureAnalysisFeature(failures), JSON).stream()).toList();
+                FailureAnalysisOperationRegistrations.create(failures, JSON).stream()).toList();
         return new OperationDirectory(owned, ownedDocument(), JSON);
     }
     private List<OperationRegistration<?, ?>> substantiveRegistrations() {
@@ -561,7 +578,7 @@ class RouteFailureOperationRegistrationTest {
                 RouteSynthesisOperationRegistrations.create(
                         new DefaultRouteSynthesisFeature(routeHandlers()), JSON).stream(),
                 FailureAnalysisOperationRegistrations.create(
-                        new DefaultFailureAnalysisFeature(failureHandlers()), JSON).stream()).toList();
+                        failureHandlers(), JSON).stream()).toList();
     }
 
     private List<RouteSynthesisActionHandler> routeHandlers() {
@@ -600,7 +617,7 @@ class RouteFailureOperationRegistrationTest {
                 RouteSynthesisOperationRegistrations.create(
                         new DefaultRouteSynthesisFeature(routeHandlers()), JSON).stream(),
                 FailureAnalysisOperationRegistrations.create(
-                        new DefaultFailureAnalysisFeature(selectedFailureHandlers), JSON).stream());
+                        selectedFailureHandlers, JSON).stream());
         OperationRegistration<?, ?> selected = values
                 .filter(value -> value.descriptor().operationId().value().equals(operationId))
                 .findFirst().orElseThrow();
@@ -798,20 +815,15 @@ class RouteFailureOperationRegistrationTest {
 
     private Map<String, Object> routingInventory() throws Exception {
         Path root = Path.of("src", "main", "java", "com", "nimbly", "mcpjavadevtools", "server", "core", "feature");
-        List<Map<String, String>> compatibility = List.of(
-                retained(root.resolve("failureanalysis/DefaultFailureAnalysisFeature.java"),
-                        "FailureAnalysisMcpTool"));
-        for (Map<String, String> entry : compatibility) {
-            assertThat(Files.readString(Path.of(entry.get("path"))))
-                    .contains("COMPATIBILITY_RETAINED_UNTIL_611");
-        }
+        List<Map<String, String>> compatibility = List.of();
         List<Map<String, Object>> measured = List.of(
                 measuredRoutingFile(root.resolve("routesynthesis/DefaultRouteSynthesisFeature.java"), 40),
-                measuredRoutingFile(root.resolve("failureanalysis/DefaultFailureAnalysisFeature.java"), 26),
                 measuredRoutingFile(root.resolve(
                         "routesynthesis/operation/RouteSynthesisOperationRegistrations.java"), 138),
                 measuredRoutingFile(root.resolve(
                         "failureanalysis/operation/FailureAnalysisOperationRegistrations.java"), 145),
+                measuredRoutingFile(root.resolve("failureanalysis/DefaultFailureAnalysisFeature.java"), 31),
+                measuredRoutingFile(root.resolve("failureanalysis/FailureAnalysisFeature.java"), 13),
                 measuredRoutingFile(root.resolve(
                         "routesynthesis/operation/RouteSynthesisOperationSchemas.java"), 0),
                 measuredRoutingFile(root.resolve(
@@ -837,28 +849,24 @@ class RouteFailureOperationRegistrationTest {
                 Map.entry("routingPlumbingNonblankDelta", assessedDelta),
                 Map.entry("added", List.of()),
                 Map.entry("substantiveAdded", List.of("RouteSynthesisResultEncoder")),
-                Map.entry("removed", List.of()),
+                Map.entry("removed", List.of("DefaultFailureAnalysisFeature", "FailureAnalysisFeature")),
                 Map.entry("retained", List.of(
                         "DefaultRouteSynthesisFeature (validates Core owners)",
+                        "FailureAnalysisActionHandler (substantive direct operation owners)",
                         "RouteSynthesisActionHandler", "FailureAnalysisActionHandler",
                         "RouteSynthesisOperationRegistrations", "FailureAnalysisOperationRegistrations")),
                 Map.entry("compatibilityRetained", compatibility));
     }
 
     private static Map<String, Object> measuredRoutingFile(Path path, int before) throws Exception {
-        int after = (int) Files.readAllLines(path).stream().filter(line -> !line.isBlank()).count();
+        int after = Files.exists(path)
+                ? (int) Files.readAllLines(path).stream().filter(line -> !line.isBlank()).count()
+                : 0;
         return Map.of("path", path.toString(), "before", before, "after", after, "delta", after - before);
     }
 
     private static Map<String, Object> excludedDelta(String reason, int before, int after) {
         return Map.of("reason", reason, "before", before, "after", after, "delta", after - before);
-    }
-
-    private static Map<String, String> retained(Path path, String caller) {
-        return Map.of(
-                "path", path.toString(),
-                "caller", caller,
-                "deletionCondition", "#611 legacy adapter removal");
     }
 
     private void writeSpringFixture() throws Exception {
