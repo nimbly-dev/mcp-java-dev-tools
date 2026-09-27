@@ -1,7 +1,7 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.transportexecution;
 
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.request.TransportExecutionRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportRequest;
 
 /** Spring-independent public Core boundary for transport execution. */
 public interface TransportExecutionFeature {
@@ -12,5 +12,5 @@ public interface TransportExecutionFeature {
      * @param request validated Feature request
      * @return deterministic transport outcome
      */
-    ExecuteTransportResult execute(TransportExecutionRequest request);
+    ExecuteTransportResult execute(ExecuteTransportRequest request);
 }

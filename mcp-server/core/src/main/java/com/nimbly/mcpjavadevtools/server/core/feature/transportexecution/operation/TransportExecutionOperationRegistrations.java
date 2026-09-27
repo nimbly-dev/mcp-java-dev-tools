@@ -3,10 +3,7 @@ package com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.operat
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.DefaultTransportExecutionFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.TransportExecutionActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.TransportExecutionAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.TransportProtocol;
@@ -41,15 +38,13 @@ public class TransportExecutionOperationRegistrations {
     public static List<OperationRegistration<?, ?>> create(
             TransportExecutionFeature feature, ObjectMapper mapper) {
         Objects.requireNonNull(mapper, "mapper must not be null");
-        var defaultFeature = (DefaultTransportExecutionFeature) Objects.requireNonNull(
-                feature, "transport feature must not be null");
-        return List.<OperationRegistration<?, ?>>of(register(defaultFeature, mapper));
+        return List.<OperationRegistration<?, ?>>of(register(
+                Objects.requireNonNull(feature, "transport feature must not be null"), mapper));
     }
 
     static OperationRegistration<TransportExecuteArguments, ExecuteTransportResult> register(
-            DefaultTransportExecutionFeature feature, ObjectMapper mapper) {
-        TransportExecutionActionHandler owner = feature.operationOwner(TransportExecutionAction.EXECUTE);
-        OperationDescriptor descriptor = descriptor(owner);
+            TransportExecutionFeature feature, ObjectMapper mapper) {
+        OperationDescriptor descriptor = descriptor(feature);
         return new OperationRegistration<>(
                 descriptor,
                 TransportExecuteArguments.class,
@@ -65,7 +60,7 @@ public class TransportExecutionOperationRegistrations {
                         OperationCancellationGuarantee.DELEGATED_DEADLINE,
                         (input, context) -> {
                             checkpoint(context);
-                            ExecuteTransportResult result = owner.execute(decode(input));
+                            ExecuteTransportResult result = feature.execute(decode(input));
                             checkpoint(context);
                             return result;
                         }),
@@ -96,7 +91,7 @@ public class TransportExecutionOperationRegistrations {
         return CanonicalOperationSchema.schema(root);
     }
 
-    static OperationDescriptor descriptor(TransportExecutionActionHandler owner) {
+    static OperationDescriptor descriptor(TransportExecutionFeature owner) {
         String id = OperationId.fromLegacy("transport_execute", "execute").value();
         String executableOwner = owner.getClass().getName() + "#execute";
         return new OperationDescriptor(
@@ -105,7 +100,7 @@ public class TransportExecutionOperationRegistrations {
                 new OperationTraceMetadata(
                         "java_mcp_operation_directory_adapter",
                         TransportExecutionOperationRegistrations.class.getName(),
-                        TransportExecutionActionHandler.class.getName(),
+                        TransportExecutionFeature.class.getName(),
                         TransportExecutionOperationRegistrations.class.getName(),
                         "mcpjvm-610:" + id + ":typed-binding",
                         "transport_request",

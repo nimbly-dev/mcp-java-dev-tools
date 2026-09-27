@@ -20,6 +20,6 @@
     <examples>
       <example>{"protocol":"http","request":{}}</example>
     </examples>
-    <safety sideEffect="transport_request" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="transport_request" confirmationRequired="true" credentialPolicy="caller_may_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
 </tool>

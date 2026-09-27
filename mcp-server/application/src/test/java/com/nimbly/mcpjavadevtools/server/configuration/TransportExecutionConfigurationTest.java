@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistry;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryProvider;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.DefaultTransportExecutionFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.impl.ExecuteTransportAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.policy.TransportExecutionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.TransportProviderRegistry;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.http.HttpRedirectResponseExecutor;
@@ -27,7 +27,7 @@ class TransportExecutionConfigurationTest {
             context.refresh();
 
             assertThat(context.getBean(TransportExecutionFeature.class))
-                    .isInstanceOf(DefaultTransportExecutionFeature.class);
+                    .isInstanceOf(ExecuteTransportAction.class);
             assertThat(context.getBean(TransportProviderRegistry.class)).isNotNull();
             assertThat(context.getBean(HttpRequestValidator.class)).isNotNull();
             assertThat(context.getBean(HttpRedirectResponseExecutor.class)).isNotNull();

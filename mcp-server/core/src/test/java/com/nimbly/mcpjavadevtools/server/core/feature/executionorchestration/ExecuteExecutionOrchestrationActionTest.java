@@ -434,17 +434,17 @@ class ExecuteExecutionOrchestrationActionTest {
                         Map.entry("routingShells", measured),
                         Map.entry("routingPlumbingNonblankDelta", assessedDelta),
                         Map.entry("added", List.of()),
-                        Map.entry("removed", List.of("DefaultExecutionProfileExportFeature.java")),
+                        Map.entry("removed", List.of(
+                                "DefaultExecutionProfileExportFeature.java",
+                                "DefaultTransportExecutionFeature.java")),
                         Map.entry("retained", List.of(
-                                "ExecuteTransportAction", "TransportExecutionActionHandler",
+                                "ExecuteTransportAction", "TransportExecutionFeature",
                                 "ExportExecutionProfileOperation", "ExecutionProfileExportOperationCatalog",
                                 "ExecuteExecutionOrchestrationAction", "ExecutionOrchestrationActionHandler",
                                 "TransportExecutionOperationRegistrations",
                                 "ExecutionProfileExportOperationRegistrations",
                                 "ExecutionOrchestrationOperationRegistrations")),
                         Map.entry("compatibilityRetained", List.of(
-                                Map.of("path", root.resolve("transportexecution/DefaultTransportExecutionFeature.java").toString(),
-                                        "caller", "TransportExecuteMcpTool", "deletionCondition", "#611 adapter removal"),
                                 Map.of("path", root.resolve("executionorchestration/DefaultExecutionOrchestrationFeature.java").toString(),
                                         "caller", "ExecutionOrchestrationMcpTool", "deletionCondition", "#611 adapter removal"))),
                         Map.entry("excludedRequiredSubstantiveChanges", List.of(

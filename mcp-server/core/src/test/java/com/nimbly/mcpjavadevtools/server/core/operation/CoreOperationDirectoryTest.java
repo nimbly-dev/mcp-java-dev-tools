@@ -61,10 +61,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.action.Secu
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.action.SecuritySuiteAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.request.SecuritySuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.result.SecuritySuiteResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.DefaultTransportExecutionFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.TransportExecutionActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.TransportExecutionAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.request.TransportExecutionRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -489,7 +485,8 @@ class CoreOperationDirectoryTest {
                         export,
                         new DefaultRouteSynthesisFeature(routeHandlers()),
                         failureHandlers(),
-                        new DefaultTransportExecutionFeature(transportHandlers()),
+                        request -> ExecuteTransportResult.httpResponse(
+                                "ok", "http", 200, Map.of(), "fixture", 1),
                         new DefaultExecutionOrchestrationFeature(orchestrationHandlers()),
                         new DefaultRegressionSuiteFeature(regressionHandlers()),
                         new DefaultPerformanceSuiteFeature(performanceHandlers()),
@@ -562,24 +559,6 @@ class CoreOperationDirectoryTest {
             @Override
             public FailureAnalysisResult execute(FailureAnalysisRequest request) {
                 return FailureAnalysisResult.invalidRequest();
-            }
-        };
-    }
-
-    private static List<TransportExecutionActionHandler> transportHandlers() {
-        return Arrays.stream(TransportExecutionAction.values())
-                .map(CoreOperationDirectoryTest::transportHandler).toList();
-    }
-
-    private static TransportExecutionActionHandler transportHandler(TransportExecutionAction action) {
-        return new TransportExecutionActionHandler() {
-            @Override
-            public TransportExecutionAction action() { return action; }
-
-            @Override
-            public ExecuteTransportResult execute(TransportExecutionRequest request) {
-                return ExecuteTransportResult.httpResponse(
-                        "ok", "http", 200, Map.of(), "fixture", 1);
             }
         };
     }

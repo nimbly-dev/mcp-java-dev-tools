@@ -1,17 +1,15 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.impl;
 
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.TransportExecutionActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.TransportExecutionAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.request.TransportExecutionRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.policy.TransportExecutionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.TransportProviderRegistry;
 import java.util.Map;
 import java.util.Objects;
 
-/** Executes the single public transport action through the provider registry. */
-public final class ExecuteTransportAction implements TransportExecutionActionHandler {
+/** Executes bounded transport requests through the provider registry. */
+public class ExecuteTransportAction implements TransportExecutionFeature {
 
     private final TransportExecutionPolicy policy;
     private final TransportProviderRegistry providers;
@@ -31,18 +29,12 @@ public final class ExecuteTransportAction implements TransportExecutionActionHan
 
     /** {@inheritDoc} */
     @Override
-    public TransportExecutionAction action() {
-        return TransportExecutionAction.EXECUTE;
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public ExecuteTransportResult execute(TransportExecutionRequest input) {
-        if (!(input instanceof ExecuteTransportRequest request)) {
+    public ExecuteTransportResult execute(ExecuteTransportRequest request) {
+        if (request == null) {
             return ExecuteTransportResult.blockedInvalid(
                     "transport_request_invalid",
                     "Transport request is invalid.",
-                    input == null ? null : input.action().value(),
+                    null,
                     1);
         }
         if (request.wrappedOnly() && policy.allowNonWrappedExecutable()) {

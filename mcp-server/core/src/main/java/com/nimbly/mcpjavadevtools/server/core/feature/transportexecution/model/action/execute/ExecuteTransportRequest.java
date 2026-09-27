@@ -1,18 +1,16 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute;
 
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.TransportExecutionAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.request.TransportExecutionRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.TransportProtocol;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** Validated Core request for the internally dispatched execute action. */
+/** Validated Core request for transport execution. */
 public record ExecuteTransportRequest(
         TransportProtocol protocol,
         Map<String, Object> request,
-        boolean wrappedOnly) implements TransportExecutionRequest {
+        boolean wrappedOnly) {
 
     /** Defensive-copy the protocol-specific payload at the Core boundary. */
     public ExecuteTransportRequest {
@@ -21,9 +19,4 @@ public record ExecuteTransportRequest(
         request = Collections.unmodifiableMap(new LinkedHashMap<>(request));
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public TransportExecutionAction action() {
-        return TransportExecutionAction.EXECUTE;
-    }
 }

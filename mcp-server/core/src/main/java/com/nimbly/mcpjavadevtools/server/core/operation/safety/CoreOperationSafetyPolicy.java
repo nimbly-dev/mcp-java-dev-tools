@@ -47,7 +47,8 @@ public class CoreOperationSafetyPolicy {
         return new OperationSafetyPolicy(
                 sideEffect,
                 CONFIRMATION_REQUIRED.contains(operationId),
-                operationId.equals("route_synthesis.create_recipe")
+                (operationId.equals("route_synthesis.create_recipe")
+                        || operationId.equals("transport_execute.execute"))
                         ? "caller_may_supply_credentials" : "caller_must_not_supply_credentials",
                 "redact_sensitive_fields",
                 OperationSafetyLimits.DEFAULT_TIMEOUT_MILLIS,

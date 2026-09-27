@@ -2,9 +2,6 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryProvider;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.DefaultTransportExecutionFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.TransportExecutionActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.impl.ExecuteTransportAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.policy.ProbeRegistryTransportExecutionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.policy.TransportExecutionPolicy;
@@ -18,11 +15,9 @@ import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protoco
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.http.HttpTransportProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.http.HttpTransportSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.kafka.KafkaTransportProvider;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.transportexecute.TransportExecuteMcpSchemaPostProcessor;
 import java.net.http.HttpClient;
 import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -102,13 +97,4 @@ public class TransportExecutionConfiguration {
         return new ExecuteTransportAction(policy, providers);
     }
 
-    @Bean
-    TransportExecutionFeature transportExecutionFeature(List<TransportExecutionActionHandler> handlers) {
-        return new DefaultTransportExecutionFeature(handlers);
-    }
-
-    @Bean
-    static BeanPostProcessor transportExecutionMcpSchemaPostProcessor() {
-        return new TransportExecuteMcpSchemaPostProcessor();
-    }
 }

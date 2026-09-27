@@ -4,12 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.TransportExecutionActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.action.impl.ExecuteTransportAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.TransportExecutionAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.request.TransportExecutionRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.operation.TransportExecutionOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.policy.TransportExecutionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.TransportProvider;
@@ -51,7 +48,7 @@ import org.junit.jupiter.api.Test;
 class TransportExecutionFeatureTest {
 
     @Test
-    void dispatchesTheInternalExecuteActionWithoutAddingPublicActionInput() {
+    void executesThroughTheSubstantiveTransportOwner() {
         TransportExecutionFeature feature = feature(() -> false);
 
         ExecuteTransportResult result = feature.execute(new ExecuteTransportRequest(
@@ -96,6 +93,7 @@ class TransportExecutionFeatureTest {
 
         assertThat(registration.descriptor().operationId().value()).isEqualTo("transport_execute.execute");
         assertThat(registration.descriptor().executableOwner()).contains("ExecuteTransportAction#execute");
+        assertThat(registration.safety().credentialPolicy()).isEqualTo("caller_may_supply_credentials");
         assertThat(registration.provenance().actionless()).isTrue();
         assertThat(registration.provenance().invocationAction()).isEmpty();
         assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
@@ -117,9 +115,9 @@ class TransportExecutionFeatureTest {
         HttpServer target = server(exchange -> respond(exchange, 200, "{\"message\":\"core-parity\"}"));
         try {
             AtomicInteger ownerCalls = new AtomicInteger();
-            AtomicReference<TransportExecutionRequest> ownerRequest = new AtomicReference<>();
+            AtomicReference<ExecuteTransportRequest> ownerRequest = new AtomicReference<>();
             AtomicReference<ExecuteTransportResult> ownerResult = new AtomicReference<>();
-            DefaultTransportExecutionFeature feature = realFeature(ownerCalls, ownerRequest, ownerResult);
+            TransportExecutionFeature feature = realFeature(ownerCalls, ownerRequest, ownerResult);
             var registration = TransportExecutionOperationRegistrations.create(feature, mapper).getFirst();
             OperationDirectory directory = directory(registration, mapper);
             Map<String, Object> request = Map.of(
@@ -164,7 +162,7 @@ class TransportExecutionFeatureTest {
             respond(exchange, 200, "{\"message\":\"late\"}");
         });
         try {
-            DefaultTransportExecutionFeature feature = realFeature();
+            TransportExecutionFeature feature = realFeature();
             OperationRegistration<?, ?> registration = TransportExecutionOperationRegistrations
                     .create(feature, mapper).getFirst();
             OperationDirectory bounded = directory(withTimeout(registration, 100), mapper);
@@ -235,12 +233,12 @@ class TransportExecutionFeatureTest {
                 registration.operationCatalog(), registration.provenance());
     }
 
-    private DefaultTransportExecutionFeature realFeature() {
+    private TransportExecutionFeature realFeature() {
         return realFeature(null, null, null);
     }
 
-    private DefaultTransportExecutionFeature realFeature(
-            AtomicInteger ownerCalls, AtomicReference<TransportExecutionRequest> ownerRequest,
+    private TransportExecutionFeature realFeature(
+            AtomicInteger ownerCalls, AtomicReference<ExecuteTransportRequest> ownerRequest,
             AtomicReference<ExecuteTransportResult> ownerResult) {
         HttpTransportSafetyPolicy httpPolicy = new HttpTransportSafetyPolicy(java.util.Set.of());
         HttpSensitiveDataRedactor redactor = new HttpSensitiveDataRedactor();
@@ -253,24 +251,15 @@ class TransportExecutionFeatureTest {
                 new TransportProviderRegistry(List.of(http, provider(TransportProtocol.GRPC),
                         provider(TransportProtocol.KAFKA), provider(TransportProtocol.CUSTOM))));
         if (ownerCalls == null) {
-            return new DefaultTransportExecutionFeature(List.of(owner));
+            return owner;
         }
-        TransportExecutionActionHandler observed = new TransportExecutionActionHandler() {
-            @Override
-            public TransportExecutionAction action() {
-                return owner.action();
-            }
-
-            @Override
-            public ExecuteTransportResult execute(TransportExecutionRequest request) {
-                ownerCalls.incrementAndGet();
-                ownerRequest.set(request);
-                ExecuteTransportResult result = owner.execute(request);
-                ownerResult.set(result);
-                return result;
-            }
+        return request -> {
+            ownerCalls.incrementAndGet();
+            ownerRequest.set(request);
+            ExecuteTransportResult result = owner.execute(request);
+            ownerResult.set(result);
+            return result;
         };
-        return new DefaultTransportExecutionFeature(List.of(observed));
     }
 
     private static HttpServer server(com.sun.net.httpserver.HttpHandler handler) throws IOException {
@@ -313,14 +302,13 @@ class TransportExecutionFeatureTest {
         throw new AssertionError("transport worker retained an active HTTP execution frame");
     }
 
-    private DefaultTransportExecutionFeature feature(TransportExecutionPolicy policy) {
+    private TransportExecutionFeature feature(TransportExecutionPolicy policy) {
         TransportProviderRegistry providers = new TransportProviderRegistry(List.of(
                 provider(TransportProtocol.HTTP),
                 provider(TransportProtocol.GRPC),
                 provider(TransportProtocol.KAFKA),
                 provider(TransportProtocol.CUSTOM)));
-        TransportExecutionActionHandler action = new ExecuteTransportAction(policy, providers);
-        return new DefaultTransportExecutionFeature(List.of(action));
+        return new ExecuteTransportAction(policy, providers);
     }
 
     private TransportProvider provider(TransportProtocol protocol) {
