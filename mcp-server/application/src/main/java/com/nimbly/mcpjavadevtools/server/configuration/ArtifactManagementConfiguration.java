@@ -3,6 +3,7 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.DefaultArtifactManagementFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactJsonStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactWorkspaceProvider;
@@ -13,13 +14,13 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationRegistrations;
+import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.artifactmanagement.ArtifactManagementMcpRequestMapper;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.artifactmanagement.ArtifactManagementMcpResponseMapper;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.artifactmanagement.ArtifactManagementMcpTool;
+import com.nimbly.mcpjavadevtools.server.mcp.tools.operation.OperationMcpTools;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceSnapshot;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.artifactmanagement.ArtifactManagementMcpSchemaPostProcessor;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.context.annotation.Bean;
@@ -97,14 +98,18 @@ public class ArtifactManagementConfiguration {
             ExecutionExportOperations exports) {
         return new ArtifactOperationCatalog(
                 probe, project, plans, runs, exports,
-                ArtifactManagementMcpTool.operationExposure(),
+                new OperationExposure(
+                        ArtifactOperationCatalog.TOOL_NAME,
+                        OperationMcpTools.class.getName(),
+                        Arrays.stream(ArtifactManagementAction.values())
+                                .map(ArtifactManagementAction::routeId).toList()),
                 new OperationTraceMetadata(
-                        ArtifactManagementMcpTool.class.getName(),
-                        ArtifactManagementMcpRequestMapper.class.getName(),
+                        OperationMcpTools.class.getName(),
+                        ArtifactOperationRegistrations.class.getName(),
                         ArtifactManagementFeature.class.getName(),
-                        ArtifactManagementMcpResponseMapper.class.getName(),
+                        ArtifactOperationRegistrations.class.getName(),
                         "mcp-server/core/src/test/java/com/nimbly/mcpjavadevtools/server/core/feature/"
-                                + "artifactmanagement/ArtifactManagementFeatureRoutingTest.java",
+                                + "artifactmanagement/operation/ArtifactProbeProjectOperationRegistrationTest.java",
                         "artifact_management",
                         Map.of("artifactSupport", ArtifactManagementSupport.class.getName())));
     }
@@ -114,8 +119,4 @@ public class ArtifactManagementConfiguration {
         return new DefaultArtifactManagementFeature(operationCatalog);
     }
 
-    @Bean
-    static ArtifactManagementMcpSchemaPostProcessor artifactManagementMcpSchemaPostProcessor() {
-        return new ArtifactManagementMcpSchemaPostProcessor();
-    }
 }

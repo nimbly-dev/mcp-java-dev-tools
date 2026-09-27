@@ -45,4 +45,17 @@ class ProbeResultTest {
         assertThat(result.policy().nextAction())
                 .isEqualTo("Provide probeId or baseUrl. Multi-probe profiles require explicit selection.");
     }
+
+    @Test
+    void unknownProbeIdDirectsClientsToTheCdeProbeConfigReadOperation() {
+        ProbeResult result = ProbeResult.blocked(
+                ProbeReasonCode.PROBE_ID_UNKNOWN,
+                ProbeReasonMetadata.routing("missing", 1));
+
+        assertThat(result.policy().status()).isEqualTo("probe_selection_failed");
+        assertThat(result.policy().nextActionCode()).isEqualTo("select_registered_probe_id");
+        assertThat(result.policy().nextAction())
+                .isEqualTo("Call operation_execute with operationId=artifact_management.probe_config.read "
+                        + "and arguments={}, then select a valid probeId.");
+    }
 }

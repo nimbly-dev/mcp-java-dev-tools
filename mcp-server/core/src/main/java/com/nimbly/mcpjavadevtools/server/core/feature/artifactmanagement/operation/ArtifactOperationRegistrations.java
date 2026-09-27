@@ -45,7 +45,7 @@ public class ArtifactOperationRegistrations {
     private ArtifactOperationRegistrations() {
     }
 
-    static List<ArtifactOperation> legacyOperations(
+    static List<ArtifactOperation> operations(
             ProbeConfigOperations probe,
             ProjectContextOperations project,
             PlanOperations plans,

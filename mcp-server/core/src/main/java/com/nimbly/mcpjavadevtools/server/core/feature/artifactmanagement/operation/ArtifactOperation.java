@@ -12,11 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-/**
- * Legacy Java Tool routing retained until MCPJVM-611 removes ArtifactManagementMcpTool's
- * dependency on DefaultArtifactManagementFeature and this capability catalog.
- * COMPATIBILITY_RETAINED_UNTIL_611.
- */
+/** Capability-owned operation binding shared by CDE and execution orchestration. */
 final class ArtifactOperation implements Operation<
         ArtifactManagementAction, ArtifactManagementRequest, ArtifactManagementResult> {
 

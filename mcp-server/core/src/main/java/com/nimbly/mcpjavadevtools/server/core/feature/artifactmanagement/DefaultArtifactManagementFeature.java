@@ -7,7 +7,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operati
 import java.util.Map;
 import java.util.Objects;
 
-/** Complete production Artifact Management Feature implementation. */
+/** Routes execution-orchestration Artifact requests to the capability owners. */
 public final class DefaultArtifactManagementFeature implements ArtifactManagementFeature {
 
     private final ArtifactOperationCatalog operationCatalog;

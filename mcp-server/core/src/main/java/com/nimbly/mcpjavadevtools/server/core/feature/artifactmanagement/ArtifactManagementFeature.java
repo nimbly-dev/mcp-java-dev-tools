@@ -3,7 +3,7 @@ package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
 
-/** Intentional Spring-independent entry point for the artifact_management MCP Tool. */
+/** Internal Artifact execution boundary used by execution orchestration. */
 public interface ArtifactManagementFeature {
 
     /**

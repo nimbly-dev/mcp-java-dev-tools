@@ -481,6 +481,22 @@ class ArtifactProbeProjectOperationRegistrationTest {
     }
 
     @Test
+    void invalidProbeUpsertDoesNotReplaceThePersistedRegistry() throws Exception {
+        ObjectNode validInput = mapper.createObjectNode().set("payload", validProbe());
+        assertOk("artifact_management.probe_config.upsert", validInput, true);
+        Path config = workspace.resolve(".mcpjvm/probe-config.json");
+        String before = Files.readString(config);
+
+        ObjectNode invalid = validProbe();
+        ((ObjectNode) invalid.path("profiles").path("local")).put("defaultProbe", "local");
+        ObjectNode invalidInput = mapper.createObjectNode().set("payload", invalid);
+        JsonNode result = execute("artifact_management.probe_config.upsert", invalidInput, true).result();
+
+        assertThat(result.path("reasonCode").asText()).isEqualTo("probe_config_invalid");
+        assertThat(Files.readString(config)).isEqualTo(before);
+    }
+
+    @Test
     void failsClosedForMissingAndDuplicateOwnedRows() {
         List<OperationRegistration<?, ?>> owned = registrations.values().stream().toList();
         OperationManifestDocument document = ownedDocument();

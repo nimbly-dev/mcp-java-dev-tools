@@ -46,8 +46,8 @@ ready without registering unsupported placeholder MCP Tools.
 | `probe` | `mcp/tools/probe` | registered; #571 |
 | Route Synthesis operations | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated; #635 |
 | `failure_analysis` | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated and live-validated; #636 |
-| `transport_execute` | `mcp/tools/transportexecute` | registered; #576 |
-| `artifact_management` | `mcp/tools/artifactmanagement` | Feature migration required |
+| `transport_execute.execute` | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated and live-validated; #637 |
+| Artifact Management operations | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated and live-validated; #638 |
 | `execution_profile_export` | `mcp/tools/executionprofileexport` | registered; #604 Catalog-Describe-Execute reference |
 | `execution_orchestration` | `mcp/tools/executionorchestration` | Feature migration required |
 

@@ -90,7 +90,7 @@ public final class ArtifactOperationCatalog {
                     RunResultOperations runs,
                     ExecutionExportOperations exports,
                     OperationTraceMetadata trace) {
-        return ArtifactOperationRegistrations.legacyOperations(
+        return ArtifactOperationRegistrations.operations(
                 Objects.requireNonNull(probe, "probe operations must not be null"),
                 Objects.requireNonNull(project, "project operations must not be null"),
                 Objects.requireNonNull(plans, "plan operations must not be null"),

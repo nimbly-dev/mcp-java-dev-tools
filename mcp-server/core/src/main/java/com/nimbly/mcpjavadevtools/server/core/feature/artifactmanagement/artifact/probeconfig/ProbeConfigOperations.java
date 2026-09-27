@@ -76,8 +76,9 @@ public final class ProbeConfigOperations {
             ArtifactManagementSupport.requireObject(
                     payload, "probe_config_invalid", "probe configuration must be a JSON object");
             Path path = workspace.paths().resolve(".mcpjvm", "probe-config.json");
+            ProbeConfigSnapshot.Loaded persisted = snapshot.load(payload, path, workspace.root());
             support.jsonStore().write(path, payload);
-            ProbeConfigSnapshot.Loaded persisted = load(payload, path, workspace.root());
+            activeSummary = Map.copyOf(persisted.summary());
             Map<String, Object> details = new LinkedHashMap<>();
             details.put("path", workspace.paths().relative(path));
             details.put("reloadApplied", reloader != null);

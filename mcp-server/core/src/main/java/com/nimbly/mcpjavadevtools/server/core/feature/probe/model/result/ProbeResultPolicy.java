@@ -47,7 +47,9 @@ public record ProbeResultPolicy(
     private static String nextAction(ProbeReasonCode reasonCode) {
         return switch (reasonCode) {
             case PROBE_ID_REQUIRED -> "Provide probeId or baseUrl. Multi-probe profiles require explicit selection.";
-            case PROBE_ID_UNKNOWN -> "Use artifact_management with artifactType=probe_config and action=read, then select a valid probeId.";
+            case PROBE_ID_UNKNOWN -> "Call operation_execute with "
+                    + "operationId=artifact_management.probe_config.read and arguments={}, "
+                    + "then select a valid probeId.";
             case PROBE_UNREACHABLE -> "Verify Probe connectivity and rerun the action.";
             case WAIT_TIMEOUT, STALE_PROBE_EVIDENCE -> "Verify the trigger path or branch, then rerun wait_for_hit.";
             default -> null;
