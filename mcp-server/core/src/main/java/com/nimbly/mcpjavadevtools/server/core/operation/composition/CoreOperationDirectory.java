@@ -94,7 +94,7 @@ public final class CoreOperationDirectory {
                 RouteSynthesisOperationRegistrations.create(owners.routes(), mapper),
                 FailureAnalysisOperationRegistrations.create(owners.failureAnalysisHandlers(), mapper),
                 TransportExecutionOperationRegistrations.create(owners.transport(), mapper),
-                ExecutionOrchestrationOperationRegistrations.create(owners.orchestration(), mapper),
+                ExecutionOrchestrationOperationRegistrations.create(owners.orchestrationHandlers(), mapper),
                 TrustedRegressionSuiteRegistrations.create(owners.regression(), mapper, trusted),
                 TrustedPerformanceSuiteRegistrations.create(owners.performance(), mapper, trusted),
                 TrustedSecuritySuiteRegistrations.create(owners.security(), mapper, trusted))

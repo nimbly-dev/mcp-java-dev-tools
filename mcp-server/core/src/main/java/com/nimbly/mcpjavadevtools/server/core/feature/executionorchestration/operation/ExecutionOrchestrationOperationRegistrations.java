@@ -3,8 +3,6 @@ package com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.op
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.DefaultExecutionOrchestrationFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.ExecutionOrchestrationFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.ExecutionOrchestrationActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.action.ExecutionOrchestrationAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.request.ExecutionOrchestrationRequest;
@@ -37,16 +35,18 @@ public class ExecutionOrchestrationOperationRegistrations {
     }
 
     public static List<OperationRegistration<?, ?>> create(
-            ExecutionOrchestrationFeature feature, ObjectMapper mapper) {
+            List<? extends ExecutionOrchestrationActionHandler> handlers, ObjectMapper mapper) {
         Objects.requireNonNull(mapper, "mapper must not be null");
-        var defaultFeature = (DefaultExecutionOrchestrationFeature) Objects.requireNonNull(
-                feature, "execution orchestration feature must not be null");
-        return List.<OperationRegistration<?, ?>>of(register(defaultFeature, mapper));
+        Objects.requireNonNull(handlers, "execution orchestration handlers must not be null");
+        if (handlers.size() != 1 || handlers.getFirst() == null
+                || handlers.getFirst().action() != ExecutionOrchestrationAction.EXECUTE) {
+            throw new IllegalArgumentException("exactly one execute action handler is required");
+        }
+        return List.<OperationRegistration<?, ?>>of(register(handlers.getFirst(), mapper));
     }
 
     static OperationRegistration<ExecutionOrchestrationArguments, ExecutionOrchestrationResult> register(
-            DefaultExecutionOrchestrationFeature feature, ObjectMapper mapper) {
-        ExecutionOrchestrationActionHandler owner = feature.operationOwner(ExecutionOrchestrationAction.EXECUTE);
+            ExecutionOrchestrationActionHandler owner, ObjectMapper mapper) {
         String id = "execution_orchestration.execute";
         String executableOwner = owner.getClass().getName() + "#execute";
         OperationDescriptor descriptor = new OperationDescriptor(

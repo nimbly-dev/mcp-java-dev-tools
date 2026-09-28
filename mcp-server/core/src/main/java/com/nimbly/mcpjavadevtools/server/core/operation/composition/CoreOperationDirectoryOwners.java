@@ -1,7 +1,7 @@
 package com.nimbly.mcpjavadevtools.server.core.operation.composition;
 
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.ExecutionOrchestrationFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.ExecutionOrchestrationActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
@@ -22,12 +22,13 @@ public record CoreOperationDirectoryOwners(
         RouteSynthesisFeature routes,
         List<FailureAnalysisActionHandler> failureAnalysisHandlers,
         TransportExecutionFeature transport,
-        ExecutionOrchestrationFeature orchestration,
+        List<ExecutionOrchestrationActionHandler> orchestrationHandlers,
         RegressionSuiteFeature regression,
         PerformanceSuiteFeature performance,
         SecuritySuiteFeature security) {
 
     public CoreOperationDirectoryOwners {
         failureAnalysisHandlers = List.copyOf(failureAnalysisHandlers);
+        orchestrationHandlers = List.copyOf(orchestrationHandlers);
     }
 }

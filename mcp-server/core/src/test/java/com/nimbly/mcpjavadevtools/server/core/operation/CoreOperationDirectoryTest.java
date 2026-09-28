@@ -19,7 +19,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.a
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.DefaultExecutionOrchestrationFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.ExecutionOrchestrationActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.action.ExecutionOrchestrationAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.request.ExecutionOrchestrationRequest;
@@ -487,7 +486,7 @@ class CoreOperationDirectoryTest {
                         failureHandlers(),
                         request -> ExecuteTransportResult.httpResponse(
                                 "ok", "http", 200, Map.of(), "fixture", 1),
-                        new DefaultExecutionOrchestrationFeature(orchestrationHandlers()),
+                        orchestrationHandlers(),
                         new DefaultRegressionSuiteFeature(regressionHandlers()),
                         new DefaultPerformanceSuiteFeature(performanceHandlers()),
                         new DefaultSecuritySuiteFeature(securityHandlers())),

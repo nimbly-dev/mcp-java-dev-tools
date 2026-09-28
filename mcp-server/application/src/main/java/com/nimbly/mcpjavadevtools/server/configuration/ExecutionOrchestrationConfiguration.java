@@ -2,9 +2,6 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.DefaultExecutionOrchestrationFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.ExecutionOrchestrationFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.ExecutionOrchestrationActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.impl.ExecuteExecutionOrchestrationAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.ExecutionRunLease;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.FileExecutionRunLease;
@@ -20,14 +17,12 @@ import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceSnapshot;
 import com.nimbly.mcpjavadevtools.server.lifecycle.FileExecutionSuiteStateStore;
 import com.nimbly.mcpjavadevtools.server.lifecycle.ApplicationExecutionRuntimeLifecycle;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.executionorchestration.ExecutionOrchestrationMcpSchemaPostProcessor;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Optional;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** Spring composition for the public execution-orchestration Core Feature. */
+/** Spring composition for the execution-orchestration Core owner. */
 @Configuration
 public class ExecutionOrchestrationConfiguration {
 
@@ -92,14 +87,4 @@ public class ExecutionOrchestrationConfiguration {
             ObjectMapper mapper) {
     }
 
-    @Bean
-    ExecutionOrchestrationFeature executionOrchestrationFeature(
-            List<ExecutionOrchestrationActionHandler> handlers) {
-        return new DefaultExecutionOrchestrationFeature(handlers);
-    }
-
-    @Bean
-    static ExecutionOrchestrationMcpSchemaPostProcessor executionOrchestrationMcpSchemaPostProcessor() {
-        return new ExecutionOrchestrationMcpSchemaPostProcessor();
-    }
 }

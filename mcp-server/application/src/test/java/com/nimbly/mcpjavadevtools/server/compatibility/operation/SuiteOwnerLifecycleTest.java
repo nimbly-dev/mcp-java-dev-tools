@@ -16,7 +16,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.DefaultExecutionOrchestrationFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.impl.ExecuteExecutionOrchestrationAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.FileExecutionRunLease;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lifecycle.ExecutionRuntimeLifecycle;
@@ -303,8 +302,7 @@ class SuiteOwnerLifecycleTest {
                 (project, type, plan, run) -> Optional.of(workspace.resolve(".mcpjvm").resolve(project)
                         .resolve("plans").resolve(type).resolve(plan).resolve("runs").resolve(run).toString()),
                 new FileExecutionRunLease(workspace), new FileExecutionSuiteStateStore(context, JSON), lifecycle);
-        var feature = new DefaultExecutionOrchestrationFeature(List.of(action));
-        var registration = ExecutionOrchestrationOperationRegistrations.create(feature, JSON).get(0);
+        var registration = ExecutionOrchestrationOperationRegistrations.create(List.of(action), JSON).get(0);
         var timed = withTimeout(registration, timeoutMillis);
         var builtIn = OperationManifestLoader.loadBuiltIn();
         return new OperationDirectory(List.of(timed), new OperationManifestDocument(

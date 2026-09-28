@@ -206,8 +206,8 @@ class ExecuteExecutionOrchestrationActionTest {
 
     @Test
     void registersTheOrchestrationRowWithBoundedResumeAndCancellationMetadata() throws Exception {
-        var feature = (DefaultExecutionOrchestrationFeature) feature(statefulArtifacts(new HashMap<>()));
-        var registration = ExecutionOrchestrationOperationRegistrations.create(feature, mapper).getFirst();
+        var feature = feature(statefulArtifacts(new HashMap<>()));
+        var registration = ExecutionOrchestrationOperationRegistrations.create(List.of(feature), mapper).getFirst();
 
         assertThat(registration.descriptor().operationId().value()).isEqualTo("execution_orchestration.execute");
         assertThat(registration.descriptor().executableOwner())
@@ -230,9 +230,7 @@ class ExecuteExecutionOrchestrationActionTest {
     @Test
     void canonicalDirectoryExecutesPersistedOrchestrationWithResultPolicy() throws Exception {
         Map<String, JsonNode> runs = new HashMap<>();
-        var feature = (DefaultExecutionOrchestrationFeature) feature(statefulArtifacts(runs));
-        ExecutionOrchestrationActionHandler realOwner =
-                feature.operationOwner(ExecutionOrchestrationAction.EXECUTE);
+        ExecutionOrchestrationActionHandler realOwner = feature(statefulArtifacts(runs));
         AtomicInteger ownerCalls = new AtomicInteger();
         AtomicReference<ExecutionOrchestrationRequest> typedRequest = new AtomicReference<>();
         AtomicReference<ExecutionOrchestrationResult> ownerResult = new AtomicReference<>();
@@ -293,8 +291,7 @@ class ExecuteExecutionOrchestrationActionTest {
     }
 
     private OperationDirectory orchestrationDirectory(ExecutionOrchestrationActionHandler handler) {
-        var feature = new DefaultExecutionOrchestrationFeature(List.of(handler));
-        var registration = ExecutionOrchestrationOperationRegistrations.create(feature, mapper).getFirst();
+        var registration = ExecutionOrchestrationOperationRegistrations.create(List.of(handler), mapper).getFirst();
         OperationId id = registration.descriptor().operationId();
         OperationManifestDocument all = OperationManifestLoader.loadBuiltIn();
         return new OperationDirectory(List.of(registration),
@@ -324,7 +321,7 @@ class ExecuteExecutionOrchestrationActionTest {
             Thread.currentThread().interrupt();
             return PerformanceSuiteResult.completed(runDetails());
         };
-        ExecutionOrchestrationFeature feature = feature(artifacts(), performance, lifecycle, lease);
+        ExecuteExecutionOrchestrationAction feature = feature(artifacts(), performance, lifecycle, lease);
         ExecutionOrchestrationRequest request = new ExecutionOrchestrationRequest(
                 ExecutionOrchestrationAction.EXECUTE,
                 mapper.readTree("{\"projectName\":\"demo\",\"executionProfile\":\"nightly\",\"suiteRunId\":\"cancelled\"}"));
@@ -355,7 +352,7 @@ class ExecuteExecutionOrchestrationActionTest {
             return result;
         };
         ExecutionRunLease lease = new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease();
-        ExecutionOrchestrationFeature feature = feature(artifacts, lease);
+        ExecuteExecutionOrchestrationAction feature = feature(artifacts, lease);
         ExecutionOrchestrationRequest request = new ExecutionOrchestrationRequest(
                 ExecutionOrchestrationAction.EXECUTE,
                 mapper.readTree("{\"projectName\":\"demo\",\"executionProfile\":\"nightly\",\"suiteRunId\":\"resume-context\"}"));
@@ -384,7 +381,7 @@ class ExecuteExecutionOrchestrationActionTest {
             }
             return PerformanceSuiteResult.completed(runDetails());
         };
-        ExecutionOrchestrationFeature feature = feature(
+        ExecuteExecutionOrchestrationAction feature = feature(
                 artifacts(), performance, lifecycle(cleanupCalls), lease);
         ExecutionOrchestrationRequest request = new ExecutionOrchestrationRequest(
                 ExecutionOrchestrationAction.EXECUTE,
@@ -444,9 +441,7 @@ class ExecuteExecutionOrchestrationActionTest {
                                 "TransportExecutionOperationRegistrations",
                                 "ExecutionProfileExportOperationRegistrations",
                                 "ExecutionOrchestrationOperationRegistrations")),
-                        Map.entry("compatibilityRetained", List.of(
-                                Map.of("path", root.resolve("executionorchestration/DefaultExecutionOrchestrationFeature.java").toString(),
-                                        "caller", "ExecutionOrchestrationMcpTool", "deletionCondition", "#611 adapter removal"))),
+                        Map.entry("compatibilityRetained", List.of()),
                         Map.entry("excludedRequiredSubstantiveChanges", List.of(
                                 "operation registrations: schemas, binding, normalization, cancellation metadata",
                                 "orchestration action: cancellation cleanup and durable continuation"))));
@@ -459,22 +454,22 @@ class ExecuteExecutionOrchestrationActionTest {
         return Map.of("path", path.toString(), "before", before, "after", after, "delta", after - before);
     }
 
-    private ExecutionOrchestrationFeature feature(ArtifactManagementFeature artifacts) {
+    private ExecuteExecutionOrchestrationAction feature(ArtifactManagementFeature artifacts) {
         return feature(artifacts, new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease());
     }
 
-    private ExecutionOrchestrationFeature feature(ArtifactManagementFeature artifacts, ExecutionRunLease lease) {
+    private ExecuteExecutionOrchestrationAction feature(ArtifactManagementFeature artifacts, ExecutionRunLease lease) {
         SecuritySuiteFeature security = request -> SecuritySuiteResult.completed(Map.of("runStatus", "pass"));
         return feature(artifacts, security, lease);
     }
 
-    private ExecutionOrchestrationFeature feature(ArtifactManagementFeature artifacts, ExecutionRuntimeLifecycle lifecycle) {
+    private ExecuteExecutionOrchestrationAction feature(ArtifactManagementFeature artifacts, ExecutionRuntimeLifecycle lifecycle) {
         PerformanceSuiteFeature performance = request -> PerformanceSuiteResult.completed(runDetails());
         return feature(artifacts, performance, lifecycle,
                 new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease());
     }
 
-    private ExecutionOrchestrationFeature feature(
+    private ExecuteExecutionOrchestrationAction feature(
             ArtifactManagementFeature artifacts,
             PerformanceSuiteFeature performance,
             ExecutionRuntimeLifecycle lifecycle,
@@ -482,18 +477,17 @@ class ExecuteExecutionOrchestrationActionTest {
         SecuritySuiteFeature security = request -> SecuritySuiteResult.completed(Map.of("runStatus", "pass"));
         RegressionSuiteFeature regression = request -> RegressionSuiteResult.ready(Map.of("runStatus", "pass"));
         ExecutionRunDirectoryProvider directories = (project, suite, plan, run) -> java.util.Optional.of("target/runs/" + run);
-        return new DefaultExecutionOrchestrationFeature(List.of(new ExecuteExecutionOrchestrationAction(
-                artifacts, performance, security, regression, mapper, directories, lease, suiteState(), lifecycle)));
+        return new ExecuteExecutionOrchestrationAction(
+                artifacts, performance, security, regression, mapper, directories, lease, suiteState(), lifecycle);
     }
 
-    private ExecutionOrchestrationFeature feature(
+    private ExecuteExecutionOrchestrationAction feature(
             ArtifactManagementFeature artifacts, SecuritySuiteFeature security, ExecutionRunLease lease) {
         PerformanceSuiteFeature performance = request -> PerformanceSuiteResult.completed(runDetails());
         RegressionSuiteFeature regression = request -> RegressionSuiteResult.ready(Map.of("runStatus", "pass"));
         ExecutionRunDirectoryProvider directories = (project, suite, plan, run) -> java.util.Optional.of("target/runs/" + run);
-        return new DefaultExecutionOrchestrationFeature(List.of(
-                new ExecuteExecutionOrchestrationAction(
-                        artifacts, performance, security, regression, mapper, directories, lease, suiteState())));
+        return new ExecuteExecutionOrchestrationAction(
+                artifacts, performance, security, regression, mapper, directories, lease, suiteState());
     }
 
     private ExecutionSuiteStateStore suiteState() {

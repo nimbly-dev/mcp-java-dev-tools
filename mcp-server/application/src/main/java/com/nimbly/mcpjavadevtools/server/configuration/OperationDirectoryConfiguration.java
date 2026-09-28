@@ -2,7 +2,7 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.ExecutionOrchestrationFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.ExecutionOrchestrationActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionRunDirectoryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.TrustedDirectSuiteRun;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
@@ -49,11 +49,11 @@ public class OperationDirectoryConfiguration {
     @Bean
     CoreFeatureOwners coreFeatureOwners(
             TransportExecutionFeature transport,
-            ExecutionOrchestrationFeature orchestration,
+            List<ExecutionOrchestrationActionHandler> orchestrationHandlers,
             RegressionSuiteFeature regression,
             PerformanceSuiteFeature performance,
             SecuritySuiteFeature security) {
-        return new CoreFeatureOwners(transport, orchestration, regression, performance, security);
+        return new CoreFeatureOwners(transport, orchestrationHandlers, regression, performance, security);
     }
 
     @Bean
@@ -67,7 +67,7 @@ public class OperationDirectoryConfiguration {
                 catalogOwners.routes(),
                 catalogOwners.failureAnalysisHandlers(),
                 featureOwners.transport(),
-                featureOwners.orchestration(),
+                featureOwners.orchestrationHandlers(),
                 featureOwners.regression(),
                 featureOwners.performance(),
                 featureOwners.security());
@@ -105,7 +105,7 @@ public class OperationDirectoryConfiguration {
 
     private record CoreFeatureOwners(
             TransportExecutionFeature transport,
-            ExecutionOrchestrationFeature orchestration,
+            List<ExecutionOrchestrationActionHandler> orchestrationHandlers,
             RegressionSuiteFeature regression,
             PerformanceSuiteFeature performance,
             SecuritySuiteFeature security) {
