@@ -5,7 +5,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operati
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.ExecutionOrchestrationActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionRunDirectoryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.TrustedDirectSuiteRun;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
@@ -39,7 +39,7 @@ public class OperationDirectoryConfiguration {
             ArtifactOperationCatalog artifact,
             JvmLifecycleOperationCatalog jvmLifecycle,
             ProbeOperationCatalog probe,
-            ExecutionProfileExportOperationCatalog export,
+            ExecutionExportArtifactGateway export,
             RouteSynthesisFeature routes,
             List<FailureAnalysisActionHandler> failureAnalysisHandlers) {
         return new CoreCatalogOwners(
@@ -98,7 +98,7 @@ public class OperationDirectoryConfiguration {
             ArtifactOperationCatalog artifact,
             JvmLifecycleOperationCatalog jvmLifecycle,
             ProbeOperationCatalog probe,
-            ExecutionProfileExportOperationCatalog export,
+            ExecutionExportArtifactGateway export,
             RouteSynthesisFeature routes,
             List<FailureAnalysisActionHandler> failureAnalysisHandlers) {
     }

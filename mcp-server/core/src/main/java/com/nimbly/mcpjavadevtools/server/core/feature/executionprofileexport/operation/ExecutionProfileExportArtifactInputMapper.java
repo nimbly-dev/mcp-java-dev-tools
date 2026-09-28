@@ -2,7 +2,7 @@ package com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.op
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.operation.ExecutionProfileExportArguments;
 import java.util.Objects;
 
 /** Maps the typed export request to the approved Artifact input shape. */
@@ -21,7 +21,7 @@ public class ExecutionProfileExportArtifactInputMapper {
      * @param request typed export request
      * @return Artifact-bound input object
      */
-    public ObjectNode map(ExecutionProfileExportRequest request) {
+    public ObjectNode map(ExecutionProfileExportArguments request) {
         Objects.requireNonNull(request, "request must not be null");
         ObjectNode input = objectMapper.createObjectNode();
         if (request.projectName() != null && !request.projectName().isBlank()) {

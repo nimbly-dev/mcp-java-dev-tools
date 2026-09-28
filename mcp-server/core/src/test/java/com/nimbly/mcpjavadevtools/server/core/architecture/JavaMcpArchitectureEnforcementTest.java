@@ -166,21 +166,6 @@ class JavaMcpArchitectureEnforcementTest {
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/probe/operation"));
         addJavaFiles(files, root.resolve(
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/jvmlifecycle/operation"));
-        addJavaFiles(files, root.resolve(
-                "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/configuration/"
-                        + "ExecutionProfileExportConfiguration.java"));
-        addJavaFiles(files, root.resolve(
-                "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
-                        + "executionprofileexport/ExecutionProfileExportMcpRequest.java"));
-        addJavaFiles(files, root.resolve(
-                "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
-                        + "executionprofileexport/ExecutionProfileExportMcpRequestMapper.java"));
-        addJavaFiles(files, root.resolve(
-                "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
-                        + "executionprofileexport/ExecutionProfileExportMcpResponseMapper.java"));
-        addJavaFiles(files, root.resolve(
-                "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/mcp/tools/"
-                        + "executionprofileexport/ExecutionProfileExportMcpTool.java"));
         return files.stream().distinct().sorted().toList();
     }
 

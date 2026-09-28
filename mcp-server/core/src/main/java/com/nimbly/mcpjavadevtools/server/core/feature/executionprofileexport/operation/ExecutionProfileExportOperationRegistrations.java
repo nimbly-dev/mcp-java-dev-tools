@@ -3,9 +3,11 @@ package com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.op
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.ExecutionProfileExportFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.action.ExecutionProfileExportAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.request.ExecutionProfileExportRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.model.result.ExecutionProfileExportResult;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +18,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistr
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
@@ -28,27 +29,24 @@ import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResu
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
-/** Binds the actionless released export Tool to its typed Core owner. */
+/** Binds the canonical export operation directly to the Artifact export owner. */
 public class ExecutionProfileExportOperationRegistrations {
 
     private ExecutionProfileExportOperationRegistrations() {
     }
 
     public static List<OperationRegistration<?, ?>> create(
-            ExecutionProfileExportOperationCatalog catalog, ObjectMapper mapper) {
-        Objects.requireNonNull(catalog, "export catalog must not be null");
+            ExecutionExportArtifactGateway gateway, ObjectMapper mapper) {
+        Objects.requireNonNull(gateway, "export gateway must not be null");
         Objects.requireNonNull(mapper, "mapper must not be null");
-        Operation<ExecutionProfileExportAction, ExecutionProfileExportRequest, ExecutionProfileExportResult> owner =
-                catalog.operations().getFirst();
-        return List.<OperationRegistration<?, ?>>of(register(owner, mapper));
+        return List.<OperationRegistration<?, ?>>of(register(gateway, mapper));
     }
 
     static OperationRegistration<ExecutionProfileExportArguments, ExecutionProfileExportResult> register(
-            Operation<ExecutionProfileExportAction, ExecutionProfileExportRequest, ExecutionProfileExportResult> owner,
+            ExecutionExportArtifactGateway gateway,
             ObjectMapper mapper) {
-        OperationDescriptor descriptor = descriptor(owner);
+        OperationDescriptor descriptor = descriptor();
         return new OperationRegistration<>(
                 descriptor,
                 ExecutionProfileExportArguments.class,
@@ -64,7 +62,10 @@ public class ExecutionProfileExportOperationRegistrations {
                                 "contextValues", mapper.createObjectNode())),
                 ContextAwareOperationExecutor.declared(OperationCancellationState.NOT_CANCELLABLE,
                         OperationCancellationGuarantee.DETERMINISTIC_CONTINUATION,
-                        (input, context) -> owner.execute(decode(input))),
+                        (input, context) -> ExecutionProfileExportResult.fromArtifactResult(
+                                gateway.generate(new ArtifactManagementRequest(
+                                        ArtifactType.EXECUTION_EXPORT, ArtifactAction.GENERATE,
+                                        new ExecutionProfileExportArtifactInputMapper(mapper).map(input))))),
                 OperationResultEncoders.typed(mapper, ExecutionProfileExportResult.class),
                 CoreOperationDirectory.class.getName(),
                 identity());
@@ -77,27 +78,6 @@ public class ExecutionProfileExportOperationRegistrations {
                 policy.sideEffect(), policy.confirmationRequired(), policy.credentialPolicy(),
                 policy.redactionPolicy(), policy.timeoutMillis(), false,
                 policy.maxInputBytes(), policy.maxOutputBytes());
-    }
-
-    static ExecutionProfileExportRequest decode(ExecutionProfileExportArguments arguments) {
-        return new ExecutionProfileExportRequest(
-                ExecutionProfileExportAction.EXPORT,
-                arguments.projectName(),
-                arguments.exportId(),
-                arguments.executionProfile(),
-                arguments.planName(),
-                arguments.when(),
-                arguments.mode(),
-                arguments.type(),
-                defaultFalse(arguments.includeResolvedSecrets()),
-                arguments.includeRuntimeStartup(),
-                arguments.includeHealthcheckGate(),
-                arguments.contextBindings(),
-                arguments.contextValues());
-    }
-
-    private static boolean defaultFalse(Boolean value) {
-        return Boolean.TRUE.equals(value);
     }
 
     static OperationSchema schema() {
@@ -119,32 +99,29 @@ public class ExecutionProfileExportOperationRegistrations {
         return CanonicalOperationSchema.schema(root);
     }
 
-    static OperationDescriptor descriptor(
-            Operation<ExecutionProfileExportAction, ExecutionProfileExportRequest, ExecutionProfileExportResult> owner) {
-        String id = OperationId.fromLegacy(
-                ExecutionProfileExportOperationCatalog.TOOL_NAME,
-                ExecutionProfileExportOperationCatalog.ACTION).value();
+    static OperationDescriptor descriptor() {
+        String id = "execution_profile_export.export";
         return new OperationDescriptor(
-                ExecutionProfileExportOperationCatalog.TOOL_NAME,
-                ExecutionProfileExportOperationCatalog.ACTION,
+                "execution_profile_export",
+                "export",
                 ExecutionProfileExportArguments.class.getName(),
                 ExecutionProfileExportResult.class.getName(),
-                owner.executableOwner(),
+                ExecutionExportOperations.class.getName(),
                 new OperationTraceMetadata(
-                        "java_mcp_operation_directory_adapter",
+                        "operation_execute",
                         ExecutionProfileExportOperationRegistrations.class.getName(),
-                        ExecutionProfileExportFeature.class.getName(),
-                        ExecutionProfileExportOperationRegistrations.class.getName(),
-                        "mcpjvm-610:" + id + ":typed-binding",
+                        ExecutionExportOperations.class.getName(),
+                        ExecutionProfileExportResult.class.getName(),
+                        "mcpjvm-640:" + id + ":live-fixture-export",
                         "filesystem_export",
-                        Map.of("capabilityCatalog", ExecutionProfileExportOperationCatalog.class.getName(),
-                                "executableOwner", owner.executableOwner(),
+                        Map.of("artifactGateway", ExecutionExportArtifactGateway.class.getName(),
+                                "executableOwner", ExecutionExportOperations.class.getName(),
                                 "operationId", id)));
     }
 
     static OperationProvenance identity() {
         return OperationProvenance.releasedActionless(
-                ExecutionProfileExportOperationCatalog.TOOL_NAME,
+                "execution_profile_export",
                 Map.of(),
                 "execution_profile_export_input_to_typed_artifact_request",
                 "export_result_fields_preserved_without_artifact_discriminators",

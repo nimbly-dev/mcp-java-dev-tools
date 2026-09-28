@@ -345,10 +345,25 @@ class OperationDirectoryPackageBoundaryTest {
             return parseReferences(path.toString(), Files.readString(path)).stream()
                     .filter(reference -> reference.startsWith(CORE_PACKAGE_PREFIX + "feature."))
                     .filter(reference -> !reference.startsWith(ownerPrefix))
+                    .filter(reference -> !approvedExportGatewayReference(source, reference))
                     .map(reference -> path + ": " + reference);
         } catch (IOException exception) {
             throw new IllegalStateException("could not read " + path, exception);
         }
+    }
+
+    private boolean approvedExportGatewayReference(RegistrationSource source, String reference) {
+        if (!source.packagePath().equals("feature/executionprofileexport/operation")
+                || !source.fileName().equals("ExecutionProfileExportOperationRegistrations.java")) {
+            return false;
+        }
+        return Set.of(
+                CORE_PACKAGE_PREFIX + "feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway",
+                CORE_PACKAGE_PREFIX + "feature.artifactmanagement.artifact.export.ExecutionExportOperations",
+                CORE_PACKAGE_PREFIX + "feature.artifactmanagement.model.action.ArtifactAction",
+                CORE_PACKAGE_PREFIX + "feature.artifactmanagement.model.action.ArtifactType",
+                CORE_PACKAGE_PREFIX + "feature.artifactmanagement.model.request.ArtifactManagementRequest")
+                .contains(reference);
     }
 
     private boolean isForbiddenReference(String reference) {

@@ -23,9 +23,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.act
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.action.ExecutionOrchestrationAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.request.ExecutionOrchestrationRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.result.ExecutionOrchestrationResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportArtifactInputMapper;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExportExecutionProfileOperation;
-import com.nimbly.mcpjavadevtools.server.core.feature.executionprofileexport.operation.ExecutionProfileExportOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.action.FailureAnalysisAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.request.FailureAnalysisRequest;
@@ -468,20 +465,12 @@ class CoreOperationDirectoryTest {
                                 .map(ArtifactManagementAction::routeId).toList()));
         ExecutionExportArtifactGateway gateway = request -> ArtifactManagementResult.success(
                 ArtifactType.EXECUTION_EXPORT, ArtifactAction.GENERATE, Map.of());
-        ExportExecutionProfileOperation exportOwner = new ExportExecutionProfileOperation(
-                gateway, new ExecutionProfileExportArtifactInputMapper(JSON),
-                new OperationTraceMetadata(
-                        "aggregate-test", "aggregate-test", "aggregate-test", "aggregate-test",
-                        "aggregate-test", "filesystem_export", Map.of("owner", "aggregate-test")));
-        ExecutionProfileExportOperationCatalog export = new ExecutionProfileExportOperationCatalog(
-                exportOwner, new OperationExposure(
-                        ExecutionProfileExportOperationCatalog.TOOL_NAME, "aggregate-test", List.of("export")));
         return new CoreOperationDirectory(
                 new CoreOperationDirectoryOwners(
                         artifact,
                         new JvmLifecycleOperationCatalog(jvmHandlers()),
                         new ProbeOperationCatalog(probeHandlers()),
-                        export,
+                        gateway,
                         new DefaultRouteSynthesisFeature(routeHandlers()),
                         failureHandlers(),
                         request -> ExecuteTransportResult.httpResponse(
