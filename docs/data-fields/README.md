@@ -411,6 +411,19 @@ Arm target validation is fail-closed and occurs before session creation or repla
 
 ## execution_profile_export
 
+Java CDE clients invoke `operation_execute` with
+`{"operationId":"execution_profile_export.export","arguments":{...},"confirmed":true}`.
+Use `operation_describe` for the Java-owned argument schema and safety policy. The
+`resultType`, `status`, and failure codes are in the inner `result` object;
+`mode`, `exportId`, `executionProfile`, and output paths are under
+`result.details`. The Tool labels in this table describe the TypeScript behavior
+reference. A top-level CDE `status=succeeded` means the invocation completed,
+not that an export was produced. Check `result.status=ok` and
+`result.reasonCode=success` before using its output paths. For example, a missing
+profile returns top-level `status=succeeded` with inner
+`result.status=execution_profile_not_found` and
+`result.reasonCode=execution_profile_not_found`, without creating an export.
+
 | fieldName                   | fieldDesc                                                                                                                                                                                                           | toolUsedBy                 | required | exampleValue                                                                |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | -------- | --------------------------------------------------------------------------- |
 | `resultType`                | Output shape discriminator for execution-profile export.                                                                                                                                                            | `execution_profile_export` | true     | `"execution_profile_export"`                                                |
