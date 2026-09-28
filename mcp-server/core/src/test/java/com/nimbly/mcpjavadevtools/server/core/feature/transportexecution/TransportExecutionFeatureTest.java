@@ -94,6 +94,7 @@ class TransportExecutionFeatureTest {
         assertThat(registration.descriptor().operationId().value()).isEqualTo("transport_execute.execute");
         assertThat(registration.descriptor().executableOwner()).contains("ExecuteTransportAction#execute");
         assertThat(registration.safety().credentialPolicy()).isEqualTo("caller_may_supply_credentials");
+        assertThat(registration.safety().timeoutMillis()).isEqualTo(300_000);
         assertThat(registration.provenance().actionless()).isTrue();
         assertThat(registration.provenance().invocationAction()).isEmpty();
         assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))

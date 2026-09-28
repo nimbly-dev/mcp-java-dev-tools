@@ -2,7 +2,7 @@
 <tool name="transport_execute" formatVersion="2">
   <action classification="transport" name="execute">
     <summary>Execute an approved transport request.</summary>
-    <description>Executes a bounded transport request through the Core transport boundary.</description>
+    <description>Executes a bounded HTTP request to an allowed host. Supply confirmed=true to operation_execute; non-HTTP providers currently return an unsupported outcome.</description>
     <tags>
       <tag>transport_execute</tag>
       <tag>http</tag>
@@ -11,15 +11,15 @@
       <alias tool="transport_execute" actionless="true" />
     </aliases>
     <arguments>
-      <argument name="protocol" description="Transport protocol." type="string" required="true" />
-      <argument name="request" description="Protocol-specific request." type="object" required="true" />
-      <argument name="options" description="Transport options." type="object" required="false">
+      <argument name="protocol" description="Use http for supported execution; grpc, kafka, and custom are recognized but unsupported providers." type="string" required="true" />
+      <argument name="request" description="For http: method (GET, POST, PUT, PATCH, DELETE, HEAD, or OPTIONS) and absolute url on an allowed host are required. Optional headers map string names to string values; body accepts a non-blank string, object, or array; timeoutMs is an integer from 1 to 300000. CDE bounds the complete arguments JSON to 1048576 bytes and each string to 262144 UTF-8 bytes, so HTTP body capacity through CDE is lower than the provider's 4 MiB ceiling." type="object" required="true" />
+      <argument name="options" description="wrappedOnly defaults to true and rejects execution when the probe registry allows non-wrapped executables." type="object" required="false">
         <default>{"wrappedOnly":true}</default>
       </argument>
     </arguments>
     <examples>
-      <example>{"protocol":"http","request":{}}</example>
+      <example>{"protocol":"http","request":{"method":"GET","url":"http://127.0.0.1:18083/actuator/health"}}</example>
     </examples>
-    <safety sideEffect="transport_request" confirmationRequired="true" credentialPolicy="caller_may_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
+    <safety sideEffect="transport_request" confirmationRequired="true" credentialPolicy="caller_may_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="300000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
   </action>
 </tool>

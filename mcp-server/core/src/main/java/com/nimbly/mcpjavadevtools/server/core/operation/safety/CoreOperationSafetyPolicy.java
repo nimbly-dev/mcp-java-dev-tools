@@ -51,7 +51,9 @@ public class CoreOperationSafetyPolicy {
                         || operationId.equals("transport_execute.execute"))
                         ? "caller_may_supply_credentials" : "caller_must_not_supply_credentials",
                 "redact_sensitive_fields",
-                OperationSafetyLimits.DEFAULT_TIMEOUT_MILLIS,
+                operationId.equals("transport_execute.execute")
+                        ? OperationSafetyLimits.MAX_TIMEOUT_MILLIS
+                        : OperationSafetyLimits.DEFAULT_TIMEOUT_MILLIS,
                 true,
                 OperationSafetyLimits.MAX_INPUT_BYTES,
                 OperationSafetyLimits.MAX_OUTPUT_BYTES);
