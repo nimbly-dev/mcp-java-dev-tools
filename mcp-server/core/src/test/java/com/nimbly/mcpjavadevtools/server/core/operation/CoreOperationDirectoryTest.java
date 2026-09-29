@@ -42,10 +42,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.action.Rout
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.RouteSynthesisAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.request.RouteSynthesisRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.result.RouteSynthesisResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.DefaultPerformanceSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.action.PerformanceSuiteActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.action.PerformanceSuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.request.PerformanceSuiteRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.result.PerformanceSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.result.RegressionSuiteResult;
@@ -474,7 +471,7 @@ class CoreOperationDirectoryTest {
                                 "ok", "http", 200, Map.of(), "fixture", 1),
                         orchestrationHandlers(),
                         regression(),
-                        new DefaultPerformanceSuiteFeature(performanceHandlers()),
+                        performance(),
                         new DefaultSecuritySuiteFeature(securityHandlers())),
                 JSON);
     }
@@ -581,21 +578,8 @@ class CoreOperationDirectoryTest {
         };
     }
 
-    private static List<PerformanceSuiteActionHandler> performanceHandlers() {
-        return Arrays.stream(PerformanceSuiteAction.values())
-                .map(CoreOperationDirectoryTest::performanceHandler).toList();
-    }
-
-    private static PerformanceSuiteActionHandler performanceHandler(PerformanceSuiteAction action) {
-        return new PerformanceSuiteActionHandler() {
-            @Override
-            public PerformanceSuiteAction action() { return action; }
-
-            @Override
-            public PerformanceSuiteResult execute(PerformanceSuiteRequest request) {
-                return PerformanceSuiteResult.completed(Map.of());
-            }
-        };
+    private static PerformanceSuiteFeature performance() {
+        return input -> PerformanceSuiteResult.completed(Map.of());
     }
 
     private static List<SecuritySuiteActionHandler> securityHandlers() {

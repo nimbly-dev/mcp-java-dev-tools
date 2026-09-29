@@ -27,12 +27,11 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.JvmLifecycleResultStatus;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.JvmMutationResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitForHitRequest;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitForHitResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitOutcome;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeBatchStatusRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusEntry;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.DefaultPerformanceSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.action.impl.ExecutePerformancePlanAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.execution.PerformancePlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterExecutableResolver;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterJmxRenderer;
@@ -263,21 +262,22 @@ class SuiteOwnerLifecycleTest {
         return new RegressionPlanExecutor(preflight, transport, JSON);
     }
 
-    private static DefaultPerformanceSuiteFeature performance(OwnerGate gate) {
+    private static PerformanceSuiteFeature performance(OwnerGate gate) {
         var workload = new JmeterWorkloadExecutor(
                 new JmeterJmxRenderer(),
                 (executable, directory, jmx, jtl, log, timeout) -> gate.executeWorkload(jtl, log),
                 new JmeterJtlCollector());
         ProbeFeature probe = request -> {
-            if (request instanceof ProbeWaitForHitRequest wait) {
-                return ProbeResult.success(new ProbeWaitForHitResult(
-                        wait.keySelector().key(), ProbeWaitOutcome.LINE_HIT, 1, 0L, 1L, null, null));
+            if (request instanceof ProbeBatchStatusRequest status) {
+                return ProbeResult.success(new ProbeStatusResult(status.keySelector().keys().stream()
+                        .map(key -> new ProbeStatusEntry(
+                                key, key, 200, true, 1L, 1L, true, "resolvable", null, null))
+                        .toList()));
             }
             return ProbeResult.success();
         };
-        return new DefaultPerformanceSuiteFeature(List.of(new ExecutePerformancePlanAction(
-                new PerformancePlanExecutor(
-                        new JmeterExecutableResolver(), workload, probe, request -> successfulTransport()))));
+        return new PerformancePlanExecutor(
+                new JmeterExecutableResolver(), workload, probe, request -> successfulTransport());
     }
 
     private static DefaultSecuritySuiteFeature security(OwnerGate gate) {

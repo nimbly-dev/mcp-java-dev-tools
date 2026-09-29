@@ -630,6 +630,32 @@ inner blocked result. The TypeScript implementation remains the behavior
 reference for these phases until the Java capability has live verification
 evidence.
 
+## performance_suite (Java CDE)
+
+Java CDE exposes `performance_suite.execute_plan` through
+`operation_execute`. Its direct `arguments` fields are `projectName`,
+`executionProfile`, `planName`, and `suiteRunId`; execution writes run
+Artifacts and requires `confirmed=true`. A successful outer CDE invocation
+only means the operation completed. Consumers must inspect the inner
+`result.status`, `result.reasonCode`, and `result.details.runStatus`.
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `result.status` | Substantive Performance owner outcome (`completed` or `blocked`). | `performance_suite.execute_plan` | true | `"completed"` |
+| `result.reasonCode` | Stable owner reason. Missing required line coverage uses `performance_required_line_hit_missing`. | `performance_suite.execute_plan` | true | `"ok"` |
+| `result.details.runStatus` | Threshold verdict for a completed workload (`pass` or `fail`). It is absent from blocked runs. | `performance_suite.execute_plan` | false | `"pass"` |
+| `result.details.metrics` | Persisted request count, failures, latencies, error rate, throughput, and p95 latency. | `performance_suite.execute_plan` | false | `{"totalRequests":419,"throughputPerSec":209.5,"p95LatencyMs":9}` |
+| `result.details.thresholdResults` | Per-threshold actual value, configured limit, and deterministic pass verdict. | `performance_suite.execute_plan` | false | `{"minThroughputPerSec":{"actual":209.5,"limit":0.1,"pass":true}}` |
+| `result.details.requiredLineHits[]` | Strict Line Keys positively observed after their counters were reset and the workload ran. | `performance_suite.execute_plan` | false | `["com.example.UserController#get:20"]` |
+| `result.details.artifacts` | Generated JMeter JMX, JTL, and log paths within the selected run directory. | `performance_suite.execute_plan` | false | `{"jtlPath":".../workload.jmeter.jtl"}` |
+| `result.details.profiler` | Bounded profiler disposition. It is `not_configured` when execution timing analysis was not requested. | `performance_suite.execute_plan` | false | `{"status":"not_configured"}` |
+| `result.details.msta` | Method-scoped timing-analysis disposition or evidence when configured. | `performance_suite.execute_plan` | false | `{"status":"not_configured"}` |
+
+The persisted `execution.result.json` preserves the run status, threshold
+results, timing metrics, required-line coverage, and generated Artifact paths.
+An impossible threshold persists `status=fail`; a missing required line hit
+persists `status=blocked` without a passing `details.runStatus`.
+
 ## execution_orchestration
 
 The Java CDE server invokes `execution_orchestration.execute` through `operation_execute` with direct `arguments` fields `projectName`, `executionProfile`, optional `suiteRunId`, and optional `maxPlansPerCall`. This filesystem-writing operation requires `confirmed=true`. The `execution_orchestration` Tool/action envelope below describes the TypeScript behavior reference during the alpha migration; it is not an additional Java MCP Tool.

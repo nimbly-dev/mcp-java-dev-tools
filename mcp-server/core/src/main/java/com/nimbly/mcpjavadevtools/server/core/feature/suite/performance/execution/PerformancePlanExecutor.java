@@ -1,6 +1,7 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.execution;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.result.PerformanceSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.health.PerformanceTargetHealthCheck;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterExecutableResolver;
@@ -9,27 +10,25 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterWorkloadResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.reset.ProbeBatchResetRequest;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitForHitRequest;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitForHitResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitOutcome;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeBatchStatusRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.profiler.ProbeProfilerCommand;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.profiler.ProbeProfilerRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.profiler.ProbeProfilerResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.key.ProbeKeyBatchSelector;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.key.ProbeKeySelector;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.target.ProbeTargetSelector;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
 import java.nio.file.Path;
 import java.net.URI;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
 /** Validates and executes the generated-HTTP JMeter Performance plan contract. */
-public final class PerformancePlanExecutor {
+public final class PerformancePlanExecutor implements PerformanceSuiteFeature {
 
     private static final int MAX_CONCURRENCY = 10_000;
     private static final int MAX_DURATION_SECONDS = 1_800;
@@ -66,7 +65,8 @@ public final class PerformancePlanExecutor {
     }
 
     /** Executes a plan or returns a deterministic preflight failure. */
-    public PerformanceSuiteResult execute(JsonNode input) {
+    @Override
+    public PerformanceSuiteResult executePlan(JsonNode input) {
         Validation validation = validate(input);
         if (validation.reasonCode() != null) {
             return blocked(validation.reasonCode(), validation.nextAction());
@@ -222,24 +222,23 @@ public final class PerformancePlanExecutor {
     }
 
     private List<String> verifyLineHits(Validation validation) {
-        List<String> verified = new ArrayList<>();
-        for (String key : validation.requiredLineHits()) {
-            if (!lineHit(validation, key)) {
+        var response = probe.execute(new ProbeBatchStatusRequest(target(validation),
+                new ProbeKeyBatchSelector(validation.requiredLineHits()), Duration.ofSeconds(10)));
+        if (!response.status().name().equals("SUCCESS")
+                || response.actionResult().filter(ProbeStatusResult.class::isInstance).isEmpty()) {
+            return null;
+        }
+        ProbeStatusResult status = (ProbeStatusResult) response.actionResult().orElseThrow();
+        if (status.entries().size() != validation.requiredLineHits().size()) {
+            return null;
+        }
+        for (int index = 0; index < status.entries().size(); index++) {
+            if (!validation.requiredLineHits().get(index).equals(status.entries().get(index).requestedKey())
+                    || !status.entries().get(index).lineHit()) {
                 return null;
             }
-            verified.add(key);
         }
-        return List.copyOf(verified);
-    }
-
-    private boolean lineHit(Validation validation, String key) {
-        var response = probe.execute(new ProbeWaitForHitRequest(target(validation), new ProbeKeySelector(key, null),
-                Duration.ofSeconds(validation.durationSeconds()), Duration.ofMillis(250), null));
-        return response.actionResult().filter(ProbeWaitForHitResult.class::isInstance)
-                .map(ProbeWaitForHitResult.class::cast)
-                .map(ProbeWaitForHitResult::outcome)
-                .filter(ProbeWaitOutcome.LINE_HIT::equals)
-                .isPresent();
+        return validation.requiredLineHits();
     }
 
     private static ProbeTargetSelector target(Validation validation) {
@@ -478,7 +477,7 @@ public final class PerformancePlanExecutor {
     }
 
     private static List<String> lines(JsonNode node) {
-        List<String> values = new ArrayList<>();
+        LinkedHashSet<String> values = new LinkedHashSet<>();
         node.forEach(value -> {
             String line = text(value);
             if (line != null) {

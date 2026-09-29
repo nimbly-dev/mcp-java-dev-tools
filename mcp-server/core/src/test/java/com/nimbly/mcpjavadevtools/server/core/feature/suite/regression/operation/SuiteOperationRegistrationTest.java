@@ -18,17 +18,13 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.TrustedDirectSuiteRun;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.DefaultPerformanceSuiteFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitForHitRequest;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitForHitResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitOutcome;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeBatchStatusRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusEntry;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.action.PerformanceSuiteActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.action.impl.ExecutePerformancePlanAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.execution.PerformancePlanExecutor;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.action.PerformanceSuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.request.PerformanceSuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.result.PerformanceSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.operation.PerformanceSuiteOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.operation.TrustedPerformanceSuiteRegistrations;
@@ -346,9 +342,7 @@ class SuiteOperationRegistrationTest {
                 assertThat(invoked).hasValue("execute_plan");
                 assertTrustedRequest(id, (JsonNode) rowOwnerRequest.get(), canonicalInput, regressionInput());
             } else if (id.equals("performance_suite.execute_plan")) {
-                PerformanceSuiteRequest request = (PerformanceSuiteRequest) rowOwnerRequest.get();
-                assertThat(request.action()).isEqualTo(PerformanceSuiteAction.EXECUTE_PLAN);
-                assertTrustedRequest(id, request.input(), canonicalInput, performanceInput());
+                assertTrustedRequest(id, (JsonNode) rowOwnerRequest.get(), canonicalInput, performanceInput());
             } else {
                 SecuritySuiteRequest request = (SecuritySuiteRequest) rowOwnerRequest.get();
                 assertThat(request.action()).isEqualTo(SecuritySuiteAction.EXECUTE_PLAN);
@@ -375,7 +369,7 @@ class SuiteOperationRegistrationTest {
     }
     private List<OperationRegistration<?, ?>> registrations(AtomicReference<String> invoked) {
         var regression = regressionStub(invoked);
-        var performance = new DefaultPerformanceSuiteFeature(List.of(performanceHandler()));
+        var performance = performanceStub();
         var security = new DefaultSecuritySuiteFeature(List.of(securityHandler()));
         return java.util.stream.Stream.of(
                 TrustedRegressionSuiteRegistrations.create(regression, JSON, trusted()),
@@ -406,20 +400,12 @@ class SuiteOperationRegistrationTest {
         };
     }
 
-    private PerformanceSuiteActionHandler performanceHandler() {
-        return new PerformanceSuiteActionHandler() {
-            @Override
-            public PerformanceSuiteAction action() {
-                return PerformanceSuiteAction.EXECUTE_PLAN;
-            }
-
-            @Override
-            public PerformanceSuiteResult execute(PerformanceSuiteRequest request) {
-                rowOwnerCalls.incrementAndGet();
-                rowOwnerRequest.set(request);
-                return PerformanceSuiteResult.completed(Map.of(
-                        "thresholdStatus", "pass", "authorization", "suite-secret"));
-            }
+    private PerformanceSuiteFeature performanceStub() {
+        return input -> {
+            rowOwnerCalls.incrementAndGet();
+            rowOwnerRequest.set(input);
+            return PerformanceSuiteResult.completed(Map.of(
+                    "thresholdStatus", "pass", "authorization", "suite-secret"));
         };
     }
 
@@ -449,17 +435,17 @@ class SuiteOperationRegistrationTest {
                 (executable, directory, jmx, jtl, log, timeout) -> probe.executeWorkload(jtl, log),
                 new JmeterJtlCollector());
         ProbeFeature liveProbe = request -> {
-            if (request instanceof ProbeWaitForHitRequest wait) {
-                return ProbeResult.success(new ProbeWaitForHitResult(
-                        wait.keySelector().key(), ProbeWaitOutcome.LINE_HIT, 1, 0L, 1L, null, null));
+            if (request instanceof ProbeBatchStatusRequest status) {
+                return ProbeResult.success(new ProbeStatusResult(status.keySelector().keys().stream()
+                        .map(key -> new ProbeStatusEntry(
+                                key, key, 200, true, 1L, 1L, true, "resolvable", null, null))
+                        .toList()));
             }
             return ProbeResult.success();
         };
-        var performance = new DefaultPerformanceSuiteFeature(List.of(
-                new ExecutePerformancePlanAction(
-                        new PerformancePlanExecutor(
-                                new JmeterExecutableResolver(), workload, liveProbe,
-                                request -> successfulTransport()))));
+        var performance = new PerformancePlanExecutor(
+                new JmeterExecutableResolver(), workload, liveProbe,
+                request -> successfulTransport());
         var security = new DefaultSecuritySuiteFeature(List.of(
                 new ExecuteSecurityPlanAction(new SecurityPlanExecutor(
                         transport, new SecurityKnowledgeCatalog()))));

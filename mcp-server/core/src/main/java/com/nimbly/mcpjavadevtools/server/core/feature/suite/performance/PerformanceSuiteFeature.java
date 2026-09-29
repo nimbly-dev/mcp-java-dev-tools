@@ -1,11 +1,11 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.suite.performance;
 
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.request.PerformanceSuiteRequest;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.result.PerformanceSuiteResult;
 
-/** Spring-independent public entry point for Performance Suite behavior. */
+/** Contract consumed by direct CDE execution and cross-suite orchestration. */
 public interface PerformanceSuiteFeature {
 
-    /** Executes one Performance Suite action. */
-    PerformanceSuiteResult execute(PerformanceSuiteRequest request);
+    /** Executes a resolved Performance plan with required Probe verification. */
+    PerformanceSuiteResult executePlan(JsonNode input);
 }

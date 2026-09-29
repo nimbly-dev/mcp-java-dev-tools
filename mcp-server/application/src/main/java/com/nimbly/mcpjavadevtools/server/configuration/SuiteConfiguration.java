@@ -2,10 +2,6 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.DefaultPerformanceSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.action.PerformanceSuiteActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.action.impl.ExecutePerformancePlanAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.execution.PerformancePlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.DefaultJmeterProcessRunner;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterExecutableResolver;
@@ -66,16 +62,6 @@ public class SuiteConfiguration {
             ProbeFeature probe,
             TransportExecutionFeature transport) {
         return new PerformancePlanExecutor(resolver, workloadExecutor, probe, transport);
-    }
-
-    @Bean
-    ExecutePerformancePlanAction executePerformancePlanAction(PerformancePlanExecutor executor) {
-        return new ExecutePerformancePlanAction(executor);
-    }
-
-    @Bean
-    PerformanceSuiteFeature performanceSuiteFeature(List<PerformanceSuiteActionHandler> handlers) {
-        return new DefaultPerformanceSuiteFeature(handlers);
     }
 
     @Bean

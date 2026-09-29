@@ -4,9 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.TrustedSuiteExecution;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.action.PerformanceSuiteAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.operation.PerformanceSuiteOperationArguments;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.request.PerformanceSuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.result.PerformanceSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
@@ -52,7 +50,7 @@ public class PerformanceSuiteOperationRegistrations {
 
     static OperationRegistration<PerformanceSuiteOperationArguments, PerformanceSuiteResult> register(
             PerformanceSuiteFeature owner, ObjectMapper mapper, TrustedSuiteExecution trusted) {
-        String executableOwner = owner.getClass().getName() + "#execute";
+        String executableOwner = owner.getClass().getName() + "#executePlan";
         OperationDescriptor descriptor = descriptor(executableOwner, owner);
         return new OperationRegistration<>(
                 descriptor,
@@ -71,8 +69,7 @@ public class PerformanceSuiteOperationRegistrations {
                                 ? PerformanceSuiteResult.blocked("direct_suite_context_unavailable",
                                         "bind a trusted Artifact workspace before direct execution", Map.of())
                                 : trusted.execute("performance", input.input(), PerformanceSuiteResult.class,
-                                        resolved -> owner.execute(new PerformanceSuiteRequest(
-                                                PerformanceSuiteAction.EXECUTE_PLAN, resolved)),
+                                        owner::executePlan,
                                         code -> PerformanceSuiteResult.blocked(code,
                                                 "inspect the persisted plan and workspace", Map.of()), true)),
                 OperationResultEncoders.typed(mapper, PerformanceSuiteResult.class),

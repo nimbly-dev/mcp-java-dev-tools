@@ -17,8 +17,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lif
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionRunDirectoryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionSuiteStateStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.action.PerformanceSuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.request.PerformanceSuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.action.SecuritySuiteAction;
@@ -680,7 +678,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
     }
 
     private Map<String, Object> performance(JsonNode plan, JsonNode input) {
-        var result = performance.execute(new PerformanceSuiteRequest(PerformanceSuiteAction.EXECUTE_PLAN, input));
+        var result = performance.executePlan(input);
         return outcome(plan, result.status(), result.reasonCode(), result.details());
     }
 
