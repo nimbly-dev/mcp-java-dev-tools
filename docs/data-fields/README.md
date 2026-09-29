@@ -610,6 +610,26 @@ Typed request envelope examples:
 - `{"artifactType":"security_plan","action":"validate","input":{"projectName":"catalog","planName":"authorization"}}`
 - `{"artifactType":"run_result","action":"upsert","input":{"projectName":"catalog","suiteType":"regression","planName":"health","runId":"run-1","payload":{"status":"pass"}}}`
 
+## regression_suite (Java CDE)
+
+Java CDE exposes `regression_suite.preflight` and
+`regression_suite.execute_plan` through `operation_execute` using direct
+`arguments` fields `projectName`, `executionProfile`, `planName`, and
+`suiteRunId`. Execute requires `confirmed=true`. Check the inner `result`:
+an HTTP-only plan can return `result.status=ready` with
+`result.details.runStatus=pass` after its steps pass.
+
+Java currently cannot perform configured Probe hit, Watcher, external
+verification, or correlation phases. Preflight returns
+`result.status=blocked_runtime` with the phase-specific reason code
+`probe_verification_unavailable`, `watcher_verification_unavailable`,
+`external_verification_unavailable`, or `correlation_verification_unavailable`.
+Execute revalidates and persists the same blocked outcome without a passing
+`details.runStatus`. A completed outer CDE invocation does not override the
+inner blocked result. The TypeScript implementation remains the behavior
+reference for these phases until the Java capability has live verification
+evidence.
+
 ## execution_orchestration
 
 The Java CDE server invokes `execution_orchestration.execute` through `operation_execute` with direct `arguments` fields `projectName`, `executionProfile`, optional `suiteRunId`, and optional `maxPlansPerCall`. This filesystem-writing operation requires `confirmed=true`. The `execution_orchestration` Tool/action envelope below describes the TypeScript behavior reference during the alpha migration; it is not an additional Java MCP Tool.

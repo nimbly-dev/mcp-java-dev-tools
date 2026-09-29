@@ -47,10 +47,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.action.P
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.action.PerformanceSuiteAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.request.PerformanceSuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.result.PerformanceSuiteResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.DefaultRegressionSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.RegressionSuiteActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.action.RegressionSuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.request.RegressionSuiteRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.result.RegressionSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.DefaultSecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.action.SecuritySuiteActionHandler;
@@ -476,7 +473,7 @@ class CoreOperationDirectoryTest {
                         request -> ExecuteTransportResult.httpResponse(
                                 "ok", "http", 200, Map.of(), "fixture", 1),
                         orchestrationHandlers(),
-                        new DefaultRegressionSuiteFeature(regressionHandlers()),
+                        regression(),
                         new DefaultPerformanceSuiteFeature(performanceHandlers()),
                         new DefaultSecuritySuiteFeature(securityHandlers())),
                 JSON);
@@ -570,18 +567,15 @@ class CoreOperationDirectoryTest {
         };
     }
 
-    private static List<RegressionSuiteActionHandler> regressionHandlers() {
-        return Arrays.stream(RegressionSuiteAction.values())
-                .map(CoreOperationDirectoryTest::regressionHandler).toList();
-    }
-
-    private static RegressionSuiteActionHandler regressionHandler(RegressionSuiteAction action) {
-        return new RegressionSuiteActionHandler() {
+    private static RegressionSuiteFeature regression() {
+        return new RegressionSuiteFeature() {
             @Override
-            public RegressionSuiteAction action() { return action; }
+            public RegressionSuiteResult preflight(JsonNode input) {
+                return RegressionSuiteResult.ready(Map.of());
+            }
 
             @Override
-            public RegressionSuiteResult execute(RegressionSuiteRequest request) {
+            public RegressionSuiteResult executePlan(JsonNode input) {
                 return RegressionSuiteResult.ready(Map.of());
             }
         };

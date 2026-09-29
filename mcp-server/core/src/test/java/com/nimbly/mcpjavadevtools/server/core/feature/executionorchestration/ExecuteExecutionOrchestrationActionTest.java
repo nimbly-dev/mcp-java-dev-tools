@@ -475,7 +475,7 @@ class ExecuteExecutionOrchestrationActionTest {
             ExecutionRuntimeLifecycle lifecycle,
             ExecutionRunLease lease) {
         SecuritySuiteFeature security = request -> SecuritySuiteResult.completed(Map.of("runStatus", "pass"));
-        RegressionSuiteFeature regression = request -> RegressionSuiteResult.ready(Map.of("runStatus", "pass"));
+        RegressionSuiteFeature regression = passingRegression();
         ExecutionRunDirectoryProvider directories = (project, suite, plan, run) -> java.util.Optional.of("target/runs/" + run);
         return new ExecuteExecutionOrchestrationAction(
                 artifacts, performance, security, regression, mapper, directories, lease, suiteState(), lifecycle);
@@ -484,10 +484,24 @@ class ExecuteExecutionOrchestrationActionTest {
     private ExecuteExecutionOrchestrationAction feature(
             ArtifactManagementFeature artifacts, SecuritySuiteFeature security, ExecutionRunLease lease) {
         PerformanceSuiteFeature performance = request -> PerformanceSuiteResult.completed(runDetails());
-        RegressionSuiteFeature regression = request -> RegressionSuiteResult.ready(Map.of("runStatus", "pass"));
+        RegressionSuiteFeature regression = passingRegression();
         ExecutionRunDirectoryProvider directories = (project, suite, plan, run) -> java.util.Optional.of("target/runs/" + run);
         return new ExecuteExecutionOrchestrationAction(
                 artifacts, performance, security, regression, mapper, directories, lease, suiteState());
+    }
+
+    private RegressionSuiteFeature passingRegression() {
+        return new RegressionSuiteFeature() {
+            @Override
+            public RegressionSuiteResult preflight(com.fasterxml.jackson.databind.JsonNode input) {
+                return RegressionSuiteResult.ready(Map.of("stepCount", 1));
+            }
+
+            @Override
+            public RegressionSuiteResult executePlan(com.fasterxml.jackson.databind.JsonNode input) {
+                return RegressionSuiteResult.ready(Map.of("runStatus", "pass"));
+            }
+        };
     }
 
     private ExecutionSuiteStateStore suiteState() {

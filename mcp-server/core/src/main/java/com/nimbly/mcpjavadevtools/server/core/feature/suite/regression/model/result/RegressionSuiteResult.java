@@ -57,6 +57,13 @@ public record RegressionSuiteResult(
         return new RegressionSuiteResult("blocked_invalid", reasonCode, nextAction, reasonMeta, Map.of());
     }
 
+    /** Prevents a pass when a configured runtime verification phase cannot run. */
+    public static RegressionSuiteResult blockedRuntime(String reasonCode, String phase) {
+        return new RegressionSuiteResult("blocked_runtime", reasonCode,
+                "run this plan only when the requested verification phase is implemented",
+                Map.of("failedStep", "verification", "verificationPhase", phase), Map.of());
+    }
+
     private static Map<String, Object> copy(Map<String, Object> values) {
         return values == null || values.isEmpty()
                 ? Map.of()

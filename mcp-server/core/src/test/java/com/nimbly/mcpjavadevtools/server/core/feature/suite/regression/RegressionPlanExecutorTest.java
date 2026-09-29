@@ -5,11 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.impl.PreflightRegressionPlanAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.impl.ExecuteRegressionPlanAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.execution.RegressionPlanExecutor;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.action.RegressionSuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.request.RegressionSuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.result.RegressionSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.preflight.RegressionPlanPreflight;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
@@ -20,24 +16,23 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
-class DefaultRegressionSuiteFeatureTest {
+class RegressionPlanExecutorTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final RegressionPlanPreflight preflight = new RegressionPlanPreflight();
     private final TransportExecutionFeature transport = request -> ExecuteTransportResult.httpResponse(
             "pass", "http", 200, java.util.Map.of(), "", 1);
-    private final RegressionSuiteFeature feature = new DefaultRegressionSuiteFeature(
-            List.of(
-                    new PreflightRegressionPlanAction(preflight),
-                    new ExecuteRegressionPlanAction(new RegressionPlanExecutor(preflight, transport, mapper))));
+    private final RegressionSuiteFeature feature = new RegressionPlanExecutor(preflight, transport, mapper);
 
     @Test
     void acceptsAReadyRegressionPlanWithoutExposingProvidedContext() {
         ObjectNode input = validPlan();
         input.putObject("providedContext").put("authorization", "sensitive-value");
 
-        RegressionSuiteResult result = feature.execute(request(input));
+        RegressionSuiteResult result = feature.preflight(input);
 
         assertThat(result.status()).isEqualTo("ready");
         assertThat(result.reasonCode()).isEqualTo("ok");
@@ -50,7 +45,7 @@ class DefaultRegressionSuiteFeatureTest {
         ObjectNode input = validPlan();
         ((ObjectNode) input.path("contract").path("steps").get(0)).remove("expect");
 
-        RegressionSuiteResult result = feature.execute(request(input));
+        RegressionSuiteResult result = feature.preflight(input);
 
         assertThat(result.status()).isEqualTo("blocked_invalid");
         assertThat(result.reasonCode()).isEqualTo("step_expectations_missing");
@@ -62,7 +57,7 @@ class DefaultRegressionSuiteFeatureTest {
         ObjectNode input = validPlan();
         ((ObjectNode) input.path("contract").path("steps").get(0)).put("order", 2);
 
-        RegressionSuiteResult result = feature.execute(request(input));
+        RegressionSuiteResult result = feature.preflight(input);
 
         assertThat(result.reasonCode()).isEqualTo("step_order_non_sequential");
     }
@@ -70,21 +65,67 @@ class DefaultRegressionSuiteFeatureTest {
     @Test
     void rejectsAnInvalidPinnedStrictLineKey() {
         ObjectNode input = validPlan();
+        ((ObjectNode) input.path("metadata").path("execution"))
+                .put("probeVerification", true).put("pinStrictProbeKey", true);
         ((ObjectNode) input.path("contract").path("targets").get(0))
                 .putObject("runtimeVerification").put("strictProbeKey", "not-a-strict-key");
 
-        RegressionSuiteResult result = feature.execute(request(input));
+        RegressionSuiteResult result = feature.preflight(input);
 
         assertThat(result.status()).isEqualTo("stale_plan");
         assertThat(result.reasonCode()).isEqualTo("strict_probe_key_invalid");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"probe", "watchers", "external_verification", "correlation"})
+    void configuredVerificationBlocksBeforeHttpAndCannotClaimPassingCoverage(String phase) {
+        ObjectNode input = validPlan();
+        ObjectNode execution = (ObjectNode) input.path("metadata").path("execution");
+        ObjectNode contract = (ObjectNode) input.path("contract");
+        switch (phase) {
+            case "probe" -> {
+                execution.put("probeVerification", true).put("pinStrictProbeKey", true);
+                ((ObjectNode) contract.path("targets").get(0)).putObject("runtimeVerification")
+                        .put("strictProbeKey", "example.Health#check:12");
+            }
+            case "watchers" -> contract.putArray("watchers").addObject().put("id", "completion");
+            case "external_verification" -> contract.putArray("externalVerification")
+                    .addObject().put("id", "downstream");
+            case "correlation" -> contract.putObject("correlation").put("enabled", true);
+            default -> throw new IllegalArgumentException(phase);
+        }
+        TransportExecutionFeature forbidden = request -> {
+            throw new AssertionError("verification must block before an HTTP trigger");
+        };
+        RegressionSuiteFeature checked = new RegressionPlanExecutor(preflight, forbidden, mapper);
+
+        RegressionSuiteResult preflightResult = checked.preflight(input);
+        RegressionSuiteResult executionResult = checked.executePlan(input);
+
+        assertThat(preflightResult.status()).isEqualTo("blocked_runtime");
+        assertThat(executionResult.status()).isEqualTo("blocked_runtime");
+        String reasonCode = switch (phase) {
+            case "probe" -> "probe_verification_unavailable";
+            case "watchers" -> "watcher_verification_unavailable";
+            case "external_verification" -> "external_verification_unavailable";
+            case "correlation" -> "correlation_verification_unavailable";
+            default -> throw new IllegalArgumentException(phase);
+        };
+        assertThat(executionResult.reasonCode()).isEqualTo(reasonCode);
+        assertThat(executionResult.reasonMeta()).containsEntry("verificationPhase", phase);
+        assertThat(executionResult.details()).doesNotContainKey("runStatus");
+    }
+
     @Test
-    void rejectsARequestWithoutAnAction() {
-        RegressionSuiteResult result = feature.execute(new RegressionSuiteRequest(null, validPlan()));
+    void malformedProbeFlagCannotBeTreatedAsDisabled() {
+        ObjectNode input = validPlan();
+        ((ObjectNode) input.path("metadata").path("execution")).put("probeVerification", "false");
+
+        RegressionSuiteResult result = feature.executePlan(input);
 
         assertThat(result.status()).isEqualTo("blocked_invalid");
-        assertThat(result.reasonCode()).isEqualTo("regression_suite_request_invalid");
+        assertThat(result.reasonCode()).isEqualTo("probe_verification_configuration_invalid");
+        assertThat(result.details()).doesNotContainKey("runStatus");
     }
 
     @Test
@@ -97,7 +138,7 @@ class DefaultRegressionSuiteFeatureTest {
                 .put("secret", true)
                 .put("provisioning", "user_input");
 
-        RegressionSuiteResult result = feature.execute(request(input));
+        RegressionSuiteResult result = feature.preflight(input);
 
         assertThat(result.status()).isEqualTo("needs_user_input");
         assertThat(result.reasonCode()).isEqualTo("missing_prerequisites_user_input");
@@ -115,7 +156,7 @@ class DefaultRegressionSuiteFeatureTest {
                 .put("secret", false)
                 .put("provisioning", "discoverable");
 
-        RegressionSuiteResult result = feature.execute(request(input));
+        RegressionSuiteResult result = feature.preflight(input);
 
         assertThat(result.status()).isEqualTo("needs_discovery");
         assertThat(result.reasonCode()).isEqualTo("missing_prerequisites_discoverable");
@@ -124,8 +165,7 @@ class DefaultRegressionSuiteFeatureTest {
 
     @Test
     void executesOrderedHttpStepsThroughThePublicTransportFeature() {
-        RegressionSuiteResult result = feature.execute(new RegressionSuiteRequest(
-                RegressionSuiteAction.EXECUTE_PLAN, validPlan()));
+        RegressionSuiteResult result = feature.executePlan(validPlan());
 
         assertThat(result.status()).isEqualTo("ready");
         assertThat(result.details()).containsEntry("runStatus", "pass");
@@ -263,19 +303,19 @@ class DefaultRegressionSuiteFeatureTest {
         ObjectNode invalidOperator = validPlan();
         ((ObjectNode) invalidOperator.path("contract").path("steps").get(0).path("expect").get(0))
                 .put("operator", "unknown");
-        RegressionSuiteResult operatorResult = feature.execute(request(invalidOperator));
+        RegressionSuiteResult operatorResult = feature.preflight(invalidOperator);
 
         ObjectNode forwardReference = validPlan();
         ((ObjectNode) forwardReference.path("contract").path("steps").get(0)).putObject("when")
                 .put("left", "step[1].response.status")
                 .put("op", "equals")
                 .put("right", 200);
-        RegressionSuiteResult conditionResult = feature.execute(request(forwardReference));
+        RegressionSuiteResult conditionResult = feature.preflight(forwardReference);
 
         ObjectNode invalidExtraction = validPlan();
         ((ObjectNode) invalidExtraction.path("contract").path("steps").get(0)).putArray("extract")
                 .addObject().put("from", "response.status").put("as", "status").put("scope", "invalid");
-        RegressionSuiteResult extractionResult = feature.execute(request(invalidExtraction));
+        RegressionSuiteResult extractionResult = feature.preflight(invalidExtraction);
 
         assertThat(operatorResult.reasonCode()).isEqualTo("step_expectation_invalid");
         assertThat(conditionResult.reasonCode()).isEqualTo("step_condition_forward_reference");
@@ -283,14 +323,7 @@ class DefaultRegressionSuiteFeatureTest {
     }
 
     private RegressionSuiteResult execute(TransportExecutionFeature transportFeature, ObjectNode input) {
-        RegressionSuiteFeature configured = new DefaultRegressionSuiteFeature(List.of(
-                new PreflightRegressionPlanAction(preflight),
-                new ExecuteRegressionPlanAction(new RegressionPlanExecutor(preflight, transportFeature, mapper))));
-        return configured.execute(new RegressionSuiteRequest(RegressionSuiteAction.EXECUTE_PLAN, input));
-    }
-
-    private RegressionSuiteRequest request(ObjectNode input) {
-        return new RegressionSuiteRequest(RegressionSuiteAction.PREFLIGHT, input);
+        return new RegressionPlanExecutor(preflight, transportFeature, mapper).executePlan(input);
     }
 
     private ObjectNode validPlan() {
@@ -298,11 +331,10 @@ class DefaultRegressionSuiteFeatureTest {
         input.putObject("providedContext").put("apiBaseUrl", "https://example.test");
         input.putObject("metadata").putObject("execution")
                 .put("intent", "regression")
-                .put("probeVerification", true)
-                .put("pinStrictProbeKey", true);
+                .put("probeVerification", false)
+                .put("pinStrictProbeKey", false);
         ObjectNode contract = input.putObject("contract");
-        contract.putArray("targets").addObject()
-                .putObject("runtimeVerification").put("strictProbeKey", "example.Health#check:12");
+        contract.putArray("targets").addObject();
         ObjectNode step = contract.putArray("steps").addObject()
                 .put("order", 1)
                 .put("id", "health")

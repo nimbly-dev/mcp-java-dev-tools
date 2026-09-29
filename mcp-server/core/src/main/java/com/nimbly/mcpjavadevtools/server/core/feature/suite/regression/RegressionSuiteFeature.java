@@ -1,11 +1,14 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.suite.regression;
 
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.request.RegressionSuiteRequest;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.result.RegressionSuiteResult;
 
-/** Spring-independent public entry point for Regression Suite behavior. */
+/** Contract consumed by direct CDE execution and cross-suite orchestration. */
 public interface RegressionSuiteFeature {
 
-    /** Executes one Regression Suite action. */
-    RegressionSuiteResult execute(RegressionSuiteRequest request);
+    /** Validates a resolved Regression plan before external work. */
+    RegressionSuiteResult preflight(JsonNode input);
+
+    /** Executes a resolved Regression plan after preflight. */
+    RegressionSuiteResult executePlan(JsonNode input);
 }

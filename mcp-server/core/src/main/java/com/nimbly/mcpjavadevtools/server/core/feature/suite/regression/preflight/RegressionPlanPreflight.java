@@ -48,6 +48,10 @@ public final class RegressionPlanPreflight {
         if (probeResult != null) {
             return probeResult;
         }
+        RegressionSuiteResult verificationResult = validateSupportedVerification(metadata, contract);
+        if (verificationResult != null) {
+            return verificationResult;
+        }
         RegressionSuiteResult prerequisiteResult = validatePrerequisites(input, metadata, contract.path("prerequisites"));
         if (prerequisiteResult != null) {
             return prerequisiteResult;
@@ -233,6 +237,40 @@ public final class RegressionPlanPreflight {
             }
         }
         return null;
+    }
+
+    private RegressionSuiteResult validateSupportedVerification(JsonNode metadata, JsonNode contract) {
+        JsonNode probe = metadata.path("execution").path("probeVerification");
+        if (!probe.isMissingNode() && !probe.isBoolean()) {
+            return blocked("probe_verification_configuration_invalid",
+                    "set metadata.execution.probeVerification to true or false");
+        }
+        if (probe.asBoolean()) {
+            return RegressionSuiteResult.blockedRuntime("probe_verification_unavailable", "probe");
+        }
+        if (configuredPhase(contract.path("watchers"))) {
+            return RegressionSuiteResult.blockedRuntime("watcher_verification_unavailable", "watchers");
+        }
+        if (configuredPhase(contract.path("externalVerification"))) {
+            return RegressionSuiteResult.blockedRuntime("external_verification_unavailable", "external_verification");
+        }
+        JsonNode correlation = contract.path("correlation");
+        if (configuredCorrelation(correlation)) {
+            return RegressionSuiteResult.blockedRuntime("correlation_verification_unavailable", "correlation");
+        }
+        return null;
+    }
+
+    private boolean configuredPhase(JsonNode phase) {
+        return !phase.isMissingNode() && (!phase.isArray() || !phase.isEmpty());
+    }
+
+    private boolean configuredCorrelation(JsonNode correlation) {
+        if (correlation.isMissingNode()) {
+            return false;
+        }
+        JsonNode enabled = correlation.path("enabled");
+        return !correlation.isObject() || !enabled.isBoolean() || enabled.asBoolean();
     }
 
     private RegressionSuiteResult validatePrerequisites(

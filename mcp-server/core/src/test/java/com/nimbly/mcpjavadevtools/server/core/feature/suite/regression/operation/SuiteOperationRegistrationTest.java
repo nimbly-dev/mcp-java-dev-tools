@@ -36,13 +36,8 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterJmxRenderer;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterJtlCollector;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterWorkloadExecutor;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.DefaultRegressionSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.RegressionSuiteActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.impl.ExecuteRegressionPlanAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.impl.PreflightRegressionPlanAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.execution.RegressionPlanExecutor;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.action.RegressionSuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.request.RegressionSuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.result.RegressionSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.preflight.RegressionPlanPreflight;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.DefaultSecuritySuiteFeature;
@@ -139,7 +134,7 @@ class SuiteOperationRegistrationTest {
     @Test
     void acceptsAnySuiteFeatureImplementationWithoutHiddenDefaultDowncast() {
         var regression = RegressionSuiteOperationRegistrations.create(
-                request -> RegressionSuiteResult.ready(Map.of("action", request.action().name())), JSON);
+                regressionStub(new AtomicReference<>()), JSON);
         var performance = PerformanceSuiteOperationRegistrations.create(
                 request -> PerformanceSuiteResult.completed(Map.of("owner", "alternate")), JSON);
         var security = SecuritySuiteOperationRegistrations.create(
@@ -329,7 +324,7 @@ class SuiteOperationRegistrationTest {
 
     @Test
     void routesAllFourOperationsToTheirExactSubstantiveOwners() {
-        AtomicReference<RegressionSuiteAction> invoked = new AtomicReference<>();
+        AtomicReference<String> invoked = new AtomicReference<>();
         Map<String, OperationRegistration<?, ?>> registrations = byId(registrations(invoked));
         for (String id : IDS) {
             rowOwnerCalls.set(0);
@@ -345,15 +340,11 @@ class SuiteOperationRegistrationTest {
             assertThat(rowOwnerCalls).as(id).hasValue(1);
             assertThat(result.result().toString()).as(id).doesNotContain("suite-secret");
             if (id.equals("regression_suite.preflight")) {
-                assertThat(invoked).hasValue(RegressionSuiteAction.PREFLIGHT);
-                RegressionSuiteRequest request = (RegressionSuiteRequest) rowOwnerRequest.get();
-                assertThat(request.action()).isEqualTo(RegressionSuiteAction.PREFLIGHT);
-                assertTrustedRequest(id, request.input(), canonicalInput, regressionInput());
+                assertThat(invoked).hasValue("preflight");
+                assertTrustedRequest(id, (JsonNode) rowOwnerRequest.get(), canonicalInput, regressionInput());
             } else if (id.equals("regression_suite.execute_plan")) {
-                assertThat(invoked).hasValue(RegressionSuiteAction.EXECUTE_PLAN);
-                RegressionSuiteRequest request = (RegressionSuiteRequest) rowOwnerRequest.get();
-                assertThat(request.action()).isEqualTo(RegressionSuiteAction.EXECUTE_PLAN);
-                assertTrustedRequest(id, request.input(), canonicalInput, regressionInput());
+                assertThat(invoked).hasValue("execute_plan");
+                assertTrustedRequest(id, (JsonNode) rowOwnerRequest.get(), canonicalInput, regressionInput());
             } else if (id.equals("performance_suite.execute_plan")) {
                 PerformanceSuiteRequest request = (PerformanceSuiteRequest) rowOwnerRequest.get();
                 assertThat(request.action()).isEqualTo(PerformanceSuiteAction.EXECUTE_PLAN);
@@ -382,11 +373,8 @@ class SuiteOperationRegistrationTest {
         }
         assertThat(actual).as(id).isEqualTo(expected);
     }
-    private List<OperationRegistration<?, ?>> registrations(
-            AtomicReference<RegressionSuiteAction> invoked) {
-        var regression = new DefaultRegressionSuiteFeature(List.of(
-                regressionHandler(RegressionSuiteAction.PREFLIGHT, invoked),
-                regressionHandler(RegressionSuiteAction.EXECUTE_PLAN, invoked)));
+    private List<OperationRegistration<?, ?>> registrations(AtomicReference<String> invoked) {
+        var regression = regressionStub(invoked);
         var performance = new DefaultPerformanceSuiteFeature(List.of(performanceHandler()));
         var security = new DefaultSecuritySuiteFeature(List.of(securityHandler()));
         return java.util.stream.Stream.of(
@@ -396,21 +384,24 @@ class SuiteOperationRegistrationTest {
                 .flatMap(List::stream).toList();
     }
 
-    private RegressionSuiteActionHandler regressionHandler(
-            RegressionSuiteAction action, AtomicReference<RegressionSuiteAction> invoked) {
-        return new RegressionSuiteActionHandler() {
+    private RegressionSuiteFeature regressionStub(AtomicReference<String> invoked) {
+        return new RegressionSuiteFeature() {
             @Override
-            public RegressionSuiteAction action() {
-                return action;
+            public RegressionSuiteResult preflight(JsonNode input) {
+                return record("preflight", input);
             }
 
             @Override
-            public RegressionSuiteResult execute(RegressionSuiteRequest request) {
-                invoked.set(request.action());
+            public RegressionSuiteResult executePlan(JsonNode input) {
+                return record("execute_plan", input);
+            }
+
+            private RegressionSuiteResult record(String operation, JsonNode input) {
+                invoked.set(operation);
                 rowOwnerCalls.incrementAndGet();
-                rowOwnerRequest.set(request);
+                rowOwnerRequest.set(input);
                 return RegressionSuiteResult.ready(Map.of(
-                        "ownerAction", request.action().name(), "authorization", "suite-secret"));
+                        "ownerAction", operation, "authorization", "suite-secret"));
             }
         };
     }
@@ -452,9 +443,7 @@ class SuiteOperationRegistrationTest {
     private List<OperationRegistration<?, ?>> realOwnerRegistrations(OwnerProbe probe) {
         RegressionPlanPreflight preflight = new RegressionPlanPreflight();
         TransportExecutionFeature transport = request -> probe.executeTransport();
-        var regression = new DefaultRegressionSuiteFeature(List.of(
-                new PreflightRegressionPlanAction(preflight),
-                new ExecuteRegressionPlanAction(new RegressionPlanExecutor(preflight, transport, JSON))));
+        var regression = new RegressionPlanExecutor(preflight, transport, JSON);
         var workload = new JmeterWorkloadExecutor(
                 new JmeterJmxRenderer(),
                 (executable, directory, jmx, jtl, log, timeout) -> probe.executeWorkload(jtl, log),

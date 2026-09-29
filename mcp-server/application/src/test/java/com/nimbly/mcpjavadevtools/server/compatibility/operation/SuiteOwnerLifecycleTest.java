@@ -38,10 +38,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterJmxRenderer;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterJtlCollector;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterWorkloadExecutor;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.DefaultRegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.impl.ExecuteRegressionPlanAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.impl.PreflightRegressionPlanAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.execution.RegressionPlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.preflight.RegressionPlanPreflight;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.DefaultSecuritySuiteFeature;
@@ -263,9 +260,7 @@ class SuiteOwnerLifecycleTest {
     private static RegressionSuiteFeature regression(OwnerGate gate) {
         TransportExecutionFeature transport = request -> gate.execute();
         RegressionPlanPreflight preflight = new RegressionPlanPreflight();
-        return new DefaultRegressionSuiteFeature(List.of(
-                new PreflightRegressionPlanAction(preflight),
-                new ExecuteRegressionPlanAction(new RegressionPlanExecutor(preflight, transport, JSON))));
+        return new RegressionPlanExecutor(preflight, transport, JSON);
     }
 
     private static DefaultPerformanceSuiteFeature performance(OwnerGate gate) {

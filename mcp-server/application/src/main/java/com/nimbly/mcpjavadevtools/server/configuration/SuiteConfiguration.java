@@ -12,11 +12,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterJmxRenderer;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterJtlCollector;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterWorkloadExecutor;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.DefaultRegressionSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.RegressionSuiteActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.impl.ExecuteRegressionPlanAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.action.impl.PreflightRegressionPlanAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.execution.RegressionPlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.preflight.RegressionPlanPreflight;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.DefaultSecuritySuiteFeature;
@@ -94,21 +89,6 @@ public class SuiteConfiguration {
             TransportExecutionFeature transport,
             ObjectMapper mapper) {
         return new RegressionPlanExecutor(preflight, transport, mapper);
-    }
-
-    @Bean
-    PreflightRegressionPlanAction preflightRegressionPlanAction(RegressionPlanPreflight preflight) {
-        return new PreflightRegressionPlanAction(preflight);
-    }
-
-    @Bean
-    ExecuteRegressionPlanAction executeRegressionPlanAction(RegressionPlanExecutor executor) {
-        return new ExecuteRegressionPlanAction(executor);
-    }
-
-    @Bean
-    RegressionSuiteFeature regressionSuiteFeature(List<RegressionSuiteActionHandler> handlers) {
-        return new DefaultRegressionSuiteFeature(handlers);
     }
 
     @Bean

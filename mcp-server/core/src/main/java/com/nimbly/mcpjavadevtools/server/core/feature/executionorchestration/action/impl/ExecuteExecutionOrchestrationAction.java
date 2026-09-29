@@ -20,8 +20,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.Performa
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.action.PerformanceSuiteAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.request.PerformanceSuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.action.RegressionSuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.request.RegressionSuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.action.SecuritySuiteAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.request.SecuritySuiteRequest;
@@ -692,7 +690,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
     }
 
     private Map<String, Object> regression(JsonNode plan, JsonNode input) {
-        var result = regression.execute(new RegressionSuiteRequest(RegressionSuiteAction.EXECUTE_PLAN, input));
+        var result = regression.executePlan(input);
         return outcome(plan, result.status(), result.reasonCode(), result.details());
     }
 

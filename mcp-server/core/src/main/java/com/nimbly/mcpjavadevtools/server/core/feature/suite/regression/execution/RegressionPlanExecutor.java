@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.result.RegressionSuiteResult;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.preflight.RegressionPlanPreflight;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportRequest;
@@ -17,7 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /** Executes ordered HTTP triggers through the public Transport Execution Feature. */
-public final class RegressionPlanExecutor {
+public final class RegressionPlanExecutor implements RegressionSuiteFeature {
 
     private final RegressionPlanPreflight preflight;
     private final TransportExecutionFeature transport;
@@ -30,9 +31,15 @@ public final class RegressionPlanExecutor {
         this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
     }
 
+    @Override
+    public RegressionSuiteResult preflight(JsonNode input) {
+        return preflight.validate(input);
+    }
+
     /** Executes preflight-valid steps without emitting supplied context or response bodies. */
-    public RegressionSuiteResult execute(JsonNode input) {
-        RegressionSuiteResult checked = preflight.validate(input);
+    @Override
+    public RegressionSuiteResult executePlan(JsonNode input) {
+        RegressionSuiteResult checked = preflight(input);
         if (!"ready".equals(checked.status())) {
             return checked;
         }

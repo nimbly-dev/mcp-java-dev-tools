@@ -6,7 +6,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistr
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.TrustedSuiteExecution;
 import java.util.List;
 
-/** Binds Regression Suite CDE operations to a trusted persisted-plan boundary. */
+/** Exposes trusted persisted-plan binding without widening the public registration API. */
 public class TrustedRegressionSuiteRegistrations {
     private TrustedRegressionSuiteRegistrations() {
     }
