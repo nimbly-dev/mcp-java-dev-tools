@@ -10,10 +10,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterWorkloadExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.execution.RegressionPlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.preflight.RegressionPlanPreflight;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.DefaultSecuritySuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.action.SecuritySuiteActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.action.impl.ExecuteSecurityPlanAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.execution.SecurityPlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.knowledge.SecurityKnowledgeCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
@@ -90,13 +86,4 @@ public class SuiteConfiguration {
         return new SecurityPlanExecutor(transport, knowledge, probe);
     }
 
-    @Bean
-    ExecuteSecurityPlanAction executeSecurityPlanAction(SecurityPlanExecutor executor) {
-        return new ExecuteSecurityPlanAction(executor);
-    }
-
-    @Bean
-    SecuritySuiteFeature securitySuiteFeature(List<SecuritySuiteActionHandler> handlers) {
-        return new DefaultSecuritySuiteFeature(handlers);
-    }
 }

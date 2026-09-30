@@ -40,8 +40,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.execution.RegressionPlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.preflight.RegressionPlanPreflight;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.DefaultSecuritySuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.action.impl.ExecuteSecurityPlanAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.execution.SecurityPlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.knowledge.SecurityKnowledgeCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
@@ -280,9 +279,8 @@ class SuiteOwnerLifecycleTest {
                 new JmeterExecutableResolver(), workload, probe, request -> successfulTransport());
     }
 
-    private static DefaultSecuritySuiteFeature security(OwnerGate gate) {
-        return new DefaultSecuritySuiteFeature(List.of(new ExecuteSecurityPlanAction(
-                new SecurityPlanExecutor(request -> gate.execute(), new SecurityKnowledgeCatalog()))));
+    private static SecuritySuiteFeature security(OwnerGate gate) {
+        return new SecurityPlanExecutor(request -> gate.execute(), new SecurityKnowledgeCatalog());
     }
 
     private static ExecuteTransportResult successfulTransport() {

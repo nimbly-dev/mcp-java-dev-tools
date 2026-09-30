@@ -4,9 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.TrustedSuiteExecution;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.action.SecuritySuiteAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.operation.SecuritySuiteOperationArguments;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.request.SecuritySuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.result.SecuritySuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
@@ -52,7 +50,7 @@ public class SecuritySuiteOperationRegistrations {
 
     static OperationRegistration<SecuritySuiteOperationArguments, SecuritySuiteResult> register(
             SecuritySuiteFeature owner, ObjectMapper mapper, TrustedSuiteExecution trusted) {
-        String executableOwner = owner.getClass().getName() + "#execute";
+        String executableOwner = owner.getClass().getName() + "#executePlan";
         OperationDescriptor descriptor = descriptor(executableOwner, owner);
         return new OperationRegistration<>(
                 descriptor,
@@ -71,8 +69,7 @@ public class SecuritySuiteOperationRegistrations {
                                 ? SecuritySuiteResult.blocked("direct_suite_context_unavailable",
                                         "bind a trusted Artifact workspace before direct execution", Map.of())
                                 : trusted.execute("security", input.input(), SecuritySuiteResult.class,
-                                        resolved -> owner.execute(new SecuritySuiteRequest(
-                                                SecuritySuiteAction.EXECUTE_PLAN, resolved)),
+                                        owner::executePlan,
                                         code -> SecuritySuiteResult.blocked(code,
                                                 "inspect the persisted plan and workspace", Map.of()), true)),
                 OperationResultEncoders.typed(mapper, SecuritySuiteResult.class),

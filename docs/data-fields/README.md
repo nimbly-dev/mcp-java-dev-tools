@@ -748,3 +748,66 @@ Security Suite run Artifacts persist deterministic coverage and knowledge-select
 | `coverage.cases[].reasonCode`        | Deterministic reason for unsupported, missing-fixture, transport, or evidence outcomes.                                                   | `mcp-java-dev-tools-security-suite` | false    | `"security_blackbox_fixture_unresolved"`                        |
 
 Black-box plans use a transport-discriminated entrypoint (`entrypoints[].transport.type`). HTTP adapters use `method` and `path` inside that transport object plus an optional safe `baseline` recipe containing only path parameters, query values, headers, and body data. Normal plans omit `securityKnowledge.packRefs` and `attackProfiles`, rely on the local reviewed catalog, and generate bounded mutations from rule-owned selectors. Resolved credentials, tokens, passwords, and raw environment values are never emitted or persisted.
+
+Direct Java CDE Security execution persists the normalized owner details under
+`execution.result.json.details` and the complete bounded owner result under
+`execution.result.json.directResult`. Consumers must select the result shape by
+`directResult.status` and must not require successful-run fields from blocked
+results.
+
+### Successful Security execution
+
+When `directResult.status=completed`, `directResult.details` and the normalized
+`details` contain the completed-run shape:
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `details.runStatus` | Completed suite verdict: `pass` when no finding is present, otherwise `fail`. | `security_suite.execute_plan` | true | `"pass"` |
+| `details.securityMode` | Executed Security mode. | `security_suite.execute_plan` | true | `"blackbox"` |
+| `details.knowledgeSnapshot.packs[]` | Exact reviewed pack references selected for the completed run. | `security_suite.execute_plan` | true | `["web-api-core@1.0.0"]` |
+| `details.knowledgeSnapshot.digest` | Deterministic digest of the selected immutable knowledge snapshot. | `security_suite.execute_plan` | true | `"a01625ab..."` |
+| `details.coverage.plannedCount` | Number of bounded cases in the resolved matrix. | `security_suite.execute_plan` | true | `10` |
+| `details.coverage.completedCount` | Number of classified Black-box cases. Sidecar-assisted results use `executedCount` instead. | `security_suite.execute_plan` | false | `10` |
+| `details.coverage.executedCount` | Number of classified Sidecar-assisted cases. Black-box results use `completedCount` instead. | `security_suite.execute_plan` | false | `2` |
+| `details.coverage.blockedCount` | Number of blocked Sidecar-assisted cases. | `security_suite.execute_plan` | false | `0` |
+| `details.coverage.complete` | Whether every required case received a non-blocked terminal classification. | `security_suite.execute_plan` | true | `true` |
+| `details.cases[]` | Bounded per-case classifications for the executed matrix. | `security_suite.execute_plan` | true | `[{"outcome":"passed"}]` |
+| `details.findings[]` | Bounded findings with outcome and proof classification; an empty list represents no finding only when coverage is complete. | `security_suite.execute_plan` | true | `[]` |
+
+### Incomplete Security coverage
+
+When execution starts but a required case is blocked,
+`directResult.status=blocked` and details contain an incomplete-coverage shape.
+There is no `details.runStatus`. `details.knowledgeSnapshot` is the scalar
+snapshot digest rather than the successful shape's `{packs,digest}` object.
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `details.securityMode` | Mode whose coverage could not be completed. | `security_suite.execute_plan` | true | `"blackbox"` |
+| `details.knowledgeSnapshot` | Digest of the selected immutable knowledge snapshot. | `security_suite.execute_plan` | true | `"a01625ab..."` |
+| `details.coverage.plannedCount` | Number of cases known when execution blocked. | `security_suite.execute_plan` | true | `1` |
+| `details.coverage.complete` | Always `false` for incomplete coverage. | `security_suite.execute_plan` | true | `false` |
+| `details.coverage.executedCount` | Sidecar-assisted classified-case count. | `security_suite.execute_plan` | false | `1` |
+| `details.coverage.blockedCount` | Sidecar-assisted blocked-case count. | `security_suite.execute_plan` | false | `1` |
+| `details.cases[]` | Cases classified before or at the blocking condition. | `security_suite.execute_plan` | true | `[{"outcome":"blocked"}]` |
+| `details.findings[]` | Findings accumulated before incomplete Sidecar-assisted coverage. Black-box incomplete results omit this field. | `security_suite.execute_plan` | false | `[]` |
+
+### Security preflight rejection
+
+Validation, credential, knowledge-pack, or Sidecar preflight rejection returns
+`directResult.status=blocked` with `directResult.details={}` and normalized
+`details={}`. Consumers use `directResult.reasonCode`, `nextAction`, and
+`reasonMeta` for the failure contract; no coverage, snapshot, case, finding, or
+run-status field is present.
+
+### Security case fields
+
+Fields within `details.cases[]` are conditional on the case source and outcome:
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `details.cases[].outcome` | Case classification: `passed`, `confirmed`, `not_applicable`, or `blocked`. | `security_suite.execute_plan` | true | `"not_applicable"` |
+| `details.cases[].proofClassification` | Evidence boundary: `external`, `internal`, or `corroborated_external`. | `security_suite.execute_plan` | true | `"external"` |
+| `details.cases[].reasonCode` | Deterministic reason when the classification has an associated reason. Passed and confirmed Sidecar cases may omit it. | `security_suite.execute_plan` | false | `"security_generated_rule_not_applicable"` |
+| `details.cases[].knowledgePackRef` | Reviewed pack that generated the case, when catalog-generated. | `security_suite.execute_plan` | false | `"web-api-core@1.0.0"` |
+| `details.cases[].ruleId` | Stable reviewed rule identifier, when catalog-generated. | `security_suite.execute_plan` | false | `"web-api-core-http"` |

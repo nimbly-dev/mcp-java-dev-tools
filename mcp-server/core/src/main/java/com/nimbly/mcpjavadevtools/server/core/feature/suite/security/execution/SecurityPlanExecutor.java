@@ -3,6 +3,7 @@ package com.nimbly.mcpjavadevtools.server.core.feature.suite.security.execution;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.knowledge.SecurityKnowledgeCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.reset.ProbeBatchResetRequest;
@@ -29,7 +30,7 @@ import java.util.Objects;
 import java.time.Duration;
 
 /** Executes bounded Black-box HTTP baselines through the wrapped Transport Core Feature. */
-public final class SecurityPlanExecutor {
+public final class SecurityPlanExecutor implements SecuritySuiteFeature {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final TransportExecutionFeature transport;
@@ -49,7 +50,8 @@ public final class SecurityPlanExecutor {
     }
 
     /** Validates the Security contract and executes its finite declared request matrix. */
-    public SecuritySuiteResult execute(JsonNode input) {
+    @Override
+    public SecuritySuiteResult executePlan(JsonNode input) {
         JsonNode contract = input.path("contract").isObject() ? input.path("contract") : input;
         Validation validation = Validation.from(contract);
         if (validation.reasonCode() != null) {

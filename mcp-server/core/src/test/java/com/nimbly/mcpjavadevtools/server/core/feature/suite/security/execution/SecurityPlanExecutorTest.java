@@ -29,7 +29,7 @@ class SecurityPlanExecutorTest {
 
     @Test
     void executesADeclaredAnonymousBlackboxEntrypointThroughWrappedTransport() throws Exception {
-        var result = executor().execute(mapper.readTree(contract("127.0.0.1")));
+        var result = executor().executePlan(mapper.readTree(contract("127.0.0.1")));
 
         assertThat(result.status()).isEqualTo("completed");
         assertThat(result.details()).containsEntry("runStatus", "pass");
@@ -38,7 +38,7 @@ class SecurityPlanExecutorTest {
 
     @Test
     void blocksEntrypointsOutsideTheDeclaredTargetBoundary() throws Exception {
-        var result = executor().execute(mapper.readTree(contract("localhost")));
+        var result = executor().executePlan(mapper.readTree(contract("localhost")));
 
         assertThat(result.status()).isEqualTo("blocked");
         assertThat(result.reasonCode()).isEqualTo("security_target_boundary_violation");
@@ -49,7 +49,7 @@ class SecurityPlanExecutorTest {
         String sidecar = contract("127.0.0.1").replace("\"securityMode\":\"blackbox\"", "\"securityMode\":\"sidecar_assisted\"")
                 .replace("\"authenticationProfiles\"", "\"attackProfiles\":[{\"id\":\"attack\"}],\"authenticationProfiles\"");
 
-        var result = executor().execute(mapper.readTree(sidecar));
+        var result = executor().executePlan(mapper.readTree(sidecar));
 
         assertThat(result.status()).isEqualTo("blocked");
         assertThat(result.reasonCode()).isEqualTo("security_contract_sidecar_runtime_target_required");
@@ -63,7 +63,8 @@ class SecurityPlanExecutorTest {
             return ExecuteTransportResult.httpResponse("pass", "http", 200, java.util.Map.of(), "", 1);
         };
 
-        var result = executor(bypassingTransport, request -> ProbeResult.success()).execute(mapper.readTree(sidecarContract()));
+        var result = executor(bypassingTransport, request -> ProbeResult.success())
+                .executePlan(mapper.readTree(sidecarContract()));
 
         assertThat(result.status()).isEqualTo("completed");
         assertThat(result.details()).containsEntry("runStatus", "fail");
@@ -78,7 +79,7 @@ class SecurityPlanExecutorTest {
                         + "\"authenticationProfileRef\":\"anonymous\",\"baseline\":{\"expect\":{\"outcome\":\"allow\"}},"
                         + "\"attack\":{\"expect\":{\"outcome\":\"deny\"}}}]}");
 
-        var result = executor().execute(mapper.readTree(blackbox));
+        var result = executor().executePlan(mapper.readTree(blackbox));
 
         assertThat(result.status()).isEqualTo("completed");
         assertThat(result.details()).containsEntry("runStatus", "fail");
@@ -87,7 +88,7 @@ class SecurityPlanExecutorTest {
 
     @Test
     void expandsDefaultKnowledgeRulesIntoBoundedMutationCases() throws Exception {
-        var result = executor().execute(mapper.readTree(contract("127.0.0.1")));
+        var result = executor().executePlan(mapper.readTree(contract("127.0.0.1")));
 
         assertThat(result.details().get("cases").toString()).contains("security_generated_rule_not_applicable");
         assertThat(result.details().get("coverage").toString()).contains("plannedCount=10");
@@ -101,7 +102,8 @@ class SecurityPlanExecutorTest {
             return ExecuteTransportResult.httpResponse("pass", "http", 200, Map.of(), "", 1);
         };
 
-        var result = new SecurityPlanExecutor(recording, new SecurityKnowledgeCatalog()).execute(mapper.readTree(contract("127.0.0.1")));
+        var result = new SecurityPlanExecutor(recording, new SecurityKnowledgeCatalog())
+                .executePlan(mapper.readTree(contract("127.0.0.1")));
 
         assertThat(result.details().get("findings")).isEqualTo(List.of());
         assertThat(requests).hasSize(1);
@@ -120,7 +122,8 @@ class SecurityPlanExecutorTest {
                  "baseline":{"query":{"q":"ok"}}}],"authenticationProfiles":[{"id":"anonymous","kind":"anonymous"}]}
                 """;
 
-        var result = new SecurityPlanExecutor(allowing, new SecurityKnowledgeCatalog()).execute(mapper.readTree(plan));
+        var result = new SecurityPlanExecutor(allowing, new SecurityKnowledgeCatalog())
+                .executePlan(mapper.readTree(plan));
 
         assertThat(result.details()).containsEntry("runStatus", "fail");
         assertThat(result.details().get("findings").toString()).contains("web-api-core-http")
@@ -152,7 +155,7 @@ class SecurityPlanExecutorTest {
         assertThat(credential).isNotBlank();
         input.putObject("credentialBindings").put("operator-token", "PATH");
 
-        var result = new SecurityPlanExecutor(authenticated, new SecurityKnowledgeCatalog()).execute(input);
+        var result = new SecurityPlanExecutor(authenticated, new SecurityKnowledgeCatalog()).executePlan(input);
 
         assertThat(result.status()).isEqualTo("completed");
         assertThat(payloads.toString()).contains("Bearer " + credential);
@@ -174,7 +177,7 @@ class SecurityPlanExecutorTest {
         input.putObject("credentialBindings").put("operator-token", "SECURITY_TOKEN");
         input.putObject("credentialSource").put("workspaceRoot", workspace.toString()).put("envFile", ".env");
 
-        var result = new SecurityPlanExecutor(authenticated, new SecurityKnowledgeCatalog()).execute(input);
+        var result = new SecurityPlanExecutor(authenticated, new SecurityKnowledgeCatalog()).executePlan(input);
 
         assertThat(result.status()).isEqualTo("completed");
         assertThat(payloads.toString()).contains("Bearer dotenv-token");

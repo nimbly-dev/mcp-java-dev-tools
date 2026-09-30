@@ -36,13 +36,9 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.Regressio
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.execution.RegressionPlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.result.RegressionSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.preflight.RegressionPlanPreflight;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.DefaultSecuritySuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.action.SecuritySuiteActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.action.impl.ExecuteSecurityPlanAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.execution.SecurityPlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.knowledge.SecurityKnowledgeCatalog;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.action.SecuritySuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.request.SecuritySuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.result.SecuritySuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.operation.SecuritySuiteOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.operation.TrustedSecuritySuiteRegistrations;
@@ -344,9 +340,7 @@ class SuiteOperationRegistrationTest {
             } else if (id.equals("performance_suite.execute_plan")) {
                 assertTrustedRequest(id, (JsonNode) rowOwnerRequest.get(), canonicalInput, performanceInput());
             } else {
-                SecuritySuiteRequest request = (SecuritySuiteRequest) rowOwnerRequest.get();
-                assertThat(request.action()).isEqualTo(SecuritySuiteAction.EXECUTE_PLAN);
-                assertTrustedRequest(id, request.input(), canonicalInput, securityInput());
+                assertTrustedRequest(id, (JsonNode) rowOwnerRequest.get(), canonicalInput, securityInput());
             }
         }
     }
@@ -370,7 +364,7 @@ class SuiteOperationRegistrationTest {
     private List<OperationRegistration<?, ?>> registrations(AtomicReference<String> invoked) {
         var regression = regressionStub(invoked);
         var performance = performanceStub();
-        var security = new DefaultSecuritySuiteFeature(List.of(securityHandler()));
+        var security = securityStub();
         return java.util.stream.Stream.of(
                 TrustedRegressionSuiteRegistrations.create(regression, JSON, trusted()),
                 TrustedPerformanceSuiteRegistrations.create(performance, JSON, trusted()),
@@ -409,20 +403,12 @@ class SuiteOperationRegistrationTest {
         };
     }
 
-    private SecuritySuiteActionHandler securityHandler() {
-        return new SecuritySuiteActionHandler() {
-            @Override
-            public SecuritySuiteAction action() {
-                return SecuritySuiteAction.EXECUTE_PLAN;
-            }
-
-            @Override
-            public SecuritySuiteResult execute(SecuritySuiteRequest request) {
-                rowOwnerCalls.incrementAndGet();
-                rowOwnerRequest.set(request);
-                return SecuritySuiteResult.completed(Map.of(
-                        "coverageComplete", true, "authorization", "suite-secret"));
-            }
+    private SecuritySuiteFeature securityStub() {
+        return input -> {
+            rowOwnerCalls.incrementAndGet();
+            rowOwnerRequest.set(input);
+            return SecuritySuiteResult.completed(Map.of(
+                    "coverageComplete", true, "authorization", "suite-secret"));
         };
     }
 
@@ -446,9 +432,7 @@ class SuiteOperationRegistrationTest {
         var performance = new PerformancePlanExecutor(
                 new JmeterExecutableResolver(), workload, liveProbe,
                 request -> successfulTransport());
-        var security = new DefaultSecuritySuiteFeature(List.of(
-                new ExecuteSecurityPlanAction(new SecurityPlanExecutor(
-                        transport, new SecurityKnowledgeCatalog()))));
+        var security = new SecurityPlanExecutor(transport, new SecurityKnowledgeCatalog());
         return java.util.stream.Stream.of(
                 TrustedRegressionSuiteRegistrations.create(regression, JSON, trusted()),
                 TrustedPerformanceSuiteRegistrations.create(performance, JSON, trusted()),

@@ -46,10 +46,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.Performa
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.model.result.PerformanceSuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.model.result.RegressionSuiteResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.DefaultSecuritySuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.action.SecuritySuiteActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.action.SecuritySuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.request.SecuritySuiteRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.result.SecuritySuiteResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
 import java.nio.file.Files;
@@ -472,7 +469,7 @@ class CoreOperationDirectoryTest {
                         orchestrationHandlers(),
                         regression(),
                         performance(),
-                        new DefaultSecuritySuiteFeature(securityHandlers())),
+                        security()),
                 JSON);
     }
 
@@ -582,21 +579,8 @@ class CoreOperationDirectoryTest {
         return input -> PerformanceSuiteResult.completed(Map.of());
     }
 
-    private static List<SecuritySuiteActionHandler> securityHandlers() {
-        return Arrays.stream(SecuritySuiteAction.values())
-                .map(CoreOperationDirectoryTest::securityHandler).toList();
-    }
-
-    private static SecuritySuiteActionHandler securityHandler(SecuritySuiteAction action) {
-        return new SecuritySuiteActionHandler() {
-            @Override
-            public SecuritySuiteAction action() { return action; }
-
-            @Override
-            public SecuritySuiteResult execute(SecuritySuiteRequest request) {
-                return SecuritySuiteResult.completed(Map.of());
-            }
-        };
+    private static SecuritySuiteFeature security() {
+        return input -> SecuritySuiteResult.completed(Map.of());
     }
 
     private static OperationRegistration<String, String> orphanOwner() {

@@ -19,8 +19,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.per
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.action.SecuritySuiteAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.request.SecuritySuiteRequest;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -683,7 +681,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
     }
 
     private Map<String, Object> security(JsonNode plan, JsonNode input) {
-        var result = security.execute(new SecuritySuiteRequest(SecuritySuiteAction.EXECUTE_PLAN, input));
+        var result = security.executePlan(input);
         return outcome(plan, result.status(), result.reasonCode(), result.details());
     }
 
