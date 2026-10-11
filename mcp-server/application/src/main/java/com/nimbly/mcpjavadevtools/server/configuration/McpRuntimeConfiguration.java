@@ -1,6 +1,9 @@
 package com.nimbly.mcpjavadevtools.server.configuration;
 
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
+import com.nimbly.mcpjavadevtools.server.mcp.resource.status.StatusMcpResource;
+import io.modelcontextprotocol.server.McpServerFeatures;
+import org.springframework.ai.mcp.annotation.spring.SyncMcpAnnotationProviders;
 import com.nimbly.mcpjavadevtools.server.mcp.transport.CancellationAwareStdioServerTransportProvider;
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
@@ -15,6 +18,11 @@ import tools.jackson.databind.json.JsonMapper;
 
 @Configuration
 public class McpRuntimeConfiguration {
+
+    @Bean
+    List<McpServerFeatures.SyncResourceSpecification> statusResourceSpecifications(StatusMcpResource status) {
+        return SyncMcpAnnotationProviders.resourceSpecifications(List.of(status));
+    }
 
     @Bean
     McpServerTransportProviderBase cancellationAwareStdioServerTransport(

@@ -39,13 +39,19 @@ public class ParentProcessLifecycle implements ApplicationListener<ApplicationRe
         ParentProcessWatcher watcher = new ParentProcessWatcher(
                 parent.pid(),
                 processId -> ProcessHandle.of(processId).isPresent(),
-                applicationContext::close);
+                this::shutdownAfterParentExit);
         monitor = Executors.newSingleThreadScheduledExecutor(this::newMonitorThread);
         monitor.scheduleWithFixedDelay(
                 watcher::checkParent,
                 CHECK_INTERVAL_SECONDS,
                 CHECK_INTERVAL_SECONDS,
                 TimeUnit.SECONDS);
+    }
+
+    private void shutdownAfterParentExit() {
+        applicationContext.close();
+        // A native STDIO read can outlive context closure when another process holds stdin open.
+        System.exit(0);
     }
 
     private Thread newMonitorThread(Runnable task) {

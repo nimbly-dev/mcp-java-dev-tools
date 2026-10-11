@@ -10,7 +10,6 @@ import static com.nimbly.mcpjavadevtools.server.McpServerAcceptanceConstants.USE
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -29,7 +28,7 @@ class McpServerJvmCapabilitiesIT extends McpServerStdioSupport {
                 .as("the Maven pre-integration-test phase must package the user-app fixture")
                 .isRegularFile();
         Path serverJar = jarPath();
-        Path workspace = Files.createTempDirectory(testClassesPath(), "mcpjvm-644-runtime-");
+        Path workspace = JavaItScenario.workspace();
         Path routeProject = copyRouteFixtureSource(workspace);
         List<Map<String, Object>> transcript = new ArrayList<>();
         try {

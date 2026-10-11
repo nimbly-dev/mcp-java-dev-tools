@@ -3,7 +3,6 @@ package com.nimbly.mcpjavadevtools.server;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -12,7 +11,7 @@ class McpServerTransportIT extends McpServerStdioSupport {
 
     @Test
     void executableJarCancelsAnInFlightTransportOperation() throws Exception {
-        Path workspace = Files.createTempDirectory(testClassesPath(), "mcpjvm-644-cancellation-");
+        Path workspace = JavaItScenario.workspace();
         try (DelayedHttpTarget target = DelayedHttpTarget.start();
                 McpServerProcess server = McpServerProcess.start(
                         jarPath(), workspace, "--workspace-root=" + workspace)) {
@@ -56,7 +55,7 @@ class McpServerTransportIT extends McpServerStdioSupport {
 
     @Test
     void executableJarEnforcesTransportTimeout() throws Exception {
-        Path workspace = Files.createTempDirectory(testClassesPath(), "mcpjvm-644-timeout-");
+        Path workspace = JavaItScenario.workspace();
         try (DelayedHttpTarget target = DelayedHttpTarget.start();
                 McpServerProcess server = McpServerProcess.start(
                         jarPath(), workspace, "--workspace-root=" + workspace)) {

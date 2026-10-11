@@ -52,6 +52,11 @@
     </dependency>
   </dependencies>
 
+  <properties>
+    <java.checkstyle.config>${project.basedir}/../config/checkstyle.xml</java.checkstyle.config>
+    <java.pmd.ruleset>${project.basedir}/../config/pmd-ruleset.xml</java.pmd.ruleset>
+  </properties>
+
   <build>
     <plugins>
       <plugin>

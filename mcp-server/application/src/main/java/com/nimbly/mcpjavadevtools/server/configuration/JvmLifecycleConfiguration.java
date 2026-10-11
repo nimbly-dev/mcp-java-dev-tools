@@ -14,7 +14,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.helper.Defaul
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.helper.JvmLifecycleHelper;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.JvmLifecycleExecutionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.ProbeHostPolicy;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -22,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.system.ApplicationHome;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -98,13 +98,7 @@ public class JvmLifecycleConfiguration {
     }
 
     private static Path packagedDirectory() {
-        try {
-            Path location = Path.of(McpJavaDevToolsServerApplication.class
-                    .getProtectionDomain().getCodeSource().getLocation().toURI());
-            return Files.isRegularFile(location) ? location.getParent() : location;
-        } catch (URISyntaxException | RuntimeException exception) {
-            return Path.of(".").toAbsolutePath().normalize();
-        }
+        return new ApplicationHome(McpJavaDevToolsServerApplication.class).getDir().toPath();
     }
 
     private static Path localDevelopmentRoot() {

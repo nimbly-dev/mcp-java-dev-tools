@@ -12,7 +12,7 @@ spring:
         annotation-scanner:
           enabled: false
         capabilities:
-          resource: false
+          resource: true
           tool: true
           prompt: false
           completion: false

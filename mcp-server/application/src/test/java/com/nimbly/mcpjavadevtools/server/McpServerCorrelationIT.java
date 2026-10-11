@@ -27,7 +27,7 @@ class McpServerCorrelationIT extends McpServerStdioSupport {
                 "event-consumer-app/target/event-consumer-app-0.1.0-SNAPSHOT.jar");
         assertThat(producerJar).as("Maven must package the event producer fixture").isRegularFile();
         assertThat(consumerJar).as("Maven must package the event consumer fixture").isRegularFile();
-        Path workspace = Files.createTempDirectory(testClassesPath(), "mcpjvm-644-events-");
+        Path workspace = JavaItScenario.workspace();
         String projectName = "fixture-644-events";
         String happyPlan = "producer-consumer-correlation";
         String wrongKeyPlan = "producer-consumer-wrong-key";

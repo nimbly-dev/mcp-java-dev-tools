@@ -101,6 +101,11 @@ class WorkspaceResolverTest {
         }
 
         @Override
+        public McpSchema.ClientCapabilities getClientCapabilities() {
+            return McpSchema.ClientCapabilities.builder().roots(true).build();
+        }
+
+        @Override
         public McpSchema.ListRootsResult listRoots() {
             throw failure;
         }

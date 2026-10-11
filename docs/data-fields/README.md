@@ -31,6 +31,20 @@ Capture timestamp naming:
 - Execution timing fields use `executionStartedAtEpoch`, `executionEndedAtEpoch`, and `executionDurationMs`.
 - Allocation delta fields use `threadAllocatedBytesDelta` (bytes) and are optional when unsupported.
 
+## Status Resource
+
+`resources/read` at `mcp-java-dev-tools://status` returns JSON text with an
+allowlist: `ok`, `name`, `version`, `buildFingerprint`, `pid`, nullable
+`ppid`, nullable `workspaceRoot`, `workspaceRootSource`, nullable
+`workspaceReasonCode`, `rootsDiscoveryStatus`, `javaVersion`, and ISO-8601
+`time`. No environment, credentials, command line or application configuration
+is included. Expected missing/ambiguous workspace states use
+`workspace_context_missing` / `workspace_context_ambiguous`; transport
+unavailability sets `rootsDiscoveryStatus=unavailable` and retains the last
+snapshot. Without negotiated Roots, CLI precedes `MCP_WORKSPACE_ROOT`; with
+Roots, the existing Roots binding policy applies. The Resource was restored
+under #646 by user decision; the Tool surface remains exactly the three CDE Tools.
+
 ## Global Failure Diagnostics Contract
 
 Fail-closed/report outputs use this shared diagnostics shape:

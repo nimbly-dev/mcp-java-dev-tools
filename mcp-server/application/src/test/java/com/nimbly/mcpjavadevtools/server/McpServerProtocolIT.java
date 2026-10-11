@@ -8,9 +8,11 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
+@Tag("lifecycle")
 class McpServerProtocolIT extends McpServerStdioSupport {
 
     @Test
@@ -21,8 +23,8 @@ class McpServerProtocolIT extends McpServerStdioSupport {
             assertThat(initialize.path("result").path("protocolVersion").asText())
                     .isEqualTo(PROTOCOL_VERSION);
             assertThat(initialize.path("result").path("capabilities").has("resources"))
-                    .as("the retired status resource must not be advertised")
-                    .isFalse();
+                    .as("the required status resource must be advertised")
+                    .isTrue();
 
             server.send(Map.of("jsonrpc", "2.0", "method", "notifications/initialized", "params", Map.of()));
             server.send(request(2, "tools/list", Map.of()));
@@ -33,6 +35,14 @@ class McpServerProtocolIT extends McpServerStdioSupport {
             for (JsonNode tool : tools) {
                 assertThat(tool.has("outputSchema")).isTrue();
             }
+
+            server.send(request(90, "resources/list", Map.of()));
+            assertThat(server.responseFor(90).path("result").path("resources"))
+                    .extracting(resource -> resource.path("uri").asText())
+                    .containsExactly("mcp-java-dev-tools://status");
+            server.send(request(91, "resources/read", Map.of("uri", "mcp-java-dev-tools://unknown")));
+            assertThat(server.responseFor(91).path("error").path("code").isNumber()).isTrue();
+            assertThat(server.stderrText().length()).isLessThanOrEqualTo(16_385);
 
             JsonNode catalog = findTool(tools, "operation_catalog");
             JsonNode describe = findTool(tools, "operation_describe");

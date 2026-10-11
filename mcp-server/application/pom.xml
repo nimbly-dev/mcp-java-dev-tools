@@ -48,7 +48,8 @@
   </dependencies>
 
   <properties>
-    <java.checkstyle.config>${maven.multiModuleProjectDirectory}/config/application-checkstyle.xml</java.checkstyle.config>
+    <java.checkstyle.config>${project.basedir}/../config/application-checkstyle.xml</java.checkstyle.config>
+    <java.pmd.ruleset>${project.basedir}/../config/pmd-ruleset.xml</java.pmd.ruleset>
     <mcp.sidecar.helper.source>${project.basedir}/../../java-agent/core/core-jvm-attach/target/mcp-java-dev-tools-core-jvm-attach-0.1.8.jar</mcp.sidecar.helper.source>
     <mcp.sidecar.agent.source>${project.basedir}/../../java-agent/core/core-probe/target/mcp-java-dev-tools-agent-0.1.8-all.jar</mcp.sidecar.agent.source>
     <mcp.fixture.social-platform.root>${project.basedir}/../../test/fixtures/spring-apps/social-platform</mcp.fixture.social-platform.root>
@@ -56,6 +57,8 @@
     <mcp.fixture.event-producer-app.jar>${mcp.fixture.social-platform.root}/event-service/event-producer-app/target/event-producer-app-0.1.0-SNAPSHOT.jar</mcp.fixture.event-producer-app.jar>
     <mcp.fixture.event-consumer-app.jar>${mcp.fixture.social-platform.root}/event-service/event-consumer-app/target/event-consumer-app-0.1.0-SNAPSHOT.jar</mcp.fixture.event-consumer-app.jar>
     <mcp.fixture.maven.executable>${maven.home}/bin/mvn</mcp.fixture.maven.executable>
+    <mcp.it.groups></mcp.it.groups>
+    <mcp.it.skip-fixtures>false</mcp.it.skip-fixtures>
   </properties>
 
   <build>
@@ -86,39 +89,7 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-antrun-plugin</artifactId>
         <executions>
-          <execution>
-            <id>package-social-platform-user-fixture</id>
-            <phase>pre-integration-test</phase>
-            <goals>
-              <goal>run</goal>
-            </goals>
-            <configuration>
-              <target>
-                <exec executable="${mcp.fixture.maven.executable}"
-                      dir="${mcp.fixture.social-platform.root}"
-                      failonerror="true"
-                      failifexecutionfails="true">
-                  <arg value="-B" />
-                  <arg value="-pl" />
-                  <arg value="user-service/user-app,event-service/event-producer-app,event-service/event-consumer-app" />
-                  <arg value="-am" />
-                  <arg value="package" />
-                  <arg value="-DskipTests" />
-                </exec>
-                <available file="${mcp.fixture.user-app.jar}" property="mcp.fixture.user-app.present" />
-                <available file="${mcp.fixture.event-producer-app.jar}"
-                           property="mcp.fixture.event-producer-app.present" />
-                <available file="${mcp.fixture.event-consumer-app.jar}"
-                           property="mcp.fixture.event-consumer-app.present" />
-                <fail unless="mcp.fixture.user-app.present"
-                      message="Fixture build did not produce ${mcp.fixture.user-app.jar}." />
-                <fail unless="mcp.fixture.event-producer-app.present"
-                      message="Fixture build did not produce ${mcp.fixture.event-producer-app.jar}." />
-                <fail unless="mcp.fixture.event-consumer-app.present"
-                      message="Fixture build did not produce ${mcp.fixture.event-consumer-app.jar}." />
-              </target>
-            </configuration>
-          </execution>
+
           <execution>
             <id>package-sidecar-artifacts</id>
             <phase>package</phase>
@@ -145,30 +116,129 @@
           </execution>
         </executions>
       </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-failsafe-plugin</artifactId>
-        <configuration>
-          <includes>
-            <include>**/*IT.java</include>
-          </includes>
-          <systemPropertyVariables>
-            <mcpServerJar>${project.build.directory}/${project.build.finalName}.jar</mcpServerJar>
-          </systemPropertyVariables>
-        </configuration>
-        <executions>
-          <execution>
-            <goals>
-              <goal>integration-test</goal>
-              <goal>verify</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
+
     </plugins>
   </build>
 
   <profiles>
+    <profile>
+      <id>java-it</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <groups>${mcp.it.groups}</groups>
+              <failIfNoTests>true</failIfNoTests>
+              <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+              <includes>
+                <include>**/*IT.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <mcpItRepositoryRoot>${project.basedir}/../..</mcpItRepositoryRoot>
+                <mcpServerJar>${project.build.directory}/${project.build.finalName}.jar</mcpServerJar>
+              </systemPropertyVariables>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>java-it-smoke</id>
+      <properties>
+        <mcp.it.groups>smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-lifecycle</id>
+      <properties>
+        <mcp.it.groups>lifecycle</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-fixtures</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>package-social-platform-user-fixture</id>
+                <phase>pre-integration-test</phase>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+                <configuration>
+                  <skip>${mcp.it.skip-fixtures}</skip>
+                  <target>
+                    <exec executable="${mcp.fixture.maven.executable}" dir="${mcp.fixture.social-platform.root}" failonerror="true" failifexecutionfails="true">
+                      <arg value="-B" />
+                      <arg value="-pl" />
+                      <arg value="user-service/user-app,event-service/event-producer-app,event-service/event-consumer-app" />
+                      <arg value="-am" />
+                      <arg value="package" />
+                      <arg value="-DskipTests" />
+                    </exec>
+                    <available file="${mcp.fixture.user-app.jar}" property="mcp.fixture.user-app.present" />
+                    <available file="${mcp.fixture.event-producer-app.jar}" property="mcp.fixture.event-producer-app.present" />
+                    <available file="${mcp.fixture.event-consumer-app.jar}" property="mcp.fixture.event-consumer-app.present" />
+                    <fail unless="mcp.fixture.user-app.present" message="Fixture build did not produce ${mcp.fixture.user-app.jar}." />
+                    <fail unless="mcp.fixture.event-producer-app.present" message="Fixture build did not produce ${mcp.fixture.event-producer-app.jar}." />
+                    <fail unless="mcp.fixture.event-consumer-app.present" message="Fixture build did not produce ${mcp.fixture.event-consumer-app.jar}." />
+                  </target>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>skip-fixtures-skipTests</id>
+      <activation>
+        <property>
+          <name>skipTests</name>
+          <value>true</value>
+        </property>
+      </activation>
+      <properties>
+        <mcp.it.skip-fixtures>true</mcp.it.skip-fixtures>
+      </properties>
+    </profile>
+    <profile>
+      <id>skip-fixtures-skipITs</id>
+      <activation>
+        <property>
+          <name>skipITs</name>
+          <value>true</value>
+        </property>
+      </activation>
+      <properties>
+        <mcp.it.skip-fixtures>true</mcp.it.skip-fixtures>
+      </properties>
+    </profile>
+    <profile>
+      <id>skip-fixtures-maven.test.skip</id>
+      <activation>
+        <property>
+          <name>maven.test.skip</name>
+          <value>true</value>
+        </property>
+      </activation>
+      <properties>
+        <mcp.it.skip-fixtures>true</mcp.it.skip-fixtures>
+      </properties>
+    </profile>
     <profile>
       <id>windows-maven-executable</id>
       <activation>

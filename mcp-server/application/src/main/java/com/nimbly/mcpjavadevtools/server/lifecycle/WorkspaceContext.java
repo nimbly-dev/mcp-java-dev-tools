@@ -43,6 +43,9 @@ public class WorkspaceContext {
     }
 
     public void refreshFrom(McpSyncServerExchange exchange) {
+        if (exchange.getClientCapabilities() == null || exchange.getClientCapabilities().roots() == null) {
+            return;
+        }
         try {
             refreshRoots(exchange.listRoots().roots());
         } catch (RuntimeException exception) {

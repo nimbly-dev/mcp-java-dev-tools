@@ -51,7 +51,9 @@ The application uses Spring AI's non-web MCP server starter. It runs with
 `spring.main.web-application-type=none`. Logback writes diagnostics only to
 stderr; stdout is reserved for MCP JSON-RPC messages.
 
-The public surface is deliberately limited to the three CDE tools. Capability
+The public Tools are limited to the three CDE tools. The
+`mcp-java-dev-tools://status` Resource exposes safe runtime and workspace
+metadata. Capability
 names such as `probe`, `jvm_lifecycle`, and `artifact_management` are operation
 API namespaces, not additional MCP tools.
 
@@ -64,7 +66,8 @@ returned in a protocol response.
 
 After a successful startup, the executable closes when stdin reaches EOF and
 also monitors its immediate parent process. If that parent exits, the server
-closes its Spring context and its STDIO transport. On POSIX platforms, normal
+closes its Spring context and exits the JVM, including when another process
+keeps stdin open. On POSIX platforms, normal
 JVM `SIGINT` and `SIGTERM` handling invokes Spring shutdown; guarded raw-JAR
 integration tests exercise both signals. Windows has no portable equivalent to
 those signals, so its supported lifecycle path is stdin closure and parent
@@ -109,13 +112,18 @@ mvn -B dependency:tree -pl application
 java -jar application/target/mcp-java-dev-tools-server-0.1.9.jar
 ```
 
-`mvn verify` applies Maven Enforcer, Checkstyle, PMD, unit-test discovery, and
-the executable-JAR STDIO integration tests. Those tests initialize the server,
+`mvn test` runs independent Surefire unit tests without integration setup.
+`mvn verify` also applies Maven Enforcer, Checkstyle, PMD and application
+packaging; it does not implicitly run process ITs or package fixtures.
+Explicitly enable `-Pjava-it,java-it-lifecycle` for the complete shared lifecycle
+selection, `-Pjava-it,java-it-smoke` for real functional smoke, or
+`-Pjava-it,java-it-fixtures` for all currently implemented application ITs.
+See [the exact commands, prerequisites and coverage inventory](../docs/acceptance/mcpjvm-646-java-it.md).
+Those tests initialize the server,
 assert exactly the three CDE tools, execute real operation paths, perform a real
 attach/deactivate against a separate target JVM, verify target survival,
 confirm JSON-RPC-only stdout, and prove the sanitized startup-failure boundary.
-Parent-exit monitoring has focused unit coverage for its deterministic shutdown
-decision.
+Parent exit and descendant cleanup also have real child-process coverage.
 
 ## Initial maintainability baseline
 

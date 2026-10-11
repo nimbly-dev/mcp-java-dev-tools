@@ -30,8 +30,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /** Shared process, fixture, JSON-RPC, and artifact helpers for packaged MCP acceptance. */
+@ExtendWith(JavaItScenario.class)
 abstract class McpServerStdioSupport {
 
     protected static final ObjectMapper JSON = new ObjectMapper();
@@ -105,9 +107,8 @@ abstract class McpServerStdioSupport {
         if (configured.isEmpty()) {
             configured = System.getenv().getOrDefault("JMETER_HOME", "").trim();
         }
-        Path home = configured.isEmpty()
-                ? repositoryRoot().getParent().resolve("tools/apache-jmeter-5.6.3")
-                : Path.of(configured);
+        assertThat(configured).as("Set mcpjvm.acceptance.jmeterHome or JMETER_HOME for Performance ITs").isNotEmpty();
+        Path home = Path.of(configured);
         String executable = System.getProperty("os.name").toLowerCase().contains("win")
                 ? "jmeter.bat"
                 : "jmeter";
@@ -137,6 +138,12 @@ abstract class McpServerStdioSupport {
     }
 
     protected static void deleteRecursively(Path root) throws IOException {
+        if (Boolean.getBoolean("mcpItRetainFiles")) {
+            return;
+        }
+        Path allowed = repositoryRoot().resolve("test/.tmp").toAbsolutePath().normalize();
+        assertThat(root.toAbsolutePath().normalize().startsWith(allowed))
+                .as("IT cleanup must remain beneath repository-local test/.tmp").isTrue();
         if (!Files.exists(root)) {
             return;
         }
@@ -158,8 +165,9 @@ abstract class McpServerStdioSupport {
 
 
     protected static Path repositoryRoot() {
-        Path candidate = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
-        for (int depth = 0; depth < 6 && candidate != null; depth++) {
+        String configured = System.getProperty("mcpItRepositoryRoot", "");
+        Path candidate = configured.isBlank() ? testClassesPath() : Path.of(configured).toAbsolutePath().normalize();
+        while (candidate != null) {
             if (Files.isRegularFile(candidate.resolve("mcp-server/pom.xml"))
                     && Files.isDirectory(candidate.resolve("test/fixtures/spring-apps/social-platform"))) {
                 return candidate;
@@ -174,7 +182,9 @@ abstract class McpServerStdioSupport {
         if (configured == null || configured.isBlank()) {
             throw new IllegalStateException("Failsafe system property mcpServerJar is missing");
         }
-        return Path.of(configured).toAbsolutePath();
+        Path jar = Path.of(configured).toAbsolutePath().normalize();
+        assertThat(jar).as("Packaged application JAR prerequisite").isRegularFile();
+        return jar;
     }
 
     protected static Path testClassesPath() {
@@ -187,7 +197,11 @@ abstract class McpServerStdioSupport {
     }
 
     protected static Path workspaceRoot() {
-        return Path.of(System.getProperty("java.io.tmpdir"), "mcp-java-dev-tools-stdio-it-workspace");
+        try {
+            return JavaItScenario.workspace();
+        } catch (IOException failure) {
+            throw new IllegalStateException("Cannot create repository-local IT workspace", failure);
+        }
     }
 
 

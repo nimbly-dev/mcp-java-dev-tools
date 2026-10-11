@@ -12,6 +12,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -36,28 +37,43 @@ class McpServerProcess implements AutoCloseable {
     private final Set<Integer> responseIds = ConcurrentHashMap.newKeySet();
     private final StringBuilder stderr = new StringBuilder();
     private final ExecutorService readers = Executors.newFixedThreadPool(2);
-    private final String workspaceRootUri;
+    private volatile List<String> roots;
+    private final Map<Integer, JsonNode> pendingResponses = new ConcurrentHashMap<>();
+    private volatile int rootsRequests;
+    private volatile boolean rootsUnavailable;
     private boolean closed;
 
     private McpServerProcess(Process process, Path workspaceRoot) {
         this.process = process;
         this.stdin = process.getOutputStream();
-        this.workspaceRootUri = workspaceRoot.toUri().toString();
+        this.roots = List.of(workspaceRoot.toUri().toString());
+        JavaItScenario.own(process);
         readers.submit(() -> collectStdout(process.getInputStream()));
         readers.submit(() -> collectStderr(process.getErrorStream()));
     }
 
     static McpServerProcess start(Path jar, Path workspaceRoot, String... applicationArguments)
             throws IOException {
-        List<String> command = new ArrayList<>(List.of(javaBinary(), "-jar", jar.toString()));
+        return startWithEnvironment(jar, workspaceRoot, Map.of(), applicationArguments);
+    }
+
+    static McpServerProcess startWithEnvironment(Path jar, Path workspaceRoot,
+            Map<String, String> environment, String... applicationArguments) throws IOException {
+        assertThat(jar).as("Executable application JAR prerequisite").isRegularFile();
+        Files.createDirectories(workspaceRoot);
+        List<String> command = new ArrayList<>(List.of(javaBinary(), "-jar", jar.toAbsolutePath().toString()));
         command.addAll(List.of(applicationArguments));
-        Process process = new ProcessBuilder(command)
-                .redirectErrorStream(false)
-                .start();
+        ProcessBuilder builder = new ProcessBuilder(command).directory(workspaceRoot.toFile())
+                .redirectErrorStream(false);
+        builder.environment().keySet().removeIf(key -> key.startsWith("MCP_") || key.startsWith("MCPJVM_")
+                || key.startsWith("SPRING_") || Set.of("INIT_CWD", "PWD", "JAVA_TOOL_OPTIONS",
+                        "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS").contains(key));
+        builder.environment().putAll(environment);
+        Process process = builder.start();
         return new McpServerProcess(process, workspaceRoot);
     }
 
-    void send(Map<String, Object> message) throws IOException {
+    synchronized void send(Map<String, Object> message) throws IOException {
         try {
             stdin.write(McpServerStdioSupport.JSON.writeValueAsBytes(message));
             stdin.write('\n');
@@ -70,7 +86,7 @@ class McpServerProcess implements AutoCloseable {
         }
     }
 
-    void send(JsonNode message) throws IOException {
+    synchronized void send(JsonNode message) throws IOException {
         stdin.write(McpServerStdioSupport.JSON.writeValueAsBytes(message));
         stdin.write('\n');
         stdin.flush();
@@ -81,22 +97,28 @@ class McpServerProcess implements AutoCloseable {
     }
 
     JsonNode responseFor(int id, Duration timeout) throws Exception {
+        JsonNode pending = pendingResponses.remove(id);
+        if (pending != null) {
+            return pending;
+        }
         Instant deadline = Instant.now().plus(timeout);
         while (Instant.now().isBefore(deadline)) {
             String line = stdoutQueue.poll(100, TimeUnit.MILLISECONDS);
             if (line == null) {
+                if (!process.isAlive()) {
+                    throw new AssertionError("MCP process exited before response " + id + ". stderr=" + stderrText());
+                }
                 continue;
             }
             JsonNode message = McpServerStdioSupport.JSON.readTree(line);
             if (message.has("id") && !message.has("method")) {
                 responseIds.add(message.path("id").asInt());
             }
-            if ("roots/list".equals(message.path("method").asText())) {
-                respondToRootsRequest(message);
-                continue;
-            }
             if (message.path("id").asInt(-1) == id) {
                 return message;
+            }
+            if (message.has("id") && !message.has("method")) {
+                pendingResponses.put(message.path("id").asInt(), message);
             }
         }
         throw new AssertionError("Timed out waiting for JSON-RPC response " + id + ". stderr=" + stderrText());
@@ -119,15 +141,40 @@ class McpServerProcess implements AutoCloseable {
     }
 
     private void respondToRootsRequest(JsonNode request) throws IOException {
+        rootsRequests++;
         ObjectNode response = McpServerStdioSupport.JSON.createObjectNode();
         response.put("jsonrpc", "2.0");
         response.set("id", request.path("id"));
-        response.putObject("result")
-                .putArray("roots")
-                .addObject()
-                .put("uri", workspaceRootUri)
-                .put("name", "stdio-integration-workspace");
+        if (rootsUnavailable) {
+            response.putObject("error").put("code", -32603).put("message", "Roots unavailable");
+            send(response);
+            return;
+        }
+        var array = response.putObject("result").putArray("roots");
+        for (String root : roots) {
+            array.addObject().put("uri", root).put("name", "java-it-workspace");
+        }
         send(response);
+    }
+
+    void roots(List<Path> values) {
+        roots = values.stream().map(path -> path.toUri().toString()).toList();
+    }
+
+    void rootUris(List<String> values) {
+        roots = List.copyOf(values);
+    }
+
+    void rootsUnavailable() {
+        rootsUnavailable = true;
+    }
+
+    int rootsRequests() {
+        return rootsRequests;
+    }
+
+    boolean isAlive() {
+        return process.isAlive();
     }
 
     List<String> stdoutLines() {
@@ -147,10 +194,10 @@ class McpServerProcess implements AutoCloseable {
             return;
         }
         closed = true;
+        JavaItScenario.ownDescendants(process);
         stdin.close();
         if (!process.waitFor(McpServerStdioSupport.SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
-            process.destroyForcibly();
-            process.waitFor(2, TimeUnit.SECONDS);
+            JavaItScenario.stopTree(process.toHandle());
             fail("MCP process did not terminate after stdin closed within "
                     + McpServerStdioSupport.SHUTDOWN_TIMEOUT);
         }
@@ -216,13 +263,26 @@ class McpServerProcess implements AutoCloseable {
             while ((line = reader.readLine()) != null) {
                 if (!line.isBlank()) {
                     stdoutLines.add(line);
-                    stdoutQueue.offer(line);
+                    routeServerMessage(line);
                     recordResponseId(line);
                 }
             }
         } catch (IOException exception) {
             appendStderr("stdout reader error: " + exception.getMessage());
         }
+    }
+
+    private void routeServerMessage(String line) {
+        try {
+            JsonNode message = McpServerStdioSupport.JSON.readTree(line);
+            if ("roots/list".equals(message.path("method").asText())) {
+                respondToRootsRequest(message);
+                return;
+            }
+        } catch (IOException failure) {
+            // Preserve malformed protocol output for response/purity assertions.
+        }
+        stdoutQueue.offer(line);
     }
 
     private void recordResponseId(String line) {
@@ -249,7 +309,10 @@ class McpServerProcess implements AutoCloseable {
 
     private void appendStderr(String line) {
         synchronized (stderr) {
-            stderr.append(line).append('\n');
+            if (stderr.length() < 16_384) {
+                String safe = line.replaceAll("(?i)(bearer\\s+|password=|token=|secret=)[^\\s]+", "$1[redacted]");
+                stderr.append(safe, 0, Math.min(safe.length(), 16_384 - stderr.length())).append('\n');
+            }
         }
     }
 

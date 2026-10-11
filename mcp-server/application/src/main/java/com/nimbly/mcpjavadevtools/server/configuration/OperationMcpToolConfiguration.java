@@ -3,6 +3,7 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.mcp.tools.operation.OperationMcpTools;
+import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import java.io.IOException;
@@ -26,15 +27,15 @@ public class OperationMcpToolConfiguration {
 
     @Bean
     List<McpServerFeatures.SyncToolSpecification> operationMcpToolSpecifications(
-            OperationMcpTools tools, ObjectMapper mapper) {
+            OperationMcpTools tools, ObjectMapper mapper, WorkspaceContext workspace) {
         return SyncMcpAnnotationProviders.toolSpecifications(List.of(tools)).stream()
-                .map(specification -> withFixedOutputSchema(specification, mapper))
+                .map(specification -> withFixedOutputSchema(specification, mapper, workspace))
                 .toList();
     }
 
     private static McpServerFeatures.SyncToolSpecification withFixedOutputSchema(
             McpServerFeatures.SyncToolSpecification specification,
-            ObjectMapper mapper) {
+            ObjectMapper mapper, WorkspaceContext workspace) {
         McpSchema.Tool source = specification.tool();
         String path = OUTPUT_SCHEMAS.get(source.name());
         if (path == null) {
@@ -50,7 +51,10 @@ public class OperationMcpToolConfiguration {
                 .icons(source.icons())
                 .meta(source.meta())
                 .build();
-        return new McpServerFeatures.SyncToolSpecification(tool, specification.callHandler());
+        return new McpServerFeatures.SyncToolSpecification(tool, (exchange, request) -> {
+            workspace.refreshFrom(exchange);
+            return specification.callHandler().apply(exchange, request);
+        });
     }
 
     private static Map<String, Object> readSchema(String path, ObjectMapper mapper) {

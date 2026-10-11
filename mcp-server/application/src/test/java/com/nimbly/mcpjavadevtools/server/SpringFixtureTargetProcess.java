@@ -1,6 +1,5 @@
 package com.nimbly.mcpjavadevtools.server;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 import java.io.IOException;
@@ -13,7 +12,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /** Executable Spring Boot fixture used by packaged MCP acceptance tests. */
 final class SpringFixtureTargetProcess implements AutoCloseable {
@@ -45,9 +43,11 @@ final class SpringFixtureTargetProcess implements AutoCloseable {
         command.addAll(applicationArguments);
         command.add("--server.port=" + port);
         Process process = new ProcessBuilder(command)
+                .directory(JavaItScenario.workspace().toFile())
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                 .redirectError(ProcessBuilder.Redirect.DISCARD)
                 .start();
+        JavaItScenario.own(process);
         return new SpringFixtureTargetProcess(process, port);
     }
 
@@ -122,11 +122,6 @@ final class SpringFixtureTargetProcess implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        process.destroy();
-        if (!process.waitFor(McpServerStdioSupport.SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
-            process.destroyForcibly();
-            process.waitFor(2, TimeUnit.SECONDS);
-        }
-        assertThat(process.isAlive()).isFalse();
+        JavaItScenario.stopTree(process.toHandle());
     }
 }

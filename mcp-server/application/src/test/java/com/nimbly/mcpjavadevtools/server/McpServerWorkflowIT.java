@@ -30,7 +30,7 @@ class McpServerWorkflowIT extends McpServerStdioSupport {
         assertThat(fixtureJar)
                 .as("the Maven pre-integration-test phase must package the user-app fixture")
                 .isRegularFile();
-        Path workspace = Files.createTempDirectory(testClassesPath(), "mcpjvm-644-workspace-");
+        Path workspace = JavaItScenario.workspace();
         String projectName = "fixture-644";
         String planName = "health";
         String suiteRunId = "stdio-644-" + System.currentTimeMillis();

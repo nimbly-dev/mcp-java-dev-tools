@@ -25,8 +25,8 @@
     <maven.failsafe.plugin.version>3.5.4</maven.failsafe.plugin.version>
     <checkstyle.tool.version>10.21.3</checkstyle.tool.version>
     <pmd.tool.version>7.17.0</pmd.tool.version>
-    <java.checkstyle.config>${maven.multiModuleProjectDirectory}/config/checkstyle.xml</java.checkstyle.config>
-    <java.pmd.ruleset>${maven.multiModuleProjectDirectory}/config/pmd-ruleset.xml</java.pmd.ruleset>
+    <java.checkstyle.config>${project.basedir}/config/checkstyle.xml</java.checkstyle.config>
+    <java.pmd.ruleset>${project.basedir}/config/pmd-ruleset.xml</java.pmd.ruleset>
   </properties>
 
   <dependencyManagement>
