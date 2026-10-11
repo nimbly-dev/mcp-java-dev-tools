@@ -50,10 +50,8 @@
       <xs:element name="summary" type="xs:string" minOccurs="1"/>
       <xs:element name="description" type="xs:string" minOccurs="1"/>
       <xs:element name="tags" type="tagsType" minOccurs="0"/>
-      <xs:element name="aliases" type="aliasesType" minOccurs="0"/>
       <xs:element name="arguments" type="argumentsType" minOccurs="0"/>
       <xs:element name="examples" type="examplesType" minOccurs="0"/>
-      <xs:element name="safety" type="safetyType" minOccurs="0"/>
     </xs:sequence>
     <xs:attribute name="name" type="identifierType" use="required"/>
     <xs:attribute name="subject" type="identifierType" use="optional"/>
@@ -64,43 +62,18 @@
       <xs:element name="tag" type="xs:string" minOccurs="1" maxOccurs="16"/>
     </xs:sequence>
   </xs:complexType>
-  <xs:complexType name="aliasesType">
-    <xs:sequence>
-      <xs:element name="alias" type="aliasType" minOccurs="1" maxOccurs="16"/>
-    </xs:sequence>
-  </xs:complexType>
-  <xs:complexType name="aliasType">
-    <xs:attribute name="tool" type="identifierType" use="required"/>
-    <xs:attribute name="action" type="xs:string" use="optional"/>
-    <xs:attribute name="actionless" type="xs:boolean" use="optional"/>
-  </xs:complexType>
   <xs:complexType name="argumentsType">
     <xs:sequence>
       <xs:element name="argument" type="argumentType" minOccurs="0" maxOccurs="128"/>
     </xs:sequence>
   </xs:complexType>
   <xs:complexType name="argumentType">
-    <xs:sequence>
-      <xs:element name="default" type="xs:string" minOccurs="0"/>
-    </xs:sequence>
     <xs:attribute name="name" type="fieldNameType" use="required"/>
     <xs:attribute name="description" type="xs:string" use="required"/>
-    <xs:attribute name="type" type="xs:string" use="required"/>
-    <xs:attribute name="required" type="xs:boolean" use="required"/>
   </xs:complexType>
   <xs:complexType name="examplesType">
     <xs:sequence>
       <xs:element name="example" type="xs:string" minOccurs="1" maxOccurs="16"/>
     </xs:sequence>
-  </xs:complexType>
-  <xs:complexType name="safetyType">
-    <xs:attribute name="sideEffect" type="xs:string" use="required"/>
-    <xs:attribute name="confirmationRequired" type="xs:boolean" use="required"/>
-    <xs:attribute name="credentialPolicy" type="xs:string" use="required"/>
-    <xs:attribute name="redactionPolicy" type="xs:string" use="required"/>
-    <xs:attribute name="timeoutMs" type="xs:positiveInteger" use="required"/>
-    <xs:attribute name="cancellable" type="xs:boolean" use="required"/>
-    <xs:attribute name="maxInputBytes" type="xs:positiveInteger" use="required"/>
-    <xs:attribute name="maxOutputBytes" type="xs:positiveInteger" use="required"/>
   </xs:complexType>
 </xs:schema>

@@ -11,7 +11,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistr
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
-import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
@@ -20,7 +19,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPo
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import java.util.List;
 import java.util.Map;
@@ -72,9 +70,7 @@ public class SecuritySuiteOperationRegistrations {
                                         owner::executePlan,
                                         code -> SecuritySuiteResult.blocked(code,
                                                 "inspect the persisted plan and workspace", Map.of()), true)),
-                OperationResultEncoders.typed(mapper, SecuritySuiteResult.class),
-                CoreOperationDirectory.class.getName(),
-                provenance());
+                OperationResultEncoders.typed(mapper, SecuritySuiteResult.class));
     }
 
     static OperationDescriptor descriptor(String executableOwner, SecuritySuiteFeature owner) {
@@ -109,15 +105,6 @@ public class SecuritySuiteOperationRegistrations {
         CanonicalOperationSchema.string(root, "suiteRunId");
         CanonicalOperationSchema.required(root, "projectName", "executionProfile", "planName", "suiteRunId");
         return CanonicalOperationSchema.schema(root);
-    }
-
-    static OperationProvenance provenance() {
-        return OperationProvenance.direct(
-                "execution_orchestration", "execute",
-                Map.of("suiteType", "security", "suiteAction", "execute_plan"),
-                "execution_orchestration_security_plan_to_direct_suite_request",
-                "persisted_run_status_coverage_findings_probe_and_redaction_semantics_preserved",
-                "execution_orchestration_security_execute_plan_direct_cde_parity");
     }
 
 }

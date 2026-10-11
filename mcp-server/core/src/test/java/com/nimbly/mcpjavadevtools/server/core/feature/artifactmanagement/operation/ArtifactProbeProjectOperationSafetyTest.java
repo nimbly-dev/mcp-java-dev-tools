@@ -23,7 +23,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationInvocation;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
@@ -336,13 +335,9 @@ class ArtifactProbeProjectOperationSafetyTest {
             return new ProbeRegistry(List.of(
                     new ProbeRegistration("local", "http://127.0.0.1:9191")));
         });
-        ArtifactOperationCatalog catalog = new ArtifactOperationCatalog(
-                probe, new ProjectContextOperations(support), new PlanOperations(support),
-                new RunResultOperations(support), new ExecutionExportOperations(support),
-                new OperationExposure(ArtifactOperationCatalog.TOOL_NAME, "mcpjvm-617-safety",
-                        Arrays.stream(ArtifactManagementAction.values())
-                                .map(ArtifactManagementAction::routeId).toList()));
-        List<OperationRegistration<?, ?>> registrations = ArtifactOperationRegistrations.create(catalog, mapper)
+        List<OperationRegistration<?, ?>> registrations = ArtifactOperationRegistrations.create(
+                        probe, new ProjectContextOperations(support), new PlanOperations(support),
+                        new RunResultOperations(support), new ExecutionExportOperations(support), mapper)
                 .stream().filter(this::owned).map(modifier).toList();
         return new OperationDirectory(registrations, ownedDocument(registrations), mapper);
     }
@@ -430,8 +425,7 @@ class ArtifactProbeProjectOperationSafetyTest {
                 registration.descriptor(), registration.requestType(), registration.resultType(),
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), safety),
-                registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.provenance());
+                registration.decoder(), registration.executor(), registration.encoder());
     }
 
     private static String operationId(ArtifactManagementAction action) {

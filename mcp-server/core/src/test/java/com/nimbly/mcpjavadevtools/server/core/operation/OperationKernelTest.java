@@ -19,7 +19,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequest
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationFailureException;
-import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationAlias;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDocumentation;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
@@ -317,20 +316,24 @@ public class OperationKernelTest {
     }
 
     @Test
-    void exposesLegacyAndContextAwareCancellationStatesInTraceEvidence() {
+    void exposesCancellationStatesFromExecutableRegistrations() {
         OperationDirectory legacy = directory(
                 input -> new Request(), request -> new Result("ok"),
                 OperationSchema.empty(), OperationSchema.empty(), policy(100, 1_048_576, 4_194_304));
-        assertThat(legacy.manifest().traceInventory().getFirst().compatibility())
-                .containsEntry("cancellationState", "LEGACY_UNVERIFIED_CANCELLATION");
+        var legacyRegistration = legacy.manifest().registration(OperationId.of("demo.echo"));
+        assertThat(OperationCancellationSupport.state(
+                legacyRegistration.executor(), legacyRegistration.safety()))
+                .isEqualTo(OperationCancellationState.LEGACY_UNVERIFIED_CANCELLATION);
 
         ContextAwareOperationExecutor<Request, Result> contextAware =
                 (request, context) -> new Result(context.cancellationRequested() ? "cancelled" : "ok");
         OperationDirectory contextDirectory = directory(
                 input -> new Request(), contextAware, OperationSchema.empty(), OperationSchema.empty(),
                 policy(100, 1_048_576, 4_194_304));
-        assertThat(contextDirectory.manifest().traceInventory().getFirst().compatibility())
-                .containsEntry("cancellationState", "CONTEXT_AWARE_CANCELLATION");
+        var contextRegistration = contextDirectory.manifest().registration(OperationId.of("demo.echo"));
+        assertThat(OperationCancellationSupport.state(
+                contextRegistration.executor(), contextRegistration.safety()))
+                .isEqualTo(OperationCancellationState.CONTEXT_AWARE_CANCELLATION);
 
         ContextAwareOperationExecutor<Request, Result> bounded = ContextAwareOperationExecutor.declared(
                 OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION,
@@ -471,8 +474,7 @@ public class OperationKernelTest {
                 OperationRequestDecoders.wrap(JSON, Request.class, decoder), executor, encoder);
         OperationDocumentation documentation = new OperationDocumentation(
                 "Echo", "Echoes a request.", "demo", List.of(),
-                List.of(JSON.createObjectNode()), List.of("kernel"),
-                List.of(new OperationAlias("demo", "echo")), policy);
+                List.of(JSON.createObjectNode()), List.of("kernel"), policy);
         return new OperationDirectory(
                 List.of(registration), new com.nimbly.mcpjavadevtools.server.core.operation.manifest
                         .OperationManifestDocument(1, Map.of(OperationId.of(id), documentation)));

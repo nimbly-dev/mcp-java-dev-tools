@@ -3,17 +3,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/helpers/skills-sync-common.sh"
-# update.sh should not require MCP env inputs unless explicitly requested.
-CONFIGURE_MCP_ENV=0
+# update.sh does not rewrite MCP client config unless explicitly requested.
+CONFIGURE_MCP=0
 
 usage() {
   cat <<'EOF'
 mcp-java-dev-tools update.sh
 
-Builds TypeScript + Java agent and updates existing skills in Codex, Kiro, or Claude Code.
+Packages the Java MCP server and updates existing skills in Codex, Kiro, or Claude Code.
 Missing shipped skills are added. Existing skill folders are replaced.
 Shipped skills include the regression, performance, project-artifact, and project-state migration workflows under `skills/mcp-java-dev-tools-*`.
-This script can also apply MCP env config for Codex when --configure-mcp-env is enabled.
+This script can also apply the Java MCP server config for Codex when --configure-mcp is enabled.
 For Kiro and Claude Code, stale installed skills matching `mcp-java-dev-tools-*` that are not present
 in this repository's `skills/` folder are detected and deletion is confirmed interactively.
 
@@ -36,5 +36,5 @@ fi
 
 prompt_client_if_not_set
 run_skill_sync "Update"
-CURRENT_VERSION="$(read_package_version)"
-print_jar_upgrade_note "$CURRENT_VERSION"
+CURRENT_VERSION="$(read_server_version)"
+print_server_upgrade_note "$CURRENT_VERSION"

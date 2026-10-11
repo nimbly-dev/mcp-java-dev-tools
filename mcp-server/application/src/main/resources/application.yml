@@ -10,9 +10,9 @@ spring:
         type: "SYNC"
         stdio: true
         annotation-scanner:
-          enabled: true
+          enabled: false
         capabilities:
-          resource: true
+          resource: false
           tool: true
           prompt: false
           completion: false
@@ -20,6 +20,11 @@ spring:
 logging:
   level:
     root: INFO
+
+mcp:
+  operation-catalog:
+    default-limit: 10
+    maximum-limit: 50
 
 mcpjvm:
   jvm-lifecycle:

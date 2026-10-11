@@ -7,8 +7,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeR
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeReasonCode;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeReasonMetadata;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.ProbeAction;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -17,18 +19,25 @@ import java.util.Objects;
  * <p>The constructor rejects incomplete action sets. Application composition can
  * therefore expose the Feature only after every ticket-owned action exists.</p>
  */
-public final class DefaultProbeFeature implements ProbeFeature {
+public class DefaultProbeFeature implements ProbeFeature {
 
-    private final ProbeOperationCatalog operationCatalog;
+    private final Map<ProbeAction, ProbeActionHandler> handlers;
 
     /** Creates a catalog for the complete public Probe action allowlist. */
     public DefaultProbeFeature(List<? extends ProbeActionHandler> handlers) {
-        this(new ProbeOperationCatalog(handlers));
-    }
-
-    /** Creates the Feature from the complete capability-owned operation catalog. */
-    public DefaultProbeFeature(ProbeOperationCatalog operationCatalog) {
-        this.operationCatalog = Objects.requireNonNull(operationCatalog, "operationCatalog must not be null");
+        Objects.requireNonNull(handlers, "handlers must not be null");
+        Map<ProbeAction, ProbeActionHandler> indexed = new EnumMap<>(ProbeAction.class);
+        for (ProbeActionHandler handler : handlers) {
+            ProbeActionHandler checked = Objects.requireNonNull(handler, "handler must not be null");
+            ProbeAction action = Objects.requireNonNull(checked.action(), "handler action must not be null");
+            if (indexed.putIfAbsent(action, checked) != null) {
+                throw new IllegalArgumentException("Duplicate Probe action owner: " + action.value());
+            }
+        }
+        if (indexed.size() != ProbeAction.values().length) {
+            throw new IllegalArgumentException("Probe handlers must cover every Probe action");
+        }
+        this.handlers = Map.copyOf(indexed);
     }
 
     /**
@@ -43,7 +52,7 @@ public final class DefaultProbeFeature implements ProbeFeature {
             return ProbeResult.failure(ProbeReasonCode.INVALID_REQUEST, ProbeReasonMetadata.inputValidation());
         }
         try {
-            return operationCatalog.execute(request.action(), request);
+            return handlers.get(request.action()).execute(request);
         } catch (ProbeEndpointClientException exception) {
             if (exception.failureKind() != ProbeEndpointFailureKind.INTERRUPTED) {
                 throw exception;

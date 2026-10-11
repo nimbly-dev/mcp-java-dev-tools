@@ -23,7 +23,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.OperationExecutionResult
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationInvocation;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestAssembler;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
@@ -75,14 +74,13 @@ class ArtifactRunExportOperationRegistrationTest {
                 new SqliteRunStateStore(), mapper);
         ProbeConfigOperations probe = new ProbeConfigOperations(support,
                 () -> new com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistry(List.of()));
-        ArtifactOperationCatalog catalog = new ArtifactOperationCatalog(
-                probe, new ProjectContextOperations(support), new PlanOperations(support),
-                new RunResultOperations(support), new ExecutionExportOperations(support),
-                new OperationExposure("artifact_management", "mcpjvm-619",
-                        Arrays.stream(ArtifactManagementAction.values())
-                                .map(ArtifactManagementAction::routeId).toList()));
-        legacyFeature = new DefaultArtifactManagementFeature(catalog);
-        List<OperationRegistration<?, ?>> owned = ArtifactOperationRegistrations.create(catalog, mapper)
+        ProjectContextOperations project = new ProjectContextOperations(support);
+        PlanOperations plans = new PlanOperations(support);
+        RunResultOperations runs = new RunResultOperations(support);
+        ExecutionExportOperations exports = new ExecutionExportOperations(support);
+        legacyFeature = new DefaultArtifactManagementFeature(probe, project, plans, runs, exports);
+        List<OperationRegistration<?, ?>> owned = ArtifactOperationRegistrations.create(
+                        probe, project, plans, runs, exports, mapper)
                 .stream().filter(this::owned).toList();
         registrations = owned.stream().collect(java.util.stream.Collectors.toMap(
                 value -> value.descriptor().operationId().value(), value -> value,
@@ -102,15 +100,8 @@ class ArtifactRunExportOperationRegistrationTest {
         Class<?> owner = action.artifactType().value().equals("run_result")
                 ? RunResultOperations.class : ExecutionExportOperations.class;
         assertThat(registration.descriptor().executableOwner()).startsWith(owner.getName());
-        assertThat(registration.provenance().invocationTool()).isEqualTo("artifact_management");
-        assertThat(registration.provenance().invocationAction()).isEqualTo(action.routeId());
-        assertThat(registration.provenance().discriminators())
-                .containsEntry("artifactType", action.artifactType().value())
-                .containsEntry("action", action.action().value());
-        String scenario = scenario(action);
-        assertThat(registration.provenance().normalization()).contains(scenario);
-        assertThat(registration.provenance().resultComparison()).contains(scenario);
-        assertThat(registration.provenance().parityScenario()).isEqualTo(scenario);
+        assertThat(registration.descriptor().toolName()).isEqualTo("artifact_management");
+        assertThat(registration.descriptor().action()).isEqualTo(action.routeId());
         assertThat(registration.inputSchema().definition().path("$schema").asText())
                 .isEqualTo("https://json-schema.org/draft/2020-12/schema");
         assertThat(registration.inputSchema().definition().path("additionalProperties").asBoolean())
@@ -226,8 +217,7 @@ class ArtifactRunExportOperationRegistrationTest {
     void generatesElevenRowManifestAndTraceEvidence() throws Exception {
         assertThat(directory.manifest().descriptors()).hasSize(11);
         assertThat(directory.traceInventory()).hasSize(11).allSatisfy(entry ->
-                assertThat(entry.compatibility()).containsKeys(
-                        "normalization", "resultComparison", "parityScenario"));
+                assertThat(entry.operationId()).isNotBlank());
         Path evidence = Path.of("target", "mcpjvm-619-evidence");
         Files.createDirectories(evidence);
         mapper.writerWithDefaultPrettyPrinter().writeValue(

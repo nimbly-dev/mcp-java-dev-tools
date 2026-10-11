@@ -83,9 +83,11 @@ class PerformancePlanExecutorTest {
         PerformancePlanExecutor executor = new PerformancePlanExecutor(
                 new JmeterExecutableResolver(), workload, probe);
         String input = """
-                {"planName":"smoke","runDirectory":"%s","contract":{
+                {"planName":"smoke","runDirectory":"%s",
+                 "providedContext":{"auth.bearer":"runtime-secret"},
+                 "credentialBindings":{"auth.bearer":"MCPJVM_TEST_BEARER"},"contract":{
                  "workloadProvider":{"type":"jmeter","mode":"generated_http","options":{"installationPath":"%s"}},
-                 "entrypoints":[{"transport":{"protocol":"http","baseUrl":"https://example.test"},"request":{"method":"GET","path":"/health"}}],
+                 "entrypoints":[{"transport":{"protocol":"http","baseUrl":"https://example.test"},"request":{"method":"GET","path":"/health","headers":{"Authorization":"Bearer ${auth.bearer}"}}}],
                  "loadModel":{"mode":"concurrency","concurrency":1,"rampUpSeconds":0,"durationSeconds":1},
                  "observationTargets":{"probeId":"demo","requiredLineHits":["%s","%s"]},
                  "successCriteria":{"maxErrorRatePct":0,"minThroughputPerSec":1,"p95LatencyMs":100}}}
@@ -97,6 +99,9 @@ class PerformancePlanExecutorTest {
         assertThat(result.details()).containsEntry("runStatus", "pass")
                 .containsEntry("requiredLineHits", List.of(key));
         assertThat(selectors).containsExactly(List.of(key), List.of(key));
+        assertThat(Files.readString(temporaryDirectory.resolve("run/workload.jmeter.jmx")))
+                .contains("System.getenv(&apos;MCPJVM_TEST_BEARER&apos;)")
+                .doesNotContain("runtime-secret");
     }
 
     private static PerformancePlanExecutor executor() {

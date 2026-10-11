@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "status": { "type": "string" },
+    "reasonCode": { "type": "string" },
+    "reason": { "type": "string" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "operationId": { "type": "string" },
+          "api": { "type": "string" },
+          "operation": { "type": "string" },
+          "classification": { "type": "string" },
+          "summary": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["operationId", "api", "operation", "classification", "summary", "tags"]
+      }
+    },
+    "nextCursor": { "type": ["string", "null"] },
+    "totalMatches": { "type": "integer" }
+  },
+  "required": ["status", "reasonCode", "reason", "entries", "nextCursor", "totalMatches"]
+}

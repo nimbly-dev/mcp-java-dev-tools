@@ -2,6 +2,9 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.endpoint.ProbeEndpointClient;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.endpoint.ProbeEndpointConfiguration;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.routing.ProbeTargetResolver;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.execution.PerformancePlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.DefaultJmeterProcessRunner;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterExecutableResolver;
@@ -9,6 +12,8 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterJtlCollector;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterWorkloadExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.execution.RegressionPlanExecutor;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.correlation.RegressionCorrelationRuntime;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.correlation.SidecarRegressionCorrelationRuntime;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.preflight.RegressionPlanPreflight;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.execution.SecurityPlanExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.knowledge.SecurityKnowledgeCatalog;
@@ -66,11 +71,22 @@ public class SuiteConfiguration {
     }
 
     @Bean
+    RegressionCorrelationRuntime regressionCorrelationRuntime(
+            ProbeTargetResolver targets,
+            ProbeEndpointConfiguration endpoint,
+            ProbeEndpointClient client,
+            ObjectMapper mapper) {
+        return new SidecarRegressionCorrelationRuntime(targets, endpoint, client, mapper);
+    }
+
+    @Bean
     RegressionPlanExecutor regressionPlanExecutor(
             RegressionPlanPreflight preflight,
             TransportExecutionFeature transport,
-            ObjectMapper mapper) {
-        return new RegressionPlanExecutor(preflight, transport, mapper);
+            ObjectMapper mapper,
+            RegressionCorrelationRuntime correlationRuntime,
+            ProbeFeature probe) {
+        return new RegressionPlanExecutor(preflight, transport, mapper, correlationRuntime, probe);
     }
 
     @Bean

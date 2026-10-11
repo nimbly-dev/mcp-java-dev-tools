@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "status": { "type": "string" },
+    "reasonCode": { "type": "string" },
+    "reason": { "type": "string" },
+    "operation": {
+      "type": ["object", "null"],
+      "properties": {
+        "operationId": { "type": "string" },
+        "api": { "type": "string" },
+        "operation": { "type": "string" },
+        "classification": { "type": "string" },
+        "summary": { "type": "string" },
+        "description": { "type": "string" },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "type": { "type": "string" },
+              "required": { "type": "boolean" },
+              "defaultValue": {
+                "type": ["null", "object", "array", "string", "number", "integer", "boolean"]
+              }
+            },
+            "required": ["name", "description", "type", "required", "defaultValue"]
+          }
+        },
+        "examples": {
+          "type": "array",
+          "items": { "type": ["null", "object", "array", "string", "number", "integer", "boolean"] }
+        },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "inputSchema": { "type": "object" },
+        "resultSchema": { "type": "object" },
+        "safety": {
+          "type": "object",
+          "properties": {
+            "sideEffect": { "type": "string" },
+            "confirmationRequired": { "type": "boolean" },
+            "credentialPolicy": { "type": "string" },
+            "redactionPolicy": { "type": "string" },
+            "timeoutMillis": { "type": "integer" },
+            "cancellationSupported": { "type": "boolean" },
+            "maxInputBytes": { "type": "integer" },
+            "maxOutputBytes": { "type": "integer" }
+          },
+          "required": [
+            "sideEffect", "confirmationRequired", "credentialPolicy", "redactionPolicy",
+            "timeoutMillis", "cancellationSupported", "maxInputBytes", "maxOutputBytes"
+          ]
+        }
+      },
+      "required": [
+        "operationId", "api", "operation", "classification", "summary", "description",
+        "arguments", "examples", "tags", "inputSchema", "resultSchema", "safety"
+      ]
+    }
+  },
+  "required": ["status", "reasonCode", "reason", "operation"]
+}

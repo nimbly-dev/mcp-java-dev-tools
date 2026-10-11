@@ -1,7 +1,6 @@
 package com.nimbly.mcpjavadevtools.server.core.operation.manifest;
 
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,7 +19,6 @@ public record OperationDocumentation(
         List<OperationArgumentDocumentation> arguments,
         List<JsonNode> examples,
         List<String> tags,
-        List<OperationAlias> aliases,
         OperationSafetyPolicy safety) {
 
     /** Validates and deterministically copies documentation supplied by XML. */
@@ -31,7 +29,6 @@ public record OperationDocumentation(
         Objects.requireNonNull(arguments, "operation arguments must not be null");
         Objects.requireNonNull(examples, "operation examples must not be null");
         Objects.requireNonNull(tags, "operation tags must not be null");
-        Objects.requireNonNull(aliases, "operation aliases must not be null");
         if (summary.isBlank() || description.isBlank() || classification.isBlank()
                 || summary.length() > 512 || description.length() > 8192) {
             throw new IllegalArgumentException("operation documentation is outside the supported bounds");
@@ -64,12 +61,6 @@ public record OperationDocumentation(
             throw new IllegalArgumentException("duplicate operation tag");
         }
         tags = normalizedTags.stream().sorted().toList();
-        List<OperationAlias> normalizedAliases = aliases.stream()
-                .map(Objects::requireNonNull).toList();
-        if (normalizedAliases.size() != normalizedAliases.stream().distinct().count()) {
-            throw new IllegalArgumentException("duplicate operation alias");
-        }
-        aliases = normalizedAliases.stream().sorted().toList();
     }
 
     @Override
@@ -77,10 +68,11 @@ public record OperationDocumentation(
         return examples.stream().map(example -> (JsonNode) example.deepCopy()).toList();
     }
 
-    /** Returns documentation with the Java-owned safety policy applied. */
-    public OperationDocumentation withSafety(OperationSafetyPolicy replacement) {
+    /** Returns documentation with Java-derived argument metadata applied. */
+    public OperationDocumentation withExecutableMetadata(
+            List<OperationArgumentDocumentation> replacement, OperationSafetyPolicy replacementSafety) {
         return new OperationDocumentation(
-                summary, description, classification, arguments, examples, tags, aliases, replacement);
+                summary, description, classification, replacement, examples, tags, replacementSafety);
     }
 
     /** Creates minimal documentation for a pre-manifest descriptor. */
@@ -92,7 +84,6 @@ public record OperationDocumentation(
                 List.of(),
                 List.of(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode()),
                 List.of(operationId.api()),
-                List.of(),
                 OperationSafetyPolicy.legacy(sideEffect));
     }
 }

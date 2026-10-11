@@ -40,10 +40,12 @@ perform runtime reflection or classpath scanning.
 
 ### MCPJVM-613 package disposition
 
-The relocation is package-only. The resolved member-level guard in
-`OperationRelocationApiCompatibilityTest` compares this disposition with the
-`c420060` baseline; the Suite argument row is the one approved one-to-three
-ownership split.
+The relocation was package-only when #613 landed. The table below is its
+historical disposition; the Suite argument row was the one approved
+one-to-three ownership split. #644 retired the temporary resolved-API and
+compile-time relocation snapshots after #616 removed their baseline fixture.
+Current package ownership is enforced by `OperationDirectoryPackageBoundaryTest`
+and the surviving operation contract and behavior tests.
 
 | Before package | After package | Types |
 | --- | --- | --- |

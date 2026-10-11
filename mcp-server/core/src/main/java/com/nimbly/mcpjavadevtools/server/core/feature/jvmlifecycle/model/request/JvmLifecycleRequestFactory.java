@@ -45,9 +45,10 @@ public final class JvmLifecycleRequestFactory {
         requireConfirmation(input.confirm());
         String host = boundedText(input.probeHost(), DEFAULT_PROBE_HOST, "probeHost");
         int port = boundedPort(input.probePort());
+        String probeId = optionalText(input.probeId(), "probeId");
         String include = optionalText(input.include(), "include");
         String exclude = optionalText(input.exclude(), "exclude");
-        return new AttachRequest(pid, start, true, host, port, include, exclude);
+        return new AttachRequest(pid, start, true, host, port, probeId, include, exclude);
     }
 
     private static DeactivateRequest deactivate(JvmLifecycleInput input) {
@@ -61,11 +62,12 @@ public final class JvmLifecycleRequestFactory {
     private static boolean hasMutationFields(JvmLifecycleInput input) {
         return input.pid() != null || input.expectedProcessStartEpochMs() != null
                 || input.confirm() != null || input.probeHost() != null
-                || input.probePort() != null || input.include() != null || input.exclude() != null;
+                || input.probePort() != null || input.probeId() != null
+                || input.include() != null || input.exclude() != null;
     }
 
     private static void rejectAttachOnlyFields(JvmLifecycleInput input) {
-        if (input.probeHost() != null || input.probePort() != null
+        if (input.probeHost() != null || input.probePort() != null || input.probeId() != null
                 || input.include() != null || input.exclude() != null) {
             throw new IllegalArgumentException("deactivate input contains attach-only fields");
         }

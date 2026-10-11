@@ -2,14 +2,11 @@ package com.nimbly.mcpjavadevtools.server.core.operation.binding;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
-import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 
 /** Explicit typed request/result binding used by the aggregate directory. */
 public record OperationRegistration<I, O>(
@@ -19,24 +16,9 @@ public record OperationRegistration<I, O>(
         OperationRegistrationContract contract,
         OperationRequestDecoder<I> decoder,
         OperationExecutor<I, O> executor,
-        OperationResultEncoder<O> encoder,
-        String operationCatalog,
-        OperationProvenance provenance) {
+        OperationResultEncoder<O> encoder) {
 
-    /** Creates an explicit registration owned by the aggregate directory. */
-    public OperationRegistration(
-            OperationDescriptor descriptor,
-            Class<I> requestType,
-            Class<O> resultType,
-            OperationRegistrationContract contract,
-            OperationRequestDecoder<I> decoder,
-            OperationExecutor<I, O> executor,
-            OperationResultEncoder<O> encoder) {
-        this(descriptor, requestType, resultType, contract, decoder, executor, encoder,
-                OperationRegistration.class.getName(), OperationProvenance.fromDescriptor(descriptor));
-    }
-
-    /** Creates an explicit registration with compatibility and catalog ownership metadata. */
+    /** Validates one executable registration owned by the aggregate directory. */
     public OperationRegistration {
         descriptor = Objects.requireNonNull(descriptor, "descriptor must not be null");
         requestType = Objects.requireNonNull(requestType, "requestType must not be null");
@@ -45,11 +27,6 @@ public record OperationRegistration<I, O>(
         decoder = Objects.requireNonNull(decoder, "decoder must not be null");
         executor = Objects.requireNonNull(executor, "executor must not be null");
         encoder = Objects.requireNonNull(encoder, "encoder must not be null");
-        operationCatalog = Objects.requireNonNull(operationCatalog, "operationCatalog must not be null");
-        if (operationCatalog.isBlank() || operationCatalog.length() > 512) {
-            throw new IllegalArgumentException("operationCatalog is outside its bounds");
-        }
-        provenance = Objects.requireNonNull(provenance, "provenance must not be null");
         if (!requestType.getName().equals(descriptor.requestType())
                 || !resultType.getName().equals(descriptor.resultType())) {
             throw new IllegalArgumentException("registration types do not match operation descriptor");
@@ -91,13 +68,6 @@ public record OperationRegistration<I, O>(
         return contract.safety();
     }
 
-    /** @return immutable released-invocation or direct-CDE provenance metadata */
-    public Map<String, String> compatibility() {
-        Map<String, String> values = new java.util.TreeMap<>(provenance.inventory(descriptor));
-        values.put("cancellationState", OperationCancellationSupport.state(executor, safety()).name());
-        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(values));
-    }
-
     /** Converts, executes, and normalizes one already schema-validated input. */
     public JsonNode execute(JsonNode input) {
         return OperationRegistrationBinding.execute(input, this);
@@ -112,8 +82,6 @@ public record OperationRegistration<I, O>(
                 contract,
                 decoder,
                 executor,
-                encoder,
-                operationCatalog,
-                provenance);
+                encoder);
     }
 }

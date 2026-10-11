@@ -22,7 +22,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.deactivate.DeactivateRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.listjvms.ListJvmsRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.JvmLifecycleResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.JvmLifecycleExecutionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.ProbeHostPolicy;
@@ -59,7 +58,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitForHitRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.response.ProbeResponseCompactionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationRegistrations;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.routing.ProbeTargetResolver;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationRequestDecoder;
@@ -124,10 +122,8 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 .map(action -> new CapturingJvmHandler(action, capturedOwnerCalls, capturedOwnerRequest))
                 .map(JvmLifecycleActionHandler.class::cast).toList();
         List<OperationRegistration<?, ?>> owned = Stream.concat(
-                        ProbeOperationRegistrations.create(
-                                new ProbeOperationCatalog(probeHandlers), JSON).stream(),
-                        JvmLifecycleOperationRegistrations.create(
-                                new JvmLifecycleOperationCatalog(jvmHandlers), JSON).stream())
+                        ProbeOperationRegistrations.create(probeHandlers, JSON).stream(),
+                        JvmLifecycleOperationRegistrations.create(jvmHandlers, JSON).stream())
                 .toList();
         registrations = owned.stream().collect(java.util.stream.Collectors.toMap(
                 value -> value.descriptor().operationId().value(), value -> value,
@@ -148,12 +144,10 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 .isEqualTo("https://json-schema.org/draft/2020-12/schema");
         assertThat(registration.inputSchema().definition().path("additionalProperties").asBoolean())
                 .isFalse();
-        assertThat(registration.provenance().invocationTool())
+        assertThat(registration.descriptor().toolName())
                 .isEqualTo(operationId.substring(0, operationId.indexOf('.')));
-        assertThat(registration.provenance().invocationAction())
+        assertThat(registration.descriptor().action())
                 .isEqualTo(operationId.substring(operationId.indexOf('.') + 1));
-        assertThat(registration.provenance().parityScenario())
-                .isEqualTo(operationId.replace('.', '_'));
         assertThat(OperationCancellationSupport.state(
                 registration.executor(), registration.safety()))
                 .isEqualTo(OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION);
@@ -205,7 +199,7 @@ class ProbeJvmLifecycleOperationRegistrationTest {
     private static void assertJvmRequest(String id, JvmLifecycleRequest request) {
         switch (id) {
             case "jvm_lifecycle.attach" -> assertThat(request).isEqualTo(
-                    new AttachRequest("1234", 1L, true, "127.0.0.1", 9191, null, null));
+                    new AttachRequest("1234", 1L, true, "127.0.0.1", 9191, null, null, null));
             case "jvm_lifecycle.deactivate" -> assertThat(request).isEqualTo(
                     new DeactivateRequest("1234", 1L, true));
             case "jvm_lifecycle.list_jvms" -> assertThat(request).isEqualTo(new ListJvmsRequest());
@@ -327,8 +321,7 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 .extracting(descriptor -> descriptor.executableOwner())
                 .containsExactlyInAnyOrderElementsOf(substantiveOwnerNames());
         assertThat(substantive.traceInventory()).hasSize(10).allSatisfy(entry ->
-                assertThat(entry.compatibility()).containsKeys(
-                        "normalization", "resultComparison", "parityScenario", "cancellationState"));
+                assertThat(entry.operationId()).isNotBlank());
         Map<String, Object> routing = routingInventory(substantive);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> mappings = (List<Map<String, Object>>) routing.get("operationMappings");
@@ -340,7 +333,7 @@ class ProbeJvmLifecycleOperationRegistrationTest {
             assertThat(row.get("before")).isInstanceOf(Map.class);
             assertThat(row.get("after")).isInstanceOf(Map.class);
         });
-        assertThat(files).hasSize(24).allSatisfy(row ->
+        assertThat(files).hasSize(20).allSatisfy(row ->
                 assertThat(routingPath((String) row.get("path"))).isRegularFile());
         assertThat(removedFiles).hasSize(8).allSatisfy(row -> {
             assertThat(row.get("before")).isEqualTo("PRESENT");
@@ -379,10 +372,8 @@ class ProbeJvmLifecycleOperationRegistrationTest {
 
     private OperationDirectory substantiveDirectory() {
         List<OperationRegistration<?, ?>> owned = Stream.concat(
-                ProbeOperationRegistrations.create(
-                        new ProbeOperationCatalog(substantiveProbeHandlers()), JSON).stream(),
-                JvmLifecycleOperationRegistrations.create(
-                        new JvmLifecycleOperationCatalog(substantiveJvmHandlers()), JSON).stream())
+                ProbeOperationRegistrations.create(substantiveProbeHandlers(), JSON).stream(),
+                JvmLifecycleOperationRegistrations.create(substantiveJvmHandlers(), JSON).stream())
                 .toList();
         return new OperationDirectory(owned, ownedDocument(), JSON);
     }
@@ -473,45 +464,39 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                         + "probe/operation/ProbeOperationRegistrations.java",
                 "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
                         + "jvmlifecycle/operation/JvmLifecycleOperationRegistrations.java",
-                "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/"
-                        + "jvmlifecycle/operation/JvmLifecycleOperationCatalog.java",
+                "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/"
+                        + "configuration/JvmLifecycleConfiguration.java",
                 "mcp-server/application/src/main/java/com/nimbly/mcpjavadevtools/server/"
                         + "configuration/ProbeConfiguration.java"));
         inventory.put("absentRoutingCategories", Map.of(
                 "HANDLER_ALIAS", "none; substantive owners implement the shared handler contracts directly",
-                "STANDALONE_DISPATCHER", "none; each capability catalog owns its closed action dispatch"));
+                "STANDALONE_DISPATCHER", "none; aggregate CDE registrations bind directly to action owners"));
         inventory.put("unclassifiedRoutingFiles", List.of());
         return inventory;
     }
 
     private static List<Map<String, Object>> probeRoutingFiles() {
         String root = "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/probe/";
-        String catalog = root + "operation/ProbeOperationCatalog.java";
+        String registrations = root + "operation/ProbeOperationRegistrations.java";
         return List.of(
-                routingFile(root + "action/check/impl/ProbeCheckAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/status/impl/ProbeStatusAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/reset/impl/ProbeResetAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/waitforhit/impl/ProbeWaitForHitAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/capture/impl/ProbeCaptureAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/actuate/impl/ProbeActuateAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/profiler/impl/ProbeProfilerAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/ProbeActionHandler.java", "ACTION_HANDLER_CONTRACT", catalog),
-                routingFile(root + "operation/ProbeOperation.java", "OPERATION_WRAPPER", catalog),
-                routingFile(catalog, "CAPABILITY_CATALOG_DISPATCHER",
-                        root + "operation/ProbeOperationRegistrations.java"));
+                routingFile(root + "action/check/impl/ProbeCheckAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/status/impl/ProbeStatusAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/reset/impl/ProbeResetAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/waitforhit/impl/ProbeWaitForHitAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/capture/impl/ProbeCaptureAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/actuate/impl/ProbeActuateAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/profiler/impl/ProbeProfilerAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/ProbeActionHandler.java", "ACTION_HANDLER_CONTRACT", registrations));
     }
 
     private static List<Map<String, Object>> jvmRoutingFiles() {
         String root = "mcp-server/core/src/main/java/com/nimbly/mcpjavadevtools/server/core/feature/jvmlifecycle/";
-        String catalog = root + "operation/JvmLifecycleOperationCatalog.java";
+        String registrations = root + "operation/JvmLifecycleOperationRegistrations.java";
         return List.of(
-                routingFile(root + "action/listjvms/impl/ListJvmsAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/attach/impl/AttachAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/deactivate/impl/DeactivateAction.java", "ACTION_IMPLEMENTATION", catalog),
-                routingFile(root + "action/JvmLifecycleActionHandler.java", "ACTION_HANDLER_CONTRACT", catalog),
-                routingFile(root + "operation/JvmLifecycleOperation.java", "OPERATION_WRAPPER", catalog),
-                routingFile(catalog, "CAPABILITY_CATALOG_DISPATCHER",
-                        root + "operation/JvmLifecycleOperationRegistrations.java"));
+                routingFile(root + "action/listjvms/impl/ListJvmsAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/attach/impl/AttachAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/deactivate/impl/DeactivateAction.java", "ACTION_IMPLEMENTATION", registrations),
+                routingFile(root + "action/JvmLifecycleActionHandler.java", "ACTION_HANDLER_CONTRACT", registrations));
     }
 
     private static List<Map<String, Object>> compatibilityRoutingFiles() {
@@ -627,10 +612,10 @@ class ProbeJvmLifecycleOperationRegistrationTest {
         CancellationDelegateFixture delegate = operationId.startsWith("probe.")
                 ? productionHttpFixture() : productionJvmHelperFixture();
         List<OperationRegistration<?, ?>> values = operationId.startsWith("probe.")
-                ? ProbeOperationRegistrations.create(new ProbeOperationCatalog(
-                        substantiveProbeHandlers(delegate.probeClient(), delegate.endpoint())), JSON)
-                : JvmLifecycleOperationRegistrations.create(new JvmLifecycleOperationCatalog(
-                        substantiveJvmHandlers(delegate.jvmHelper())), JSON);
+                ? ProbeOperationRegistrations.create(
+                        substantiveProbeHandlers(delegate.probeClient(), delegate.endpoint()), JSON)
+                : JvmLifecycleOperationRegistrations.create(
+                        substantiveJvmHandlers(delegate.jvmHelper()), JSON);
         OperationRegistration<?, ?> selected = values.stream()
                 .filter(value -> value.descriptor().operationId().value().equals(operationId))
                 .findFirst().orElseThrow();
@@ -770,9 +755,8 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 .map(action -> new BlockingJvmHandler(action, started, interrupted))
                 .map(JvmLifecycleActionHandler.class::cast).toList();
         Stream<OperationRegistration<?, ?>> values = Stream.concat(
-                ProbeOperationRegistrations.create(new ProbeOperationCatalog(probeHandlers), JSON).stream(),
-                JvmLifecycleOperationRegistrations.create(
-                        new JvmLifecycleOperationCatalog(jvmHandlers), JSON).stream());
+                ProbeOperationRegistrations.create(probeHandlers, JSON).stream(),
+                JvmLifecycleOperationRegistrations.create(jvmHandlers, JSON).stream());
         OperationRegistration<?, ?> selected = values
                 .filter(value -> value.descriptor().operationId().value().equals(operationId))
                 .findFirst().orElseThrow();
@@ -798,8 +782,7 @@ class ProbeJvmLifecycleOperationRegistrationTest {
                 registration.descriptor(), registration.requestType(), registration.resultType(),
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), bounded),
-                registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.provenance());
+                registration.decoder(), registration.executor(), registration.encoder());
     }
 
     private static ObjectNode input(String operationId) {

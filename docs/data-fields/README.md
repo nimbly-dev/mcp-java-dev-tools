@@ -1,12 +1,14 @@
 # Data Fields Reference (0.1.0)
 
-This document is the simple dictionary of JSON fields emitted to the orchestrator via MCP tool outputs.
+This document is the dictionary of capability result fields returned inside
+`operation_execute` results. Capability and action names identify canonical
+operation namespaces; they are not additional public MCP tools.
 
 Column meanings:
 
 - `fieldName`: JSON path emitted in `structuredContent`.
 - `fieldDesc`: What the field means.
-- `toolUsedBy`: Tool that emits the field.
+- `toolUsedBy`: Capability operation that emits the field through `operation_execute`.
 - `required`: `true` when always present for that tool output shape, otherwise `false`.
 - `exampleValue`: Representative value.
 
@@ -15,12 +17,13 @@ Deterministic contract policy:
 - Orchestration decisions must use deterministic fields (`resultType`, `status`, `reasonCode`, `nextActionCode`, `failedStep`).
 - Confidence/heuristic scores are not part of the public MCP output contract.
 
-Text vs structured content policy (probe tools):
+Text vs structured content policy (Probe operations):
 
 - `structuredContent` is the canonical machine-readable payload and remains the source of truth.
 - `content[0].text` is intentionally compact for context efficiency and may omit large diagnostic bodies.
 - Probe payloads are compact-by-default (metadata first); heavy capture internals are intentionally omitted.
-- `executionPaths` are omitted by default. Set `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true` to include them.
+- `executionPaths` are omitted by default. Set
+  `MCPJVM_PROBE_CAPTURE_RESPONSE_INCLUDE_EXECUTION_PATHS=true` to include them.
 
 Capture timestamp naming:
 
@@ -119,7 +122,10 @@ examples:
 | `cleanupStatus`           | Probe/session cleanup ownership; the Skill Workflow reports final disarm/reset/deactivation evidence. | `verify_reproduction` | true     | `"external_workflow_owned"`                                                                                  |
 | `terminalState`           | Bounded Skill Workflow terminal fact for a cancelled, blocked, or environment-mismatch investigation. | `verify_reproduction` | false    | `{"outcome":"CANCELLED","reasonCode":"user_cancelled","cleanupStatus":"cleanup_confirmed","attemptCount":1}` |
 
-The Failure Lens Skill Workflow invokes `failure_analysis`, Route Synthesis, Probe, and `jvm_lifecycle` as separate public MCP Tool calls. `failure_analysis` does not invoke MCP transport or another Feature Module's internal actions.
+The Failure Lens Skill Workflow invokes the canonical `failure_analysis`, Route
+Synthesis, Probe, and `jvm_lifecycle` operation IDs through `operation_execute`.
+`failure_analysis` does not invoke MCP transport or another Feature Module's
+internal actions.
 
 `analyze_trace` returns `INCONCLUSIVE` with `failure_fingerprint_incomplete` when the Sidecar cannot establish a complete reproduction key. `verify_reproduction` returns `INCONCLUSIVE` with `capture_not_found` when a bounded capture expires or was removed before comparison. Both outcomes explicitly set `diagnosisClaimed=false`.
 
@@ -151,41 +157,8 @@ For `attach`, the lifecycle helper keeps the initial 15-second timeout as a boun
 change so lifecycle mutation fails closed when the selected PID has been recycled or its start time cannot be
 verified. No raw command lines, arguments, environment values, or JVM system properties are emitted.
 
-## debug_check
-
-| fieldName          | fieldDesc                                                                 | toolUsedBy    | required | exampleValue                                |
-| ------------------ | ------------------------------------------------------------------------- | ------------- | -------- | ------------------------------------------- |
-| `ok`               | Basic service health flag.                                                | `debug_check` | true     | `true`                                      |
-| `serverTime`       | Server timestamp when ping response is produced.                          | `debug_check` | true     | `"2026-03-07T04:00:00.000Z"`                |
-| `version`          | MCP server version.                                                       | `debug_check` | true     | `"0.1.0"`                                   |
-| `buildFingerprint` | Safe identifier for the running server build.                             | `debug_check` | true     | `"implementation-version:0.1.9"`            |
-| `pid`              | Process identifier of the MCP server.                                     | `debug_check` | true     | `12345`                                     |
-| `ppid`             | Parent-process identifier when the operating system exposes one.          | `debug_check` | false    | `6789`                                      |
-| `workspaceRoot`    | Current selected workspace root, or `null` when context is not available. | `debug_check` | false    | `"C:\\repo\\mcp-java-dev-tools"`           |
-
-## `mcp-java-dev-tools://status` Resource
-
-The required status Resource exposes only safe server metadata. The Java v0.1.9
-runtime reports deterministic `not_migrated` status and reason-code values for
-Probe routing and registry data until the owning Core Feature migration lands;
-it does not advertise a placeholder MCP Tool.
-
-| fieldName                | fieldDesc                                                               | required | exampleValue                              |
-| ------------------------ | ----------------------------------------------------------------------- | -------- | ----------------------------------------- |
-| `name`                   | MCP server identity.                                                    | true     | `"mcp-java-dev-tools"`                    |
-| `version`                | MCP server version.                                                     | true     | `"0.1.9"`                                 |
-| `buildFingerprint`       | Safe identifier for the running server build.                           | true     | `"implementation-version:0.1.9"`          |
-| `pid`                    | MCP server process identifier.                                           | true     | `12345`                                   |
-| `ppid`                   | Parent-process identifier when the operating system exposes one.         | false    | `6789`                                    |
-| `workspaceRoot`          | Current selected workspace root.                                        | false    | `"C:\\repo\\mcp-java-dev-tools"`         |
-| `workspaceRootSource`    | Selection source: `roots`, `arg`, `env`, `session`, `cwd`, `missing`, or `ambiguous`. | true     | `"roots"`                                 |
-| `workspaceReasonCode`    | Deterministic workspace context failure reason when no root is selected: `workspace_context_missing`, `workspace_context_ambiguous`, or `workspace_context_invalid`. | false    | `"workspace_context_ambiguous"`            |
-| `rootsDiscoveryStatus`   | `available`, `unavailable`, or `not_requested`.                         | true     | `"available"`                             |
-| `probe` / `registry`     | Safe migration state or, after migration, safe runtime metadata.        | true     | `{"status":"not_migrated"}`              |
-| `auth.credentialDiscovery` | Credential-discovery state; no credential values are exposed.         | true     | `"disabled"`                              |
-| `time`                   | Status Resource timestamp.                                              | true     | `"2026-03-07T04:00:00.000Z"`               |
-
-> Canonical live Probe MCP Tool: `probe`. Action mapping for the sections below: `check`, `actuate`, `status`, `capture`, `reset`, `wait_for_hit`.
+> Canonical Probe operation IDs use the `probe.` namespace: `check`, `actuate`,
+> `status`, `capture`, `reset`, `wait_for_hit`, and `profiler`.
 
 ## probe action=check
 
@@ -347,7 +320,7 @@ Arm target validation is fail-closed and occurs before session creation or repla
 | `response.json.capturePreview.executionEndedAtEpoch`     | Invocation end Unix-epoch timestamp in JVM host wall-clock milliseconds.                                                     | `probe`    | false    | `1739671200456`                                                       |
 | `response.json.capturePreview.executionDurationMs`       | Invocation elapsed wall-clock duration in milliseconds (`executionEndedAtEpoch - executionStartedAtEpoch`, non-negative).    | `probe`    | false    | `55`                                                                  |
 | `response.json.capturePreview.threadAllocatedBytesDelta` | Per-invocation thread allocation delta in bytes (`exit - enter`, non-negative). Omitted when runtime support is unavailable. | `probe`    | false    | `4096`                                                                |
-| `response.json.capturePreview.executionPaths`            | Optional execution-path frames captured at runtime when `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true`.                            | `probe`    | false    | `["CatalogController.listCatalogShoes()#42"]`                         |
+| `response.json.capturePreview.executionPaths`            | Optional execution-path frames captured at runtime when `MCPJVM_PROBE_CAPTURE_RESPONSE_INCLUDE_EXECUTION_PATHS=true`.        | `probe`    | false    | `["CatalogController.listCatalogShoes()#42"]`                         |
 | `response.json.runtime`                                  | Runtime observe/session-actuation payload.                                                                                   | `probe`    | false    | `{"mode":"observe","activeSessionCount":0}`                           |
 | `response.json.runtime.sessionId`                        | Representative active session id when actuation is armed.                                                                    | `probe`    | false    | `"regression-run-42"`                                                 |
 | `response.json.runtime.scopeState`                       | Runtime scope state snapshot (`armed` or `disarmed`).                                                                        | `probe`    | false    | `"disarmed"`                                                          |
@@ -374,7 +347,7 @@ Arm target validation is fail-closed and occurs before session creation or repla
 | `result.capture.executionEndedAtEpoch`     | Invocation end Unix-epoch timestamp in JVM host wall-clock milliseconds.                                                     | `probe`    | false    | `1739671200456`                                                                         |
 | `result.capture.executionDurationMs`       | Invocation elapsed wall-clock duration in milliseconds (`executionEndedAtEpoch - executionStartedAtEpoch`, non-negative).    | `probe`    | false    | `55`                                                                                    |
 | `result.capture.threadAllocatedBytesDelta` | Per-invocation thread allocation delta in bytes (`exit - enter`, non-negative). Omitted when runtime support is unavailable. | `probe`    | false    | `4096`                                                                                  |
-| `result.capture.executionPaths`            | Optional execution-path frames when `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true`.                                                | `probe`    | false    | `["CatalogService.save()#88"]`                                                          |
+| `result.capture.executionPaths`            | Optional execution-path frames when `MCPJVM_PROBE_CAPTURE_RESPONSE_INCLUDE_EXECUTION_PATHS=true`.                            | `probe`    | false    | `["CatalogService.save()#88"]`                                                          |
 | `result.reason`                            | Error reason when capture is unavailable.                                                                                    | `probe`    | false    | `"capture_not_found"`                                                                   |
 
 ## probe action=reset

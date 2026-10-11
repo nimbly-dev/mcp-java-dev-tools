@@ -10,4 +10,10 @@ public interface JmeterProcessRunner {
     /** Runs JMeter and returns its normalized process exit status. */
     int run(String executable, Path runDirectory, Path jmxPath, Path jtlPath, Path logPath, Duration timeout)
             throws IOException, InterruptedException;
+
+    /** Runs JMeter with bounded runtime-only environment values. */
+    default int run(JmeterWorkloadRequest request, Path jmxPath, Path jtlPath, Path logPath, Duration timeout)
+            throws IOException, InterruptedException {
+        return run(request.executable(), request.runDirectory(), jmxPath, jtlPath, logPath, timeout);
+    }
 }

@@ -13,6 +13,7 @@ public record AttachRequest(
         boolean confirm,
         String probeHost,
         int probePort,
+        String probeId,
         String include,
         String exclude) implements JvmLifecycleRequest {
 

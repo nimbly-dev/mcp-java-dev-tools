@@ -12,6 +12,7 @@ public record JmeterWorkloadRequest(
         String url,
         Map<String, String> headers,
         String body,
+        Map<String, String> environment,
         int timeoutMs,
         int concurrency,
         int rampUpSeconds,
@@ -20,5 +21,6 @@ public record JmeterWorkloadRequest(
     /** Copies headers into an immutable map. */
     public JmeterWorkloadRequest {
         headers = headers == null ? Map.of() : Map.copyOf(headers);
+        environment = environment == null ? Map.of() : Map.copyOf(environment);
     }
 }

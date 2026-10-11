@@ -31,6 +31,10 @@ public class CoreOperationSafetyPolicy {
             "regression_suite.execute_plan",
             "performance_suite.execute_plan",
             "security_suite.execute_plan");
+    private static final Set<String> LONG_RUNNING_OPERATIONS = Set.of(
+            "regression_suite.execute_plan",
+            "performance_suite.execute_plan",
+            "security_suite.execute_plan");
 
     private CoreOperationSafetyPolicy() {
     }
@@ -51,7 +55,7 @@ public class CoreOperationSafetyPolicy {
                         || operationId.equals("transport_execute.execute"))
                         ? "caller_may_supply_credentials" : "caller_must_not_supply_credentials",
                 "redact_sensitive_fields",
-                operationId.equals("transport_execute.execute")
+                operationId.equals("transport_execute.execute") || LONG_RUNNING_OPERATIONS.contains(operationId)
                         ? OperationSafetyLimits.MAX_TIMEOUT_MILLIS
                         : OperationSafetyLimits.DEFAULT_TIMEOUT_MILLIS,
                 true,

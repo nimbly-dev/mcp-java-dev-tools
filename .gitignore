@@ -1,4 +1,8 @@
 target/
+!**/src/main/java/**/model/target/
+!**/src/main/java/**/model/target/*.java
+!**/src/test/java/**/model/target/
+!**/src/test/java/**/model/target/*.java
 pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup

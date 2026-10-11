@@ -18,7 +18,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.a
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.ExecutionOrchestrationActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.action.ExecutionOrchestrationAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.model.request.ExecutionOrchestrationRequest;
@@ -31,12 +30,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.action.JvmLif
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.JvmLifecycleAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.request.JvmLifecycleRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.result.JvmLifecycleResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.action.ProbeActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.ProbeAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.request.ProbeRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.DefaultRouteSynthesisFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.action.RouteSynthesisActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.RouteSynthesisAction;
@@ -71,10 +68,8 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistr
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectoryOwners;
-import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationAlias;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationArgumentDocumentation;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDocumentation;
@@ -108,52 +103,18 @@ class CoreOperationDirectoryTest {
                 .hasSize(CoreOperationDirectory.EXPECTED_OPERATION_COUNT)
                 .extracting(registration -> registration.descriptor().operationId())
                 .doesNotHaveDuplicates();
-        assertThat(directory.manifest().registrations())
-                .extracting(OperationRegistration::operationCatalog)
-                .containsOnly(CoreOperationDirectory.class.getName());
         assertThat(directory.manifest().descriptors())
                 .allSatisfy(descriptor -> assertThat(descriptor.documentation().examples()).isNotEmpty());
 
         assertThat(directory.traceInventory()).hasSize(54)
                 .extracting(OperationTraceEntry::operationId)
                 .doesNotHaveDuplicates();
-        assertThat(directory.traceInventory())
-                .extracting(OperationTraceEntry::operationCatalog)
-                .containsOnly(CoreOperationDirectory.class.getName());
-        assertThat(directory.traceInventory()).allSatisfy(entry ->
-                assertThat(entry.compatibility()).containsKeys(
-                        "provenanceKind", "normalization", "resultComparison", "parityScenario"));
-        assertThat(directory.traceInventory().stream()
-                .filter(entry -> "RELEASED_LEGACY_INVOCATION".equals(
-                        entry.compatibility().get("provenanceKind"))))
-                .hasSize(50)
-                .allSatisfy(entry -> assertThat(entry.compatibility())
-                        .containsKeys("releasedTool", "releasedAction", "actionless"));
-        assertThat(directory.traceInventory().stream()
-                .filter(entry -> "NEW_DIRECT_CDE_OPERATION".equals(
-                        entry.compatibility().get("provenanceKind"))))
-                .hasSize(4)
-                .allSatisfy(entry -> assertThat(entry.compatibility())
-                        .containsEntry("provenanceTool", "execution_orchestration")
-                        .containsEntry("provenanceAction", "execute")
-                        .doesNotContainKeys("releasedTool", "releasedAction", "actionless"));
-        assertThat(directory.traceInventory().stream()
-                .filter(entry -> "true".equals(entry.compatibility().get("actionless")))
-                .map(OperationTraceEntry::operationId)
-                .toList())
-                .containsExactlyInAnyOrder("execution_profile_export.export", "transport_execute.execute");
-        assertThat(directory.manifest().resolveAlias(
-                new OperationAlias("execution_profile_export", "", true)))
-                .isEqualTo(OperationId.of("execution_profile_export.export"));
-        assertThat(directory.manifest().resolveAlias(
-                new OperationAlias("transport_execute", "", true)))
-                .isEqualTo(OperationId.of("transport_execute.execute"));
         assertThat(aggregate.manifest()).isSameAs(directory.manifest());
         assertThat(aggregate.traceInventory()).isEqualTo(directory.traceInventory());
     }
 
     @Test
-    void generatedManifestAndTraceAgreeForEveryOperationProvenance() {
+    void generatedManifestAndTraceAgreeForEveryOperation() {
         CoreOperationDirectory aggregate = aggregate();
         Map<String, OperationTraceEntry> traces = aggregate.traceInventory().stream()
                 .collect(java.util.stream.Collectors.toMap(
@@ -164,9 +125,9 @@ class CoreOperationDirectoryTest {
             OperationDescriptor descriptor = registration.descriptor();
             OperationTraceEntry trace = traces.get(descriptor.operationId().value());
             assertThat(trace).as(descriptor.operationId().value()).isNotNull();
-            assertThat(trace.actionless()).isEqualTo(registration.provenance().actionless());
-            assertThat(trace.action()).isEqualTo(registration.provenance().invocationAction());
-            assertThat(trace.compatibility()).containsAllEntriesOf(registration.compatibility());
+            assertThat(trace.toolName()).isEqualTo(descriptor.toolName());
+            assertThat(trace.action()).isEqualTo(descriptor.action());
+            assertThat(trace.executableOwner()).isEqualTo(descriptor.executableOwner());
         }
     }
 
@@ -215,7 +176,7 @@ class CoreOperationDirectoryTest {
                 .isTrue();
         assertThat(registration.resultSchema().definition().path("additionalProperties").isBoolean())
                 .isTrue();
-        assertThat(registration.compatibility()).containsEntry("operationId", operationId.value());
+        assertThat(registration.descriptor().operationId()).isEqualTo(operationId);
     }
 
     @Test
@@ -245,7 +206,7 @@ class CoreOperationDirectoryTest {
     }
 
     @Test
-    void preservesCanonicalArgumentsDefaultsOpenValuesAndActionlessIdentity() throws Exception {
+    void preservesCanonicalArgumentsDefaultsOpenValuesAndIdentity() throws Exception {
         OperationManifest manifest = aggregate().directory().manifest();
         OperationRegistration<?, ?> artifact = manifest.registration(
                 OperationId.of("artifact_management.probe_config.read"));
@@ -257,9 +218,8 @@ class CoreOperationDirectoryTest {
                 .isFalse();
         assertThat(artifact.inputSchema().definition().path("properties").has("action"))
                 .isFalse();
-        assertThat(artifact.provenance().discriminators())
-                .containsEntry("artifactType", "probe_config")
-                .containsEntry("action", "read");
+        assertThat(artifact.descriptor().toolName()).isEqualTo("artifact_management");
+        assertThat(artifact.descriptor().action()).isEqualTo("probe_config/read");
 
         JsonNode attachProperties = attach.inputSchema().definition().path("properties");
         assertThat(attachProperties.path("probeHost").path("default").asText())
@@ -279,12 +239,11 @@ class CoreOperationDirectoryTest {
         assertThat(transport.inputSchema().definition().path("properties").path("options")
                 .path("default").path("wrappedOnly").asBoolean()).isTrue();
 
-        OperationTraceEntry actionless = manifest.traceInventory().stream()
+        OperationTraceEntry transportTrace = manifest.traceInventory().stream()
                 .filter(entry -> entry.operationId().equals("transport_execute.execute"))
                 .findFirst().orElseThrow();
-        assertThat(actionless.actionless()).isTrue();
-        assertThat(actionless.action()).isEmpty();
-        assertThat(actionless.compatibility()).containsEntry("actionless", "true");
+        assertThat(transportTrace.toolName()).isEqualTo("transport_execute");
+        assertThat(transportTrace.action()).isEqualTo("execute");
     }
 
     @Test
@@ -321,7 +280,6 @@ class CoreOperationDirectoryTest {
         OperationCancellationState state = OperationCancellationSupport.state(
                 registration.executor(), registration.safety());
         assertThat(state).isNotEqualTo(OperationCancellationState.LEGACY_UNVERIFIED_CANCELLATION);
-        assertThat(registration.compatibility()).containsEntry("cancellationState", state.name());
         OperationExecutionResult rejected = directory.execute(new OperationInvocation(
                 operationId, JSON.getNodeFactory().textNode("invalid-root"), true));
         assertThat(rejected.status()).as(operationId.value())
@@ -386,7 +344,7 @@ class CoreOperationDirectoryTest {
                 });
         return new OperationRegistration<>(original.descriptor(), original.requestType(),
                 original.resultType(), original.contract(), original.decoder(), counted,
-                original.encoder(), original.operationCatalog(), original.provenance());
+                original.encoder());
     }
 
     private static <I, O> JsonNode expectedNormalized(
@@ -447,20 +405,22 @@ class CoreOperationDirectoryTest {
     private static CoreOperationDirectory aggregate() {
         ArtifactManagementSupport support = new ArtifactManagementSupport(
                 Optional::empty, new ArtifactJsonStore(JSON), new SqliteRunStateStore(JSON), JSON);
-        ArtifactOperationCatalog artifact = new ArtifactOperationCatalog(
-                new ProbeConfigOperations(support), new ProjectContextOperations(support),
-                new PlanOperations(support), new RunResultOperations(support),
-                new ExecutionExportOperations(support),
-                new OperationExposure(ArtifactOperationCatalog.TOOL_NAME, "aggregate-test",
-                        Arrays.stream(ArtifactManagementAction.values())
-                                .map(ArtifactManagementAction::routeId).toList()));
+        ProbeConfigOperations probeConfig = new ProbeConfigOperations(support);
+        ProjectContextOperations projectContext = new ProjectContextOperations(support);
+        PlanOperations plans = new PlanOperations(support);
+        RunResultOperations runs = new RunResultOperations(support);
+        ExecutionExportOperations exports = new ExecutionExportOperations(support);
         ExecutionExportArtifactGateway gateway = request -> ArtifactManagementResult.success(
                 ArtifactType.EXECUTION_EXPORT, ArtifactAction.GENERATE, Map.of());
         return new CoreOperationDirectory(
                 new CoreOperationDirectoryOwners(
-                        artifact,
-                        new JvmLifecycleOperationCatalog(jvmHandlers()),
-                        new ProbeOperationCatalog(probeHandlers()),
+                        probeConfig,
+                        projectContext,
+                        plans,
+                        runs,
+                        exports,
+                        jvmHandlers(),
+                        probeHandlers(),
                         gateway,
                         new DefaultRouteSynthesisFeature(routeHandlers()),
                         failureHandlers(),

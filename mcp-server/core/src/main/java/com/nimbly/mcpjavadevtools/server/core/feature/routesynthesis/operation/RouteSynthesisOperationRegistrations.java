@@ -20,14 +20,12 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistr
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
-import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -73,9 +71,7 @@ public class RouteSynthesisOperationRegistrations {
                             return result;
                         }),
                 new RouteSynthesisResultEncoder(
-                        action, mapper, OperationResultEncoders.typed(mapper, RouteSynthesisResult.class)),
-                CoreOperationDirectory.class.getName(),
-                identity(action));
+                        action, mapper, OperationResultEncoders.typed(mapper, RouteSynthesisResult.class)));
     }
 
     static OperationDescriptor descriptor(RouteSynthesisAction action,
@@ -95,21 +91,6 @@ public class RouteSynthesisOperationRegistrations {
                         Map.of("executableOwner", executableOwner,
                                 "operationId", id,
                                 "requestType", requestType.getName())));
-    }
-
-    static OperationProvenance identity(RouteSynthesisAction action) {
-        boolean recipe = action == RouteSynthesisAction.CREATE_RECIPE;
-        String normalization = recipe
-                ? "create_recipe.synthesizerUsed:java_owner=spring_http->cde=spring=typescript_released_spring"
-                : "route_synthesis_action_to_concrete_request_record";
-        String comparison = recipe
-                ? "MCPJVM-621_approved_cde_spring_mapping_and_recipe_semantics"
-                : "typed_action_result_preserved";
-        return OperationProvenance.released(
-                "route_synthesis", action.value(), Map.of(),
-                normalization,
-                "route_result_envelope_and_" + comparison,
-                "route_synthesis_" + action.value());
     }
 
     private static void checkpoint(OperationExecutionContext context) {

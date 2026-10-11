@@ -87,7 +87,7 @@ class TransportExecutionFeatureTest {
     }
 
     @Test
-    void registersTheActionlessTransportRowAgainstItsSubstantiveOwner() throws Exception {
+    void registersTheTransportRowAgainstItsSubstantiveOwner() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         var registration = TransportExecutionOperationRegistrations.create(feature(() -> false), mapper).getFirst();
 
@@ -95,8 +95,8 @@ class TransportExecutionFeatureTest {
         assertThat(registration.descriptor().executableOwner()).contains("ExecuteTransportAction#execute");
         assertThat(registration.safety().credentialPolicy()).isEqualTo("caller_may_supply_credentials");
         assertThat(registration.safety().timeoutMillis()).isEqualTo(300_000);
-        assertThat(registration.provenance().actionless()).isTrue();
-        assertThat(registration.provenance().invocationAction()).isEmpty();
+        assertThat(registration.descriptor().toolName()).isEqualTo("transport_execute");
+        assertThat(registration.descriptor().action()).isEqualTo("execute");
         assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
                 .isEqualTo(OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION);
 
@@ -147,10 +147,6 @@ class TransportExecutionFeatureTest {
             assertThat(cde.result().path("bodyPreview").asText()).isEqualTo(ownerResult.get().bodyPreview())
                     .contains("core-parity");
             assertThat(cde.result().path("durationMs").asLong()).isEqualTo(ownerResult.get().durationMs());
-            assertThat(registration.provenance().resultComparison())
-                    .isEqualTo("transport_status_protocol_headers_body_and_duration_preserved");
-            assertThat(registration.provenance().parityScenario())
-                    .isEqualTo("transport_execute_public_request_contract");
             assertThat(cde.result().toString()).doesNotContain("core-secret");
         } finally {
             target.stop(0);
@@ -230,8 +226,7 @@ class TransportExecutionFeatureTest {
                 registration.descriptor(), registration.requestType(), registration.resultType(),
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), bounded),
-                registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.provenance());
+                registration.decoder(), registration.executor(), registration.encoder());
     }
 
     private TransportExecutionFeature realFeature() {

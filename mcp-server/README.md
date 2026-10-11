@@ -1,8 +1,10 @@
-# Java MCP server foundation
+# Java MCP server
 
-This Maven reactor is the opt-in Java MCP server runtime for `v0.1.9`.
-The TypeScript MCP server remains the production default. The Sidecar Agent,
-existing MCP Tool behavior, and persisted Artifact semantics are unchanged.
+This Maven reactor is the public Java 21 STDIO MCP runtime for `v0.1.9`.
+Spring AI exposes one Catalog-Describe-Execute boundary backed by the aggregate
+Java operation directory. Legacy TypeScript sources may be read to identify
+behavior that still needs to move, but all MCP behavior is implemented and
+verified in Java; TypeScript execution is not an acceptance path.
 
 ## Modules and ownership
 
@@ -10,12 +12,12 @@ existing MCP Tool behavior, and persisted Artifact semantics are unchanged.
 application -> core
 ```
 
-- `core` is a normal library JAR. It will own Spring-independent Feature
-  actions, capability-owned models, Artifact models and validation, Artifact
-  path policy and persistence, integrations, and reporting as those concerns
-  are migrated by focused follow-up work.
+- `core` is a normal library JAR. It owns Spring-independent Feature actions,
+  capability models, Artifact validation and persistence, integrations,
+  execution orchestration, reporting, and the single aggregate operation
+  directory.
 - `application` is the executable Spring Boot JAR. It owns the entry point,
-  configuration, Spring AI MCP Tool registration, thin MCP Tool adapters,
+  configuration, Spring AI MCP Tool registration, thin CDE transport mapping,
   MCP-bound request mapping, deterministic output normalization, STDIO
   lifecycle, and dependency wiring.
 
@@ -23,38 +25,24 @@ Only `application` may depend on Spring Boot, Spring AI, or MCP transport
 types. `core` must never depend on `application`; Maven Enforcer makes the
 Spring and MCP transport dependency restriction explicit.
 
-Other than the completed `jvm_lifecycle` and Probe migrations and the bounded
-`execution_profile_export` reference route from #604, no production Core
-Feature, Artifact schema, storage implementation, integration, reporting
-workflow, suite execution behavior, reason-code catalog, parity contract, or
-optional HTTP transport is defined by the runtime. The real `application -> core` Transport
-Adapters are owned by the completed Probe (#571) and JVM lifecycle (#572)
-Feature migrations. Future migrations may add further adapters, but test-scope
-fake Features must never ship in the executable JAR or be exposed as MCP Tools.
+Product behavior stays in its substantive Core owner. The application module
+must not add feature-specific MCP adapters, a second operation catalog, policy
+logic, or fallback routing. Test-scope fake Features must never ship in the
+executable JAR or be exposed as MCP Tools.
 
-## MCP adapter destinations
+## Public MCP boundary
 
-The runtime creates packages only when their owning Feature migration provides
-real behavior. The documented destinations below keep the `application` module
-ready without registering unsupported placeholder MCP Tools.
+`OperationMcpTools` exposes exactly three Spring AI tools:
 
-| Public surface | Application destination | v0.1.9 status |
-| --- | --- | --- |
-| `debug_check` | `mcp/tools/debugcheck` | registered; application-only |
-| `mcp-java-dev-tools://status` | `mcp/resource/status` | registered |
-| `jvm_lifecycle` | `mcp/tools/jvmlifecycle` | registered; #572 |
-| `probe` | `mcp/tools/probe` | registered; #571 |
-| Route Synthesis operations | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated; #635 |
-| `failure_analysis` | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated and live-validated; #636 |
-| `transport_execute.execute` | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated and live-validated; #637 |
-| Artifact Management operations | shared CDE tools (`operation_catalog`, `operation_describe`, `operation_execute`) | Core migrated and live-validated; #638 |
-| `execution_profile_export` | `mcp/tools/executionprofileexport` | registered; #604 Catalog-Describe-Execute reference |
-| `execution_orchestration` | `mcp/tools/executionorchestration` | Feature migration required |
+- `operation_catalog`
+- `operation_describe`
+- `operation_execute`
 
-Each future Transport Adapter performs MCP shape validation, request mapping,
-Feature invocation, and Deterministic Output normalization only. It must not
-perform Artifact I/O, external transport execution, Probe behavior, or Suite
-orchestration.
+Probe, JVM lifecycle, Route Synthesis, Failure Analysis, transport execution,
+Artifact Management, suite execution, execution orchestration, and export are
+canonical operations in the one aggregate `OperationDirectory`. Each operation
+registration delegates directly to its substantive owner and carries its
+Java-owned schema and safety contract.
 
 ## Runtime boundary
 
@@ -63,28 +51,13 @@ The application uses Spring AI's non-web MCP server starter. It runs with
 `spring.main.web-application-type=none`. Logback writes diagnostics only to
 stderr; stdout is reserved for MCP JSON-RPC messages.
 
-The current public surface is deliberately small:
-
-- `debug_check` is application-only and reports reachability, process
-  metadata, version, build fingerprint, and the selected workspace.
-- `mcp-java-dev-tools://status` reports safe server, workspace, Probe-routing,
-  registry, and credential-discovery metadata. Unmigrated registry behavior is
-  identified with deterministic status and reason-code values; the Resource
-  never exposes configuration secrets.
-- `jvm_lifecycle` discovers local JVMs and safely attaches or deactivates the
-  repository-owned Sidecar Agent.
-- `probe` exposes the migrated bounded Sidecar Probe actions.
-- `execution_profile_export` exposes the parity-covered export action through
-  the Catalog-Describe-Execute reference route documented in
-  `../docs/architecture/java-mcp-operation-catalog.md`.
-  The normative tracked contract amendment is documented in
-  `../docs/architecture/java-mcp-catalog-describe-execute-contract.md`.
+The public surface is deliberately limited to the three CDE tools. Capability
+names such as `probe`, `jvm_lifecycle`, and `artifact_management` are operation
+API namespaces, not additional MCP tools.
 
 Workspace selection initially uses `--workspace-root`, then
 `MCP_WORKSPACE_ROOT`, then `INIT_CWD` or `PWD`, followed by the current
-directory when it contains `.mcpjvm/probe-config.json`. After initialization,
-the server obtains MCP Roots on `debug_check` and status requests and processes
-Roots-change notifications. Multiple Roots containing canonical Probe
+directory when it contains `.mcpjvm/probe-config.json`. Multiple Roots containing canonical Probe
 configuration Fail Closed with `workspace_context_ambiguous`. An invalid path
 value fails closed with `workspace_context_invalid`; no raw workspace value is
 returned in a protocol response.
@@ -107,7 +80,7 @@ application/target/sidecar/jvm-attach-helper.jar
 application/target/sidecar/sidecar-agent.jar
 ```
 
-Opt in from an MCP host with Java 21 installed:
+Configure an MCP host with Java 21 installed:
 
 ```json
 {
@@ -118,9 +91,6 @@ Opt in from an MCP host with Java 21 installed:
   ]
 }
 ```
-
-Switching back means restoring the existing TypeScript MCP-host command. The
-Java runtime does not launch, proxy, supervise, or fall back to TypeScript.
 
 ## Build and verification
 
@@ -140,11 +110,12 @@ java -jar application/target/mcp-java-dev-tools-server-0.1.9.jar
 ```
 
 `mvn verify` applies Maven Enforcer, Checkstyle, PMD, unit-test discovery, and
-the focused executable-JAR STDIO integration tests. Those tests initialize the
-server, exercise both migrated Tools, perform a real attach/deactivate against a
-separate target JVM, verify target survival, confirm JSON-RPC-only stdout, and
-prove the sanitized startup-failure boundary. Parent-exit monitoring has
-focused unit coverage for its deterministic shutdown decision.
+the executable-JAR STDIO integration tests. Those tests initialize the server,
+assert exactly the three CDE tools, execute real operation paths, perform a real
+attach/deactivate against a separate target JVM, verify target survival,
+confirm JSON-RPC-only stdout, and prove the sanitized startup-failure boundary.
+Parent-exit monitoring has focused unit coverage for its deterministic shutdown
+decision.
 
 ## Initial maintainability baseline
 

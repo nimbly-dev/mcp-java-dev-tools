@@ -16,7 +16,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistr
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
-import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
@@ -25,7 +24,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancella
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -64,9 +62,7 @@ public class TransportExecutionOperationRegistrations {
                             checkpoint(context);
                             return result;
                         }),
-                OperationResultEncoders.typed(mapper, ExecuteTransportResult.class),
-                CoreOperationDirectory.class.getName(),
-                identity());
+                OperationResultEncoders.typed(mapper, ExecuteTransportResult.class));
     }
 
     static ExecuteTransportRequest decode(TransportExecuteArguments arguments) {
@@ -107,14 +103,6 @@ public class TransportExecutionOperationRegistrations {
                         Map.of("executableOwner", executableOwner,
                                 "operationId", id,
                                 "bindingType", "actionless")));
-    }
-
-    static OperationProvenance identity() {
-        return OperationProvenance.releasedActionless(
-                "transport_execute", Map.of(),
-                "transport_protocol_request_options_to_typed_request",
-                "transport_status_protocol_headers_body_and_duration_preserved",
-                "transport_execute_public_request_contract");
     }
 
     private static void checkpoint(OperationExecutionContext context) {

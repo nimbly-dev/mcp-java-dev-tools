@@ -30,15 +30,18 @@ Example packages are starter scaffolds for framework adoptors and are not includ
 
 These are folder-level placeholders only. Spring HTTP is the only active synthesizer implementation today.
 
-## Active runtime packages
-- MCP transport/server entrypoint code:
-  - `transport/tools-mcp-server/src`
+## Legacy migration-reference packages
+- Retained transport configuration and resolver references:
+  - `transport/tools-mcp-server/src/{config,lib,utils}`
 - Shared recipe orchestration/runtime utilities:
   - `core/tools-core/src`
 - Synthesizer plugin registry runtime:
   - `core/tools-registry/src`
 - Spring HTTP synthesizer runtime implementation:
   - `synthesizers/tools-spring-http/src`
+
+These TypeScript sources are not a public MCP runtime or Java MCP acceptance
+path. Required behavior must be transferred to and verified in Java.
 
 ## Runtime External Synthesizer Loading
 - Configure external plugin module specifiers with:

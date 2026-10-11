@@ -1,10 +1,7 @@
 # mcp-java-dev-tools
 
-[![node](https://img.shields.io/badge/node-v24.13.0-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![npm](https://img.shields.io/badge/npm-11.6.2-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/)
 [![JDK](https://img.shields.io/badge/JDK-21%2B-007396?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Java Agent Target](https://img.shields.io/badge/Java%20Agent%20Target-21-ED8B00?logo=openjdk&logoColor=white)](https://maven.apache.org/)
-[![package](https://img.shields.io/badge/package-mcp--java--dev--tools%400.1.8-0A66C2)](https://github.com/nimbly-dev/mcp-java-dev-tools)
 [![MCP Badge](https://lobehub.com/badge/mcp/nimbly-dev-mcp-java-dev-tools?style=flat)](https://lobehub.com/mcp/nimbly-dev-mcp-java-dev-tools)
 
 **MCP Java Dev Tools** bridges agentic coding tools and live Java runtime behavior through a lightweight sidecar agent.
@@ -21,54 +18,30 @@ For operator workflows and end-to-end execution flows, see [docs/how-it-works/RE
 
 ## Requirements
 
-| Requirement | Version             |
-| ----------- | ------------------- |
-| Node.js     | `v24.13.0` (tested) |
-| npm         | `11.6.2` (tested)   |
-| JDK         | `21+`               |
-| Maven       | `3.8.6+`            |
+| Requirement | Version  | Purpose |
+| ----------- | -------- | ------- |
+| JDK         | `21`     | MCP server and Sidecar Agent runtime |
+| Maven       | `3.8.6+` | Java build and verification |
 
 ---
 
 ## Build
 
-```powershell
-npm.cmd install
-npm.cmd run build
-mvn -f java-agent\pom.xml package
-```
-
-This produces two artifacts:
-
-- **MCP server** â†’ `dist/server.js`
-- **Java agent bundle** â†’ `java-agent/core/core-probe/target/mcp-java-dev-tools-agent-0.1.0-all.jar`
-
----
-
-The Java 21 lifecycle helper is packaged separately at
-`java-agent/core/core-jvm-attach/target/mcp-java-dev-tools-core-jvm-attach-0.1.8.jar`.
-
-### Opt-in Java MCP server foundation
-
-`mcp-server/` is an opt-in Java 21, Spring Boot, and Spring AI MCP server for
-the `v0.1.9` migration path. It exposes the migrated Probe and JVM lifecycle
-MCP Tools; the existing TypeScript MCP server at `dist/server.js` remains the
-production default.
-
-Build and verify the foundation independently:
-
-```powershell
+```text
 bash ./scripts/package-java-mcp-server.sh
 # Windows PowerShell: .\scripts\package-java-mcp-server.ps1
 ```
 
-The executable JAR is
-`mcp-server/application/target/mcp-java-dev-tools-server-0.1.9.jar`. Its
-adjacent `sidecar/` directory contains the packaged helper and agent artifacts;
-it uses STDIO only, reserving stdout for MCP JSON-RPC and sending diagnostics to
-stderr.
-See [mcp-server/README.md](./mcp-server/README.md) for its module boundaries and
-deferred migration scope.
+This verifies the Java MCP reactor and produces the deployable runtime:
+
+- **MCP server** -> `mcp-server/application/target/mcp-java-dev-tools-server-0.1.9.jar`
+- **Packaged lifecycle helper** -> `mcp-server/application/target/sidecar/jvm-attach-helper.jar`
+- **Packaged Sidecar Agent** -> `mcp-server/application/target/sidecar/sidecar-agent.jar`
+
+Legacy TypeScript sources may be inspected during migration to identify behavior
+that must be implemented in Java. They are not a runtime, test, or acceptance
+path for the packaged MCP server. See [mcp-server/README.md](./mcp-server/README.md)
+for runtime and module boundaries.
 
 ## Installation
 
@@ -100,10 +73,9 @@ To update/overwrite existing installed skills (and add missing new skills):
 
 Both scripts:
 
-- run `npm run build:compile`
-- run `mvn -f java-agent/pom.xml package`
+- package and verify the Java MCP server and its Sidecar artifacts
 - sync shipped skills into the target client skill directory
-- by default prompt for a first workspace and generate MCP env config block output (client-specific)
+- generate client-specific `java -jar` MCP configuration when requested
 
 Kiro and Claude Code behavior during install/update:
 
@@ -111,16 +83,18 @@ Kiro and Claude Code behavior during install/update:
 - installed managed skills are validated after sync (`SKILL.md` + expected folder presence)
 - restart/reload guidance is printed so the visible tool/skill list refreshes from the synced skill directory
 
-Default MCP registry env input can be skipped:
+MCP server configuration can be skipped:
 
 ```bash
-./scripts/install.sh --client codex --no-configure-mcp-env
-# Or: ./scripts/install.sh --client claude --no-configure-mcp-env
+./scripts/install.sh --client codex --no-configure-mcp
+# Or: ./scripts/install.sh --client claude --no-configure-mcp
 ```
 
-MCP env input captures:
+The installer auto-detects the packaged server JAR. To select one explicitly:
 
-- `MCP_JAVA_AGENT_JAR` (required; absolute path to built Java agent jar)
+```bash
+./scripts/install.sh --server-jar /absolute/path/to/mcp-java-dev-tools-server-0.1.9.jar
+```
 
 ### Spring Integration Launcher
 
@@ -138,6 +112,17 @@ Behavior:
 - opens a new Git Bash window and starts the Spring app with `JAVA_TOOL_OPTIONS` including `-javaagent`
 
 ### Manual Setup
+
+Configure the MCP client to launch the packaged Java STDIO server:
+
+```toml
+[mcp_servers.mcp-java-dev-tools]
+command = "java"
+args = ["-jar", "C:\\absolute\\path\\to\\mcp-java-dev-tools-server-0.1.9.jar"]
+```
+
+Keep the JAR beside its generated `sidecar/` directory. The server reserves
+stdout for MCP JSON-RPC and writes diagnostics to stderr.
 
 #### Java Agent Setup
 
@@ -252,32 +237,18 @@ Default is `3`. Increase this if you need deeper capture history for a single pr
 
 ### MCP Server Environment Variables
 
-#### Required
+No environment variable is required for the packaged Java server. The adjacent
+`sidecar/` directory supplies the lifecycle helper and Sidecar Agent by default.
 
-| Variable             | Purpose                                                                        |
-| -------------------- | ------------------------------------------------------------------------------ |
-| `MCP_JAVA_AGENT_JAR` | Absolute path to the built Java agent jar used for probe-wired runtime startup |
-
-#### Optional
-
-| Variable                                      | Default    | Notes                                                                                                                                      |
-| --------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR`       | â€”        | Optional single-jar override. A missing path falls back to packaged or repository-built Request Mapper artifacts.                          |
-| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH` | â€”        | Optional classpath override for a Request Mapper and external adapters. Missing paths fall back to packaged or repository-built artifacts. |
-| `MCP_JAVA_BIN`                                | â€”        |                                                                                                                                            |
-| `MCP_JAVA_ATTACH_HELPER_JAR`                  | â€”        | Optional absolute path to the packaged Java 21 lifecycle helper; the MCP Tool otherwise resolves the repository-built helper artifact.     |
-| `MCP_JVM_LIFECYCLE_ALLOWED_PROBE_HOSTS`       | â€”        | Comma-separated non-loopback Probe hosts allowed for dynamic attach. Loopback is always allowed.                                           |
-| `MCP_PROBE_LINE_SELECTION_MAX_SCAN_LINES`     | `120`      | Range: 10â€“2000                                                                                                                           |
-| `MCP_PROBE_WAIT_MAX_RETRIES`                  | `1`        | Max: 10                                                                                                                                    |
-| `MCP_PROBE_WAIT_UNREACHABLE_RETRY_ENABLED`    | `false`    |                                                                                                                                            |
-| `MCP_PROBE_WAIT_UNREACHABLE_MAX_RETRIES`      | `3`        | Max: 10                                                                                                                                    |
-| `MCP_PROBE_INCLUDE_EXECUTION_PATHS`           | `false`    | Set `true` to include `executionPaths` arrays in probe payloads                                                                            |
-| `MCP_STDIO_MAX_BUFFER_SIZE`                   | `33554432` | Maximum newline-delimited MCP JSON-RPC frame size in bytes. Range: 1048576–67108864.                                                       |
-
-`MCP_STDIO_MAX_BUFFER_SIZE` controls the MCP stdio input frame limit used by the
-TypeScript compatibility server. It is bounded to protect the process from
-unbounded input; increasing it does not override HTTP target or proxy header-size
-limits.
+| Variable                                | Default | Notes |
+| --------------------------------------- | ------- | ----- |
+| `MCP_WORKSPACE_ROOT`                    | host roots / current directory | Explicit workspace used for `.mcpjvm` state discovery |
+| `MCP_JAVA_BIN`                          | `java`  | Java executable used by lifecycle operations |
+| `MCP_JAVA_ATTACH_HELPER_JAR`            | packaged helper | Optional lifecycle-helper override |
+| `MCP_JAVA_AGENT_JAR`                    | packaged agent | Optional Sidecar Agent override |
+| `MCP_JVM_LIFECYCLE_ALLOWED_PROBE_HOSTS` | loopback only | Comma-separated additional Probe hosts allowed for dynamic attach |
+| `MCP_SYNTHESIZER_PLUGIN_MODULES`        | none | External Route Synthesis modules, when explicitly configured |
+| `MCP_JAVA_DEV_TOOLS_JMETER_HOME`        | `PATH` lookup | Optional Apache JMeter home for performance plans |
 
 ### Configuration Scope Matrix
 
@@ -285,7 +256,7 @@ limits.
 | ---------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
 | `.mcpjvm/probe-config.json`                                                              | MCP server  | Canonical multi-probe routing with workspaces/profiles/probes           |
 | `include` / `exclude` in `-javaagent:...` (or `mcp.probe.include` / `MCP_PROBE_INCLUDE`) | Java agent  | Which classes are instrumented at runtime                               |
-| `MCP_PROBE_INCLUDE_EXECUTION_PATHS`                                                      | MCP server  | Whether `executionPaths` arrays are included in returned probe payloads |
+| Java MCP server configuration                                                           | MCP client  | Starts the packaged JAR over STDIO with exactly three public CDE tools   |
 
 #### Probe Endpoints
 
@@ -328,19 +299,18 @@ Start there before opening a large pull request or changing public tool contract
 
 ## MCP Tools
 
-| Tool                       |                                                                 |
-| -------------------------- | --------------------------------------------------------------- |
-| `debug_check`              |                                                                 |
-| `artifact_management`      |                                                                 |
-| `probe`                    |                                                                 |
-| `route_synthesis`          |                                                                 |
-| `failure_analysis`         | Failure Lens trace analysis and runtime reproduction comparison |
-| `execution_profile_export` | Deterministic PowerShell, shell, Postman, and performance replay export |
-| `execution_orchestration`  |                                                                 |
-| `jvm_lifecycle`            | Local JVM discovery and Sidecar Agent lifecycle operations      |
+The Java STDIO server exposes exactly three public tools. All product
+capabilities are operations behind this single Catalog-Describe-Execute surface.
+
+| Tool                 | Purpose |
+| -------------------- | ------- |
+| `operation_catalog`  | Discover canonical operation IDs and classifications |
+| `operation_describe` | Read the Java-owned schema, documentation, and safety policy for one operation |
+| `operation_execute`  | Validate and execute one canonical operation through its substantive owner |
 
 Probe config Artifact runtime behavior:
 
 - Registry config is loaded from discovered workspace `.mcpjvm/probe-config.json`.
 - File edits are auto-reloaded with debounce.
-- `artifact_management` with `artifactType=probe_config` and `action=reload` remains available as deterministic manual refresh/fallback.
+- `operation_execute` with `operationId=artifact_management.probe_config.reload`
+  remains available as the deterministic manual refresh/fallback.

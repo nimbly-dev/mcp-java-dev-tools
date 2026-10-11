@@ -18,6 +18,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.per
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionSuiteStateStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.correlation.RegressionCrossPlanCorrelation;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import java.util.ArrayList;
@@ -38,6 +39,9 @@ import java.security.NoSuchAlgorithmException;
 public final class ExecuteExecutionOrchestrationAction implements ExecutionOrchestrationActionHandler {
 
     private static final Pattern RUN_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,127}");
+    private static final Pattern CORRELATION_CONTEXT_KEY = Pattern.compile(
+            "suite\\.correlation\\.(?:last|[A-Za-z0-9_.-]+)"
+                    + "\\.(?:keyValue|keyType|correlationSessionId|sourcePlanName)");
     private static final Set<String> PROMOTABLE_CONTEXT_KEYS = Set.of(
             "traceid", "requestid", "messageid", "correlationid", "tenantid", "resourceid", "runlabel",
             "environmentname", "runtimecontextname");
@@ -51,6 +55,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
     private final ExecutionRunLease lease;
     private final ExecutionSuiteStateStore suiteState;
     private final ExecutionRuntimeLifecycle runtimeLifecycle;
+    private final RegressionCrossPlanCorrelation crossPlanCorrelation = new RegressionCrossPlanCorrelation();
 
     /** Creates the action from intentional public Core Feature boundaries. */
     public ExecuteExecutionOrchestrationAction(
@@ -498,7 +503,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             return outcome(plan, "blocked", "plan_artifact_missing", Map.of("planName", planName));
         }
         String runId = runId(input, plan.path("order").asInt());
-        ObjectNode envelope = envelope(input, context, suiteType, planName, artifact);
+        ObjectNode envelope = envelope(input, context, suiteType, plan, planName, artifact);
         if ("performance".equals(suiteType) && !addRunDirectory(envelope, input, suiteType, planName, runId)) {
             return outcome(plan, "blocked", "execution_run_directory_unavailable", Map.of("runId", runId));
         }
@@ -535,6 +540,10 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
 
     private ObjectNode runPayload(Input input, Map<String, Object> outcome, String runId) {
         ObjectNode payload = mapper.valueToTree(outcome);
+        JsonNode correlation = payload.path("details").path("correlation");
+        if (correlation.isObject()) {
+            payload.set("correlation", correlation);
+        }
         payload.put("status", persistedStatus(outcome));
         payload.put("executionProfile", input.executionProfile());
         payload.put("suiteRunId", input.suiteRunIdOr(runId));
@@ -577,7 +586,8 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         };
     }
 
-    private ObjectNode envelope(Input input, ExecutionContext context, String suiteType, String planName, JsonNode artifact) {
+    private ObjectNode envelope(Input input, ExecutionContext context, String suiteType,
+            JsonNode plan, String planName, JsonNode artifact) {
         ObjectNode value = mapper.createObjectNode();
         value.put("projectName", input.projectName());
         value.put("executionProfile", input.executionProfile());
@@ -585,10 +595,20 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         value.set("metadata", artifact.path("metadata"));
         value.set("contract", artifact.path("contract"));
         value.set("suiteContext", mapper.valueToTree(context.suiteContext()));
+        ObjectNode providedContext = mapper.createObjectNode();
+        copyFields(context.profile().path("providedContext"), providedContext);
+        copyFields(plan.path("providedContext"), providedContext);
+        context.suiteContext().forEach((key, entry) -> providedContext.set(key, mapper.valueToTree(entry)));
+        if (!providedContext.isEmpty()) {
+            value.set("providedContext", providedContext);
+        }
         if (input.suiteRunId() != null) {
             value.put("suiteRunId", input.suiteRunId());
         }
-        if ("security".equals(suiteType)) {
+        boolean boundRuntimeContext = ("regression".equals(suiteType) || "performance".equals(suiteType))
+                && context.workspace().path("variables").path("contextBindings").isObject()
+                && !context.workspace().path("variables").path("contextBindings").isEmpty();
+        if ("security".equals(suiteType) || boundRuntimeContext) {
             value.set("credentialBindings", context.workspace().path("variables").path("contextBindings"));
             ObjectNode source = value.putObject("credentialSource");
             source.put("workspaceRoot", context.workspace().path("projectRoot").asText());
@@ -599,7 +619,13 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         return value;
     }
 
-    private static void promoteContext(Map<String, Object> suiteContext, JsonNode plan, Map<String, Object> outcome) {
+    private static void copyFields(JsonNode source, ObjectNode target) {
+        if (source.isObject()) {
+            source.fields().forEachRemaining(entry -> target.set(entry.getKey(), entry.getValue()));
+        }
+    }
+
+    private void promoteContext(Map<String, Object> suiteContext, JsonNode plan, Map<String, Object> outcome) {
         suiteContext.putAll(safeContext(plan.path("providedContext")));
         Object details = outcome.get("details");
         if (details instanceof Map<?, ?> map) {
@@ -608,6 +634,8 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
                 suiteContext.putAll(safeContext(values));
             }
         }
+        crossPlanCorrelation.promote(
+                suiteContext, plan.path("planName").asText(), outcome);
     }
 
     private static Map<String, Object> redactOutcomeContext(Map<String, Object> outcome) {
@@ -636,7 +664,8 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
 
     private static void addSafeContext(Map<String, Object> safe, String key, Object value) {
         String normalized = key.toLowerCase(java.util.Locale.ROOT);
-        if (PROMOTABLE_CONTEXT_KEYS.contains(normalized) && safeValue(value)) {
+        if ((PROMOTABLE_CONTEXT_KEYS.contains(normalized) || CORRELATION_CONTEXT_KEY.matcher(key).matches())
+                && safeValue(value)) {
             safe.put(key, value);
         }
     }
@@ -712,9 +741,11 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         return Map.copyOf(output);
     }
 
-    private static ExecutionOrchestrationResult completed(
+    private ExecutionOrchestrationResult completed(
             Input input, JsonNode profile, List<Map<String, Object>> outcomes, boolean partial) {
-        boolean aggregateFailure = outcomes.stream().anyMatch(ExecuteExecutionOrchestrationAction::suiteFailed);
+        List<Map<String, Object>> correlations = crossPlanCorrelation.summarize(outcomes);
+        boolean aggregateFailure = outcomes.stream().anyMatch(ExecuteExecutionOrchestrationAction::suiteFailed)
+                || crossPlanCorrelation.failed(correlations);
         String status = resultStatus(partial, aggregateFailure);
         String code = resultCode(partial, aggregateFailure);
         String next = partial ? "resume with suiteRunId to execute remaining plans" : null;
@@ -728,6 +759,9 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         details.put("progressSummary", progress);
         details.put("progress", progress);
         details.put("planRuns", outcomes);
+        if (!correlations.isEmpty()) {
+            details.put("correlations", correlations);
+        }
         if (partial && !outcomes.isEmpty()) {
             details.put("nextPlanOrder", ((Number) outcomes.getLast().get("order")).intValue() + 1);
         }

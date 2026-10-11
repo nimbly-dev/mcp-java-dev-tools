@@ -82,6 +82,9 @@ public final class AttachAction implements JvmLifecycleActionHandler {
                 "--confirm", "true"));
         List<String> agentArguments = new ArrayList<>(List.of(
                 "host=" + input.probeHost(), "port=" + input.probePort()));
+        if (input.probeId() != null) {
+            agentArguments.add("probeId=" + input.probeId());
+        }
         if (input.include() != null) {
             agentArguments.add("include=" + input.include());
         }

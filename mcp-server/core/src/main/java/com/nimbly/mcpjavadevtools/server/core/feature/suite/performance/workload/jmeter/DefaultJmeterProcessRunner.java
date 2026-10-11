@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /** Process-backed JMeter runner with a hard execution timeout. */
@@ -13,8 +14,21 @@ public final class DefaultJmeterProcessRunner implements JmeterProcessRunner {
     @Override
     public int run(String executable, Path runDirectory, Path jmxPath, Path jtlPath, Path logPath, Duration timeout)
             throws IOException, InterruptedException {
-        ProcessBuilder process = new ProcessBuilder(command(executable, jmxPath, jtlPath, logPath));
+        return start(command(executable, jmxPath, jtlPath, logPath), runDirectory, logPath, timeout, Map.of());
+    }
+
+    @Override
+    public int run(JmeterWorkloadRequest request, Path jmxPath, Path jtlPath, Path logPath, Duration timeout)
+            throws IOException, InterruptedException {
+        List<String> command = command(request.executable(), jmxPath, jtlPath, logPath);
+        return start(command, request.runDirectory(), logPath, timeout, request.environment());
+    }
+
+    private static int start(List<String> command, Path runDirectory, Path logPath, Duration timeout,
+            Map<String, String> environment) throws IOException, InterruptedException {
+        ProcessBuilder process = new ProcessBuilder(command);
         process.directory(runDirectory.toFile());
+        process.environment().putAll(environment);
         process.redirectErrorStream(true);
         process.redirectOutput(logPath.toFile());
         Process started = process.start();

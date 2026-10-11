@@ -12,8 +12,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperation
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationRequestDecoder;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenanceKind;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationJsonSize;
 
@@ -81,11 +79,6 @@ public class OperationManifestAssembler {
             throw new IllegalArgumentException("missing operation documentation: " + id.value());
         }
         OperationDescriptor descriptor = registration.descriptor();
-        if (documentation.safety() != null
-                && !registration.safety().sideEffect().equals(documentation.safety().sideEffect())) {
-            throw new IllegalArgumentException("manifest safety side effect mismatch: " + id.value());
-        }
-        validateAliases(descriptor, documentation.aliases(), registration.provenance());
         OperationSchema inputSchema = registration.inputSchema();
         OperationSchema resultSchema = registration.resultSchema();
         if (!migrationCompatibilityMode) {
@@ -93,8 +86,8 @@ public class OperationManifestAssembler {
         }
         OperationCancellationSupport.validate(
                 registration.executor(), registration.safety(), migrationCompatibilityMode);
-        OperationDocumentation effectiveDocumentation = documentation.withSafety(registration.safety());
-        validateArguments(id, documentation.arguments(), inputSchema);
+        OperationDocumentation effectiveDocumentation = documentation.withExecutableMetadata(
+                executableArguments(id, documentation.arguments(), inputSchema), registration.safety());
         for (JsonNode example : effectiveDocumentation.examples()) {
             if (OperationJsonSize.measure(example, registration.safety().maxInputBytes()) < 0) {
                 throw new IllegalArgumentException("manifest example exceeds input limit: " + id.value());
@@ -127,12 +120,13 @@ public class OperationManifestAssembler {
         }
     }
 
-    public static void validateArguments(
+    public static List<OperationArgumentDocumentation> executableArguments(
             OperationId id,
             List<OperationArgumentDocumentation> arguments,
             OperationSchema schema) {
         JsonNode definition = schema.definition();
         JsonNode properties = definition.get("properties");
+        List<OperationArgumentDocumentation> executable = new ArrayList<>();
         for (OperationArgumentDocumentation argument : arguments) {
             JsonNode property = properties == null ? null : properties.get(argument.name());
             if (property == null) {
@@ -146,23 +140,8 @@ public class OperationManifestAssembler {
                     break;
                 }
             }
-            if (argument.required() != schemaRequired) {
-                throw new IllegalArgumentException("manifest argument requiredness mismatch: "
-                        + id.value() + "." + argument.name());
-            }
-            if (!typeMatches(argument.type(), property, definition)) {
-                throw new IllegalArgumentException("manifest argument type mismatch: "
-                        + id.value() + "." + argument.name());
-            }
-            if (argument.defaultValue() != null) {
-                List<String> violations = OperationSchemaValidator.violations(
-                        property, definition, argument.defaultValue());
-                if (!violations.isEmpty()) {
-                    throw new IllegalArgumentException("manifest argument default is invalid: "
-                            + id.value() + "." + argument.name());
-                }
-            }
-            validateDefault(id, argument, property);
+            executable.add(argument.withSchema(
+                    schemaType(property, definition), schemaRequired, property.get("default")));
         }
         if (properties != null) {
             for (var names = properties.fieldNames(); names.hasNext();) {
@@ -173,75 +152,35 @@ public class OperationManifestAssembler {
                 }
             }
         }
+        return List.copyOf(executable);
     }
 
-    static void validateDefault(
-            OperationId id, OperationArgumentDocumentation argument, JsonNode property) {
-        JsonNode schemaDefault = property.get("default");
-        JsonNode documentedDefault = argument.defaultValue();
-        if (schemaDefault == null && documentedDefault != null) {
-            throw new IllegalArgumentException("manifest argument default is not Java-owned: "
-                    + id.value() + "." + argument.name());
-        }
-        if (schemaDefault != null && (documentedDefault == null
-                || !schemaDefault.equals(documentedDefault))) {
-            throw new IllegalArgumentException("manifest argument default mismatch: "
-                    + id.value() + "." + argument.name());
-        }
-    }
-
-    static boolean typeMatches(String documented, JsonNode schema, JsonNode root) {
-        String normalized = documented.toLowerCase(java.util.Locale.ROOT);
+    static String schemaType(JsonNode schema, JsonNode root) {
         JsonNode reference = schema.get("$ref");
         if (reference != null) {
             JsonNode target = root.path("$defs").get(reference.asText().substring("#/$defs/".length()));
-            return target != null && typeMatches(normalized, target, root);
+            if (target == null) {
+                throw new IllegalArgumentException("operation schema reference is unresolved: " + reference.asText());
+            }
+            return schemaType(target, root);
         }
-        if (typeMatches(normalized, schema.path("type").asText(""))) {
-            return true;
+        String type = schema.path("type").asText("");
+        if (!type.isBlank()) {
+            return type;
         }
         JsonNode alternatives = schema.get("oneOf");
         if (alternatives != null && alternatives.isArray()) {
+            java.util.Set<String> types = new java.util.LinkedHashSet<>();
             for (JsonNode alternative : alternatives) {
-                if (typeMatches(normalized, alternative, root)) {
-                    return true;
+                String alternativeType = schemaType(alternative, root);
+                if (!"null".equals(alternativeType)) {
+                    types.add(alternativeType);
                 }
             }
-        }
-        return false;
-    }
-
-    static boolean typeMatches(String documented, String generated) {
-        String normalized = documented.toLowerCase(java.util.Locale.ROOT);
-        return generated.equals(normalized)
-                || ("int".equals(normalized) && "integer".equals(generated))
-                || ("long".equals(normalized) && "integer".equals(generated))
-                || ("float".equals(normalized) && "number".equals(generated))
-                || ("double".equals(normalized) && "number".equals(generated));
-    }
-
-    static void validateAliases(
-            OperationDescriptor descriptor,
-            List<OperationAlias> aliases,
-            OperationProvenance provenance) {
-        if (provenance.kind() == OperationProvenanceKind.NEW_DIRECT_CDE_OPERATION) {
-            if (!aliases.isEmpty()) {
-                throw new IllegalArgumentException("direct CDE operation must not declare a released alias: "
-                        + descriptor.operationId().value());
-            }
-            return;
-        }
-        if (aliases.isEmpty()) {
-            throw new IllegalArgumentException("released inventory alias is missing: "
-                    + descriptor.operationId().value());
-        }
-        for (OperationAlias alias : aliases) {
-            if (!provenance.invocationTool().equals(alias.toolName())
-                    || !provenance.invocationAction().equals(alias.action())
-                    || provenance.actionless() != alias.actionless()) {
-                throw new IllegalArgumentException("released inventory alias mismatch: "
-                        + descriptor.operationId().value());
+            if (types.size() == 1) {
+                return types.iterator().next();
             }
         }
+        throw new IllegalArgumentException("operation schema type is unresolved");
     }
 }

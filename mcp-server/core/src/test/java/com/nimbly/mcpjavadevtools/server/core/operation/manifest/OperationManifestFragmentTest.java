@@ -377,10 +377,6 @@ class OperationManifestFragmentTest {
         assertThatThrownBy(() -> loadCapability(arguments(129)))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        assertThat(loadCapability(aliases(16)).operations()).hasSize(1);
-        assertThatThrownBy(() -> loadCapability(aliases(17)))
-                .isInstanceOf(IllegalArgumentException.class);
-
         assertThat(loadCapability(repeatedExamples(16)).operations()).hasSize(1);
         assertThatThrownBy(() -> loadCapability(repeatedExamples(17)))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -512,17 +508,9 @@ class OperationManifestFragmentTest {
         StringBuilder arguments = new StringBuilder("<arguments>");
         for (int index = 0; index < count; index++) {
             arguments.append("<argument name=\"arg").append(index)
-                    .append("\" description=\"description\" type=\"string\" required=\"false\"/>");
+                    .append("\" description=\"description\"/>");
         }
         return arguments.append("</arguments>").toString();
-    }
-
-    private static String aliases(int count) {
-        StringBuilder aliases = new StringBuilder("<aliases>");
-        for (int index = 0; index < count; index++) {
-            aliases.append("<alias tool=\"probe\" action=\"alias").append(index).append("\"/>");
-        }
-        return aliases.append("</aliases>").toString();
     }
 
     private static String examples(String... values) {

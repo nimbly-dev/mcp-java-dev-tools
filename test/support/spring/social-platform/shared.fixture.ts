@@ -5,9 +5,6 @@ import { spawn, type ChildProcess } from "node:child_process";
 import * as net from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-
 function resolveRepoRoot(startDirAbs: string): string {
   let currentDirAbs = path.resolve(startDirAbs);
 
@@ -92,7 +89,6 @@ export const coreEntrypointMapperTargetDirAbs = path.join(
   "core-entrypoint-mapper",
   "target",
 );
-export const mcpServerEntryAbs = path.join(repoRootAbs, "dist", "server.js");
 export const postControllerFqcn = "com.example.social.post.app.controller.PostController";
 export const postControllerSourceFileAbs = path.join(
   postAppProjectRootAbs,
@@ -239,12 +235,6 @@ type RunningApp = {
   probeBaseUrl: string;
   pid: number;
   stop: () => Promise<void>;
-  logs: () => string;
-};
-
-type RunningMcpClient = {
-  client: InstanceType<typeof Client>;
-  close: () => Promise<void>;
   logs: () => string;
 };
 
@@ -437,54 +427,6 @@ async function forceStop(child: ChildProcess): Promise<void> {
       // Ignore forced kill errors during cleanup.
     }
   }
-}
-
-async function createTempProbeRegistryConfig(args: {
-  workspaceRootAbs: string;
-  probeBaseUrl: string;
-}): Promise<{ fileAbs: string; previousContents?: string }> {
-  const dirAbs = path.join(args.workspaceRootAbs, ".mcpjvm");
-  await fs.mkdir(dirAbs, { recursive: true });
-  const fileAbs = path.join(dirAbs, "probe-config.json");
-  let previousContents: string | undefined;
-  try {
-    previousContents = await fs.readFile(fileAbs, "utf8");
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-  }
-  const registry = {
-    defaultProfile: "dev",
-    profiles: {
-      dev: {
-        probes: {
-          "post-app": {
-            baseUrl: args.probeBaseUrl,
-            include: ["com.example.social.**"],
-            exclude: ["**.config.**"],
-          },
-        },
-      },
-    },
-    workspaces: [
-      {
-        root: args.workspaceRootAbs,
-        profile: "dev",
-      },
-    ],
-  };
-  await fs.writeFile(fileAbs, `${JSON.stringify(registry, null, 2)}\n`, "utf8");
-  return previousContents === undefined ? { fileAbs } : { fileAbs, previousContents };
-}
-
-async function cleanupTempProbeRegistryConfig(config: {
-  fileAbs: string;
-  previousContents?: string;
-}): Promise<void> {
-  if (config.previousContents === undefined) {
-    await fs.rm(config.fileAbs, { force: true });
-    return;
-  }
-  await fs.writeFile(config.fileAbs, config.previousContents, "utf8");
 }
 
 export async function findLineNumberBySnippet(fileAbs: string, snippet: string): Promise<number> {
@@ -797,60 +739,6 @@ export async function startEventConsumerAppWithAgent(args?: {
     ...(typeof args?.agentExclude === "string" ? { agentExclude: args.agentExclude } : {}),
     ...(extraJavaArgs.length > 0 ? { extraJavaArgs } : {}),
   });
-}
-
-export async function startMcpClient(args: {
-  workspaceRootAbs: string;
-  probeBaseUrl: string;
-  extraEnv?: Record<string, string>;
-}): Promise<RunningMcpClient> {
-  await assertFileExists(mcpServerEntryAbs, "mcp server dist entry");
-
-  const logBuffer: string[] = [];
-  const explicitProbeConfigFile = args.extraEnv?.MCP_PROBE_CONFIG_FILE;
-  const tempProbeConfig =
-    typeof explicitProbeConfigFile === "string" && explicitProbeConfigFile.trim().length > 0
-      ? undefined
-      : await createTempProbeRegistryConfig({
-          workspaceRootAbs: args.workspaceRootAbs,
-          probeBaseUrl: args.probeBaseUrl,
-        });
-  const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [mcpServerEntryAbs],
-    cwd: repoRootAbs,
-    env: {
-      MCP_WORKSPACE_ROOT: args.workspaceRootAbs,
-      ...(tempProbeConfig ? { MCP_PROBE_CONFIG_FILE: tempProbeConfig.fileAbs } : {}),
-      ...(args.extraEnv ?? {}),
-    },
-    stderr: "pipe",
-  });
-
-  transport.stderr?.on("data", (chunk) => appendLog(logBuffer, chunk));
-
-  const client = new Client({
-    name: "mcp-java-dev-tools-it",
-    version: "it",
-  });
-
-  try {
-    await client.connect(transport);
-  } catch (error) {
-    await transport.close().catch(() => undefined);
-    if (tempProbeConfig)
-      await cleanupTempProbeRegistryConfig(tempProbeConfig).catch(() => undefined);
-    throw new Error(`Failed to start MCP client.\n${logBuffer.join("\n")}\n${String(error)}`);
-  }
-
-  return {
-    client,
-    close: async () => {
-      await transport.close();
-      if (tempProbeConfig) await cleanupTempProbeRegistryConfig(tempProbeConfig);
-    },
-    logs: () => logBuffer.join(""),
-  };
 }
 
 export async function resolveCoreEntrypointMapperJar(): Promise<string> {

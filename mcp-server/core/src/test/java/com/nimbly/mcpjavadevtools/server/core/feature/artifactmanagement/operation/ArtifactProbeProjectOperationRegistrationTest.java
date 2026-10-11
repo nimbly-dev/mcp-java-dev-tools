@@ -28,7 +28,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.OperationExecutionResult
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationInvocation;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestAssembler;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
@@ -80,13 +79,12 @@ class ArtifactProbeProjectOperationRegistrationTest {
                 () -> java.util.Optional.of(workspace), new ArtifactJsonStore(mapper),
                 new SqliteRunStateStore(), mapper);
         ProbeConfigOperations probe = new ProbeConfigOperations(support, registrySource);
-        ArtifactOperationCatalog catalog = new ArtifactOperationCatalog(
-                probe, new ProjectContextOperations(support), new PlanOperations(support),
-                new RunResultOperations(support), new ExecutionExportOperations(support),
-                new OperationExposure(ArtifactOperationCatalog.TOOL_NAME, "mcpjvm-617",
-                        Arrays.stream(ArtifactManagementAction.values())
-                                .map(ArtifactManagementAction::routeId).toList()));
-        List<OperationRegistration<?, ?>> owned = ArtifactOperationRegistrations.create(catalog, mapper)
+        ProjectContextOperations project = new ProjectContextOperations(support);
+        PlanOperations plans = new PlanOperations(support);
+        RunResultOperations runs = new RunResultOperations(support);
+        ExecutionExportOperations exports = new ExecutionExportOperations(support);
+        List<OperationRegistration<?, ?>> owned = ArtifactOperationRegistrations.create(
+                        probe, project, plans, runs, exports, mapper)
                 .stream().filter(this::owned).toList();
         registrations = owned.stream().collect(java.util.stream.Collectors.toMap(
                 registration -> registration.descriptor().operationId().value(),
@@ -110,17 +108,8 @@ class ArtifactProbeProjectOperationRegistrationTest {
                 .startsWith(action.artifactType().value().equals("probe_config")
                         ? ProbeConfigOperations.class.getName()
                         : ProjectContextOperations.class.getName());
-        assertThat(registration.provenance().invocationTool()).isEqualTo("artifact_management");
-        assertThat(registration.provenance().invocationAction()).isEqualTo(action.routeId());
-        assertThat(registration.provenance().discriminators())
-                .containsEntry("artifactType", action.artifactType().value())
-                .containsEntry("action", action.action().value());
-        String scenario = "artifact_management_" + action.artifactType().value()
-                + "_" + action.action().value();
-        assertThat(registration.provenance().normalization()).contains(scenario);
-        assertThat(registration.provenance().resultComparison()).contains(scenario)
-                .contains("persisted_artifacts");
-        assertThat(registration.provenance().parityScenario()).isEqualTo(scenario);
+        assertThat(registration.descriptor().toolName()).isEqualTo("artifact_management");
+        assertThat(registration.descriptor().action()).isEqualTo(action.routeId());
         assertThat(registration.inputSchema().definition().path("properties").has("artifactType"))
                 .isFalse();
         assertThat(registration.inputSchema().definition().path("properties").has("action"))
@@ -141,11 +130,8 @@ class ArtifactProbeProjectOperationRegistrationTest {
         assertThat(directory.traceInventory())
                 .extracting(entry -> entry.operationId())
                 .containsExactlyInAnyOrderElementsOf(expectedIds);
-        assertThat(directory.traceInventory()).allSatisfy(entry -> {
-            assertThat(entry.compatibility()).containsKeys(
-                    "normalization", "resultComparison", "parityScenario");
-            assertThat(entry.executableOwner()).isNotBlank();
-        });
+        assertThat(directory.traceInventory()).allSatisfy(entry ->
+                assertThat(entry.executableOwner()).isNotBlank());
 
         Path evidence = Path.of("target", "mcpjvm-617-evidence");
         Files.createDirectories(evidence);
@@ -636,18 +622,17 @@ class ArtifactProbeProjectOperationRegistrationTest {
         ProbeConfigOperations probe = new ProbeConfigOperations(support,
                 () -> new ProbeRegistry(List.of(new ProbeRegistration(
                         "local", "http://127.0.0.1:9191"))));
-        ArtifactOperationCatalog catalog = new ArtifactOperationCatalog(
-                probe, new ProjectContextOperations(support), new PlanOperations(support),
-                new RunResultOperations(support), new ExecutionExportOperations(support),
-                new OperationExposure(ArtifactOperationCatalog.TOOL_NAME, "mcpjvm-617-parity",
-                        Arrays.stream(ArtifactManagementAction.values())
-                                .map(ArtifactManagementAction::routeId).toList()));
-        List<OperationRegistration<?, ?>> all = ArtifactOperationRegistrations.create(catalog, mapper)
+        ProjectContextOperations project = new ProjectContextOperations(support);
+        PlanOperations plans = new PlanOperations(support);
+        RunResultOperations runs = new RunResultOperations(support);
+        ExecutionExportOperations exports = new ExecutionExportOperations(support);
+        List<OperationRegistration<?, ?>> all = ArtifactOperationRegistrations.create(
+                        probe, project, plans, runs, exports, mapper)
                 .stream().filter(this::owned).toList();
         OperationManifestDocument manifest = ownedDocument();
         OperationManifestAssembler.assembleStrict(all, manifest);
         return new Harness(new OperationDirectory(all, manifest, mapper),
-                new DefaultArtifactManagementFeature(catalog));
+                new DefaultArtifactManagementFeature(probe, project, plans, runs, exports));
     }
 
     private void seed(ArtifactManagementAction action, Path root) {

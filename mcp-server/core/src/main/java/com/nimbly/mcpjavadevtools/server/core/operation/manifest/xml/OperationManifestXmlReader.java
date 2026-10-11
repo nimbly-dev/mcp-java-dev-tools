@@ -3,11 +3,9 @@ package com.nimbly.mcpjavadevtools.server.core.operation.manifest.xml;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
-import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationAlias;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationArgumentDocumentation;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDocumentation;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
-import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -51,7 +49,7 @@ public final class OperationManifestXmlReader {
         Map<OperationId, OperationDocumentation> operations = new LinkedHashMap<>();
         for (Element operation : children(root, "operation")) {
             OperationId id = OperationId.of(attribute(operation, "id", true));
-            if (operations.put(id, readOperation(operation, false)) != null) {
+            if (operations.put(id, readOperation(operation)) != null) {
                 throw new IllegalArgumentException("duplicate operation documentation: " + id.value());
             }
         }
@@ -75,14 +73,14 @@ public final class OperationManifestXmlReader {
             }
             OperationId id = OperationId.of(toolName + "."
                     + (subject == null ? "" : subject + ".") + actionName);
-            if (operations.put(id, readOperation(action, true)) != null) {
+            if (operations.put(id, readOperation(action)) != null) {
                 throw new IllegalArgumentException("duplicate operation documentation: " + id.value());
             }
         }
         return Collections.unmodifiableMap(new LinkedHashMap<>(operations));
     }
 
-    static OperationDocumentation readOperation(Element element, boolean schemaValidated) {
+    static OperationDocumentation readOperation(Element element) {
         String summary = attribute(element, "summary", false);
         String description = attribute(element, "description", false);
         String classification = attribute(element, "classification", false);
@@ -97,29 +95,18 @@ public final class OperationManifestXmlReader {
             }
         }
         return new OperationDocumentation(summary, description, classification,
-                readArguments(element, schemaValidated), readExamples(element), tagValues,
-                readAliases(element, schemaValidated),
-                readSafety(child(element, "safety", false), schemaValidated));
+                readArguments(element), readExamples(element), tagValues, null);
     }
 
-    static List<OperationArgumentDocumentation> readArguments(Element operation, boolean schemaValidated) {
+    static List<OperationArgumentDocumentation> readArguments(Element operation) {
         Element wrapper = child(operation, "arguments", false);
         if (wrapper == null) {
             return List.of();
         }
         List<OperationArgumentDocumentation> arguments = new ArrayList<>();
         for (Element element : children(wrapper, "argument")) {
-            Element defaultElement = child(element, "default", false);
-            JsonNode defaultValue = defaultElement == null ? null : json(text(defaultElement, null, true));
-            String required = attribute(element, "required", true);
-            if (!("true".equals(required) || "false".equals(required)
-                    || (schemaValidated && ("1".equals(required) || "0".equals(required))))) {
-                throw new IllegalArgumentException("manifest argument boolean attribute is invalid");
-            }
-            arguments.add(new OperationArgumentDocumentation(
-                    attribute(element, "name", true), attribute(element, "description", true),
-                    attribute(element, "type", true), "true".equals(required) || "1".equals(required),
-                    defaultValue));
+            arguments.add(OperationArgumentDocumentation.documented(
+                    attribute(element, "name", true), attribute(element, "description", true)));
         }
         return List.copyOf(arguments);
     }
@@ -134,46 +121,6 @@ public final class OperationManifestXmlReader {
             examples.add(json(text(element, null, true)));
         }
         return List.copyOf(examples);
-    }
-
-    static List<OperationAlias> readAliases(Element operation, boolean schemaValidated) {
-        Element wrapper = child(operation, "aliases", false);
-        if (wrapper == null) {
-            return List.of();
-        }
-        List<OperationAlias> aliases = new ArrayList<>();
-        for (Element element : children(wrapper, "alias")) {
-            String action = attribute(element, "action", false);
-            String actionless = attribute(element, "actionless", false);
-            if (actionless != null && !("true".equals(actionless) || "false".equals(actionless)
-                    || (schemaValidated && ("1".equals(actionless) || "0".equals(actionless))))) {
-                throw new IllegalArgumentException("manifest boolean attribute is invalid");
-            }
-            aliases.add(new OperationAlias(attribute(element, "tool", true), action == null ? "" : action,
-                    actionless != null && ("true".equals(actionless) || "1".equals(actionless))));
-        }
-        return List.copyOf(aliases);
-    }
-
-    static OperationSafetyPolicy readSafety(Element element, boolean schemaValidated) {
-        if (element == null) {
-            return null;
-        }
-        String confirmation = attribute(element, "confirmationRequired", true);
-        String cancellable = attribute(element, "cancellable", true);
-        if (!(("true".equals(confirmation) || "false".equals(confirmation)
-                || (schemaValidated && ("1".equals(confirmation) || "0".equals(confirmation))))
-                && ("true".equals(cancellable) || "false".equals(cancellable)
-                || (schemaValidated && ("1".equals(cancellable) || "0".equals(cancellable)))))) {
-            throw new IllegalArgumentException("manifest safety boolean attribute is invalid");
-        }
-        return new OperationSafetyPolicy(attribute(element, "sideEffect", true),
-                "true".equals(confirmation) || "1".equals(confirmation),
-                attribute(element, "credentialPolicy", true), attribute(element, "redactionPolicy", true),
-                Long.parseLong(attribute(element, "timeoutMs", true)),
-                "true".equals(cancellable) || "1".equals(cancellable),
-                Integer.parseInt(attribute(element, "maxInputBytes", true)),
-                Integer.parseInt(attribute(element, "maxOutputBytes", true)));
     }
 
     static List<Element> children(Element parent, String name) {

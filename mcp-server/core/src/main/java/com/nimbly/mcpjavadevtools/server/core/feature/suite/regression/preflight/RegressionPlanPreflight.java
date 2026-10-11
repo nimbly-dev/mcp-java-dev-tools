@@ -19,7 +19,11 @@ public final class RegressionPlanPreflight {
     private static final Pattern STEP_PATH_PATTERN = Pattern.compile(
             "step\\[(\\d+)]\\.([A-Za-z_][A-Za-z0-9_-]*(\\[\\d+])*(\\.[A-Za-z_][A-Za-z0-9_-]*(\\[\\d+])*)*)");
     private static final Set<String> EXPECTATION_OPERATORS = Set.of(
-            "field_equals", "field_exists", "field_matches_regex", "numeric_gte", "numeric_lte", "contains");
+            "field_equals", "field_exists", "field_matches_regex", "numeric_gte", "numeric_lte", "contains",
+            "probe_line_hit", "outcome_status");
+    private static final Set<String> VERIFICATION_EXPECTATION_OPERATORS = Set.of(
+            "field_equals", "field_exists", "field_matches_regex", "numeric_gte", "numeric_lte", "contains",
+            "outcome_status");
     private static final Set<String> CONDITION_OPERATORS = Set.of("equals", "not_equals", "in", "exists");
 
     /** Validates a metadata/contract plan envelope without persisting supplied context. */
@@ -245,24 +249,192 @@ public final class RegressionPlanPreflight {
             return blocked("probe_verification_configuration_invalid",
                     "set metadata.execution.probeVerification to true or false");
         }
-        if (probe.asBoolean()) {
-            return RegressionSuiteResult.blockedRuntime("probe_verification_unavailable", "probe");
+        if (hasProbeExpectation(contract.path("steps")) && !probe.asBoolean(false)) {
+            return blocked("probe_verification_configuration_invalid",
+                    "enable metadata.execution.probeVerification for probe_line_hit expectations");
         }
-        if (configuredPhase(contract.path("watchers"))) {
-            return RegressionSuiteResult.blockedRuntime("watcher_verification_unavailable", "watchers");
+        RegressionSuiteResult watcherResult = validateWatchers(contract.path("watchers"));
+        if (watcherResult != null) {
+            return watcherResult;
         }
-        if (configuredPhase(contract.path("externalVerification"))) {
-            return RegressionSuiteResult.blockedRuntime("external_verification_unavailable", "external_verification");
+        RegressionSuiteResult externalResult = validateExternalVerification(contract.path("externalVerification"));
+        if (externalResult != null) {
+            return externalResult;
         }
         JsonNode correlation = contract.path("correlation");
         if (configuredCorrelation(correlation)) {
-            return RegressionSuiteResult.blockedRuntime("correlation_verification_unavailable", "correlation");
+            return validateCorrelation(correlation);
         }
         return null;
     }
 
-    private boolean configuredPhase(JsonNode phase) {
-        return !phase.isMissingNode() && (!phase.isArray() || !phase.isEmpty());
+    private boolean hasProbeExpectation(JsonNode steps) {
+        for (JsonNode step : steps) {
+            for (JsonNode expectation : step.path("expect")) {
+                if ("probe_line_hit".equals(expectation.path("operator").asText())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private RegressionSuiteResult validateWatchers(JsonNode watchers) {
+        if (watchers.isMissingNode()) {
+            return null;
+        }
+        if (!watchers.isArray()) {
+            return blocked("watcher_configuration_invalid", "provide watchers as an array");
+        }
+        for (JsonNode watcher : watchers) {
+            if (watcher.path("id").asText().isBlank()
+                    || watcher.path("dependency").path("stepOrder").asInt(0) < 1
+                    || !"http".equals(watcher.path("provider").path("type").asText())
+                    || !watcher.path("provider").path("transport").path("request").isObject()) {
+                return blocked("watcher_configuration_invalid",
+                        "provide an id, completed-step dependency, and HTTP provider request");
+            }
+            RegressionSuiteResult expectations = validateVerificationExpectations(
+                    watcher.path("expect"), "watcher_expectation_invalid");
+            if (expectations != null) {
+                return expectations;
+            }
+        }
+        return null;
+    }
+
+    private RegressionSuiteResult validateExternalVerification(JsonNode verifications) {
+        if (verifications.isMissingNode()) {
+            return null;
+        }
+        if (!verifications.isArray()) {
+            return blocked("external_verification_configuration_invalid",
+                    "provide externalVerification as an array");
+        }
+        for (JsonNode verification : verifications) {
+            if (verification.path("id").asText().isBlank()) {
+                return blocked("external_verification_id_invalid", "provide a stable verification id");
+            }
+            String provider = verification.path("provider").path("type").asText();
+            JsonNode request = verification.path("request").path(provider);
+            if (!("http".equals(provider) || "sql".equals(provider)) || !request.isObject()) {
+                return blocked("external_verification_request_invalid",
+                        "pair an HTTP or SQL provider with its matching request block");
+            }
+            if ("sql".equals(provider)
+                    && (request.path("connectionRef").asText().isBlank()
+                            || request.path("statement").asText().isBlank()
+                            || request.has("jdbcUrl") || request.has("username") || request.has("password"))) {
+                return blocked("external_verification_request_invalid",
+                        "use a connectionRef and parameterized SQL statement without inline connection details");
+            }
+            RegressionSuiteResult expectations = validateVerificationExpectations(
+                    verification.path("expect"), "external_verification_expectation_invalid");
+            if (expectations != null) {
+                return expectations;
+            }
+            RegressionSuiteResult extractions = validateExtractions(verification.path("extract"));
+            if (extractions != null) {
+                return blocked("external_verification_extract_invalid",
+                        "provide deterministic external verification extractions");
+            }
+        }
+        return null;
+    }
+
+    private RegressionSuiteResult validateVerificationExpectations(JsonNode expectations, String reasonCode) {
+        if (!expectations.isArray() || expectations.isEmpty()) {
+            return blocked(reasonCode, "provide deterministic verification expectations");
+        }
+        for (JsonNode expectation : expectations) {
+            String actualPath = expectation.path("actualPath").asText();
+            String operator = expectation.path("operator").asText();
+            if (expectation.path("id").asText().isBlank()
+                    || !isObjectPath(actualPath)
+                    || !VERIFICATION_EXPECTATION_OPERATORS.contains(operator)
+                    || (!"field_exists".equals(operator) && !expectation.has("expected"))) {
+                return blocked(reasonCode, "provide a deterministic object path and supported operator");
+            }
+        }
+        return null;
+    }
+
+    private RegressionSuiteResult validateCorrelation(JsonNode correlation) {
+        if (!correlation.isObject() || !correlation.path("enabled").isBoolean()) {
+            return blocked("correlation_configuration_invalid", "provide correlation.enabled as a boolean");
+        }
+        if (!correlation.path("enabled").asBoolean()) {
+            return null;
+        }
+        RegressionSuiteResult coreResult = validateCorrelationCore(correlation);
+        return coreResult == null ? validateCorrelationRuntime(correlation) : coreResult;
+    }
+
+    private RegressionSuiteResult validateCorrelationCore(JsonNode correlation) {
+        String sessionId = correlation.path("correlationSessionId").asText().trim();
+        JsonNode key = correlation.path("key");
+        String keyType = key.path("type").asText();
+        String explicitValue = key.path("value").asText().trim();
+        JsonNode source = key.path("source");
+        boolean responseSource = "json_path".equals(source.path("type").asText())
+                && isObjectPath(source.path("path").asText());
+        long maxWindowMs = correlation.path("window").path("maxWindowMs").asLong(0L);
+        if (sessionId.isEmpty()
+                || !("traceId".equals(keyType) || "requestId".equals(keyType) || "messageId".equals(keyType))
+                || explicitValue.isEmpty() && !responseSource
+                || maxWindowMs < 1L
+                || !nonEmptyStrings(correlation.path("probeIds"))
+                || !nonEmptyStrings(correlation.path("expectedFlow"))) {
+            return blocked("correlation_configuration_invalid",
+                    "provide a session, key, window, probeIds, and expectedFlow");
+        }
+        return null;
+    }
+
+    private RegressionSuiteResult validateCorrelationRuntime(JsonNode correlation) {
+        JsonNode runtime = correlation.path("runtimeEvidence");
+        if (!runtime.isMissingNode() && !runtime.isObject()) {
+            return blocked("correlation_runtime_configuration_invalid",
+                    "provide runtimeEvidence as an object");
+        }
+        if (runtime.path("required").asBoolean(false)
+                && (!runtime.path("eventKeyPath").asText().startsWith("$.")
+                        || !nonEmptyStrings(runtime.path("probeIds")))) {
+            return blocked("correlation_runtime_configuration_invalid",
+                    "provide runtime probeIds and a $. eventKeyPath");
+        }
+        JsonNode runtimeInstanceIds = runtime.path("runtimeInstanceIds");
+        if (!runtimeInstanceIds.isMissingNode()
+                && (!runtimeInstanceIds.isArray()
+                        || !runtimeInstanceIds.isEmpty() && !nonEmptyStrings(runtimeInstanceIds))) {
+            return blocked("correlation_runtime_configuration_invalid",
+                    "provide runtimeInstanceIds as an array of non-blank identifiers");
+        }
+        for (JsonNode boundary : correlation.path("consumerBoundaries")) {
+            JsonNode selector = boundary.path("selector");
+            if (boundary.path("id").asText().isBlank()
+                    || selector.path("fqcn").asText().isBlank()
+                    || selector.path("method").asText().isBlank()
+                    || !selector.path("parameterTypes").isArray()
+                    || !boundary.path("eventArgumentIndex").canConvertToInt()
+                    || boundary.path("eventArgumentIndex").asInt() < 0) {
+                return blocked("correlation_consumer_boundary_invalid",
+                        "provide an exact consumer selector and event argument index");
+            }
+        }
+        return null;
+    }
+
+    private boolean nonEmptyStrings(JsonNode values) {
+        if (!values.isArray() || values.isEmpty()) {
+            return false;
+        }
+        for (JsonNode value : values) {
+            if (!value.isTextual() || value.asText().isBlank()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean configuredCorrelation(JsonNode correlation) {

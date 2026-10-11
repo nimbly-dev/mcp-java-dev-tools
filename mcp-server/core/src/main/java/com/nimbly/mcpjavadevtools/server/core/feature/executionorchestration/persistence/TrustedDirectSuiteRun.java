@@ -4,10 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.TrustedSuiteExecution;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -26,11 +25,11 @@ import static java.nio.file.StandardOpenOption.WRITE;
 /** Trusted plan and run-state boundary for new direct Suite CDE operations. */
 public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,125}");
-    private final ArtifactOperationCatalog artifacts;
+    private final ArtifactManagementFeature artifacts;
     private final ExecutionRunDirectoryProvider directories;
     private final ObjectMapper mapper;
 
-    public TrustedDirectSuiteRun(ArtifactOperationCatalog artifacts,
+    public TrustedDirectSuiteRun(ArtifactManagementFeature artifacts,
             ExecutionRunDirectoryProvider directories, ObjectMapper mapper) {
         this.artifacts = Objects.requireNonNull(artifacts, "artifacts must not be null");
         this.directories = Objects.requireNonNull(directories, "directories must not be null");
@@ -114,7 +113,7 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
             String plan, String suiteRunId) {
         ObjectNode projectQuery = mapper.createObjectNode().put("projectName", project);
         projectQuery.putObject("query").putArray("select").add("artifact");
-        var context = artifacts.execute(ArtifactManagementAction.PROJECT_CONTEXT_READ,
+        var context = artifacts.execute(
                 new ArtifactManagementRequest(ArtifactType.PROJECT_CONTEXT, ArtifactAction.READ, projectQuery));
         if (!"ok".equals(context.status())) {
             return null;
@@ -127,7 +126,7 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
         ArtifactType type = planType(suiteType);
         ObjectNode planQuery = mapper.createObjectNode().put("projectName", project).put("planName", plan);
         planQuery.putObject("query").putArray("select").add("metadata").add("contract");
-        var loaded = artifacts.execute(planAction(suiteType),
+        var loaded = artifacts.execute(
                 new ArtifactManagementRequest(type, ArtifactAction.READ, planQuery));
         if (!"ok".equals(loaded.status())) {
             return null;
@@ -143,7 +142,37 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
         input.put("suiteRunId", suiteRunId);
         input.set("metadata", artifact.path("metadata"));
         input.set("contract", artifact.path("contract"));
-        if ("security".equals(suiteType)) {
+        if (needsWorkspaceRoot(suiteType, artifact.path("metadata"), artifact.path("contract"))) {
+            input.put("workspaceRootAbs", selected.workspace().path("projectRoot").asText());
+        }
+        addRuntimeContext(input, selected, suiteType, plan);
+        return input;
+    }
+
+    private static boolean needsWorkspaceRoot(String suiteType, JsonNode metadata, JsonNode contract) {
+        for (JsonNode verification : contract.path("externalVerification")) {
+            if ("sql".equals(verification.path("provider").path("type").asText())) {
+                return true;
+            }
+        }
+        JsonNode execution = metadata.path("execution");
+        return "regression".equals(suiteType)
+                && execution.path("probeVerification").asBoolean(false)
+                && !execution.path("pinStrictProbeKey").asBoolean(false);
+    }
+
+    private void addRuntimeContext(
+            ObjectNode input, ProfileSelection selected, String suiteType, String plan) {
+        ObjectNode providedContext = mapper.createObjectNode();
+        copyFields(selected.profile().path("providedContext"), providedContext);
+        copyFields(planContext(selected.profile().path("plans"), plan), providedContext);
+        if (!providedContext.isEmpty()) {
+            input.set("providedContext", providedContext);
+        }
+        boolean boundRuntimeContext = ("regression".equals(suiteType) || "performance".equals(suiteType))
+                && selected.workspace().path("variables").path("contextBindings").isObject()
+                && !selected.workspace().path("variables").path("contextBindings").isEmpty();
+        if ("security".equals(suiteType) || boundRuntimeContext) {
             input.set("credentialBindings", selected.workspace().path("variables").path("contextBindings"));
             ObjectNode source = input.putObject("credentialSource");
             source.put("workspaceRoot", selected.workspace().path("projectRoot").asText());
@@ -151,7 +180,21 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
             source.set("scripts", selected.workspace().path("scripts"));
             source.set("profileScriptRefs", selected.profile().path("scriptRefs"));
         }
-        return input;
+    }
+
+    private static JsonNode planContext(JsonNode plans, String planName) {
+        for (JsonNode candidate : plans) {
+            if (planName.equals(candidate.path("planName").asText())) {
+                return candidate.path("providedContext");
+            }
+        }
+        return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+    }
+
+    private static void copyFields(JsonNode source, ObjectNode target) {
+        if (source.isObject()) {
+            source.fields().forEachRemaining(entry -> target.set(entry.getKey(), entry.getValue()));
+        }
     }
 
     private static ProfileSelection selectProfile(JsonNode workspaces, String suiteType,
@@ -190,7 +233,7 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
 
     private JsonNode priorResult(String suiteType, String project, String plan, String runId) {
         ObjectNode request = runRequest(suiteType, project, plan, runId);
-        var read = artifacts.execute(ArtifactManagementAction.RUN_RESULT_READ,
+        var read = artifacts.execute(
                 new ArtifactManagementRequest(ArtifactType.RUN_RESULT, ArtifactAction.READ, request));
         JsonNode artifact = mapper.valueToTree(read.details().get("artifact"));
         return "ok".equals(read.status()) && artifact.isObject() ? artifact : null;
@@ -213,11 +256,14 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
         payload.put("order", 1);
         payload.set("details", resultNode.path("details"));
         payload.set("directResult", resultNode);
+        if (resultNode.path("details").path("correlation").isObject()) {
+            payload.set("correlation", resultNode.path("details").path("correlation"));
+        }
         payload.put("startedAt", Instant.now().toString());
         payload.put("endedAt", Instant.now().toString());
         ObjectNode request = runRequest(suiteType, project, plan, runId);
         request.set("payload", payload);
-        var saved = artifacts.execute(ArtifactManagementAction.RUN_RESULT_UPSERT,
+        var saved = artifacts.execute(
                 new ArtifactManagementRequest(ArtifactType.RUN_RESULT, ArtifactAction.UPSERT, request));
         return "ok".equals(saved.status());
     }
@@ -236,12 +282,4 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
         };
     }
 
-    private static ArtifactManagementAction planAction(String suiteType) {
-        return switch (suiteType) {
-            case "performance" -> ArtifactManagementAction.PERFORMANCE_PLAN_READ;
-            case "security" -> ArtifactManagementAction.SECURITY_PLAN_READ;
-            case "regression" -> ArtifactManagementAction.REGRESSION_PLAN_READ;
-            default -> throw new IllegalArgumentException("unknown Suite type");
-        };
-    }
 }

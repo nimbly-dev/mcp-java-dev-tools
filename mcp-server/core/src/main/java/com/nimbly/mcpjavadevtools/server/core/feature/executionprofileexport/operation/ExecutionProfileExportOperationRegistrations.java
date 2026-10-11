@@ -18,7 +18,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistr
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
-import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
@@ -27,7 +26,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPo
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 
 /** Binds the canonical export operation directly to the Artifact export owner. */
@@ -66,9 +64,7 @@ public class ExecutionProfileExportOperationRegistrations {
                                 gateway.generate(new ArtifactManagementRequest(
                                         ArtifactType.EXECUTION_EXPORT, ArtifactAction.GENERATE,
                                         new ExecutionProfileExportArtifactInputMapper(mapper).map(input))))),
-                OperationResultEncoders.typed(mapper, ExecutionProfileExportResult.class),
-                CoreOperationDirectory.class.getName(),
-                identity());
+                OperationResultEncoders.typed(mapper, ExecutionProfileExportResult.class));
     }
 
     static OperationSafetyPolicy safety(OperationDescriptor descriptor) {
@@ -119,12 +115,4 @@ public class ExecutionProfileExportOperationRegistrations {
                                 "operationId", id)));
     }
 
-    static OperationProvenance identity() {
-        return OperationProvenance.releasedActionless(
-                "execution_profile_export",
-                Map.of(),
-                "execution_profile_export_input_to_typed_artifact_request",
-                "export_result_fields_preserved_without_artifact_discriminators",
-                "execution_profile_export_input_contract");
-    }
 }

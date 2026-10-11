@@ -7,9 +7,10 @@
 ## Data Fields
 
 - Source of truth: `docs/data-fields/README.md`
-- Coverage test: `test/docs/data-fields-docs.test.ts`
 
-The `data-fields` README is expected to contain one section per MCP tool registered in `tools/transport/tools-mcp-server/src/server.ts`.
+The `data-fields` README documents capability result fields returned by the
+Java server's canonical operations through `operation_execute`; it does not
+define additional public MCP tools.
 
 ## Java MCP Architecture
 

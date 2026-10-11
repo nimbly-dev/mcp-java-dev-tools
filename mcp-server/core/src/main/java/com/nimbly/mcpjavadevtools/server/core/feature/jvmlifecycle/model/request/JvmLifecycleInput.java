@@ -9,6 +9,7 @@ public record JvmLifecycleInput(
         Boolean confirm,
         String probeHost,
         Integer probePort,
+        String probeId,
         String include,
         String exclude) {
 }

@@ -23,7 +23,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperation
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationExecutor;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
@@ -162,13 +161,9 @@ class ArtifactPlanOperationSafetyTest {
                 provider, new ArtifactJsonStore(mapper), new SqliteRunStateStore(), mapper);
         ProbeConfigOperations probe = new ProbeConfigOperations(support,
                 () -> new com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistry(List.of()));
-        ArtifactOperationCatalog catalog = new ArtifactOperationCatalog(
-                probe, new ProjectContextOperations(support), new PlanOperations(support),
-                new RunResultOperations(support), new ExecutionExportOperations(support),
-                new OperationExposure(ArtifactOperationCatalog.TOOL_NAME, "mcpjvm-618-safety",
-                        Arrays.stream(ArtifactManagementAction.values())
-                                .map(ArtifactManagementAction::routeId).toList()));
-        List<OperationRegistration<?, ?>> registrations = ArtifactOperationRegistrations.create(catalog, mapper)
+        List<OperationRegistration<?, ?>> registrations = ArtifactOperationRegistrations.create(
+                        probe, new ProjectContextOperations(support), new PlanOperations(support),
+                        new RunResultOperations(support), new ExecutionExportOperations(support), mapper)
                 .stream().filter(this::owned).map(modifier).toList();
         return new OperationDirectory(registrations, ownedDocument(registrations), mapper);
     }
@@ -304,8 +299,7 @@ class ArtifactPlanOperationSafetyTest {
         };
         return new OperationRegistration<>(
                 registration.descriptor(), registration.requestType(), registration.resultType(),
-                registration.contract(), registration.decoder(), registration.executor(), observed,
-                registration.operationCatalog(), registration.provenance());
+                registration.contract(), registration.decoder(), registration.executor(), observed);
     }
 
     private static <I, O> OperationRegistration<I, O> rebind(
@@ -316,8 +310,7 @@ class ArtifactPlanOperationSafetyTest {
                 registration.descriptor(), registration.requestType(), registration.resultType(),
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), safety),
-                registration.decoder(), executor, registration.encoder(),
-                registration.operationCatalog(), registration.provenance());
+                registration.decoder(), executor, registration.encoder());
     }
 
     private static void await(CountDownLatch latch) {

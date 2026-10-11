@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "operationId": { "type": ["string", "null"] },
+    "status": { "type": "string" },
+    "reasonCode": { "type": "string" },
+    "reason": { "type": "string" },
+    "result": { "type": ["null", "object", "array", "string", "number", "integer", "boolean"] },
+    "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+  },
+  "required": ["operationId", "status", "reasonCode", "reason", "result", "metadata"]
+}

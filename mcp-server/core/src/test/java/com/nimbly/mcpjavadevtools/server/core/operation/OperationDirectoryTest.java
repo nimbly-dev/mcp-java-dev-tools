@@ -42,11 +42,9 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequest
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoder;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.ContextAwareOperationExecutor;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.Operation;
 import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationCatalogEntry;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationArgumentDocumentation;
-import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationAlias;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDocumentation;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestAssembler;
@@ -65,20 +63,16 @@ class OperationDirectoryTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     @Test
-    void loadsTheVersionedBuiltInManifestAndKeepsEveryAliasUnique() {
+    void loadsTheVersionedBuiltInDescriptiveManifest() {
         OperationManifestDocument document = OperationManifestLoader.loadBuiltIn();
 
         assertThat(document.version()).isEqualTo(1);
         assertThat(document.operations()).hasSize(54);
         assertThat(document.operations().values())
-                .filteredOn(operation -> !operation.aliases().isEmpty())
-                .hasSize(50);
+                .allSatisfy(operation -> assertThat(operation.safety()).isNull());
         assertThat(document.operations().values())
-                .filteredOn(operation -> operation.aliases().isEmpty())
-                .extracting(operation -> operation.tags())
-                .allSatisfy(tags -> assertThat(tags).contains("suite"));
-        assertThat(document.documentation(OperationId.of("probe.status")).safety().sideEffect())
-                .isEqualTo("probe_endpoint_read");
+                .flatExtracting(OperationDocumentation::arguments)
+                .allSatisfy(argument -> assertThat(argument.type()).isNull());
     }
 
     @Test
@@ -107,8 +101,8 @@ class OperationDirectoryTest {
         assertThat(directory.traceInventory()).singleElement()
                 .satisfies(trace -> {
                     assertThat(trace.operationId()).isEqualTo("demo.echo");
-                    assertThat(trace.compatibility()).containsEntry(
-                            "normalization", "released_tool_action_to_canonical_operation_id");
+                    assertThat(trace.toolName()).isEqualTo("demo");
+                    assertThat(trace.action()).isEqualTo("echo");
                 });
     }
 
@@ -187,8 +181,7 @@ class OperationDirectoryTest {
                 .isThrownBy(() -> new OperationManifestLoader().load(new ByteArrayInputStream(
                         ("<operations manifestVersion=\"1\"><operation id=\"demo.echo\" "
                                 + "classification=\"demo\"><summary unexpected=\"true\">Echo</summary>"
-                                + "<description>Echoes text.</description><aliases><alias tool=\"demo\" "
-                                + "action=\"echo\"/></aliases></operation></operations>")
+                                + "<description>Echoes text.</description></operation></operations>")
                                 .getBytes(StandardCharsets.UTF_8))))
                 .withMessageContaining("unsupported attribute");
     }
@@ -199,7 +192,6 @@ class OperationDirectoryTest {
                 new ByteArrayInputStream(("<operations manifestVersion=\"1\">"
                         + "<operation id=\"demo.echo\" classification=\"demo\">"
                         + "<summary>Echo</summary><description>Echoes text.</description>"
-                        + "<aliases><alias tool=\"demo\" action=\"echo\"/></aliases>"
                         + "</operation></operations>").getBytes(StandardCharsets.UTF_8)));
 
         assertThat(document.documentation(OperationId.of("demo.echo")).safety()).isNull();
@@ -314,7 +306,7 @@ class OperationDirectoryTest {
     }
 
     @Test
-    void requiresManifestDefaultsToMatchJavaOwnedSchemaDefaults() throws Exception {
+    void derivesArgumentDefaultsFromJavaOwnedSchema() throws Exception {
         OperationSchema schema = new OperationSchema(JSON.readTree("""
                 {
                   "$schema":"https://json-schema.org/draft/2020-12/schema",
@@ -325,23 +317,16 @@ class OperationDirectoryTest {
                 """));
         OperationId id = OperationId.of("demo.defaults");
 
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> OperationManifestAssembler.validateArguments(id,
-                        List.of(new OperationArgumentDocumentation(
-                                "enabled", "Whether it is enabled.", "boolean", false, null)),
-                        schema))
-                .withMessageContaining("default mismatch");
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> OperationManifestAssembler.validateArguments(id,
-                        List.of(new OperationArgumentDocumentation(
-                                "enabled", "Whether it is enabled.", "boolean", false,
-                                JSON.readTree("true"))),
-                        schema))
-                .withMessageContaining("default mismatch");
-        OperationManifestAssembler.validateArguments(id,
-                List.of(new OperationArgumentDocumentation(
-                        "enabled", "Whether it is enabled.", "boolean", false,
-                        JSON.readTree("false"))), schema);
+        List<OperationArgumentDocumentation> arguments =
+                OperationManifestAssembler.executableArguments(id,
+                        List.of(OperationArgumentDocumentation.documented(
+                                "enabled", "Whether it is enabled.")), schema);
+
+        assertThat(arguments).singleElement().satisfies(argument -> {
+            assertThat(argument.type()).isEqualTo("boolean");
+            assertThat(argument.required()).isFalse();
+            assertThat(argument.defaultValue()).isEqualTo(JSON.readTree("false"));
+        });
     }
 
     @Test
@@ -816,8 +801,7 @@ class OperationDirectoryTest {
                 true, 1_048_576, exactBytes);
         OperationDocumentation documentation = new OperationDocumentation(
                 "demo.output_limit", "Documentation for output limit", "demo", echoArguments(),
-                List.of(JSON.readTree("{\"message\":\"exact\"}")), List.of("demo"),
-                List.of(new OperationAlias("demo", "output_limit")), safety);
+                List.of(JSON.readTree("{\"message\":\"exact\"}")), List.of("demo"), safety);
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.output_limit", request -> new EchoResult(request.message()),
                 EchoResult.class, documentation);
@@ -842,8 +826,7 @@ class OperationDirectoryTest {
                 true, exactBytes, 4_194_304);
         OperationDocumentation documentation = new OperationDocumentation(
                 "demo.input_limit", "Documentation for input limit", "demo", echoArguments(),
-                List.of(JSON.readTree("{\"message\":\"exact\"}")), List.of("demo"),
-                List.of(new OperationAlias("demo", "input_limit")), safety);
+                List.of(JSON.readTree("{\"message\":\"exact\"}")), List.of("demo"), safety);
         OperationRegistration<EchoRequest, EchoResult> registration = registration(
                 "demo.input_limit", request -> new EchoResult(request.message()),
                 EchoResult.class, documentation);
@@ -1686,8 +1669,6 @@ class OperationDirectoryTest {
                 arguments,
                 List.of(example),
                 List.of(id.substring(0, id.indexOf('.'))),
-                List.of(new OperationAlias(
-                        id.substring(0, id.indexOf('.')), id.substring(id.indexOf('.') + 1))),
                 new OperationSafetyPolicy(
                         sideEffect, confirmation, "caller_must_not_supply_credentials",
                         "redact_sensitive_fields", timeout, cancellationSupported,
@@ -1703,37 +1684,9 @@ class OperationDirectoryTest {
     private record OpenRequest(JsonNode value) {
     }
 
-    private static final class EchoOperation implements Operation<DemoAction, EchoRequest, EchoResult> {
-
-        private final OperationDescriptor descriptor;
-
-        private EchoOperation(OperationDescriptor descriptor) {
-            this.descriptor = descriptor;
+    private static final class EchoOperation {
+        private EchoOperation() {
         }
-
-        @Override
-        public DemoAction operationId() {
-            return DemoAction.ECHO;
-        }
-
-        @Override
-        public OperationDescriptor descriptor() {
-            return descriptor;
-        }
-
-        @Override
-        public String executableOwner() {
-            return descriptor.executableOwner();
-        }
-
-        @Override
-        public EchoResult execute(EchoRequest request) {
-            return new EchoResult(request.message());
-        }
-    }
-
-    private enum DemoAction {
-        ECHO
     }
 
     private record SecretResult(String value, String token) {

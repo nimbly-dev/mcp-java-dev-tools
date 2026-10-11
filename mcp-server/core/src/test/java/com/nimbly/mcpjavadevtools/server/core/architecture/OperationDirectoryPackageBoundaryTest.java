@@ -34,6 +34,7 @@ class OperationDirectoryPackageBoundaryTest {
     private static final Set<String> ROOT_BOUNDARY = Set.of(
             "CatalogPage.java",
             "CatalogQuery.java",
+            "CatalogQueryPolicy.java",
             "OperationDirectory.java",
             "OperationExecutionResult.java",
             "OperationId.java",
@@ -55,8 +56,7 @@ class OperationDirectoryPackageBoundaryTest {
             "com.nimbly.mcpjavadevtools.agent");
     private static final Map<String, List<String>> REQUIRED_PACKAGE_FILES = Map.ofEntries(
             Map.entry("operation/catalog", List.of(
-                    "Operation.java", "OperationCatalog.java", "OperationCatalogEntry.java",
-                    "OperationCatalogPageBuilder.java", "OperationCursor.java", "OperationExposure.java")),
+                    "OperationCatalogEntry.java", "OperationCatalogPageBuilder.java", "OperationCursor.java")),
             Map.entry("operation/binding", List.of(
                     "OperationRegistration.java", "OperationRegistrationBinding.java",
                     "OperationRegistrationContract.java", "OperationRequestDecoder.java",
@@ -77,7 +77,7 @@ class OperationDirectoryPackageBoundaryTest {
                     "OperationPayloadValidation.java",
                     "OperationExecutionContext.java", "OperationExecutionContextScope.java")),
             Map.entry("operation/manifest", List.of(
-                    "OperationAlias.java", "OperationArgumentDocumentation.java",
+                    "OperationArgumentDocumentation.java",
                     "OperationDescriptor.java", "OperationDescriptorMetadata.java",
                     "OperationDocumentation.java", "OperationManifest.java",
                     "OperationManifestAssembler.java", "OperationManifestDocument.java",
@@ -101,8 +101,7 @@ class OperationDirectoryPackageBoundaryTest {
                     "OperationJsonByteBuffer.java",
                     "OperationJsonSnapshot.java")),
             Map.entry("operation/trace", List.of(
-                    "OperationProvenance.java", "OperationProvenanceKind.java", "OperationTraceEntry.java",
-                    "OperationTraceInventory.java", "OperationTraceMetadata.java")),
+                    "OperationTraceEntry.java", "OperationTraceInventory.java", "OperationTraceMetadata.java")),
             Map.entry("feature/artifactmanagement/operation", List.of(
                     "ArtifactOperationRegistrations.java")),
             Map.entry("feature/executionprofileexport/operation", List.of(

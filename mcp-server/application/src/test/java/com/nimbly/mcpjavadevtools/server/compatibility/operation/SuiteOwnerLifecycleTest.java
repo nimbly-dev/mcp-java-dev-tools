@@ -14,8 +14,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.project.ProjectContextOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.impl.ExecuteExecutionOrchestrationAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.FileExecutionRunLease;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lifecycle.ExecutionRuntimeLifecycle;
@@ -51,7 +49,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationInvocation;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
@@ -306,13 +303,10 @@ class SuiteOwnerLifecycleTest {
         ArtifactManagementSupport support = new ArtifactManagementSupport(
                 () -> Optional.of(workspace), new ArtifactJsonStore(JSON),
                 new SqliteRunStateStore(JSON), JSON);
-        OperationExposure exposure = new OperationExposure(
-                ArtifactOperationCatalog.TOOL_NAME, "ArtifactManagementMcpTool",
-                Arrays.stream(ArtifactManagementAction.values()).map(ArtifactManagementAction::routeId).toList());
-        return new DefaultArtifactManagementFeature(new ArtifactOperationCatalog(
+        return new DefaultArtifactManagementFeature(
                 new ProbeConfigOperations(support), new ProjectContextOperations(support),
                 new PlanOperations(support), new RunResultOperations(support),
-                new ExecutionExportOperations(support), exposure));
+                new ExecutionExportOperations(support));
     }
 
     private static OperationInvocation invocation(String profile, String suiteRunId) {
@@ -333,8 +327,7 @@ class SuiteOwnerLifecycleTest {
                 registration.descriptor(), registration.requestType(), registration.resultType(),
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), bounded),
-                registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.provenance());
+                registration.decoder(), registration.executor(), registration.encoder());
     }
 
     private static void awaitTerminalState(Path suite) throws Exception {

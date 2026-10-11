@@ -29,7 +29,7 @@ public final class JmeterWorkloadExecutor {
         try {
             Files.createDirectories(request.runDirectory());
             Files.writeString(jmxPath, renderer.render(request));
-            int exitCode = processRunner.run(request.executable(), request.runDirectory(), jmxPath, jtlPath, logPath, timeout(request));
+            int exitCode = processRunner.run(request, jmxPath, jtlPath, logPath, timeout(request));
             if (exitCode != 0) {
                 return JmeterWorkloadResult.blocked("performance_jmeter_execution_failed", jmxPath, jtlPath, logPath);
             }

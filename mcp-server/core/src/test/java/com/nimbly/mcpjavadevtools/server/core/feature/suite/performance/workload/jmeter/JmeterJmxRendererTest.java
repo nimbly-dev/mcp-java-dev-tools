@@ -13,7 +13,7 @@ class JmeterJmxRendererTest {
         JmeterWorkloadRequest request = new JmeterWorkloadRequest(
                 Path.of("run"), "plan & one", "jmeter", "GET",
                 "http://localhost:8080/api/users?active=true", Map.of("X-Test", "a&b"),
-                null, 2500, 2, 1, 3);
+                null, Map.of(), 2500, 2, 1, 3);
 
         String xml = new JmeterJmxRenderer().render(request);
 

@@ -28,13 +28,11 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistr
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
-import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 
@@ -101,9 +99,7 @@ public class FailureAnalysisOperationRegistrations {
                             checkpoint(context);
                             return result;
                         }),
-                OperationResultEncoders.typed(mapper, FailureAnalysisResult.class),
-                CoreOperationDirectory.class.getName(),
-                identity(action));
+                OperationResultEncoders.typed(mapper, FailureAnalysisResult.class));
     }
 
     static FailureAnalysisRequest decode(FailureAnalysisAction action, Object input) {
@@ -162,14 +158,6 @@ public class FailureAnalysisOperationRegistrations {
                         Map.of("executableOwner", executableOwner,
                                 "operationId", id,
                                 "requestType", requestType.getName())));
-    }
-
-    static OperationProvenance identity(FailureAnalysisAction action) {
-        return OperationProvenance.released(
-                "failure_analysis", action.value(), Map.of(),
-                "failure_analysis_action_to_typed_evidence_request",
-                "failure_outcome_fingerprint_line_hit_and_attempt_evidence_preserved",
-                "failure_analysis_" + action.value());
     }
 
     static String validUrl(String value) {

@@ -13,6 +13,7 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultE
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
@@ -43,8 +44,7 @@ public class OperationManifestCancellationValidationTest {
                 OperationResultEncoders.typed(JSON, Result.class));
         OperationDocumentation documentation = new OperationDocumentation(
                 "Echo", "Echoes a request.", "demo", List.of(),
-                List.of(JSON.createObjectNode()), List.of("demo"),
-                List.of(new OperationAlias("demo", "echo")), policy);
+                List.of(JSON.createObjectNode()), List.of("demo"), policy);
         OperationManifestDocument document = new OperationManifestDocument(
                 1, Map.of(id, documentation));
 
@@ -96,8 +96,9 @@ public class OperationManifestCancellationValidationTest {
         OperationManifest manifest = OperationManifestAssembler.assembleStrict(
                 List.of(registration), document(policy));
 
-        assertThat(manifest.registration(OperationId.of("demo.echo")).compatibility())
-                .containsEntry("cancellationState", OperationCancellationState.NOT_CANCELLABLE.name());
+        assertThat(OperationCancellationSupport.state(
+                manifest.registration(OperationId.of("demo.echo")).executor(), policy))
+                .isEqualTo(OperationCancellationState.NOT_CANCELLABLE);
     }
 
     @Test
@@ -112,9 +113,9 @@ public class OperationManifestCancellationValidationTest {
         OperationManifest manifest = OperationManifestAssembler.assembleStrict(
                 List.of(registration), document(policy));
 
-        assertThat(manifest.registration(OperationId.of("demo.echo")).compatibility())
-                .containsEntry("cancellationState", OperationCancellationState
-                        .CONTEXT_AWARE_CANCELLATION.name());
+        assertThat(OperationCancellationSupport.state(
+                manifest.registration(OperationId.of("demo.echo")).executor(), policy))
+                .isEqualTo(OperationCancellationState.CONTEXT_AWARE_CANCELLATION);
     }
 
     @Test
@@ -130,9 +131,9 @@ public class OperationManifestCancellationValidationTest {
         OperationManifest manifest = OperationManifestAssembler.assembleStrict(
                 List.of(registration), document(policy));
 
-        assertThat(manifest.registration(OperationId.of("demo.echo")).compatibility())
-                .containsEntry("cancellationState", OperationCancellationState
-                        .BOUNDED_DELEGATE_CANCELLATION.name());
+        assertThat(OperationCancellationSupport.state(
+                manifest.registration(OperationId.of("demo.echo")).executor(), policy))
+                .isEqualTo(OperationCancellationState.BOUNDED_DELEGATE_CANCELLATION);
     }
 
     @Test
@@ -209,8 +210,7 @@ public class OperationManifestCancellationValidationTest {
         return new OperationManifestDocument(1, Map.of(
                 OperationId.of("demo.echo"), new OperationDocumentation(
                         "Echo", "Echoes a request.", "demo", List.of(),
-                        List.of(JSON.createObjectNode()), List.of("demo"),
-                        List.of(new OperationAlias("demo", "echo")), policy)));
+                        List.of(JSON.createObjectNode()), List.of("demo"), policy)));
     }
 
     private ContextAwareOperationExecutor<Request, Result> boundedNonCancellable(

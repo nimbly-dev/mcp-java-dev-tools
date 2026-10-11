@@ -8,14 +8,13 @@
       <tag>suite</tag>
     </tags>
     <arguments>
-      <argument name="projectName" description="Persisted project selector." type="string" required="true" />
-      <argument name="executionProfile" description="Persisted execution profile containing the plan." type="string" required="true" />
-      <argument name="planName" description="Persisted plan name." type="string" required="true" />
-      <argument name="suiteRunId" description="Bounded suite run identifier." type="string" required="true" />
+      <argument name="projectName" description="Persisted project selector." />
+      <argument name="executionProfile" description="Persisted execution profile containing the plan." />
+      <argument name="planName" description="Persisted plan name." />
+      <argument name="suiteRunId" description="Bounded suite run identifier." />
     </arguments>
     <examples>
       <example>{"projectName":"demo","executionProfile":"smoke","planName":"audit","suiteRunId":"example-run"}</example>
     </examples>
-    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="false" maxInputBytes="1048576" maxOutputBytes="4194304" />
-  </action>
+</action>
 </tool>

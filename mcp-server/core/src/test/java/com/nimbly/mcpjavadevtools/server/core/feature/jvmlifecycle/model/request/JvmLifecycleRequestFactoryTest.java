@@ -15,23 +15,24 @@ class JvmLifecycleRequestFactoryTest {
     void appliesSafeAttachDefaults() {
         JvmLifecycleRequest request = factory.create(
                 JvmLifecycleAction.ATTACH,
-                new JvmLifecycleInput("1234", 1720000000000L, true, null, null, null, null));
+                new JvmLifecycleInput("1234", 1720000000000L, true, null, null, "orders", null, null));
 
         assertThat(request).isInstanceOf(AttachRequest.class);
         AttachRequest attach = (AttachRequest) request;
         assertThat(attach.probeHost()).isEqualTo("127.0.0.1");
         assertThat(attach.probePort()).isEqualTo(9191);
+        assertThat(attach.probeId()).isEqualTo("orders");
     }
 
     @Test
     void rejectsUnsafeMutationInputs() {
         assertThatThrownBy(() -> factory.create(
                 JvmLifecycleAction.DEACTIVATE,
-                new JvmLifecycleInput("1234", 0L, true, null, null, null, null)))
+                new JvmLifecycleInput("1234", 0L, true, null, null, null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> factory.create(
                 JvmLifecycleAction.LIST_JVMS,
-                new JvmLifecycleInput("1234", null, null, null, null, null, null)))
+                new JvmLifecycleInput("1234", null, null, null, null, null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

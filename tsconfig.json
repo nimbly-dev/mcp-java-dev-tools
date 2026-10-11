@@ -100,8 +100,9 @@
     "skipLibCheck": true
   },
   "include": [
-    "server.ts",
-    "tools/transport/tools-mcp-server/src/**/*.ts",
+    "tools/transport/tools-mcp-server/src/config/**/*.ts",
+    "tools/transport/tools-mcp-server/src/lib/**/*.ts",
+    "tools/transport/tools-mcp-server/src/utils/**/*.ts",
     "tools/core/tools-core/src/**/*.ts",
     "tools/core/tools-registry/src/**/*.ts",
     "tools/contracts/tools-contracts/src/**/*.ts",

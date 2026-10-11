@@ -16,7 +16,6 @@ public final class OperationManifest {
 
     private final int version;
     private final Map<OperationId, OperationRegistration<?, ?>> operations;
-    private final Map<String, OperationId> aliases;
 
     /** Creates a deterministic manifest from already enriched registrations. */
     OperationManifest(int version, List<? extends OperationRegistration<?, ?>> registrations) {
@@ -25,7 +24,6 @@ public final class OperationManifest {
         }
         Objects.requireNonNull(registrations, "manifest registrations must not be null");
         TreeMap<OperationId, OperationRegistration<?, ?>> ordered = new TreeMap<>();
-        Map<String, OperationId> knownAliases = new LinkedHashMap<>();
         for (OperationRegistration<?, ?> registration
                 : registrations) {
             if (registration == null) {
@@ -35,15 +33,9 @@ public final class OperationManifest {
             if (ordered.put(id, registration) != null) {
                 throw new IllegalArgumentException("duplicate executable operation: " + id.value());
             }
-            for (OperationAlias alias : registration.descriptor().documentation().aliases()) {
-                if (knownAliases.put(alias.key(), id) != null) {
-                    throw new IllegalArgumentException("duplicate operation alias: " + alias.key());
-                }
-            }
         }
         this.version = version;
         operations = Collections.unmodifiableMap(new LinkedHashMap<>(ordered));
-        aliases = Collections.unmodifiableMap(new LinkedHashMap<>(knownAliases));
     }
 
     /** @return authoring format version */
@@ -64,11 +56,6 @@ public final class OperationManifest {
     /** @return exact registration, or {@code null} when the ID is closed/unknown */
     public OperationRegistration<?, ?> registration(OperationId operationId) {
         return operations.get(operationId);
-    }
-
-    /** @return canonical ID for a released alias, or {@code null} when absent */
-    public OperationId resolveAlias(OperationAlias alias) {
-        return alias == null ? null : aliases.get(alias.key());
     }
 
     /** @return generated trace rows from this immutable executable set */

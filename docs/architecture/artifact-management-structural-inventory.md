@@ -75,7 +75,7 @@ change adds only Artifact-specific family wiring.
   the operation package, export migration graph, and SQLite migration graph.
 - `ArtifactManagementMcpToolTest` verifies the 31 public schema branches and
   required compatibility fields.
-- `McpServerStdioIT` verifies the raw `tools/list` schema fingerprint and
+- `McpServerProtocolIT` verifies the raw `tools/list` schema fingerprint and
   exercises each Artifact family, invalid routing, and unsupported routing.
 - `ArtifactManagementParityMatrixTest` compares Java inputs, outputs,
   reason-code evidence, query bounds, export defaults, and Skill Workflow
@@ -122,14 +122,11 @@ inventory source. The raw public-schema
 proof is `ArtifactProbeProjectLegacyStdioIT`; it checks every published branch,
 field, required set, and default before executing the eight legacy invocations.
 
-### Separately owned prerequisite repair
+### Historical relocation fixture
 
+Commit `0755a0c` introduced
 `mcp-server/core/src/test/resources/mcpjvm-613/baseline-operation-api.resolved.txt`
-is not a #617 deliverable and is excluded from #617's allowed-path and
-structural measurements. Commit `0755a0c` introduced that fixture for #613;
-commit `c8dbf4d` removed it during #616 while leaving
-`OperationRelocationApiCompatibilityTest` dependent on the resource. Its
-working-tree restoration is therefore recorded as a separately owned #613/#616
-prerequisite repair that restores the pre-existing Core compatibility gate. No
-#617 production behavior depends on this fixture, and a commit or pull request
-must identify its ownership separately from the #617 implementation.
+for the temporary #613 relocation comparison, and commit `c8dbf4d` removed it
+during #616. No #617 production behavior depended on that fixture. #644 later
+retired the remaining #610-to-#613 relocation-only tests instead of restoring a
+historical snapshot that no longer protected the current public contract.

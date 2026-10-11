@@ -61,11 +61,37 @@ class ArtifactSafetyTest {
         artifact.put("token", "do-not-persist");
         artifact.put("credentialRef", "security.api");
         artifact.putObject("defaults").put("password", "also-do-not-persist");
+        artifact.putObject("contextBindings")
+                .put("authorization", "EVENT_AUTHORIZATION")
+                .put("sql.connection.analytics.password", "EXAMPLE_SQL_PASSWORD")
+                .put("invalid", "literal secret");
 
         store.write(path, artifact);
 
         String persisted = Files.readString(path);
         assertThat(persisted).doesNotContain("do-not-persist", "also-do-not-persist")
-                .contains("[REDACTED]").contains("security.api");
+                .contains("[REDACTED]", "security.api", "EVENT_AUTHORIZATION", "EXAMPLE_SQL_PASSWORD")
+                .doesNotContain("literal secret");
+    }
+
+    @Test
+    void exactContextPlaceholdersSurviveSensitiveFieldRedactionButLiteralSecretsDoNot() throws Exception {
+        ArtifactJsonStore store = new ArtifactJsonStore(new ObjectMapper());
+        Path path = workspace.resolve(".mcpjvm/regression/contract.json");
+        ObjectNode artifact = new ObjectMapper().createObjectNode();
+        artifact.put("Authorization", "${eventAuth}");
+        artifact.put("bearerAuthorization", "Bearer ${eventAuth}");
+        artifact.put("literalBearerAuthorization", "Bearer actual-secret");
+        artifact.put("cookie", "Bearer ${eventAuth}");
+        artifact.put("apiKey", "literal-secret");
+
+        store.write(path, artifact);
+
+        ObjectNode persisted = (ObjectNode) new ObjectMapper().readTree(path.toFile());
+        assertThat(persisted.path("Authorization").asText()).isEqualTo("${eventAuth}");
+        assertThat(persisted.path("bearerAuthorization").asText()).isEqualTo("Bearer ${eventAuth}");
+        assertThat(persisted.path("literalBearerAuthorization").asText()).isEqualTo("[REDACTED]");
+        assertThat(persisted.path("cookie").asText()).isEqualTo("[REDACTED]");
+        assertThat(persisted.path("apiKey").asText()).isEqualTo("[REDACTED]");
     }
 }

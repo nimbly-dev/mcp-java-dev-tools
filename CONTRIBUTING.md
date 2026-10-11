@@ -72,8 +72,10 @@ For contributors working on runtime verification, probe control, tool contracts,
 - Don't introduce framework-specific branching into probe internals unless there's no cleaner extension point
 
 **Validation expectations:**
-- Run TypeScript validation for MCP-side changes
+- Run the affected Java Maven reactor for MCP-side changes
 - Run Maven builds for Java agent changes
+- Treat legacy TypeScript as a source-level migration reference only; Java MCP
+  acceptance requires Java-owned tests and packaged STDIO evidence
 - For behavioral changes, verify against a live probe workflow when practical
 - If you change output contracts, update docs and tests in the same pull request
 
@@ -135,13 +137,15 @@ npm.cmd run build:java
 
 When iterating on a single adapter or Java module, narrower module-level builds are fine. Full-stack validation is still expected before merge when behavior crosses module boundaries.
 
-## TypeScript and STDIO Enforcement Baseline
+## Java MCP STDIO Enforcement Baseline
 
-The repository enforces a TypeScript and MCP stdio baseline through lint/test checks.
+The repository enforces the public MCP STDIO baseline through the Java server's
+Maven verification and packaged-JAR integration tests.
 
-- Type-aware linting is enabled and expected to pass.
-- Readability hardening rules start as warnings and are promoted to errors after 14 calendar days or 2 merged PR cycles (whichever is earlier).
-- MCP stdio behavior is validated by integration coverage to ensure protocol messages stay on `stdout` and diagnostics stay on `stderr`.
+- MCP STDIO behavior is validated by Java integration coverage to ensure
+  protocol messages stay on `stdout` and diagnostics stay on `stderr`.
+- Legacy TypeScript sources may inform migration, but their execution is not
+  evidence that Java transport behavior has been implemented.
 
 Policy owner for baseline thresholds and rollout timing: repository maintainers.
 

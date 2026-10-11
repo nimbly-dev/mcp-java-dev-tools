@@ -9,19 +9,16 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.reset.ProbeBatchResetRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeSingleStatusRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusResult;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.waitforhit.ProbeWaitForHitRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.key.ProbeKeyBatchSelector;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.key.ProbeKeySelector;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.target.ProbeTargetSelector;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.model.result.SecuritySuiteResult;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.execution.SuiteRuntimeEnvironment;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.TransportProtocol;
 import java.net.URI;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,6 +30,8 @@ import java.time.Duration;
 public final class SecurityPlanExecutor implements SecuritySuiteFeature {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Duration RUNTIME_EVIDENCE_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration RUNTIME_EVIDENCE_POLL_INTERVAL = Duration.ofMillis(100);
     private final TransportExecutionFeature transport;
     private final SecurityKnowledgeCatalog knowledge;
     private final ProbeFeature probe;
@@ -99,10 +98,11 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
         if (entrypoint == null || profile == null) {
             return sidecarBlocked(attack, "security_sidecar_reference_missing");
         }
-        if (!"http".equals(entrypoint.path("transport").path("type").asText())) {
+        JsonNode transportDefinition = transportDefinition(entrypoint);
+        if (!"http".equals(transportDefinition.path("type").asText())) {
             return sidecarNotApplicable(attack, "security_sidecar_entrypoint_not_supported");
         }
-        URI requestUri = uri(baseUrl, entrypoint.path("transport").path("path").asText());
+        URI requestUri = uri(baseUrl, transportDefinition.path("path").asText());
         if (requestUri == null || !allowed(contract.path("targetBoundary"), requestUri)) {
             return sidecarBlocked(attack, "security_target_boundary_violation");
         }
@@ -162,19 +162,25 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
     private boolean requiredTargetsHit(Map<String, JsonNode> targets, JsonNode required) {
         for (JsonNode targetId : required) {
             JsonNode target = targets.get(targetId.asText());
-            if (target == null || !waitForHit(target)) {
+            if (target == null || !awaitObservedTargetHit(target)) {
                 return false;
             }
         }
         return true;
     }
 
-    private boolean waitForHit(JsonNode target) {
-        var result = probe.execute(new ProbeWaitForHitRequest(
-                targetSelector(target),
-                new ProbeKeySelector(target.path("strictLineKey").asText(), null), Duration.ofSeconds(10),
-                Duration.ofMillis(100), 100));
-        return result.status() == com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResultStatus.SUCCESS;
+    private boolean awaitObservedTargetHit(JsonNode target) {
+        long deadline = System.nanoTime() + RUNTIME_EVIDENCE_TIMEOUT.toNanos();
+        while (System.nanoTime() < deadline) {
+            ProbeStatusResult status = targetStatus(target);
+            if (status != null && status.entries().stream().anyMatch(entry -> entry.lineHit())) {
+                return true;
+            }
+            if (!pauseForEvidence()) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private boolean forbiddenTargetHit(Map<String, JsonNode> targets, JsonNode forbidden) {
@@ -188,14 +194,29 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
     }
 
     private boolean targetHit(JsonNode target) {
+        ProbeStatusResult status = targetStatus(target);
+        return status == null || status.entries().stream().anyMatch(entry -> entry.lineHit());
+    }
+
+    private ProbeStatusResult targetStatus(JsonNode target) {
         var result = probe.execute(new ProbeSingleStatusRequest(
                 targetSelector(target),
                 new ProbeKeySelector(target.path("strictLineKey").asText(), null), Duration.ofSeconds(10)));
         if (result.status() != com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResultStatus.SUCCESS) {
-            return true;
+            return null;
         }
         return result.actionResult().filter(ProbeStatusResult.class::isInstance).map(ProbeStatusResult.class::cast)
-                .map(status -> status.entries().stream().anyMatch(entry -> entry.lineHit())).orElse(true);
+                .orElse(null);
+    }
+
+    private static boolean pauseForEvidence() {
+        try {
+            Thread.sleep(RUNTIME_EVIDENCE_POLL_INTERVAL.toMillis());
+            return true;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     private SidecarCase classifySidecarCase(JsonNode attack, ExecuteTransportResult response, RuntimeEvidence evidence) {
@@ -256,8 +277,9 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
             URI baseUrl,
             SecurityKnowledgeCatalog.GeneratedCase template,
             CredentialContext credentials) {
-        URI requestUri = uri(baseUrl, entrypoint.path("transport").path("path").asText());
-        if (requestUri == null || !"http".equals(entrypoint.path("transport").path("type").asText())) {
+        JsonNode transportDefinition = transportDefinition(entrypoint);
+        URI requestUri = uri(baseUrl, transportDefinition.path("path").asText());
+        if (requestUri == null || !"http".equals(transportDefinition.path("type").asText())) {
             return generatedResult(entrypoint, template, "not_applicable", "security_generated_entrypoint_not_supported", null);
         }
         if (!applicable(contract, profile, template)) {
@@ -372,10 +394,11 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
         if (entrypoint == null || profile == null) {
             return sidecarBlocked(attack, "security_blackbox_reference_missing");
         }
-        if (!"http".equals(entrypoint.path("transport").path("type").asText())) {
+        JsonNode transportDefinition = transportDefinition(entrypoint);
+        if (!"http".equals(transportDefinition.path("type").asText())) {
             return sidecarNotApplicable(attack, "security_blackbox_entrypoint_not_supported");
         }
-        URI requestUri = uri(baseUrl, entrypoint.path("transport").path("path").asText());
+        URI requestUri = uri(baseUrl, transportDefinition.path("path").asText());
         if (requestUri == null || !allowed(contract.path("targetBoundary"), requestUri)) {
             return sidecarBlocked(attack, "security_target_boundary_violation");
         }
@@ -402,7 +425,7 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
 
     private Map<String, Object> baseline(
             JsonNode contract, URI baseUrl, JsonNode entrypoint, JsonNode profile, CredentialContext credentials) {
-        JsonNode transportDefinition = entrypoint.path("transport");
+        JsonNode transportDefinition = transportDefinition(entrypoint);
         if (!"http".equals(transportDefinition.path("type").asText())) {
             return caseResult(entrypoint, "not_applicable", "security_blackbox_entrypoint_not_supported", null);
         }
@@ -410,9 +433,14 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
         if (requestUri == null || !allowed(contract.path("targetBoundary"), requestUri)) {
             return caseResult(entrypoint, "blocked", "security_target_boundary_violation", null);
         }
-        ExecuteTransportResult result = executeRequest(requestUri, entrypoint, null, profile, credentials);
-        return transported(result) ? caseResult(entrypoint, "passed", "ok", result.statusCode())
-                : caseResult(entrypoint, "blocked", result.reasonCode(), result.statusCode());
+        ExecuteTransportResult result = executeRequest(
+                requestUri, entrypoint, entrypoint.path("baseline"), profile, credentials);
+        if (!transported(result)) {
+            return caseResult(entrypoint, "blocked", result.reasonCode(), result.statusCode());
+        }
+        return allowedResponse(result)
+                ? caseResult(entrypoint, "passed", "ok", result.statusCode())
+                : caseResult(entrypoint, "blocked", "security_blackbox_baseline_unexpected", result.statusCode());
     }
 
     private ExecuteTransportResult executeRequest(
@@ -430,8 +458,8 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
         Map<String, Object> payload = new LinkedHashMap<>();
         JsonNode value = request == null ? com.fasterxml.jackson.databind.node.MissingNode.getInstance() : request;
         payload.put("url", withQuery(withPathParameters(requestUri, value), query(value)).toString());
-        payload.put("method", entrypoint.path("transport").path("method").asText());
-        Map<String, String> headers = requestHeaders(value.path("headers"));
+        payload.put("method", transportDefinition(entrypoint).path("method").asText());
+        Map<String, String> headers = credentials.resolve(requestHeaders(value.path("headers")));
         if (applyCredentials) {
             credentials.apply(profile, headers);
         }
@@ -472,6 +500,10 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
 
     private static JsonNode query(JsonNode request) {
         return request.path("query").isObject() ? request.path("query") : request.path("queryParameters");
+    }
+
+    private static JsonNode transportDefinition(JsonNode entrypoint) {
+        return entrypoint.path("transport").isObject() ? entrypoint.path("transport") : entrypoint;
     }
 
     private static URI withPathParameters(URI requestUri, JsonNode request) {
@@ -800,65 +832,52 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
         private static CredentialContext from(JsonNode input, JsonNode contract) {
             Map<String, String> values = new LinkedHashMap<>();
             JsonNode bindings = input.path("credentialBindings");
-            Map<String, String> environment = environment(input.path("credentialSource"));
+            Map<String, String> environment = SuiteRuntimeEnvironment.load(input.path("credentialSource"));
             SecurityCredentialRefresh.Result refresh = new SecurityCredentialRefresh()
                     .refresh(input.path("credentialSource"), environment);
             if (!refresh.successful()) {
                 return new CredentialContext(Map.of(), refresh.reasonCode());
             }
-            environment = environment(input.path("credentialSource"));
+            environment = SuiteRuntimeEnvironment.load(input.path("credentialSource"));
+            if (bindings.isObject()) {
+                var bindingEntries = bindings.fields();
+                while (bindingEntries.hasNext()) {
+                    var binding = bindingEntries.next();
+                    String value = environment.get(binding.getValue().asText());
+                    if (value != null && !value.isBlank()) {
+                        values.put(binding.getKey(), value);
+                    }
+                }
+            }
             for (JsonNode profile : contract.path("authenticationProfiles")) {
                 if ("anonymous".equals(profile.path("kind").asText())) {
                     continue;
                 }
                 String ref = profile.path("credentialRef").asText();
-                String environmentKey = bindings.path(ref).asText();
-                String value = environmentKey.isBlank() ? null : environment.get(environmentKey);
-                if (ref.isBlank() || !bindings.isObject() || value == null || value.isBlank()) {
+                if (ref.isBlank() || !values.containsKey(ref)) {
                     return new CredentialContext(Map.of(), "security_runtime_credentials_unavailable");
                 }
-                values.put(ref, value);
             }
             return new CredentialContext(Map.copyOf(values), null);
         }
 
-        private static Map<String, String> environment(JsonNode source) {
-            Map<String, String> values = new LinkedHashMap<>(System.getenv());
-            String workspaceRoot = source.path("workspaceRoot").asText();
-            String envFile = source.path("envFile").asText();
-            if (workspaceRoot.isBlank() || envFile.isBlank()) {
-                return Map.copyOf(values);
-            }
-            try {
-                Path file = Path.of(envFile);
-                if (!file.isAbsolute()) {
-                    file = Path.of(workspaceRoot).resolve(file).normalize();
-                }
-                for (String line : Files.readAllLines(file)) {
-                    addEnvironmentValue(values, line);
-                }
-            } catch (IOException | SecurityException | IllegalArgumentException ignored) {
-                // Missing or unreadable optional dotenv sources are handled by the declared-binding check.
-            }
-            return Map.copyOf(values);
+        private Map<String, String> resolve(Map<String, String> headers) {
+            Map<String, String> resolved = new LinkedHashMap<>();
+            headers.forEach((name, value) -> resolved.put(name, resolve(value)));
+            return resolved;
         }
 
-        private static void addEnvironmentValue(Map<String, String> values, String rawLine) {
-            String line = rawLine.trim();
-            int separator = line.indexOf('=');
-            if (line.isEmpty() || line.startsWith("#") || separator < 1) {
-                return;
+        private String resolve(String candidate) {
+            for (Map.Entry<String, String> credential : values.entrySet()) {
+                String placeholder = "${" + credential.getKey() + "}";
+                if (candidate.equals(placeholder)) {
+                    return credential.getValue();
+                }
+                if (candidate.equals("Bearer " + placeholder)) {
+                    return bearer(credential.getValue());
+                }
             }
-            String key = line.substring(0, separator).trim();
-            String value = line.substring(separator + 1).trim();
-            if (key.matches("[A-Za-z_][A-Za-z0-9_]*")) {
-                values.put(key, unquote(value));
-            }
-        }
-
-        private static String unquote(String value) {
-            return value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")
-                    ? value.substring(1, value.length() - 1) : value;
+            return candidate;
         }
 
         private void apply(JsonNode profile, Map<String, String> headers) {
@@ -868,14 +887,18 @@ public final class SecurityPlanExecutor implements SecuritySuiteFeature {
             }
             String credential = values.get(profile.path("credentialRef").asText());
             if ("bearer".equals(kind)) {
-                headers.putIfAbsent("Authorization", credential.startsWith("Bearer ") ? credential : "Bearer " + credential);
+                headers.put("Authorization", bearer(credential));
             } else if ("basic".equals(kind)) {
-                headers.putIfAbsent("Authorization", credential.startsWith("Basic ") ? credential : "Basic " + credential);
+                headers.put("Authorization", credential.startsWith("Basic ") ? credential : "Basic " + credential);
             } else if ("api_key".equals(kind)) {
-                headers.putIfAbsent("X-API-Key", credential);
+                headers.put("X-API-Key", credential);
             } else {
-                headers.putIfAbsent("Authorization", credential);
+                headers.put("Authorization", credential);
             }
+        }
+
+        private static String bearer(String credential) {
+            return credential.startsWith("Bearer ") ? credential : "Bearer " + credential;
         }
     }
 

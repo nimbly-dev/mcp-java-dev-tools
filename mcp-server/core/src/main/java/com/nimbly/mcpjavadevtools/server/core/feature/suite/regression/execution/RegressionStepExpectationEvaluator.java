@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /** Evaluates status, header, JSON, and body expectations against one internal response. */
-final class RegressionStepExpectationEvaluator {
+public final class RegressionStepExpectationEvaluator {
 
     private static final Pattern PATH_SEGMENT_PATTERN = Pattern.compile("([A-Za-z_][A-Za-z0-9_-]*)(.*)");
     private static final Pattern INDEX_PATTERN = Pattern.compile("\\[(\\d+)]");
@@ -23,7 +23,7 @@ final class RegressionStepExpectationEvaluator {
     }
 
     String firstFailure(JsonNode expectations, Map<String, Object> response) {
-        Map<String, Object> output = Map.of("response", response);
+        Map<String, Object> output = Map.of("status", "pass", "response", response);
         for (JsonNode expectation : expectations) {
             if (!matches(expectation, output)) {
                 return "step_expectation_failed";
@@ -36,11 +36,17 @@ final class RegressionStepExpectationEvaluator {
         Object actual = read(response, expectation.path("actualPath").asText());
         String operator = expectation.path("operator").asText();
         Object expected = expectation.has("expected") ? value(expectation.get("expected")) : null;
+        if (actual == null && !expectation.path("required").asBoolean(true)) {
+            return true;
+        }
         if ("field_exists".equals(operator)) {
             return actual != null;
         }
-        if ("field_equals".equals(operator)) {
-            return Objects.equals(actual, expected);
+        if ("field_equals".equals(operator) || "outcome_status".equals(operator)) {
+            return equalValues(actual, expected);
+        }
+        if ("probe_line_hit".equals(operator)) {
+            return Objects.equals(expected, Boolean.TRUE);
         }
         if ("field_matches_regex".equals(operator)) {
             return matchesRegex(actual, expected);
@@ -55,6 +61,11 @@ final class RegressionStepExpectationEvaluator {
             return contains(actual, expected);
         }
         return false;
+    }
+
+    private boolean equalValues(Object actual, Object expected) {
+        Integer numeric = compare(actual, expected);
+        return numeric == null ? Objects.equals(actual, expected) : numeric == 0;
     }
 
     private boolean matchesRegex(Object actual, Object expected) {
@@ -105,7 +116,8 @@ final class RegressionStepExpectationEvaluator {
         return mapper.convertValue(node, Object.class);
     }
 
-    static Object read(Map<String, Object> values, String path) {
+    /** Reads one bounded dot/index path from an internal Regression output envelope. */
+    public static Object read(Map<String, Object> values, String path) {
         Object current = values;
         for (String segment : path.split("\\.")) {
             Matcher segmentMatcher = PATH_SEGMENT_PATTERN.matcher(segment);

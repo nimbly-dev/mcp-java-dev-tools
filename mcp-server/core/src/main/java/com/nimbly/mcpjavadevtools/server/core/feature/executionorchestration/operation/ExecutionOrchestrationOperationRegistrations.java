@@ -16,7 +16,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistr
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRequestDecoders;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationResultEncoders;
-import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionContext;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationDescriptor;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.CoreOperationSafetyPolicy;
@@ -25,7 +24,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancella
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CanonicalOperationSchema;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.CoreOperationResultSchemas;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchema;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenance;
 import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
 
 /** Binds execution orchestration to its explicit persisted-state request contract. */
@@ -80,13 +78,7 @@ public class ExecutionOrchestrationOperationRegistrations {
                             checkpoint(context);
                             return result;
                         }),
-                OperationResultEncoders.typed(mapper, ExecutionOrchestrationResult.class),
-                CoreOperationDirectory.class.getName(),
-                OperationProvenance.released(
-                        "execution_orchestration", "execute", Map.of(),
-                        "execution_orchestration_payload_to_typed_core_request",
-                        "execution_orchestration_status_reason_next_action_and_details_preserved",
-                        "execution_orchestration_execute_public_request_contract"));
+                OperationResultEncoders.typed(mapper, ExecutionOrchestrationResult.class));
     }
 
     static ExecutionOrchestrationRequest decode(

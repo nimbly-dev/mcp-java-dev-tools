@@ -14,7 +14,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.helper.Defaul
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.helper.JvmLifecycleHelper;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.JvmLifecycleExecutionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.policy.ProbeHostPolicy;
-import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -94,14 +93,8 @@ public class JvmLifecycleConfiguration {
     }
 
     @Bean
-    JvmLifecycleOperationCatalog jvmLifecycleOperationCatalog(
-            List<JvmLifecycleActionHandler> handlers) {
-        return new JvmLifecycleOperationCatalog(handlers);
-    }
-
-    @Bean
-    JvmLifecycleFeature jvmLifecycleFeature(JvmLifecycleOperationCatalog operationCatalog) {
-        return new DefaultJvmLifecycleFeature(operationCatalog);
+    JvmLifecycleFeature jvmLifecycleFeature(List<JvmLifecycleActionHandler> handlers) {
+        return new DefaultJvmLifecycleFeature(handlers);
     }
 
     private static Path packagedDirectory() {

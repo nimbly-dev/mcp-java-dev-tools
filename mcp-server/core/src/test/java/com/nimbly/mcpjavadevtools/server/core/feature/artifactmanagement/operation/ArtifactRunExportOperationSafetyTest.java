@@ -22,7 +22,6 @@ import com.nimbly.mcpjavadevtools.server.core.operation.OperationInvocation;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationResultEncoder;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
@@ -166,14 +165,10 @@ class ArtifactRunExportOperationSafetyTest {
                 provider, new ArtifactJsonStore(mapper), new SqliteRunStateStore(), mapper);
         ProbeConfigOperations probe = new ProbeConfigOperations(support,
                 () -> new com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistry(List.of()));
-        ArtifactOperationCatalog catalog = new ArtifactOperationCatalog(
-                probe, new ProjectContextOperations(support), new PlanOperations(support),
-                new RunResultOperations(support), new ExecutionExportOperations(support),
-                new OperationExposure("artifact_management", "mcpjvm-619-safety",
-                        Arrays.stream(ArtifactManagementAction.values())
-                                .map(ArtifactManagementAction::routeId).toList()));
         List<OperationRegistration<?, ?>> registrations = new ArrayList<>();
-        for (OperationRegistration<?, ?> value : ArtifactOperationRegistrations.create(catalog, mapper)) {
+        for (OperationRegistration<?, ?> value : ArtifactOperationRegistrations.create(
+                probe, new ProjectContextOperations(support), new PlanOperations(support),
+                new RunResultOperations(support), new ExecutionExportOperations(support), mapper)) {
             if (owned(value)) {
                 registrations.add(observeUnchecked(value, completed, finalResult, timeoutMillis));
             }
@@ -352,8 +347,7 @@ class ArtifactRunExportOperationSafetyTest {
                 registration.descriptor(), registration.requestType(), registration.resultType(),
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), safety),
-                registration.decoder(), registration.executor(), encoder,
-                registration.operationCatalog(), registration.provenance());
+                registration.decoder(), registration.executor(), encoder);
     }
 
     private static void awaitUninterruptibly(CountDownLatch latch) {

@@ -212,8 +212,8 @@ class ExecuteExecutionOrchestrationActionTest {
         assertThat(registration.descriptor().operationId().value()).isEqualTo("execution_orchestration.execute");
         assertThat(registration.descriptor().executableOwner())
                 .contains("ExecuteExecutionOrchestrationAction#execute");
-        assertThat(registration.provenance().actionless()).isFalse();
-        assertThat(registration.provenance().invocationAction()).isEqualTo("execute");
+        assertThat(registration.descriptor().toolName()).isEqualTo("execution_orchestration");
+        assertThat(registration.descriptor().action()).isEqualTo("execute");
         assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
                 .isEqualTo(OperationCancellationState.CONTEXT_AWARE_CANCELLATION);
 
@@ -255,10 +255,6 @@ class ExecuteExecutionOrchestrationActionTest {
         assertThat(ownerCalls).hasValue(1);
         assertThat(typedRequest.get().action()).isEqualTo(ExecutionOrchestrationAction.EXECUTE);
         assertThat(typedRequest.get().input()).isEqualTo(input);
-        assertThat(registration.provenance().resultComparison())
-                .isEqualTo("execution_orchestration_status_reason_next_action_and_details_preserved");
-        assertThat(registration.provenance().parityScenario())
-                .isEqualTo("execution_orchestration_execute_public_request_contract");
         assertThat(execution.result().path("status").asText()).isEqualTo("in_progress");
         assertThat(execution.result().path("details").path("nextPlanOrder").asInt()).isEqualTo(2);
         JsonNode expected = OperationValueRedactor.redact(

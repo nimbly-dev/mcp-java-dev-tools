@@ -128,12 +128,10 @@ class RouteFailureOperationRegistrationTest {
         assertThat(registration.inputSchema().definition().path("$schema").asText())
                 .isEqualTo("https://json-schema.org/draft/2020-12/schema");
         assertThat(registration.inputSchema().definition().path("additionalProperties").asBoolean()).isFalse();
-        assertThat(registration.provenance().invocationTool())
+        assertThat(registration.descriptor().toolName())
                 .isEqualTo(operationId.substring(0, operationId.indexOf('.')));
-        assertThat(registration.provenance().invocationAction())
+        assertThat(registration.descriptor().action())
                 .isEqualTo(operationId.substring(operationId.indexOf('.') + 1));
-        assertThat(registration.provenance().parityScenario())
-                .isEqualTo(operationId.replace('.', '_'));
         assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
                 .isEqualTo(OperationCancellationState.CONTEXT_AWARE_CANCELLATION);
     }
@@ -364,11 +362,6 @@ class RouteFailureOperationRegistrationTest {
         assertThat(released.path("synthesis").path("synthesizerUsed").asText()).isEqualTo("spring");
         assertThat(recipe.result().path("actionResult").path("synthesizerUsed"))
                 .isEqualTo(released.path("synthesis").path("synthesizerUsed"));
-        var identity = registrations.get("route_synthesis.create_recipe").provenance();
-        assertThat(identity.normalization()).isEqualTo(
-                "create_recipe.synthesizerUsed:java_owner=spring_http->cde=spring=typescript_released_spring");
-        assertThat(identity.resultComparison()).isEqualTo(
-                "route_result_envelope_and_MCPJVM-621_approved_cde_spring_mapping_and_recipe_semantics");
         assertThat(cdeCandidate.path("method")).isEqualTo(synthesizerCandidate.path("method"));
         assertThat(cdeCandidate.path("path")).isEqualTo(synthesizerCandidate.path("path"));
     }
@@ -450,8 +443,7 @@ class RouteFailureOperationRegistrationTest {
     void writesSixRowManifestTraceAndRoutingEvidence() throws Exception {
         assertThat(directory.manifest().descriptors()).hasSize(6);
         assertThat(directory.traceInventory()).hasSize(6).allSatisfy(entry ->
-                assertThat(entry.compatibility()).containsKeys(
-                        "normalization", "resultComparison", "parityScenario", "cancellationState"));
+                assertThat(entry.operationId()).isNotBlank());
         Path evidence = Path.of("target", "mcpjvm-621-evidence");
         Files.createDirectories(evidence);
         JSON.writerWithDefaultPrettyPrinter().writeValue(
@@ -739,8 +731,7 @@ class RouteFailureOperationRegistrationTest {
                 registration.descriptor(), registration.requestType(), registration.resultType(),
                 new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), bounded),
-                registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.provenance());
+                registration.decoder(), registration.executor(), registration.encoder());
     }
 
     private ObjectNode input(String operationId) {

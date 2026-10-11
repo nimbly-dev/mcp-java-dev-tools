@@ -87,9 +87,15 @@ public final class CoreOperationDirectory {
             CoreOperationDirectoryOwners owners, ObjectMapper mapper, TrustedSuiteExecution trusted) {
         Objects.requireNonNull(mapper, "mapper must not be null");
         List<OperationRegistration<?, ?>> aggregate = Stream.of(
-                ArtifactOperationRegistrations.create(owners.artifact(), mapper),
-                JvmLifecycleOperationRegistrations.create(owners.jvmLifecycle(), mapper),
-                ProbeOperationRegistrations.create(owners.probe(), mapper),
+                ArtifactOperationRegistrations.create(
+                        owners.probeConfigOperations(),
+                        owners.projectContextOperations(),
+                        owners.planOperations(),
+                        owners.runResultOperations(),
+                        owners.executionExportOperations(),
+                        mapper),
+                JvmLifecycleOperationRegistrations.create(owners.jvmLifecycleHandlers(), mapper),
+                ProbeOperationRegistrations.create(owners.probeHandlers(), mapper),
                 ExecutionProfileExportOperationRegistrations.create(owners.export(), mapper),
                 RouteSynthesisOperationRegistrations.create(owners.routes(), mapper),
                 FailureAnalysisOperationRegistrations.create(owners.failureAnalysisHandlers(), mapper),

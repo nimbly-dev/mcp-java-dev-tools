@@ -18,7 +18,7 @@ This folder is the workspace-style scaffold for TS tool packages.
 - `synthesizers/tools-spring-http`
 - `synthesizers/tools-jaxrs-http`
 - `synthesizers/tools-grpc-rpc`
-- `transport/tools-mcp-server`
+- `transport/tools-mcp-server` (legacy migration-reference utilities only)
 
 ## Integrated test location
 
@@ -41,10 +41,10 @@ Example packages are starter scaffolds for framework adoptors and are not includ
 
 These are folder-level placeholders only. Spring HTTP is the only active synthesizer implementation today.
 
-## Active runtime packages
+## Legacy TypeScript reference packages
 
-- MCP transport/server entrypoint code:
-  - `transport/tools-mcp-server/src`
+- Retained configuration, resolver, and redaction reference utilities:
+  - `transport/tools-mcp-server/src/{config,lib,utils}`
 - Shared recipe orchestration/runtime utilities:
   - `core/tools-core/src`
 - Synthesizer plugin registry runtime:
@@ -64,6 +64,9 @@ These are folder-level placeholders only. Spring HTTP is the only active synthes
   - `features/security-suite`
 - Spring HTTP synthesizer runtime implementation:
   - `synthesizers/tools-spring-http/src`
+
+These sources may be read to identify behavior that must be transferred to the
+Java owners. They are not executed as Java MCP acceptance evidence.
 
 ## Feature Module boundary conventions
 

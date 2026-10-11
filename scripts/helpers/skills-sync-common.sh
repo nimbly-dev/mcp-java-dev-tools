@@ -17,12 +17,11 @@ KIRO_SKILLS_DIR=""
 CLAUDE_SKILLS_DIR=""
 SKILL_NAMES=()
 SKILL_NAME_OVERRIDE=0
-RUN_BUILD_COMPILE=1
-RUN_BUILD_JAVA=1
-CONFIGURE_MCP_ENV=1
-APPLY_MCP_ENV=1
+RUN_BUILD_SERVER=1
+CONFIGURE_MCP=1
+APPLY_MCP_CONFIG=1
 MCP_SERVER_NAME="mcp-java-dev-tools"
-MCP_JAVA_AGENT_JAR_INPUT=""
+MCP_SERVER_JAR_INPUT=""
 
 usage_common() {
   cat <<'EOF'
@@ -32,13 +31,12 @@ Options:
   --codex-home <path>         Override CODEX_HOME (default: ~/.codex)
   --kiro-skills-dir <path>    Override Kiro skills directory (default: ~/.kiro/skills)
   --claude-skills-dir <path>  Override Claude Code skills directory (default: ~/.claude/skills)
-  --no-build-compile          Skip `npm run build:compile`
-  --no-build-java             Skip `mvn -f java-agent/pom.xml package`
-  --configure-mcp-env         Prompt/collect MCP probe-registry env values and print config block (default: enabled)
-  --no-configure-mcp-env      Skip MCP env input/output block generation
-  --no-apply-mcp-env          Do not auto-write MCP env block to local config; print snippet only
-  --mcp-server-name <name>    MCP server entry name for generated config block (default: mcp-java-dev-tools)
-  --java-agent-jar <path>     Java agent jar path for MCP_JAVA_AGENT_JAR (required with --configure-mcp-env)
+  --no-build-server           Skip Java agent and MCP server packaging
+  --configure-mcp             Configure the Java MCP server (default: enabled)
+  --no-configure-mcp          Skip MCP server configuration
+  --no-apply-mcp              Do not auto-write Codex config; print a snippet only
+  --mcp-server-name <name>    MCP server entry name (default: mcp-java-dev-tools)
+  --server-jar <path>         Executable Java MCP server jar (auto-detected by default)
   --help                      Show help
 EOF
 }
@@ -104,13 +102,12 @@ parse_common_args() {
       --codex-home) CODEX_HOME="$(expand_home "${2:-}")"; shift 2 ;;
       --kiro-skills-dir) KIRO_SKILLS_DIR="$(expand_home "${2:-}")"; shift 2 ;;
       --claude-skills-dir) CLAUDE_SKILLS_DIR="$(expand_home "${2:-}")"; shift 2 ;;
-      --no-build-compile) RUN_BUILD_COMPILE=0; shift ;;
-      --no-build-java) RUN_BUILD_JAVA=0; shift ;;
-      --configure-mcp-env) CONFIGURE_MCP_ENV=1; shift ;;
-      --no-configure-mcp-env) CONFIGURE_MCP_ENV=0; shift ;;
-      --no-apply-mcp-env) APPLY_MCP_ENV=0; shift ;;
+      --no-build-server) RUN_BUILD_SERVER=0; shift ;;
+      --configure-mcp) CONFIGURE_MCP=1; shift ;;
+      --no-configure-mcp) CONFIGURE_MCP=0; shift ;;
+      --no-apply-mcp) APPLY_MCP_CONFIG=0; shift ;;
       --mcp-server-name) MCP_SERVER_NAME="${2:-}"; shift 2 ;;
-      --java-agent-jar) MCP_JAVA_AGENT_JAR_INPUT="$(expand_home "${2:-}")"; shift 2 ;;
+      --server-jar) MCP_SERVER_JAR_INPUT="$(expand_home "${2:-}")"; shift 2 ;;
       --help|-h) return 99 ;;
       *)
         echo "Unknown argument: $1" >&2
@@ -169,58 +166,33 @@ validate_common_config() {
     exit 1
   fi
 
-  if [[ "$CONFIGURE_MCP_ENV" -eq 1 ]]; then
+  if [[ "$CONFIGURE_MCP" -eq 1 ]]; then
     if [[ -z "$MCP_SERVER_NAME" ]]; then
-      echo "--mcp-server-name must be non-empty when --configure-mcp-env is enabled." >&2
-      exit 1
-    fi
-    if [[ -z "$MCP_JAVA_AGENT_JAR_INPUT" ]]; then
-      MCP_JAVA_AGENT_JAR_INPUT="$(detect_default_java_agent_jar)"
-    fi
-    if [[ -z "$MCP_JAVA_AGENT_JAR_INPUT" ]]; then
-      echo "--java-agent-jar is required when --configure-mcp-env is enabled." >&2
+      echo "--mcp-server-name must be non-empty when --configure-mcp is enabled." >&2
       exit 1
     fi
   fi
 }
 
-detect_default_java_agent_jar() {
-  local target_dir="$REPO_ROOT/java-agent/core/core-probe/target"
+detect_default_server_jar() {
+  local target_dir="$REPO_ROOT/mcp-server/application/target"
   if [[ ! -d "$target_dir" ]]; then
     printf '%s' ""
     return
   fi
   local latest
-  latest="$(ls -1t "$target_dir"/mcp-java-dev-tools-agent-*-all.jar 2>/dev/null | head -n 1 || true)"
+  latest="$(ls -1t "$target_dir"/mcp-java-dev-tools-server-*.jar 2>/dev/null \
+    | grep -v '\.original$' | head -n 1 || true)"
   printf '%s' "$latest"
 }
 
-ensure_node_build_deps() {
-  echo "- Installing Node dependencies for TypeScript compile"
-  if [[ -f "$REPO_ROOT/package-lock.json" ]]; then
-    (cd "$REPO_ROOT" && npm ci --include=dev)
-  else
-    (cd "$REPO_ROOT" && npm install --include=dev)
-  fi
-}
-
-run_build_compile() {
-  if [[ "$RUN_BUILD_COMPILE" -eq 0 ]]; then
-    echo "- Skipping build compile (--no-build-compile)"
+run_build_server() {
+  if [[ "$RUN_BUILD_SERVER" -eq 0 ]]; then
+    echo "- Skipping Java MCP server build (--no-build-server)"
     return
   fi
-  ensure_node_build_deps
-  echo "- Running npm run build:compile"
-  (cd "$REPO_ROOT" && npm run build:compile)
-}
-
-run_build_java() {
-  if [[ "$RUN_BUILD_JAVA" -eq 0 ]]; then
-    echo "- Skipping Java build (--no-build-java)"
-    return
-  fi
-  echo "- Running Maven Java agent build"
-  (cd "$REPO_ROOT" && mvn -f java-agent/pom.xml package)
+  echo "- Packaging and verifying the Java MCP server"
+  bash "$REPO_ROOT/scripts/package-java-mcp-server.sh"
 }
 
 replace_skill_dir() {
@@ -386,14 +358,13 @@ run_skill_sync() {
   validate_common_config
 
   echo "$mode_label started (client=$CLIENT)"
-  if [[ "$CONFIGURE_MCP_ENV" -eq 1 ]]; then
-    echo "- Note: this flow syncs skills and generates MCP env config blocks."
+  if [[ "$CONFIGURE_MCP" -eq 1 ]]; then
+    echo "- Note: this flow syncs skills and configures the Java MCP server."
   else
     echo "- Note: this flow syncs skills only. MCP config installation is not performed."
   fi
 
-  run_build_compile
-  run_build_java
+  run_build_server
 
   if [[ "$CLIENT" == "codex" ]]; then
     sync_client_skills "$CODEX_HOME/skills" "Codex"
@@ -415,10 +386,10 @@ run_skill_sync() {
     print_claude_refresh_note
   fi
 
-  if [[ "$CONFIGURE_MCP_ENV" -eq 1 ]]; then
-    prompt_mcp_env_if_missing
-    apply_mcp_env_block_if_supported
-    print_mcp_env_block
+  if [[ "$CONFIGURE_MCP" -eq 1 ]]; then
+    prompt_mcp_config_if_missing
+    apply_mcp_config_if_supported
+    print_mcp_config
   fi
 
   echo "$mode_label completed."
@@ -478,57 +449,61 @@ prompt_yes_no_default_no() {
   done
 }
 
-prompt_mcp_env_if_missing() {
+prompt_mcp_config_if_missing() {
   local input=""
 
-
-  if [[ -z "$MCP_JAVA_AGENT_JAR_INPUT" ]]; then
-    local default_agent_jar
-    default_agent_jar="$(detect_default_java_agent_jar)"
-    if [[ -n "$default_agent_jar" ]]; then
-      read -r -p "MCP Java agent jar [${default_agent_jar}]: " input
+  if [[ -z "$MCP_SERVER_JAR_INPUT" ]]; then
+    local default_server_jar
+    default_server_jar="$(detect_default_server_jar)"
+    if [[ -n "$default_server_jar" ]]; then
+      read -r -p "Java MCP server jar [${default_server_jar}]: " input
       if [[ -z "$input" ]]; then
-        MCP_JAVA_AGENT_JAR_INPUT="$default_agent_jar"
+        MCP_SERVER_JAR_INPUT="$default_server_jar"
       else
-        MCP_JAVA_AGENT_JAR_INPUT="$(expand_home "$input")"
+        MCP_SERVER_JAR_INPUT="$(expand_home "$input")"
       fi
     else
-      read -r -p "MCP Java agent jar: " input
-      MCP_JAVA_AGENT_JAR_INPUT="$(expand_home "$input")"
+      read -r -p "Java MCP server jar: " input
+      MCP_SERVER_JAR_INPUT="$(expand_home "$input")"
     fi
   fi
-  if [[ -z "$MCP_JAVA_AGENT_JAR_INPUT" ]]; then
-    echo "MCP Java agent jar is required when --configure-mcp-env is enabled." >&2
+  if [[ -z "$MCP_SERVER_JAR_INPUT" ]]; then
+    echo "Java MCP server jar is required when --configure-mcp is enabled." >&2
+    exit 1
+  fi
+  if [[ ! -f "$MCP_SERVER_JAR_INPUT" ]]; then
+    echo "Java MCP server jar not found: $MCP_SERVER_JAR_INPUT" >&2
     exit 1
   fi
 }
 
-apply_mcp_env_block_if_supported() {
-  if [[ "$APPLY_MCP_ENV" -eq 0 ]]; then
+apply_mcp_config_if_supported() {
+  if [[ "$APPLY_MCP_CONFIG" -eq 0 ]]; then
     return
   fi
 
   if [[ "$CLIENT" == "codex" ]]; then
-    apply_codex_mcp_env_block
+    apply_codex_mcp_config
     return
   fi
 
-  echo "- Auto-apply MCP env is currently supported for Codex only; printing a manual $CLIENT note."
+  echo "- Auto-apply MCP config is currently supported for Codex only; printing a manual $CLIENT note."
 }
 
-apply_codex_mcp_env_block() {
+apply_codex_mcp_config() {
   local cfg="$CODEX_HOME/config.toml"
   mkdir -p "$CODEX_HOME"
   touch "$cfg"
 
-  local section="[mcp_servers.${MCP_SERVER_NAME}.env]"
   local tmp
   tmp="$(mktemp)"
 
-  awk -v section="$section" '
+  awk -v name="$MCP_SERVER_NAME" '
     BEGIN { skip=0 }
     {
-      if ($0 == section) { skip=1; next }
+      section="[mcp_servers." name "]"
+      nested="[mcp_servers." name "."
+      if ($0 == section || index($0, nested) == 1) { skip=1; next }
       if (skip == 1 && $0 ~ /^\[/) { skip=0 }
       if (skip == 0) print $0
     }
@@ -536,39 +511,42 @@ apply_codex_mcp_env_block() {
 
   mv "$tmp" "$cfg"
 
-  local toml_agent_jar
-  toml_agent_jar="$(escape_toml_basic_string "$MCP_JAVA_AGENT_JAR_INPUT")"
+  local toml_server_jar
+  toml_server_jar="$(escape_toml_basic_string "$(native_absolute_server_jar_path)")"
 
   cat >> "$cfg" <<EOF
 
-[mcp_servers.${MCP_SERVER_NAME}.env]
-MCP_JAVA_AGENT_JAR = "${toml_agent_jar}"
+[mcp_servers.${MCP_SERVER_NAME}]
+command = "java"
+args = ["-jar", "${toml_server_jar}"]
 EOF
 
-  echo "- Applied MCP env block to $cfg"
+  echo "- Applied Java MCP server config to $cfg"
 }
 
-print_mcp_env_block() {
-  local toml_agent_jar
-  local json_agent_jar
+print_mcp_config() {
+  local native_server_jar
+  local toml_server_jar
+  local json_server_jar
 
-  toml_agent_jar="$(escape_toml_basic_string "$MCP_JAVA_AGENT_JAR_INPUT")"
-
-  json_agent_jar="$(escape_json_string "$MCP_JAVA_AGENT_JAR_INPUT")"
+  native_server_jar="$(native_absolute_server_jar_path)"
+  toml_server_jar="$(escape_toml_basic_string "$native_server_jar")"
+  json_server_jar="$(escape_json_string "$native_server_jar")"
 
   if [[ "$CLIENT" == "codex" ]]; then
     cat <<EOF
 
-MCP registry env input captured.
-Codex MCP env block applied to ~/.codex/config.toml (unless --no-apply-mcp-env was used).
+Java MCP server configured.
+Codex config applied to ~/.codex/config.toml (unless --no-apply-mcp was used).
 Reference block:
 
-[mcp_servers.${MCP_SERVER_NAME}.env]
-MCP_JAVA_AGENT_JAR = "${toml_agent_jar}"
+[mcp_servers.${MCP_SERVER_NAME}]
+command = "java"
+args = ["-jar", "${toml_server_jar}"]
 
 Then restart Codex/MCP session and run:
-1. artifact_management { "artifactType": "probe_config", "action": "reload", "input": {} }
-2. artifact_management { "artifactType": "probe_config", "action": "read", "input": {} }
+1. operation_execute { "operationId": "artifact_management.probe_config.reload", "arguments": {}, "confirmed": true }
+2. operation_execute { "operationId": "artifact_management.probe_config.read", "arguments": {} }
 EOF
     return
   fi
@@ -576,39 +554,56 @@ EOF
   if [[ "$CLIENT" == "claude" ]]; then
     cat <<EOF
 
-MCP registry env input captured.
-Claude Code skill sync does not auto-edit Claude configuration. Configure the MCP server in Claude Code using:
+Java MCP server built. Claude Code skill sync does not auto-edit Claude configuration.
+Add or merge this block into your project MCP configuration:
 
-  MCP_JAVA_AGENT_JAR="$MCP_JAVA_AGENT_JAR_INPUT"
+{
+  "mcpServers": {
+    "${MCP_SERVER_NAME}": {
+      "command": "java",
+      "args": ["-jar", "${json_server_jar}"]
+    }
+  }
+}
 
 Then restart Claude Code/MCP session and run:
-1. artifact_management { "artifactType": "probe_config", "action": "reload", "input": {} }
-2. artifact_management { "artifactType": "probe_config", "action": "read", "input": {} }
+1. operation_execute { "operationId": "artifact_management.probe_config.reload", "arguments": {}, "confirmed": true }
+2. operation_execute { "operationId": "artifact_management.probe_config.read", "arguments": {} }
 EOF
     return
   fi
 
   cat <<EOF
 
-MCP registry env input captured.
+Java MCP server built.
 Add or merge this block into your Kiro MCP settings:
 
 {
   "mcpServers": {
     "${MCP_SERVER_NAME}": {
-      "command": "node",
-      "args": ["C:\\\\path\\\\to\\\\mcp-jvm-debugger\\\\dist\\\\server.js"],
-      "env": {
-        "MCP_JAVA_AGENT_JAR": "${json_agent_jar}"
-      }
+      "command": "java",
+      "args": ["-jar", "${json_server_jar}"]
     }
   }
 }
 
 Then restart Kiro MCP session and run:
-1. artifact_management { "artifactType": "probe_config", "action": "reload", "input": {} }
-2. artifact_management { "artifactType": "probe_config", "action": "read", "input": {} }
+1. operation_execute { "operationId": "artifact_management.probe_config.reload", "arguments": {}, "confirmed": true }
+2. operation_execute { "operationId": "artifact_management.probe_config.read", "arguments": {} }
 EOF
+}
+
+native_absolute_server_jar_path() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      cygpath -am -- "$MCP_SERVER_JAR_INPUT"
+      ;;
+    *)
+      local jar_directory
+      jar_directory="$(cd "$(dirname "$MCP_SERVER_JAR_INPUT")" && pwd -P)"
+      printf '%s/%s\n' "$jar_directory" "$(basename "$MCP_SERVER_JAR_INPUT")"
+      ;;
+  esac
 }
 
 escape_toml_basic_string() {
@@ -661,9 +656,10 @@ prompt_delete_stale_managed_skills() {
   done
 }
 
-read_package_version() {
+read_server_version() {
   local version
-  version="$(node -p "require('./package.json').version" 2>/dev/null || true)"
+  version="$(sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' "$REPO_ROOT/mcp-server/pom.xml" \
+    | head -n 1)"
   if [[ -n "$version" ]]; then
     printf '%s\n' "$version"
     return
@@ -671,12 +667,11 @@ read_package_version() {
   printf '%s\n' "unknown"
 }
 
-print_jar_upgrade_note() {
+print_server_upgrade_note() {
   local version="$1"
   cat <<EOF
 Note:
-- Latest MCP Java Dev Tools version: $version
-- Update your target application's javaagent jar to this latest version.
-- Example: replace older jar (e.g. 0.1.3) with latest version $version.
+- Java MCP server version: $version
+- Restart the MCP client after updating so it launches the newly packaged server jar.
 EOF
 }

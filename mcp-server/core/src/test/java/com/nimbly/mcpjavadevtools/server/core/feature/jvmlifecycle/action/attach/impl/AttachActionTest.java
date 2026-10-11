@@ -32,13 +32,14 @@ class AttachActionTest {
         AttachAction action = new AttachAction(helper, artifacts, new ProbeHostPolicy(Set.of()));
 
         JvmLifecycleResult result = action.execute(new AttachRequest(
-                "1234", 1720000000000L, true, "127.0.0.1", 9191, "com.example.*", null));
+                "1234", 1720000000000L, true, "127.0.0.1", 9191,
+                "orders", "com.example.*", null));
 
         assertThat(result.status().value()).isEqualTo("ok");
         assertThat(operation).hasValue("attach");
         assertThat(arguments.get()).containsSubsequence(
                 "--agent-jar", "agent.jar", "--confirm", "true",
-                "--agent-args", "host=127.0.0.1;port=9191;include=com.example.*");
+                "--agent-args", "host=127.0.0.1;port=9191;probeId=orders;include=com.example.*");
     }
 
     @Test
@@ -51,7 +52,7 @@ class AttachActionTest {
         AttachAction action = new AttachAction(helper, artifacts, new ProbeHostPolicy(Set.of()));
 
         JvmLifecycleResult result = action.execute(new AttachRequest(
-                "1234", 1L, true, "192.0.2.1", 9191, null, null));
+                "1234", 1L, true, "192.0.2.1", 9191, null, null, null));
 
         assertThat(result.reasonCode()).isEqualTo("probe_host_not_allowed");
     }

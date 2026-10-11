@@ -83,6 +83,12 @@ public final class RunResultOperations {
             Path result = workspace.paths().resolve(
                     ".mcpjvm", projectName, "plans", suiteType, planName, "runs", runId,
                     "execution.result.json");
+            if (payload.path("correlation").isObject()) {
+                Path correlation = workspace.paths().resolve(
+                        ".mcpjvm", projectName, "plans", suiteType, planName, "runs", runId,
+                        "correlation.json");
+                support.jsonStore().write(correlation, payload.path("correlation"));
+            }
             support.jsonStore().write(result, payload);
             return support.success(request, Map.of(
                     "projectName", projectName,

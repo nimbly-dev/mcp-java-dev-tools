@@ -23,7 +23,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.endpoint.Probe
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.response.ProbeResponseCompactionPolicy;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.registry.ProbeRegistryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.routing.ProbeTargetResolver;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -143,16 +142,10 @@ public class ProbeConfiguration {
         return new ProbeProfilerAction(resolver, endpoint, client, compaction, outputStore);
     }
 
-    /** Assembles the capability-owned operation catalog from action-owned Spring beans. */
+    /** Assembles the non-CDE Core Feature for Suite and Route Synthesis consumers. */
     @Bean
-    ProbeOperationCatalog probeOperationCatalog(List<ProbeActionHandler> handlers) {
-        return new ProbeOperationCatalog(handlers);
-    }
-
-    /** Assembles the public Core Feature from the complete operation catalog. */
-    @Bean
-    ProbeFeature probeFeature(ProbeOperationCatalog operationCatalog) {
-        return new DefaultProbeFeature(operationCatalog);
+    ProbeFeature probeFeature(List<ProbeActionHandler> handlers) {
+        return new DefaultProbeFeature(handlers);
     }
 
     private static ProbeEndpointConfiguration endpointConfiguration(ProbeConfigurationProperties properties) {

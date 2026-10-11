@@ -8,6 +8,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterWorkloadExecutor;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterWorkloadRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.workload.jmeter.JmeterWorkloadResult;
+import com.nimbly.mcpjavadevtools.server.core.feature.suite.execution.SuiteRuntimeEnvironment;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.reset.ProbeBatchResetRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeBatchStatusRequest;
@@ -26,12 +27,15 @@ import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Validates and executes the generated-HTTP JMeter Performance plan contract. */
 public final class PerformancePlanExecutor implements PerformanceSuiteFeature {
 
     private static final int MAX_CONCURRENCY = 10_000;
     private static final int MAX_DURATION_SECONDS = 1_800;
+    private static final Pattern CONTEXT_PLACEHOLDER = Pattern.compile("\\$\\{([A-Za-z0-9._-]+)}");
     private final JmeterExecutableResolver executableResolver;
     private final JmeterWorkloadExecutor workloadExecutor;
     private final ProbeFeature probe;
@@ -92,7 +96,8 @@ public final class PerformancePlanExecutor implements PerformanceSuiteFeature {
         }
         JmeterWorkloadResult result = workloadExecutor.execute(new JmeterWorkloadRequest(
                 validation.runDirectory(), validation.planName(), executable, validation.method(), validation.url(),
-                validation.headers(), validation.body(), validation.timeoutMs(), validation.concurrency(),
+                validation.headers(), validation.body(), validation.environment(),
+                validation.timeoutMs(), validation.concurrency(),
                 validation.rampUpSeconds(), validation.durationSeconds()));
         if (!result.completed()) {
             stopProfiler(validation, profiler);
@@ -296,8 +301,9 @@ public final class PerformancePlanExecutor implements PerformanceSuiteFeature {
             return Validation.invalid("performance_plan_input_invalid", "provide a Performance plan object");
         }
         JsonNode contract = contract(input);
+        RuntimeContext runtimeContext = runtimeContext(input);
         String installationPath = text(contract.path("workloadProvider").path("options").path("installationPath"));
-        String url = requestUrl(input, contract);
+        String url = resolve(requestUrl(input, contract), runtimeContext);
         String runDirectory = text(input.path("runDirectory"));
         int concurrency = positive(contract.path("loadModel").path("concurrency"));
         int durationSeconds = positive(contract.path("loadModel").path("durationSeconds"));
@@ -306,19 +312,20 @@ public final class PerformancePlanExecutor implements PerformanceSuiteFeature {
         if (required != null) {
             return required;
         }
-        if (observationTargets.requiredLineHits().isEmpty()
-                || (observationTargets.probeId() == null && observationTargets.probeBaseUrl() == null)) {
-            return Validation.invalid("performance_required_line_hit_missing", "provide requiredLineHits and a Probe selector");
-        }
-        if (concurrency > MAX_CONCURRENCY || durationSeconds > MAX_DURATION_SECONDS) {
-            return Validation.invalid("performance_plan_bounds_invalid", "reduce concurrency or duration to the supported hard ceiling");
+        Validation observationFailure = validateObservation(observationTargets, concurrency, durationSeconds);
+        if (observationFailure != null) {
+            return observationFailure;
         }
         Thresholds thresholds = thresholds(contract.path("successCriteria"));
         if (thresholds == null) {
             return Validation.invalid("performance_threshold_invalid", "provide deterministic successCriteria thresholds");
         }
         String planName = textOr(input.path("planName"), "performance-plan");
-        RequestDetails request = requestDetails(input, contract);
+        RequestDetails request = requestDetails(input, contract, runtimeContext);
+        Validation contextFailure = validateRuntimeContext(url, request);
+        if (contextFailure != null) {
+            return contextFailure;
+        }
         int rampUpSeconds = nonNegative(contract.path("loadModel").path("rampUpSeconds"));
         if (rampUpSeconds < 0) {
             return Validation.invalid("performance_plan_input_invalid", "provide a non-negative rampUpSeconds");
@@ -327,20 +334,42 @@ public final class PerformancePlanExecutor implements PerformanceSuiteFeature {
         if (analysis.reasonCode() != null) {
             return Validation.invalid(analysis.reasonCode(), analysis.nextAction());
         }
-        return new Validation(
-                null, null, installationPath, Path.of(runDirectory), planName, request.method(), url, request.headers(), request.body(),
+        return new Validation(null, null, installationPath, Path.of(runDirectory), planName, request.method(), url,
+                request.headers(), request.body(), runtimeContext.environment(),
                 request.timeoutMs(), concurrency, rampUpSeconds, durationSeconds, observationTargets.requiredLineHits(),
                 observationTargets.probeId(), observationTargets.probeBaseUrl(), request.healthCheckUrl(), thresholds,
                 analysis.profilerEnabled(), analysis.mstaEnabled(), analysis.profilerSessionId(),
                 Path.of(runDirectory).resolve("execution-timing.jfr").toAbsolutePath().normalize());
     }
 
-    private static RequestDetails requestDetails(JsonNode input, JsonNode contract) {
+    private static Validation validateObservation(
+            ObservationTargets observationTargets, int concurrency, int durationSeconds) {
+        if (observationTargets.requiredLineHits().isEmpty()
+                || (observationTargets.probeId() == null && observationTargets.probeBaseUrl() == null)) {
+            return Validation.invalid("performance_required_line_hit_missing", "provide requiredLineHits and a Probe selector");
+        }
+        if (concurrency > MAX_CONCURRENCY || durationSeconds > MAX_DURATION_SECONDS) {
+            return Validation.invalid("performance_plan_bounds_invalid",
+                    "reduce concurrency or duration to the supported hard ceiling");
+        }
+        return null;
+    }
+
+    private static Validation validateRuntimeContext(String url, RequestDetails request) {
+        boolean unresolvedHeader = request.headers().values().stream().anyMatch(PerformancePlanExecutor::unresolved);
+        if (unresolved(url) || unresolved(request.body()) || unresolvedHeader) {
+            return Validation.invalid("performance_runtime_context_unresolved",
+                    "provide every request context value through the execution profile or project bindings");
+        }
+        return null;
+    }
+
+    private static RequestDetails requestDetails(JsonNode input, JsonNode contract, RuntimeContext runtimeContext) {
         JsonNode entrypoint = contract.path("entrypoints").path(0);
         return new RequestDetails(
                 textOr(entrypoint.path("request").path("method"), "GET"),
-                headers(entrypoint.path("request").path("headers")),
-                text(entrypoint.path("request").path("body")),
+                resolveHeaders(headers(entrypoint.path("request").path("headers")), runtimeContext),
+                resolve(text(entrypoint.path("request").path("body")), runtimeContext),
                 positiveOr(input.path("request").path("timeoutMs"), 30_000),
                 healthCheckUrl(entrypoint));
     }
@@ -476,6 +505,58 @@ public final class PerformancePlanExecutor implements PerformanceSuiteFeature {
         return Map.copyOf(headers);
     }
 
+    private static Map<String, String> resolveHeaders(
+            Map<String, String> headers,
+            RuntimeContext runtimeContext) {
+        Map<String, String> resolved = new LinkedHashMap<>();
+        headers.forEach((name, value) -> resolved.put(name, resolve(value, runtimeContext)));
+        return Map.copyOf(resolved);
+    }
+
+    private static RuntimeContext runtimeContext(JsonNode input) {
+        Map<String, String> values = new LinkedHashMap<>();
+        input.path("providedContext").fields().forEachRemaining(entry -> {
+            if (entry.getValue().isValueNode() && !entry.getValue().isNull()) {
+                values.put(entry.getKey(), entry.getValue().asText());
+            }
+        });
+        Map<String, String> bindings = new LinkedHashMap<>();
+        Map<String, String> environment = SuiteRuntimeEnvironment.load(input.path("credentialSource"));
+        input.path("credentialBindings").fields().forEachRemaining(entry -> {
+            String environmentKey = entry.getValue().asText();
+            String value = values.getOrDefault(entry.getKey(), environment.get(environmentKey));
+            if (value != null && !value.isBlank()) {
+                values.put(entry.getKey(), value);
+                bindings.put(entry.getKey(), environmentKey);
+            }
+        });
+        Map<String, String> overrides = new LinkedHashMap<>();
+        bindings.forEach((contextKey, environmentKey) -> overrides.put(environmentKey, values.get(contextKey)));
+        return new RuntimeContext(Map.copyOf(values), Map.copyOf(bindings), Map.copyOf(overrides));
+    }
+
+    private static String resolve(String value, RuntimeContext runtimeContext) {
+        if (value == null) {
+            return null;
+        }
+        Matcher matcher = CONTEXT_PLACEHOLDER.matcher(value);
+        StringBuilder resolved = new StringBuilder();
+        while (matcher.find()) {
+            String contextKey = matcher.group(1);
+            String replacement = runtimeContext.bindings().containsKey(contextKey)
+                    ? "${__groovy(System.getenv('" + runtimeContext.bindings().get(contextKey) + "'))}"
+                    : runtimeContext.values().get(contextKey);
+            matcher.appendReplacement(resolved, Matcher.quoteReplacement(
+                    replacement == null ? matcher.group() : replacement));
+        }
+        matcher.appendTail(resolved);
+        return resolved.toString();
+    }
+
+    private static boolean unresolved(String value) {
+        return value != null && CONTEXT_PLACEHOLDER.matcher(value).find();
+    }
+
     private static List<String> lines(JsonNode node) {
         LinkedHashSet<String> values = new LinkedHashSet<>();
         node.forEach(value -> {
@@ -513,12 +594,13 @@ public final class PerformancePlanExecutor implements PerformanceSuiteFeature {
     }
 
     private record Validation(String reasonCode, String nextAction, String installationPath, Path runDirectory, String planName,
-            String method, String url, Map<String, String> headers, String body, int timeoutMs, int concurrency,
+            String method, String url, Map<String, String> headers, String body, Map<String, String> environment,
+            int timeoutMs, int concurrency,
             int rampUpSeconds, int durationSeconds, List<String> requiredLineHits, String probeId, String probeBaseUrl,
             String healthCheckUrl, Thresholds thresholds, boolean profilerEnabled, boolean mstaEnabled,
             String profilerSessionId, Path capturePath) {
         private static Validation invalid(String reasonCode, String nextAction) {
-            return new Validation(reasonCode, nextAction, null, null, null, null, null, Map.of(), null, 0, 0, 0, 0,
+            return new Validation(reasonCode, nextAction, null, null, null, null, null, Map.of(), null, Map.of(), 0, 0, 0, 0,
                     List.of(), null, null, null, null, false, false, null, null);
         }
     }
@@ -564,4 +646,10 @@ public final class PerformancePlanExecutor implements PerformanceSuiteFeature {
     }
 
     private record ObservationTargets(List<String> requiredLineHits, String probeId, String probeBaseUrl) { }
+
+    private record RuntimeContext(
+            Map<String, String> values,
+            Map<String, String> bindings,
+            Map<String, String> environment) {
+    }
 }

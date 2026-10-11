@@ -1,49 +1,66 @@
 package com.nimbly.mcpjavadevtools.server.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.plan.PlanOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.project.ProjectContextOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.action.ExecutionOrchestrationActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.ExecutionRunDirectoryProvider;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.TrustedDirectSuiteRun;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export.ExecutionExportArtifactGateway;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.action.FailureAnalysisActionHandler;
-import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.operation.JvmLifecycleOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.feature.probe.operation.ProbeOperationCatalog;
+import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.action.JvmLifecycleActionHandler;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.action.ProbeActionHandler;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.RouteSynthesisFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.RegressionSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationDirectory;
+import com.nimbly.mcpjavadevtools.server.core.operation.CatalogQueryPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.TrustedSuiteExecution;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.CoreOperationDirectoryOwners;
 import com.nimbly.mcpjavadevtools.server.core.operation.composition.TrustedCoreOperationDirectory;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.operation.OperationMcpOutputSchemaPostProcessor;
 import java.util.List;
-import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /** Spring composition for the one aggregate Core operation directory. */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(OperationCatalogConfigurationProperties.class)
 public class OperationDirectoryConfiguration {
 
     @Bean
-    static BeanPostProcessor operationMcpOutputSchemaPostProcessor() {
-        return new OperationMcpOutputSchemaPostProcessor();
+    CatalogQueryPolicy catalogQueryPolicy(OperationCatalogConfigurationProperties properties) {
+        return new CatalogQueryPolicy(properties.getDefaultLimit(), properties.getMaximumLimit());
     }
 
     @Bean
-    CoreCatalogOwners coreCatalogOwners(
-            ArtifactOperationCatalog artifact,
-            JvmLifecycleOperationCatalog jvmLifecycle,
-            ProbeOperationCatalog probe,
+    ArtifactOperationOwners artifactOperationOwners(
+            ProbeConfigOperations probeConfigOperations,
+            ProjectContextOperations projectContextOperations,
+            PlanOperations planOperations,
+            RunResultOperations runResultOperations,
+            ExecutionExportOperations executionExportOperations) {
+        return new ArtifactOperationOwners(
+                probeConfigOperations, projectContextOperations, planOperations,
+                runResultOperations, executionExportOperations);
+    }
+
+    @Bean
+    DirectOperationOwners directOperationOwners(
+            List<JvmLifecycleActionHandler> jvmLifecycleHandlers,
+            List<ProbeActionHandler> probeHandlers,
             ExecutionExportArtifactGateway export,
             RouteSynthesisFeature routes,
             List<FailureAnalysisActionHandler> failureAnalysisHandlers) {
-        return new CoreCatalogOwners(
-                artifact, jvmLifecycle, probe, export, routes, failureAnalysisHandlers);
+        return new DirectOperationOwners(
+                jvmLifecycleHandlers, probeHandlers, export, routes, failureAnalysisHandlers);
     }
 
     @Bean
@@ -58,14 +75,20 @@ public class OperationDirectoryConfiguration {
 
     @Bean
     CoreOperationDirectoryOwners coreOperationDirectoryOwners(
-            CoreCatalogOwners catalogOwners, CoreFeatureOwners featureOwners) {
+            ArtifactOperationOwners artifactOwners,
+            DirectOperationOwners directOwners,
+            CoreFeatureOwners featureOwners) {
         return new CoreOperationDirectoryOwners(
-                catalogOwners.artifact(),
-                catalogOwners.jvmLifecycle(),
-                catalogOwners.probe(),
-                catalogOwners.export(),
-                catalogOwners.routes(),
-                catalogOwners.failureAnalysisHandlers(),
+                artifactOwners.probeConfigOperations(),
+                artifactOwners.projectContextOperations(),
+                artifactOwners.planOperations(),
+                artifactOwners.runResultOperations(),
+                artifactOwners.executionExportOperations(),
+                directOwners.jvmLifecycleHandlers(),
+                directOwners.probeHandlers(),
+                directOwners.export(),
+                directOwners.routes(),
+                directOwners.failureAnalysisHandlers(),
                 featureOwners.transport(),
                 featureOwners.orchestrationHandlers(),
                 featureOwners.regression(),
@@ -75,7 +98,7 @@ public class OperationDirectoryConfiguration {
 
     @Bean
     TrustedSuiteExecution trustedSuiteExecution(
-            ArtifactOperationCatalog artifacts,
+            ArtifactManagementFeature artifacts,
             ExecutionRunDirectoryProvider directories,
             ObjectMapper mapper) {
         return new TrustedDirectSuiteRun(artifacts, directories, mapper);
@@ -94,10 +117,17 @@ public class OperationDirectoryConfiguration {
         return coreOperationDirectory.directory();
     }
 
-    private record CoreCatalogOwners(
-            ArtifactOperationCatalog artifact,
-            JvmLifecycleOperationCatalog jvmLifecycle,
-            ProbeOperationCatalog probe,
+    private record ArtifactOperationOwners(
+            ProbeConfigOperations probeConfigOperations,
+            ProjectContextOperations projectContextOperations,
+            PlanOperations planOperations,
+            RunResultOperations runResultOperations,
+            ExecutionExportOperations executionExportOperations) {
+    }
+
+    private record DirectOperationOwners(
+            List<JvmLifecycleActionHandler> jvmLifecycleHandlers,
+            List<ProbeActionHandler> probeHandlers,
             ExecutionExportArtifactGateway export,
             RouteSynthesisFeature routes,
             List<FailureAnalysisActionHandler> failureAnalysisHandlers) {

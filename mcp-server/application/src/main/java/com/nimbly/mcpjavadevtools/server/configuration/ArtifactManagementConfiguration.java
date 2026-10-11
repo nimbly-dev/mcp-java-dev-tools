@@ -3,7 +3,6 @@ package com.nimbly.mcpjavadevtools.server.configuration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.DefaultArtifactManagementFeature;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactJsonStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactWorkspaceProvider;
@@ -13,15 +12,8 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationRegistrations;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationTraceMetadata;
-import com.nimbly.mcpjavadevtools.server.mcp.tools.operation.OperationMcpTools;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceSnapshot;
-import java.util.Arrays;
-import java.util.Map;
 import java.util.Optional;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -90,33 +82,13 @@ public class ArtifactManagementConfiguration {
     }
 
     @Bean
-    ArtifactOperationCatalog artifactOperationCatalog(
+    ArtifactManagementFeature artifactManagementFeature(
             ProbeConfigOperations probe,
             ProjectContextOperations project,
             PlanOperations plans,
             RunResultOperations runs,
             ExecutionExportOperations exports) {
-        return new ArtifactOperationCatalog(
-                probe, project, plans, runs, exports,
-                new OperationExposure(
-                        ArtifactOperationCatalog.TOOL_NAME,
-                        OperationMcpTools.class.getName(),
-                        Arrays.stream(ArtifactManagementAction.values())
-                                .map(ArtifactManagementAction::routeId).toList()),
-                new OperationTraceMetadata(
-                        OperationMcpTools.class.getName(),
-                        ArtifactOperationRegistrations.class.getName(),
-                        ArtifactManagementFeature.class.getName(),
-                        ArtifactOperationRegistrations.class.getName(),
-                        "mcp-server/core/src/test/java/com/nimbly/mcpjavadevtools/server/core/feature/"
-                                + "artifactmanagement/operation/ArtifactProbeProjectOperationRegistrationTest.java",
-                        "artifact_management",
-                        Map.of("artifactSupport", ArtifactManagementSupport.class.getName())));
-    }
-
-    @Bean
-    ArtifactManagementFeature artifactManagementFeature(ArtifactOperationCatalog operationCatalog) {
-        return new DefaultArtifactManagementFeature(operationCatalog);
+        return new DefaultArtifactManagementFeature(probe, project, plans, runs, exports);
     }
 
 }

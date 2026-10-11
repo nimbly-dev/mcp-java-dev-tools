@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeSingleStatusRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusEntry;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.knowledge.SecurityKnowledgeCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
@@ -37,6 +40,18 @@ class SecurityPlanExecutorTest {
     }
 
     @Test
+    void blocksARejectedBlackboxBaseline() throws Exception {
+        TransportExecutionFeature rejected = request -> ExecuteTransportResult.httpResponse(
+                "fail_http", "http", 400, Map.of(), "", 1);
+
+        var result = new SecurityPlanExecutor(rejected, new SecurityKnowledgeCatalog())
+                .executePlan(mapper.readTree(contract("127.0.0.1")));
+
+        assertThat(result.status()).isEqualTo("blocked");
+        assertThat(result.reasonCode()).isEqualTo("security_blackbox_baseline_unexpected");
+    }
+
+    @Test
     void blocksEntrypointsOutsideTheDeclaredTargetBoundary() throws Exception {
         var result = executor().executePlan(mapper.readTree(contract("localhost")));
 
@@ -63,7 +78,12 @@ class SecurityPlanExecutorTest {
             return ExecuteTransportResult.httpResponse("pass", "http", 200, java.util.Map.of(), "", 1);
         };
 
-        var result = executor(bypassingTransport, request -> ProbeResult.success())
+        ProbeFeature hitProbe = request -> request instanceof ProbeSingleStatusRequest status
+                ? ProbeResult.success(new ProbeStatusResult(List.of(new ProbeStatusEntry(
+                        status.keySelector().key(), status.keySelector().key(), 200, true,
+                        1L, 1L, true, null, null, null))))
+                : ProbeResult.success();
+        var result = executor(bypassingTransport, hitProbe)
                 .executePlan(mapper.readTree(sidecarContract()));
 
         assertThat(result.status()).isEqualTo("completed");
@@ -138,6 +158,36 @@ class SecurityPlanExecutorTest {
         assertThat(selection.available()).isTrue();
         assertThat(selection.snapshot().packs()).containsExactly("web-api-core@1.0.0");
         assertThat(new SecurityKnowledgeCatalog().generatedCases(selection)).hasSize(1);
+    }
+
+    @Test
+    void executesTopLevelHttpEntrypointAndResolvesCredentialPlaceholder() throws Exception {
+        List<Map<String, Object>> payloads = new CopyOnWriteArrayList<>();
+        TransportExecutionFeature authenticated = request -> {
+            payloads.add(((ExecuteTransportRequest) request).request());
+            return ExecuteTransportResult.httpResponse("pass", "http", 200, Map.of(), "", 1);
+        };
+        String credential = System.getenv("PATH");
+        assertThat(credential).isNotBlank();
+        var input = mapper.createObjectNode();
+        input.set("contract", mapper.readTree("""
+                {"suiteType":"security","securityMode":"blackbox",
+                 "targetBoundary":{"environment":"local-ci","baseUrl":"http://127.0.0.1:8080",
+                 "allowedHosts":["127.0.0.1"],"allowedPorts":[8080]},
+                 "entrypoints":[{"id":"publish","type":"http","method":"POST","path":"/events",
+                 "baseline":{"headers":{"Authorization":"Bearer ${producer-token}"},"body":{"safe":true}}}],
+                 "authenticationProfiles":[{"id":"producer","kind":"bearer","credentialRef":"producer-token"}]}
+                """));
+        input.putObject("credentialBindings").put("producer-token", "PATH");
+
+        var result = new SecurityPlanExecutor(authenticated, new SecurityKnowledgeCatalog()).executePlan(input);
+
+        assertThat(result.status()).isEqualTo("completed");
+        assertThat(payloads).isNotEmpty();
+        assertThat(payloads.getFirst()).containsEntry("method", "POST");
+        assertThat(payloads.getFirst().get("headers").toString()).contains("Bearer " + credential);
+        assertThat(result.details().toString()).doesNotContain(credential)
+                .doesNotContain("security_blackbox_entrypoint_not_supported");
     }
 
     @Test

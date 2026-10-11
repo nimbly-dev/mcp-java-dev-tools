@@ -7,21 +7,17 @@
       <tag>route_synthesis</tag>
       <tag>java</tag>
     </tags>
-    <aliases>
-      <alias tool="route_synthesis" action="class_methods" />
-    </aliases>
     <arguments>
-      <argument name="projectRootAbs" description="Project root." type="string" required="true" />
-      <argument name="additionalSourceRoots" description="Additional source roots." type="array" required="false" />
-      <argument name="classHint" description="Class hint." type="string" required="false" />
-      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
-      <argument name="probeBaseUrl" description="Probe base URL override." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." />
+      <argument name="additionalSourceRoots" description="Additional source roots." />
+      <argument name="classHint" description="Class hint." />
+      <argument name="probeId" description="Probe registry identifier." />
+      <argument name="probeBaseUrl" description="Probe base URL override." />
     </arguments>
     <examples>
       <example>{"projectRootAbs":"."}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
-  </action>
+</action>
   <action classification="synthesis" name="create_recipe">
     <summary>Create a route-synthesis recipe.</summary>
     <description>Builds a bounded Java route recipe from approved synthesis evidence.</description>
@@ -29,34 +25,30 @@
       <tag>route_synthesis</tag>
       <tag>java</tag>
     </tags>
-    <aliases>
-      <alias tool="route_synthesis" action="create_recipe" />
-    </aliases>
     <arguments>
-      <argument name="projectRootAbs" description="Project root." type="string" required="true" />
-      <argument name="additionalSourceRoots" description="Additional source roots." type="array" required="false" />
-      <argument name="classHint" description="Class hint." type="string" required="true" />
-      <argument name="methodHint" description="Method hint." type="string" required="true" />
-      <argument name="lineHint" description="Source line hint." type="integer" required="false" />
-      <argument name="mappingsBaseUrl" description="Runtime mappings URL." type="string" required="false" />
-      <argument name="discoveryPreference" description="Discovery preference." type="string" required="false" />
-      <argument name="apiBasePath" description="API base path." type="string" required="false" />
-      <argument name="intentMode" description="Execution intent." type="string" required="true" />
-      <argument name="authToken" description="Authentication token." type="string" required="false" />
-      <argument name="authUsername" description="Authentication username." type="string" required="false" />
-      <argument name="authPassword" description="Authentication password." type="string" required="false" />
-      <argument name="actuationEnabled" description="Whether Probe actuation is enabled." type="boolean" required="false" />
-      <argument name="actuationReturnBoolean" description="Actuation branch value." type="boolean" required="false" />
-      <argument name="actuationActuatorId" description="Actuation actuator identifier." type="string" required="false" />
-      <argument name="outputTemplate" description="Response output template." type="string" required="false" />
-      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
-      <argument name="probeBaseUrl" description="Probe base URL override." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." />
+      <argument name="additionalSourceRoots" description="Additional source roots." />
+      <argument name="classHint" description="Class hint." />
+      <argument name="methodHint" description="Method hint." />
+      <argument name="lineHint" description="Source line hint." />
+      <argument name="mappingsBaseUrl" description="Runtime mappings URL." />
+      <argument name="discoveryPreference" description="Discovery preference." />
+      <argument name="apiBasePath" description="API base path." />
+      <argument name="intentMode" description="Execution intent." />
+      <argument name="authToken" description="Authentication token." />
+      <argument name="authUsername" description="Authentication username." />
+      <argument name="authPassword" description="Authentication password." />
+      <argument name="actuationEnabled" description="Whether Probe actuation is enabled." />
+      <argument name="actuationReturnBoolean" description="Actuation branch value." />
+      <argument name="actuationActuatorId" description="Actuation actuator identifier." />
+      <argument name="outputTemplate" description="Response output template." />
+      <argument name="probeId" description="Probe registry identifier." />
+      <argument name="probeBaseUrl" description="Probe base URL override." />
     </arguments>
     <examples>
       <example>{"projectRootAbs":".","classHint":"com.example.Sample","methodHint":"run","intentMode":"line_probe"}</example>
     </examples>
-    <safety sideEffect="filesystem_write" confirmationRequired="true" credentialPolicy="caller_may_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
-  </action>
+</action>
   <action classification="synthesis" name="discover_handlers">
     <summary>Discover route handlers.</summary>
     <description>Discovers bounded Java route handlers using approved synthesis rules.</description>
@@ -64,21 +56,17 @@
       <tag>route_synthesis</tag>
       <tag>java</tag>
     </tags>
-    <aliases>
-      <alias tool="route_synthesis" action="discover_handlers" />
-    </aliases>
     <arguments>
-      <argument name="projectRootAbs" description="Project root." type="string" required="true" />
-      <argument name="additionalSourceRoots" description="Additional source roots." type="array" required="false" />
-      <argument name="classHint" description="Class hint." type="string" required="false" />
-      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
-      <argument name="probeBaseUrl" description="Probe base URL override." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." />
+      <argument name="additionalSourceRoots" description="Additional source roots." />
+      <argument name="classHint" description="Class hint." />
+      <argument name="probeId" description="Probe registry identifier." />
+      <argument name="probeBaseUrl" description="Probe base URL override." />
     </arguments>
     <examples>
       <example>{"projectRootAbs":"."}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
-  </action>
+</action>
   <action classification="synthesis" name="infer_target">
     <summary>Infer a route-synthesis target.</summary>
     <description>Infers a bounded Java route target from approved evidence.</description>
@@ -86,22 +74,18 @@
       <tag>route_synthesis</tag>
       <tag>java</tag>
     </tags>
-    <aliases>
-      <alias tool="route_synthesis" action="infer_target" />
-    </aliases>
     <arguments>
-      <argument name="projectRootAbs" description="Project root." type="string" required="true" />
-      <argument name="additionalSourceRoots" description="Additional source roots." type="array" required="false" />
-      <argument name="classHint" description="Class hint." type="string" required="false" />
-      <argument name="methodHint" description="Method hint." type="string" required="false" />
-      <argument name="lineHint" description="Source line hint." type="integer" required="false" />
-      <argument name="maxCandidates" description="Maximum target candidates." type="integer" required="false" />
-      <argument name="probeId" description="Probe registry identifier." type="string" required="false" />
-      <argument name="probeBaseUrl" description="Probe base URL override." type="string" required="false" />
+      <argument name="projectRootAbs" description="Project root." />
+      <argument name="additionalSourceRoots" description="Additional source roots." />
+      <argument name="classHint" description="Class hint." />
+      <argument name="methodHint" description="Method hint." />
+      <argument name="lineHint" description="Source line hint." />
+      <argument name="maxCandidates" description="Maximum target candidates." />
+      <argument name="probeId" description="Probe registry identifier." />
+      <argument name="probeBaseUrl" description="Probe base URL override." />
     </arguments>
     <examples>
       <example>{"projectRootAbs":"."}</example>
     </examples>
-    <safety sideEffect="filesystem_read" confirmationRequired="false" credentialPolicy="caller_must_not_supply_credentials" redactionPolicy="redact_sensitive_fields" timeoutMs="60000" cancellable="true" maxInputBytes="1048576" maxOutputBytes="4194304" />
-  </action>
+</action>
 </tool>

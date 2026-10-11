@@ -3,7 +3,7 @@ package com.nimbly.mcpjavadevtools.server.mcp.tools.operation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.operation.CatalogPage;
-import com.nimbly.mcpjavadevtools.server.core.operation.CatalogQuery;
+import com.nimbly.mcpjavadevtools.server.core.operation.CatalogQueryPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationDirectory;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationExecutionResult;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
@@ -33,10 +33,15 @@ public class OperationMcpTools {
 
     private final OperationDirectory directory;
     private final ObjectMapper mapper;
+    private final CatalogQueryPolicy catalogPolicy;
 
-    public OperationMcpTools(OperationDirectory directory, ObjectMapper mapper) {
+    public OperationMcpTools(
+            OperationDirectory directory,
+            ObjectMapper mapper,
+            CatalogQueryPolicy catalogPolicy) {
         this.directory = directory;
         this.mapper = mapper;
+        this.catalogPolicy = catalogPolicy;
     }
 
     @McpTool(
@@ -55,8 +60,8 @@ public class OperationMcpTools {
             @McpToolParam(description = "Optional continuation cursor from the prior page.", required = false)
                     String cursor) {
         try {
-            CatalogPage page = directory.catalog(new CatalogQuery(
-                    query, api, classification, limit == null ? CatalogQuery.DEFAULT_LIMIT : limit, cursor));
+            CatalogPage page = directory.catalog(catalogPolicy.query(
+                    query, api, classification, limit, cursor));
             return catalogResult(page);
         } catch (OperationDirectoryException failure) {
             return new OperationCatalogMcpResult(

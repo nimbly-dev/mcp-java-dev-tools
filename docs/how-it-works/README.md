@@ -4,6 +4,12 @@
 
 This document walks you through how `mcp-java-dev-tools` operates in practice — what it needs to run, how the orchestration flow works, and what each use case looks like end-to-end.
 
+The public server exposes `operation_catalog`, `operation_describe`, and
+`operation_execute`. Capability/action notation below (for example,
+`probe` with `action=status`) is shorthand for the corresponding canonical
+operation ID and arguments passed through `operation_execute`; those capability
+names are not additional public MCP tools.
+
 ---
 
 ## Before You Start
@@ -45,8 +51,8 @@ For a local Java 21+ JVM, the `core-jvm-attach` helper can discover bounded cand
 attach the repository-owned Sidecar Agent, and request agent-owned deactivation without restarting
 the application. Discovery returns sanitized identity tokens, deterministic framework evidence,
 and a process-start timestamp; all candidates remain unverified. Attach and deactivate require an
-explicit PID, the matching process-start timestamp, and `--confirm true`; use the canonical `probe`
-MCP Tool to verify the attached Probe after a successful attach result.
+explicit PID, the matching process-start timestamp, and `--confirm true`; use a canonical `probe.*`
+operation to verify the attached Probe after a successful attach result.
 
 Java 17 is unsupported. Java 21 emits the JEP 451 dynamic-agent warning by default;
 `-XX:+EnableDynamicAgentLoading` suppresses it when intentionally configured. Disabled dynamic

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.MissingNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.DefaultArtifactManagementFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactJsonStore;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
@@ -16,7 +17,6 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifac
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.RunResultOperations;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactManagementAction;
-import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.operation.ArtifactOperationCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.persistence.TrustedDirectSuiteRun;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.performance.PerformanceSuiteFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.ProbeFeature;
@@ -46,11 +46,11 @@ import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.Transpo
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationDirectory;
+import com.nimbly.mcpjavadevtools.server.core.operation.OperationExecutionResult;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationInvocation;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.BoundedOperationResultEncoder;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistration;
 import com.nimbly.mcpjavadevtools.server.core.operation.binding.OperationRegistrationContract;
-import com.nimbly.mcpjavadevtools.server.core.operation.catalog.OperationExposure;
 import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecutionStatus;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestAssembler;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
@@ -58,9 +58,9 @@ import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManife
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationGuarantee;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationState;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationCancellationSupport;
+import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyLimits;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
 import com.nimbly.mcpjavadevtools.server.core.operation.schema.OperationSchemaValidator;
-import com.nimbly.mcpjavadevtools.server.core.operation.trace.OperationProvenanceKind;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -100,26 +100,21 @@ class SuiteOperationRegistrationTest {
     private final AtomicReference<Object> rowOwnerRequest = new AtomicReference<>();
 
     @Test
-    void registersExactlyFourDirectOperationsWithOrchestrationProvenance() {
+    void registersExactlyFourDirectOperationsWithExplicitCancellation() {
         List<OperationRegistration<?, ?>> registrations = registrations(new AtomicReference<>());
 
         assertThat(registrations).extracting(registration ->
                 registration.descriptor().operationId().value()).containsExactlyInAnyOrderElementsOf(IDS);
         assertThat(registrations).allSatisfy(registration -> {
-            assertThat(registration.provenance().kind())
-                    .isEqualTo(OperationProvenanceKind.NEW_DIRECT_CDE_OPERATION);
-            assertThat(registration.provenance().invocationTool()).isEqualTo("execution_orchestration");
-            assertThat(registration.provenance().invocationAction()).isEqualTo("execute");
-            assertThat(registration.provenance().discriminators())
-                    .containsKey("suiteType").containsKey("suiteAction");
-            assertThat(registration.compatibility())
-                    .containsEntry("provenanceKind", "NEW_DIRECT_CDE_OPERATION")
-                    .doesNotContainKeys("releasedTool", "releasedAction", "actionless");
+            assertThat(registration.descriptor().toolName()).endsWith("_suite");
             assertThat(OperationCancellationSupport.state(registration.executor(), registration.safety()))
                     .isEqualTo(OperationCancellationState.NOT_CANCELLABLE);
             assertThat(OperationCancellationSupport.guarantee(registration.executor()))
                     .isEqualTo(OperationCancellationGuarantee.DETERMINISTIC_CONTINUATION);
             assertThat(registration.safety().cancellationSupported()).isFalse();
+            if (EXECUTE_IDS.contains(registration.descriptor().operationId().value())) {
+                assertThat(registration.safety().timeoutMillis()).isEqualTo(OperationSafetyLimits.MAX_TIMEOUT_MILLIS);
+            }
         });
     }
 
@@ -181,7 +176,7 @@ class SuiteOperationRegistrationTest {
                 .as(id).isEqualTo("ok");
         int completedCalls = probe.ownerCalls.get();
 
-        var resumed = directory.execute(invocation);
+        var resumed = awaitTerminalRetry(directory, invocation);
         assertThat(resumed.result().path("reasonCode").asText()).as(id).isEqualTo("ok");
         assertThat(probe.ownerCalls.get()).as(id).isEqualTo(completedCalls);
         assertThat(Files.readString(artifact)).as(id).isEqualTo(persisted);
@@ -193,6 +188,20 @@ class SuiteOperationRegistrationTest {
             Thread.sleep(10);
         }
         assertThat(artifact).isRegularFile();
+    }
+
+    private static OperationExecutionResult awaitTerminalRetry(
+            OperationDirectory directory, OperationInvocation invocation) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        OperationExecutionResult result;
+        do {
+            result = directory.execute(invocation);
+            if (!"direct_suite_run_in_progress".equals(result.result().path("reasonCode").asText())) {
+                return result;
+            }
+            Thread.sleep(10);
+        } while (System.nanoTime() < deadline);
+        return result;
     }
 
     @Test
@@ -244,8 +253,7 @@ class SuiteOperationRegistrationTest {
         return new OperationRegistration(registration.descriptor(), registration.requestType(),
                 registration.resultType(), new OperationRegistrationContract(
                         registration.inputSchema(), registration.resultSchema(), bounded),
-                registration.decoder(), registration.executor(), registration.encoder(),
-                registration.operationCatalog(), registration.provenance());
+                registration.decoder(), registration.executor(), registration.encoder());
     }
 
     @Test
@@ -263,8 +271,6 @@ class SuiteOperationRegistrationTest {
                 registrations, new OperationManifestDocument(builtIn.version(), documents));
 
         assertThat(manifest.registrations()).hasSize(4);
-        assertThat(manifest.descriptors()).allSatisfy(descriptor ->
-                assertThat(descriptor.documentation().aliases()).isEmpty());
     }
 
     @Test
@@ -469,13 +475,10 @@ class SuiteOperationRegistrationTest {
             Files.writeString(project.resolve("projects.json"), contexts.toString());
             ArtifactManagementSupport support = new ArtifactManagementSupport(
                     () -> Optional.of(workspace), new ArtifactJsonStore(JSON), new SqliteRunStateStore(JSON), JSON);
-            ArtifactOperationCatalog artifacts = new ArtifactOperationCatalog(
+            var artifacts = new DefaultArtifactManagementFeature(
                     new ProbeConfigOperations(support), new ProjectContextOperations(support),
                     new PlanOperations(support), new RunResultOperations(support),
-                    new ExecutionExportOperations(support), new OperationExposure(
-                            ArtifactOperationCatalog.TOOL_NAME, "ArtifactManagementMcpTool",
-                            Arrays.stream(ArtifactManagementAction.values())
-                                    .map(ArtifactManagementAction::routeId).toList()));
+                    new ExecutionExportOperations(support));
             return new TrustedDirectSuiteRun(artifacts,
                     (name, type, plan, run) -> Optional.of(project.resolve("plans").resolve(type)
                             .resolve(plan).resolve("runs").resolve(run).toString()), JSON);
@@ -614,8 +617,7 @@ class SuiteOperationRegistrationTest {
         };
         return new OperationRegistration<>(
                 registration.descriptor(), registration.requestType(), registration.resultType(),
-                registration.contract(), registration.decoder(), registration.executor(), observed,
-                registration.operationCatalog(), registration.provenance());
+                registration.contract(), registration.decoder(), registration.executor(), observed);
     }
 
     private static void persist(

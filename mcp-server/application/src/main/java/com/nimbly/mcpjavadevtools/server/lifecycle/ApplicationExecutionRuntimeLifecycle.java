@@ -88,7 +88,8 @@ public final class ApplicationExecutionRuntimeLifecycle implements ExecutionRunt
         }
         Map<String, Object> evidence = attachedEvidence(request, selection, candidate.get());
         var attach = jvms.execute(new AttachRequest(candidate.get().pid(), candidate.get().processStartEpochMs(), true,
-                selection.probeHost(), selection.probePort(), selection.include(), selection.exclude()));
+                selection.probeHost(), selection.probePort(), selection.probeId(),
+                selection.include(), selection.exclude()));
         if (attach.status() != JvmLifecycleResultStatus.OK) {
             return cleanupAfterPrepare(attach.reasonCode(), evidence, process);
         }
