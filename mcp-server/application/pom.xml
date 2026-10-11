@@ -122,6 +122,18 @@
 
   <profiles>
     <profile>
+      <id>java-it-route</id>
+      <properties>
+        <mcp.it.groups>route-synthesis</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-route-smoke</id>
+      <properties>
+        <mcp.it.groups>route-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
       <id>java-it-jvm-smoke</id>
       <properties>
         <mcp.it.groups>jvm-smoke</mcp.it.groups>

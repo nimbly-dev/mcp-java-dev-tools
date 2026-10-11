@@ -120,6 +120,39 @@ public class CreateRecipeActionTest {
                 null,
                 null);
     }
+
+    @Test
+    void runtimeRecipeInfersControllerSecurityWithoutStaticHandlers() throws Exception {
+        Path project = Files.createDirectories(tempDirectory.resolve("interface-project"));
+        Files.writeString(project.resolve("Controller.java"), "package example;\n@RestController\n"
+                + "@PreAuthorize(\"isAuthenticated()\")\npublic class Controller implements Api {\n"
+                + "public String handle() {\nreturn \"protected\";\n}\n}\n");
+        RouteSynthesisRecipeCandidate runtimeCandidate = new RouteSynthesisRecipeCandidate(
+                "GET", "/interface/route", "", "/interface/route", null, List.of(), List.of(), List.of());
+        CreateRecipeAction action = new CreateRecipeAction(
+                () -> Optional.of(new RouteSynthesisWorkspaceSnapshot(tempDirectory)),
+                (root, additional, hint) -> {
+                    throw new AssertionError("Runtime authentication must not depend on static HTTP handler discovery");
+                }, new DefaultRouteSynthesisAuthenticationResolver(),
+                ignored -> new SynthesizerSelection(true, false, 0, null),
+                new CreateRecipeCollaborators(
+                        (url, classHint, methodHint, token) -> RouteSynthesisRuntimeMappingResolution.success(
+                                runtimeCandidate, List.of(), List.of()),
+                        null, new DefaultRouteSynthesisRecipeTemplateRenderer(),
+                        (id, url) -> RouteSynthesisProbeRouteResolution.unresolved("unused")));
+        RouteSynthesisResult result = action.execute(new CreateRecipeRequest(
+                project.toString(), List.of(), "example.Controller", "handle", null,
+                "http://127.0.0.1/mappings", "runtime_only", null, "regression",
+                null, null, null, null, null, null, null, null, null));
+        assertThat(result.resultType()).isEqualTo("report");
+        assertThat(result.status()).isEqualTo("execution_input_required");
+        assertThat(result.reasonCode()).isEqualTo("auth_input_required");
+        RouteSynthesisRecipeResult recipe = (RouteSynthesisRecipeResult) result.actionResult();
+        assertThat(recipe.executionReadiness()).isEqualTo("needs_user_input");
+        assertThat(recipe.auth().source()).isEqualTo("source.security_annotations");
+        assertThat(recipe.auth().missing()).containsExactly("authToken");
+        assertThat(recipe.requestCandidates().getFirst().path()).isEqualTo("/interface/route");
+    }
 }
 
 

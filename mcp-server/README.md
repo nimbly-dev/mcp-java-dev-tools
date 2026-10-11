@@ -130,6 +130,11 @@ attach/deactivate against a separate target JVM, verify target survival,
 confirm JSON-RPC-only stdout, and prove the sanitized startup-failure boundary.
 Parent exit and descendant cleanup also have real child-process coverage.
 
+Route Synthesis's complete capability selection is
+`-Pjava-it,java-it-route,java-it-jvm-fixtures`; its separate one-scenario smoke
+selection is `-Pjava-it,java-it-route-smoke,java-it-jvm-fixtures`.
+See [Route Synthesis scenarios, corrections and evidence](../docs/acceptance/mcpjvm-648-route-synthesis-it.md).
+
 ## Initial maintainability baseline
 
 The Foundation and `core` retain their established limits of 120 lines per

@@ -238,6 +238,23 @@ verified. No raw command lines, arguments, environment values, or JVM system pro
 
 ## route_synthesis action=create_recipe
 
+The Java CDE operation is `route_synthesis.create_recipe`. Recipe-specific fields
+are under `result.actionResult`. Missing inferred authentication inputs or incomplete Basic credentials return a
+`report` with `status=execution_input_required`, `reasonCode=auth_input_required`,
+`failedStep=auth_resolution`, and `actionResult.executionReadiness=needs_user_input`;
+`actionResult.auth.missing` identifies the missing credential fields without their
+values. Source security annotations (`PreAuthorize`, `Secured`, `RolesAllowed`,
+`SecurityRequirement`) and project OpenAPI YAML security hints also gate readiness,
+including runtime-mapping recipes. Credentials are supplied explicitly; only
+metadata is returned. Runtime recipes resolve controller source independently of
+static HTTP mapping synthesis, including interface-mapped controllers.
+An exact line hint selects its matching overload; remaining overload
+ambiguity returns `target_ambiguous`. Runtime mappings reads share a three-second
+HTTP/header/body deadline; deadline failure uses `runtime_mappings_unreachable`.
+`runtime_first` fallback uses source routes and validates the selected strict line
+against the Probe, as `static_only` does. Invalid or unavailable runtime line
+evidence returns `runtime_line_unresolved`. Recipe generation does not persist a product Artifact.
+
 | fieldName                                           | fieldDesc                                                                                                                                                                                                                                      | toolUsedBy        | required | exampleValue                                                                                                        |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
 | `projectRoot`                                       | Absolute project root selected by orchestrator and used for scoped recipe generation.                                                                                                                                                          | `route_synthesis` | true     | `"C:\\repo\\catalog-service"`                                                                                       |

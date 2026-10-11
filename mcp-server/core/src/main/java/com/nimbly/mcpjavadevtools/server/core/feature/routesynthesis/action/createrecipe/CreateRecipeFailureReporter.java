@@ -42,12 +42,6 @@ public class CreateRecipeFailureReporter {
                 "Refine classHint or methodHint and rerun create_recipe.");
     }
 
-    public RouteSynthesisResult runtimeLineUnresolved() {
-        return RouteSynthesisResult.report(
-                "target_not_inferred", "runtime_line_unresolved", "line_validation", "select_resolvable_line",
-                "Provide a reachable Probe route and rerun create_recipe.");
-    }
-
     public RouteSynthesisResult workspaceMissing() {
         return RouteSynthesisResult.report(
                 "workspace_context_missing", "workspace_context_missing", "workspace_resolution",

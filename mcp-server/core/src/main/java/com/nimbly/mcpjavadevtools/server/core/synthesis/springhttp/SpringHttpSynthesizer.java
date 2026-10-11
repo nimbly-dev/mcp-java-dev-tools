@@ -5,6 +5,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.actio
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.createrecipe.RouteSynthesisSynthesisResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.discoverhandlers.RouteSynthesisHandler;
 import com.nimbly.mcpjavadevtools.server.core.synthesis.api.Synthesizer;
+import java.util.List;
 import java.util.Set;
 
 /** Built-in Spring HTTP compatibility Synthesizer for v0.1.9. */
@@ -34,20 +35,28 @@ public class SpringHttpSynthesizer implements Synthesizer {
         return Set.of("line_probe", "regression");
     }
 
-    /** Selects a declaration-ordered Spring HTTP handler. */
+    /** Selects one exact Spring HTTP handler, honoring the source line and rejecting ambiguity. */
     @Override
     public RouteSynthesisSynthesisResult synthesize(
             CreateRecipeRequest request,
             RouteSynthesisHandlerDiscoveryResult discovery) {
-        RouteSynthesisHandler handler = discovery.handlers().stream()
+        List<RouteSynthesisHandler> candidates = discovery.handlers().stream()
                 .filter(candidate -> methodMatches(candidate, request.methodHint()))
-                .findFirst()
-                .orElse(null);
-        if (handler == null) {
+                .filter(candidate -> lineMatches(candidate, request.lineHint()))
+                .toList();
+        if (candidates.isEmpty()) {
             return RouteSynthesisSynthesisResult.failure(
                     "request_candidate_missing", "request_synthesis", "refine_target_hints");
         }
-        return RouteSynthesisSynthesisResult.success(name(), handler);
+        if (candidates.size() > 1) {
+            return RouteSynthesisSynthesisResult.failure(
+                    "target_ambiguous", "target_selection", "disambiguate_target");
+        }
+        return RouteSynthesisSynthesisResult.success(name(), candidates.getFirst());
+    }
+
+    private boolean lineMatches(RouteSynthesisHandler handler, Integer line) {
+        return line == null || line >= handler.declarationLine() && line <= handler.endLine();
     }
 
     private boolean methodMatches(RouteSynthesisHandler handler, String methodHint) {

@@ -39,6 +39,23 @@ class SpringHttpSynthesizerTest {
     }
 
     @Test
+    void overloadsRequireAnExactLineAndNeverSelectTheWrongRoute() {
+        SpringHttpSynthesizer synthesizer = new SpringHttpSynthesizer();
+        RouteSynthesisHandler first = handler("run");
+        RouteSynthesisHandler second = new RouteSynthesisHandler(
+                "GET", "/value/{value}", "run", "public String run(String value)",
+                "example.WorkController", 20, 24, 21, "validated", "runtime_probe_validation",
+                null, "example.WorkController#run:21");
+        var discovery = RouteSynthesisHandlerDiscoveryResult.success(
+                "example.WorkController", Path.of("WorkController.java"), List.of(first, second), 1, List.of());
+        assertThat(synthesizer.synthesize(request("run"), discovery).reasonCode()).isEqualTo("target_ambiguous");
+        CreateRecipeRequest selected = new CreateRecipeRequest(
+                "project", List.of(), "example.WorkController", "run", 21, null,
+                "static_only", null, "line_probe", null, null, null, null, null, null, null, null, null);
+        assertThat(synthesizer.synthesize(selected, discovery).selectedHandler()).isEqualTo(second);
+    }
+
+    @Test
     void returnsDeterministicMissingCandidateFailure() {
         SpringHttpSynthesizer synthesizer = new SpringHttpSynthesizer();
         RouteSynthesisHandlerDiscoveryResult discovery = RouteSynthesisHandlerDiscoveryResult.success(

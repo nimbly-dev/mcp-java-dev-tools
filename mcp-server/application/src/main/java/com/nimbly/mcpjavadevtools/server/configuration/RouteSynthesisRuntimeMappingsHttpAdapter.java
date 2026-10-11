@@ -22,6 +22,7 @@ class RouteSynthesisRuntimeMappingsHttpAdapter implements RouteSynthesisRuntimeM
 
     private static final int DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
     private static final int ABSOLUTE_MAX_RESPONSE_BYTES = 4_194_304;
+    private static final Duration MAPPINGS_TIMEOUT = Duration.ofSeconds(3);
     private final HttpClient client;
     private final Set<String> allowedHosts;
     private final RouteSynthesisRuntimeMappingsResponseReader responseReader;
@@ -60,6 +61,7 @@ class RouteSynthesisRuntimeMappingsHttpAdapter implements RouteSynthesisRuntimeM
                     "allow_runtime_mappings_host", List.of("mappingsDestination=blocked"));
         }
         HttpResponse<InputStream> response;
+        long deadline = System.nanoTime() + MAPPINGS_TIMEOUT.toNanos();
         try {
             response = client.send(request(endpoint, authToken), HttpResponse.BodyHandlers.ofInputStream());
         } catch (InterruptedException exception) {
@@ -70,7 +72,7 @@ class RouteSynthesisRuntimeMappingsHttpAdapter implements RouteSynthesisRuntimeM
             return failure("runtime_mappings_unreachable", "runtime_mapping_fetch",
                     "verify_runtime_mappings_endpoint", endpointEvidence(endpoint));
         }
-        return responseReader.read(response, endpoint, classHint, methodHint);
+        return responseReader.read(response, endpoint, classHint, methodHint, deadline);
     }
 
     private URI normalize(String value) {
@@ -92,7 +94,7 @@ class RouteSynthesisRuntimeMappingsHttpAdapter implements RouteSynthesisRuntimeM
 
     private HttpRequest request(URI endpoint, String authToken) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
-                .timeout(Duration.ofSeconds(3)).header("Accept", "application/json").GET();
+                .timeout(MAPPINGS_TIMEOUT).header("Accept", "application/json").GET();
         if (authToken != null && !authToken.isBlank()) {
             builder.header("Authorization", "Bearer " + authToken.trim());
         }

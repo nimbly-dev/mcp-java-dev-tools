@@ -11,6 +11,8 @@ import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.action.crea
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.authentication.DefaultRouteSynthesisAuthenticationResolver;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.authentication.RouteSynthesisAuthenticationResolver;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.discovery.RouteSynthesisHandlerDiscovery;
+import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.discovery.FileSystemJavaSourceDiscovery;
+import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.discovery.JavaSourceFile;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.discovery.RouteSynthesisHandlerDiscoveryResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.RouteSynthesisAction;
 import com.nimbly.mcpjavadevtools.server.core.feature.routesynthesis.model.action.createrecipe.CreateRecipeRequest;
@@ -128,7 +130,8 @@ public class CreateRecipeAction implements RouteSynthesisActionHandler {
                 ? "static_only" : request.discoveryPreference();
         if (runtime.isPresent() && "ok".equals(runtime.get().status())) {
             return resultAssembler.assembleRuntime(projectRoot.get(), request, roots.get(), runtime.get(),
-                    runtimeResolver.handler(request, runtime.get().requestCandidate()));
+                    runtimeResolver.handler(request, runtime.get().requestCandidate()),
+                    controllerFile(projectRoot.get(), roots.get(), request.classHint(), workspace));
         }
         if (runtime.isPresent() && "runtime_only".equals(discoveryPreference)) {
             return failureReporter.runtimeFailure(runtime.get(),
@@ -139,12 +142,6 @@ public class CreateRecipeAction implements RouteSynthesisActionHandler {
         if (!"ok".equals(discovery.status())) {
             return failureReporter.targetDiscoveryFailure(discovery);
         }
-        if ("line_probe".equals(request.intentMode())
-                && !"static_only".equals(discoveryPreference)
-                && discovery.handlers().stream()
-                .noneMatch(handler -> "validated".equals(handler.lineSelectionStatus()))) {
-            return failureReporter.runtimeLineUnresolved();
-        }
         RouteSynthesisSynthesisResult synthesized = synthesizerRegistry.synthesize(request, discovery);
         if (!synthesized.compatible()) {
             return RouteSynthesisResult.report(
@@ -153,6 +150,15 @@ public class CreateRecipeAction implements RouteSynthesisActionHandler {
         }
         return resultAssembler.assemble(new RouteSynthesisRecipeAssemblyInput(
                 projectRoot.get(), request, roots.get(), discovery, synthesized, runtime));
+    }
+
+    private Path controllerFile(Path projectRoot, List<Path> roots, String classHint,
+            RouteSynthesisWorkspaceSnapshot workspace) {
+        List<JavaSourceFile> matches = new FileSystemJavaSourceDiscovery(workspace)
+                .discover(projectRoot, roots, classHint).files().stream()
+                .filter(file -> classHint.equalsIgnoreCase(file.fqcn()))
+                .toList();
+        return matches.size() == 1 ? matches.getFirst().file() : null;
     }
 
 }

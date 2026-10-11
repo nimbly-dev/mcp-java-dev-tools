@@ -20,6 +20,7 @@ public class CreateRecipeTemplateModelBuilder {
             RouteSynthesisAuthenticationMetadata auth,
             RouteSynthesisExecutionPlan plan) {
         String body = candidate.bodyTemplate() == null ? "" : " body=" + candidate.bodyTemplate();
+        String readiness = "needs_user_input".equals(auth.status()) ? "needs_user_input" : "ready";
         Map<String, String> values = new LinkedHashMap<>();
         values.put("target.path", request.classHint() + "#" + request.methodHint());
         values.put("target.class", request.classHint());
@@ -36,7 +37,7 @@ public class CreateRecipeTemplateModelBuilder {
         values.put("http.response", "Not executed");
         values.put("execution_hit", "not_executed");
         values.put("api_outcome", "not_executed");
-        values.put("repro_status", "ready");
+        values.put("repro_status", readiness);
         values.put("auth.required", Boolean.toString(!"not_required".equals(auth.status())));
         values.put("auth.status", auth.status());
         values.put("auth.strategy", auth.strategy());
@@ -50,7 +51,9 @@ public class CreateRecipeTemplateModelBuilder {
         values.put("recipe.mode_reason", "intent_mode_" + request.intentMode());
         values.put("recipe.steps", formatSteps(plan.steps()));
         values.put("run.duration", "Not measured");
-        values.put("run.notes", "result_type=recipe | status=ready | selected_mode=" + selectedMode
+        String outcome = "needs_user_input".equals(readiness)
+                ? "result_type=report | status=execution_input_required" : "result_type=recipe | status=ready";
+        values.put("run.notes", outcome + " | selected_mode=" + selectedMode
                 + " | routing_reason=" + plan.routingReason());
         return new RouteSynthesisRecipeTemplateModel(values);
     }

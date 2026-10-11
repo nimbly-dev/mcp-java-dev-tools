@@ -14,6 +14,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,7 +37,7 @@ class RouteSynthesisRuntimeMappingsResponseReader {
 
     /** Reads one bounded HTTP response and returns sanitized Core evidence. */
     RouteSynthesisRuntimeMappingResolution read(
-            HttpResponse<InputStream> response, URI endpoint, String classHint, String methodHint) {
+            HttpResponse<InputStream> response, URI endpoint, String classHint, String methodHint, long deadline) {
         try (InputStream body = response.body()) {
             if (response.statusCode() == 401 || response.statusCode() == 403) {
                 return failure("runtime_mappings_unauthorized", "runtime_mapping_fetch",
@@ -45,7 +49,7 @@ class RouteSynthesisRuntimeMappingsResponseReader {
             }
             String payload;
             try {
-                payload = readBounded(body);
+                payload = readWithinDeadline(body, deadline);
             } catch (ResponseTooLargeException exception) {
                 payload = null;
             }
@@ -58,6 +62,26 @@ class RouteSynthesisRuntimeMappingsResponseReader {
         } catch (IOException exception) {
             return failure("runtime_mappings_unreachable", "runtime_mapping_fetch",
                     "verify_runtime_mappings_endpoint", endpointEvidence(endpoint));
+        }
+    }
+
+    private String readWithinDeadline(InputStream body, long deadline) throws IOException, ResponseTooLargeException {
+        FutureTask<String> read = new FutureTask<>(() -> readBounded(body));
+        Thread.ofVirtual().name("route-mappings-body").start(read);
+        try {
+            return read.get(Math.max(1, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Mapping body read interrupted", interrupted);
+        } catch (TimeoutException timeout) {
+            throw new IOException("Mapping body read deadline exceeded", timeout);
+        } catch (ExecutionException failed) {
+            if (failed.getCause() instanceof ResponseTooLargeException tooLarge) {
+                throw tooLarge;
+            }
+            throw new IOException("Mapping body could not be read", failed.getCause());
+        } finally {
+            read.cancel(true);
         }
     }
 

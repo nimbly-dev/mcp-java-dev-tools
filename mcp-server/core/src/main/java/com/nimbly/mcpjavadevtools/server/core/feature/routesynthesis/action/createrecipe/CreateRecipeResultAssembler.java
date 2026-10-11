@@ -53,7 +53,8 @@ public class CreateRecipeResultAssembler {
     public RouteSynthesisResult assemble(RouteSynthesisRecipeAssemblyInput input) {
         CreateRecipeRequest request = input.request();
         RouteSynthesisHandler handler = input.synthesized().selectedHandler();
-        RouteSynthesisAuthenticationMetadata auth = authenticationResolver.resolve(request);
+        RouteSynthesisAuthenticationMetadata auth = authenticationResolver.resolve(
+                request, input.projectRoot(), input.discovery().matchedTypeFile(), handler.path());
         RouteSynthesisRecipeCandidate candidate = candidate(input, handler);
         String selectedMode = "line_probe".equals(request.intentMode())
                 ? "single_line_probe" : "regression";
@@ -75,8 +76,22 @@ public class CreateRecipeResultAssembler {
                         input.projectRoot().toString(), request.classHint(), request.methodHint(),
                         request.lineHint(), "spring_http"),
                 input.roots().stream().map(Path::toString).toList(), "spring_http",
-                input.synthesized().synthesizerUsed(), handler, List.of(candidate), plan, "ready",
+                input.synthesized().synthesizerUsed(), handler, List.of(candidate), plan, readiness(auth),
                 request.intentMode(), auth, evidence, strategies, runtimeCapture, rendered);
+        return result(output);
+    }
+
+    private String readiness(RouteSynthesisAuthenticationMetadata auth) {
+        return "needs_user_input".equals(auth.status()) ? "needs_user_input" : "ready";
+    }
+
+    private RouteSynthesisResult result(RouteSynthesisRecipeResult output) {
+        if ("needs_user_input".equals(output.executionReadiness())) {
+            return new RouteSynthesisResult(
+                    "report", "execution_input_required", "auth_input_required", "auth_resolution",
+                    "provide_auth_input", "Provide the missing authentication inputs before execution.",
+                    output, output.evidence(), output.attemptedStrategies());
+        }
         return new RouteSynthesisResult(
                 "recipe", "ready", null, null, null, null, output,
                 output.evidence(), output.attemptedStrategies());
@@ -88,9 +103,10 @@ public class CreateRecipeResultAssembler {
             CreateRecipeRequest request,
             List<Path> roots,
             RouteSynthesisRuntimeMappingResolution runtime,
-            RouteSynthesisHandler handler) {
+            RouteSynthesisHandler handler,
+            Path controllerFile) {
         RouteSynthesisHandlerDiscoveryResult discovery = RouteSynthesisHandlerDiscoveryResult.success(
-                request.classHint(), null, List.of(handler), 0, runtime.evidence());
+                request.classHint(), controllerFile, List.of(handler), 0, runtime.evidence());
         RouteSynthesisSynthesisResult synthesized = RouteSynthesisSynthesisResult.success(
                 "spring_http", handler);
         return assemble(new RouteSynthesisRecipeAssemblyInput(
@@ -148,7 +164,7 @@ public class CreateRecipeResultAssembler {
     private boolean invalidLineTarget(
             CreateRecipeRequest request, RouteSynthesisRuntimeCapture runtimeCapture) {
         return "line_probe".equals(request.intentMode())
-                && "invalid_line_target".equals(runtimeCapture.reason());
+                && !Boolean.TRUE.equals(runtimeCapture.lineResolvable());
     }
 
     private List<String> evidence(RouteSynthesisRecipeAssemblyInput input, RouteSynthesisRuntimeCapture runtimeCapture) {
