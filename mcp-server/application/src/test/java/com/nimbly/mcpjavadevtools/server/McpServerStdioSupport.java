@@ -229,6 +229,7 @@ abstract class McpServerStdioSupport {
     }
 
     protected static JsonNode toolPayload(JsonNode response) throws IOException {
+        assertThat(response.has("error")).as("Unexpected JSON-RPC error: %s", response.path("error")).isFalse();
         String text = response.path("result").path("content").get(0).path("text").asText();
         try {
             return JSON.readTree(text);

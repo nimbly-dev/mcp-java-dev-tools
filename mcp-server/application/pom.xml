@@ -122,6 +122,49 @@
 
   <profiles>
     <profile>
+      <id>java-it-jvm-smoke</id>
+      <properties>
+        <mcp.it.groups>jvm-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-jvm</id>
+      <properties>
+        <mcp.it.groups>jvm-probe</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-jvm-fixtures</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>package-jvm-post-fixture</id>
+                <phase>pre-integration-test</phase>
+                <goals><goal>run</goal></goals>
+                <configuration>
+                  <skip>${mcp.it.skip-fixtures}</skip>
+                  <target>
+                    <exec executable="${mcp.fixture.maven.executable}" dir="${mcp.fixture.social-platform.root}" failonerror="true" failifexecutionfails="true">
+                      <arg value="-B" />
+                      <arg value="-pl" />
+                      <arg value="post-service/post-app" />
+                      <arg value="-am" />
+                      <arg value="package" />
+                      <arg value="-DskipTests" />
+                    </exec>
+                  </target>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
       <id>java-it</id>
       <build>
         <plugins>
@@ -184,7 +227,7 @@
                     <exec executable="${mcp.fixture.maven.executable}" dir="${mcp.fixture.social-platform.root}" failonerror="true" failifexecutionfails="true">
                       <arg value="-B" />
                       <arg value="-pl" />
-                      <arg value="user-service/user-app,event-service/event-producer-app,event-service/event-consumer-app" />
+                      <arg value="user-service/user-app,post-service/post-app,event-service/event-producer-app,event-service/event-consumer-app" />
                       <arg value="-am" />
                       <arg value="package" />
                       <arg value="-DskipTests" />

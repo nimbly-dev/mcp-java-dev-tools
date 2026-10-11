@@ -18,12 +18,30 @@ final class SpringFixtureTargetProcess implements AutoCloseable {
 
     private final Process process;
     private final int port;
+    private final java.util.Set<String> instrumentedClasses = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final Thread diagnostics;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(1)).build();
 
     private SpringFixtureTargetProcess(Process process, int port) {
         this.process = process;
         this.port = port;
+        diagnostics = Thread.ofVirtual().start(() -> {
+            try (var reader = process.errorReader()) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String prefix = "[probe-agent] Instrumented: ";
+                    if (line.startsWith(prefix) && instrumentedClasses.size() < 1_000) {
+                        String name = line.substring(prefix.length()).trim();
+                        if (name.matches("[A-Za-z0-9_.$]+")) {
+                            instrumentedClasses.add(name);
+                        }
+                    }
+                }
+            } catch (IOException ignored) {
+                // Teardown closes the owned process; no raw diagnostics are retained.
+            }
+        });
     }
 
     static SpringFixtureTargetProcess start(Path fixtureJar) throws IOException {
@@ -45,7 +63,7 @@ final class SpringFixtureTargetProcess implements AutoCloseable {
         Process process = new ProcessBuilder(command)
                 .directory(JavaItScenario.workspace().toFile())
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.PIPE)
                 .start();
         JavaItScenario.own(process);
         return new SpringFixtureTargetProcess(process, port);
@@ -65,6 +83,14 @@ final class SpringFixtureTargetProcess implements AutoCloseable {
 
     boolean isAlive() {
         return process.isAlive();
+    }
+
+    boolean wasInstrumented(String className) throws Exception {
+        long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+        while (!instrumentedClasses.contains(className) && System.nanoTime() < deadline) {
+            Thread.sleep(25);
+        }
+        return instrumentedClasses.contains(className);
     }
 
     boolean isHealthy() throws IOException, InterruptedException {
@@ -123,5 +149,7 @@ final class SpringFixtureTargetProcess implements AutoCloseable {
     @Override
     public void close() throws Exception {
         JavaItScenario.stopTree(process.toHandle());
+        diagnostics.join(Duration.ofSeconds(2));
+        httpClient.close();
     }
 }

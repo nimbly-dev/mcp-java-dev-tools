@@ -24,7 +24,8 @@ For operator workflows and end-to-end execution flows, see [docs/how-it-works/RE
 | Maven       | `3.8.6+` | Java build and verification |
 
 Java unit tests and real process integration tests have independent lanes. See
-[Java IT commands, prerequisites and coverage](docs/acceptance/mcpjvm-646-java-it.md)
+[Java IT commands, prerequisites and coverage](docs/acceptance/mcpjvm-646-java-it.md) and
+[Real JVM/Probe capability acceptance](docs/acceptance/mcpjvm-647-jvm-probe-it.md)
 for UT, on-demand smoke, complete capability and full opt-in selections. The
 Java server exposes `mcp-java-dev-tools://status` for safe runtime/workspace
 metadata alongside the three CDE Tools.

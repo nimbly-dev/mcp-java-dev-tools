@@ -24,6 +24,7 @@ public class JavaItScenario implements BeforeEachCallback, AfterEachCallback {
     private static Path runDirectory;
     private static final ThreadLocal<JavaItScenario> CURRENT = new ThreadLocal<>();
     private final List<ProcessHandle> processes = new ArrayList<>();
+    private final List<Map<String, String>> observations = new ArrayList<>();
     private Path directory;
     private final AtomicInteger nextWorkspace = new AtomicInteger();
 
@@ -54,6 +55,10 @@ public class JavaItScenario implements BeforeEachCallback, AfterEachCallback {
 
     static void own(Process process) {
         own(process.toHandle());
+    }
+
+    static void observe(String operation, String outcome, String reason) {
+        CURRENT.get().observations.add(Map.of("operationId", operation, "outcome", outcome, "reasonCode", reason));
     }
 
     static void own(ProcessHandle process) {
@@ -106,6 +111,7 @@ public class JavaItScenario implements BeforeEachCallback, AfterEachCallback {
         evidence.put("os", System.getProperty("os.name"));
         evidence.put("time", Instant.now().toString());
         evidence.put("tags", context.getTags());
+        evidence.put("observations", observations);
         // Raw MCP responses, command lines, environment and exception text are deliberately excluded.
         McpServerStdioSupport.JSON.writerWithDefaultPrettyPrinter()
                 .writeValue(directory.resolve("evidence.json").toFile(), evidence);

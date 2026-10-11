@@ -14,8 +14,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
+import reactor.util.retry.Retry;
 
-/** Adds MCP request cancellation to the SDK's STDIO transport session. */
+/** Adds request cancellation and bounded outbound contention recovery to SDK STDIO. */
 public class CancellationAwareStdioServerTransportProvider implements McpServerTransportProvider {
 
     private final StdioServerTransportProvider delegate;
@@ -26,8 +27,10 @@ public class CancellationAwareStdioServerTransportProvider implements McpServerT
 
     @Override
     public void setSessionFactory(McpServerSession.Factory sessionFactory) {
-        delegate.setSessionFactory(transport -> new CancellationAwareSession(
-                sessionFactory.create(transport), transport));
+        delegate.setSessionFactory(transport -> {
+            McpServerTransport outbound = new ContentionAwareTransport(transport);
+            return new CancellationAwareSession(sessionFactory.create(outbound), outbound);
+        });
     }
 
     @Override
@@ -53,6 +56,40 @@ public class CancellationAwareStdioServerTransportProvider implements McpServerT
     @Override
     public java.util.List<String> protocolVersions() {
         return delegate.protocolVersions();
+    }
+
+    private static class ContentionAwareTransport implements McpServerTransport {
+        private final McpServerTransport delegate;
+
+        private ContentionAwareTransport(McpServerTransport delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Mono<Void> sendMessage(McpSchema.JSONRPCMessage message) {
+            // SDK 2.0.0 tryEmitNext fails without enqueuing on concurrent producers.
+            // Retry only that signal, with a hard bound; terminal transport failures still fail.
+            return Mono.defer(() -> delegate.sendMessage(message)).retryWhen(
+                    Retry.fixedDelay(8, Duration.ofMillis(1)).filter(failure ->
+                            failure.getClass() == RuntimeException.class
+                                    && "Failed to enqueue message".equals(failure.getMessage()))
+                            .onRetryExhaustedThrow((policy, signal) -> signal.failure()));
+        }
+
+        @Override
+        public <T> T unmarshalFrom(Object data, TypeRef<T> typeRef) {
+            return delegate.unmarshalFrom(data, typeRef);
+        }
+
+        @Override
+        public Mono<Void> closeGracefully() {
+            return delegate.closeGracefully();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 
     private static final class CancellationAwareSession extends McpServerSession {

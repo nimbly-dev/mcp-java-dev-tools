@@ -119,6 +119,11 @@ Explicitly enable `-Pjava-it,java-it-lifecycle` for the complete shared lifecycl
 selection, `-Pjava-it,java-it-smoke` for real functional smoke, or
 `-Pjava-it,java-it-fixtures` for all currently implemented application ITs.
 See [the exact commands, prerequisites and coverage inventory](../docs/acceptance/mcpjvm-646-java-it.md).
+
+For real JVM Lifecycle/Probe acceptance, use
+`-Pjava-it,java-it-jvm,java-it-jvm-fixtures`; the separate
+`-Pjava-it,java-it-jvm-smoke,java-it-jvm-fixtures` selection runs one real strict
+lambda-hit workflow. See [JVM/Probe scenarios and evidence](../docs/acceptance/mcpjvm-647-jvm-probe-it.md).
 Those tests initialize the server,
 assert exactly the three CDE tools, execute real operation paths, perform a real
 attach/deactivate against a separate target JVM, verify target survival,
