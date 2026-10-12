@@ -5,6 +5,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.fing
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.fingerprint.FailureFingerprint;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.fingerprint.FailureFrame;
 import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.investigation.FailureInvestigationContext;
+import com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.redaction.FailureAnalysisRedactor;
 import java.util.List;
 
 /** Complete bounded deterministic output from one Failure Analysis action. */
@@ -89,7 +90,7 @@ public record FailureAnalysisResult(
             FailureCleanupStatus cleanupStatus,
             FailureInvestigationContext investigation) {
         return new FailureAnalysisResult(
-                outcome, reasonCode,
+                outcome, FailureAnalysisRedactor.reasonCode(reasonCode, 120),
                 "Failure investigation ended without runtime reproduction. No diagnosis is claimed.",
                 false, null, null, null, null, attempts, cleanupStatus, investigation,
                 List.of(), null, List.of(), List.of(), null);

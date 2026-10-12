@@ -122,6 +122,44 @@ class FailureAnalysisActionHandlerTest {
     }
 
     @Test
+    void terminalVerificationPreservesLongSemanticReasonCodes() {
+        for (String reason : List.of("operator_cancelled_after_confirming_missing_trigger",
+                "step2-cancelled-after-confirming-missing-trigger",
+                "task-cancelled-after-confirming-missing-trigger",
+                "cancelled_".repeat(11) + "cleanup_ok")) {
+            StubClient client = new StubClient(null, null);
+            VerifyReproductionRequest request = new VerifyReproductionRequest(
+                    null, null, null, null, null, null, null,
+                    new FailureTerminalState("CANCELLED", reason, "cleanup_confirmed", 0));
+
+            assertThat(reason.length()).isBetween(40, 120);
+            FailureAnalysisResult result = verifyAction(client).execute(request);
+
+            assertThat(result.reasonCode()).isEqualTo(reason);
+            assertThat(result.outcome()).isEqualTo(FailureAnalysisOutcome.CANCELLED);
+            assertThat(result.diagnosisClaimed()).isFalse();
+            assertThat(client.verifyCalled).isFalse();
+        }
+    }
+
+    @Test
+    void terminalVerificationRedactsCredentialValuesAndOpaqueLongTokens() {
+        for (String reason : List.of("password=terminal-secret", "Bearer terminal-secret",
+                "operator_cancelled_after_confirming_missing_trigger token=terminal-secret", "a".repeat(48),
+                "ghp_" + "a".repeat(40), "sk-proj-" + "a".repeat(48),
+                "operator_cancelled_ghp_" + "a".repeat(40),
+                "sk-proj-" + ("a".repeat(16) + "-").repeat(2) + "a".repeat(16))) {
+            StubClient client = new StubClient(null, null);
+            VerifyReproductionRequest request = new VerifyReproductionRequest(
+                    null, null, null, null, null, null, null,
+                    new FailureTerminalState("CANCELLED", reason, "cleanup_confirmed", 0));
+
+            assertThat(verifyAction(client).execute(request).reasonCode()).isEqualTo("<redacted>");
+            assertThat(client.verifyCalled).isFalse();
+        }
+    }
+
+    @Test
     void suppliesConfiguredDefaultTimeoutWhenRequestOmitsTimeout() throws Exception {
         StubClient client = new StubClient(
                 new FailureEvidenceResponse(200, JSON.readTree("""

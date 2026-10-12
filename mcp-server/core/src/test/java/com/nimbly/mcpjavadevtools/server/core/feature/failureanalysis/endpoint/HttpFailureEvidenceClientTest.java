@@ -84,6 +84,39 @@ class HttpFailureEvidenceClientTest {
     }
 
     @Test
+    void appliesRequestDeadlineToBodyAfterHeadersArrive() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            server.setExecutor(executor);
+            server.createContext("/__probe/failure/analyze", exchange -> {
+                try (exchange) {
+                    exchange.sendResponseHeaders(200, 0);
+                    for (int count = 0; count < 100; count++) {
+                        exchange.getResponseBody().write(' ');
+                        exchange.getResponseBody().flush();
+                        Thread.sleep(25);
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                } catch (java.io.IOException disconnected) {
+                    // The client's deadline closes the streaming response before EOF.
+                }
+            });
+            server.start();
+            long started = System.nanoTime();
+            try {
+                assertThatThrownBy(() -> client(64).analyze(new FailureAnalyzeEvidenceRequest(
+                        baseUrl(server), "negative timeout input", null, Duration.ofMillis(200))))
+                        .isInstanceOfSatisfying(FailureEvidenceClientException.class,
+                                exception -> assertThat(exception.failureKind()).isEqualTo(FailureEvidenceFailureKind.TIMEOUT));
+                assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(1));
+            } finally {
+                server.stop(0);
+            }
+        }
+    }
+
+    @Test
     void capsTheSidecarDelegateAtTheCoreDeadline() throws Exception {
         HttpServer server = server("{}", Duration.ofSeconds(2));
         try {

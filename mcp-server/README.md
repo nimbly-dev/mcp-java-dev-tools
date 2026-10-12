@@ -135,6 +135,11 @@ Route Synthesis's complete capability selection is
 selection is `-Pjava-it,java-it-route-smoke,java-it-jvm-fixtures`.
 See [Route Synthesis scenarios, corrections and evidence](../docs/acceptance/mcpjvm-648-route-synthesis-it.md).
 
+Failure Analysis's complete supported capability selection is
+`-Pjava-it,java-it-failure,java-it-jvm-fixtures`; its separate smoke selection is
+`-Pjava-it,java-it-failure-smoke,java-it-jvm-fixtures`.
+See [Failure Analysis scenarios, Skill dependencies and evidence](../docs/acceptance/mcpjvm-649-failure-analysis-it.md).
+
 ## Initial maintainability baseline
 
 The Foundation and `core` retain their established limits of 120 lines per

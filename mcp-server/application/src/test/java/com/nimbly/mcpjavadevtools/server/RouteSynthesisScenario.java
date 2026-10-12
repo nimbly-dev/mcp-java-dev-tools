@@ -19,8 +19,8 @@ class RouteSynthesisScenario implements AutoCloseable {
         this.sources = sources;
     }
 
-    static RouteSynthesisScenario start() throws Exception {
-        JvmProbeScenario runtime = JvmProbeScenario.start();
+    static RouteSynthesisScenario start(String... javaArguments) throws Exception {
+        JvmProbeScenario runtime = JvmProbeScenario.start(javaArguments);
         try {
             Path sources = Files.createDirectories(runtime.workspace.resolve("sources"));
             Path original = McpServerStdioSupport.repositoryRoot().resolve(JvmProbeScenario.SOURCE);

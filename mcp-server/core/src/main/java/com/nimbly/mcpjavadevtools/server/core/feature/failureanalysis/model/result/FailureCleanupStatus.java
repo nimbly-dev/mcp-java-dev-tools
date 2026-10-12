@@ -1,5 +1,7 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.failureanalysis.model.result;
 
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /** Cleanup ownership values preserved from the Failure Lens workflow. */
 public enum FailureCleanupStatus {
     CLEANUP_CONFIRMED("cleanup_confirmed"),
@@ -13,6 +15,7 @@ public enum FailureCleanupStatus {
     }
 
     /** @return stable cleanup status */
+    @JsonValue
     public String value() {
         return value;
     }

@@ -22,6 +22,10 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /** JDK HTTP client for bounded, non-redirecting Sidecar Failure Lens calls. */
 public final class HttpFailureEvidenceClient implements FailureEvidenceClient {
@@ -89,11 +93,12 @@ public final class HttpFailureEvidenceClient implements FailureEvidenceClient {
     }
 
     private FailureEvidenceResponse exchange(HttpRequest request) {
+        long deadline = System.nanoTime() + request.timeout().orElseThrow().toNanos();
         try {
             HttpResponse<InputStream> response = httpClient.send(
                     request, HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream body = response.body()) {
-                return new FailureEvidenceResponse(response.statusCode(), parseBody(boundedBody(body)));
+                return new FailureEvidenceResponse(response.statusCode(), parseBody(readWithinDeadline(body, deadline)));
             }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -108,6 +113,38 @@ public final class HttpFailureEvidenceClient implements FailureEvidenceClient {
             throw new FailureEvidenceClientException(
                     FailureEvidenceFailureKind.UNREACHABLE,
                     "Sidecar failure endpoint is unreachable", exception);
+        }
+    }
+
+    private byte[] readWithinDeadline(InputStream body, long deadline) throws InterruptedException, IOException {
+        OperationExecutionContext context = OperationExecutionContext.current();
+        FutureTask<byte[]> read = new FutureTask<>(() -> {
+            try (var ignored = context.install()) {
+                return boundedBody(body);
+            }
+        });
+        Thread.ofVirtual().name("failure-evidence-body").start(read);
+        try {
+            while (true) {
+                checkpoint(context);
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    throw new HttpTimeoutException("Sidecar failure body read timed out");
+                }
+                try {
+                    return read.get(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(50)), TimeUnit.NANOSECONDS);
+                } catch (TimeoutException pending) {
+                    // Recheck the shared cancellation signal while the owned read is blocked.
+                    checkpoint(context);
+                }
+            }
+        } catch (ExecutionException failed) {
+            if (failed.getCause() instanceof FailureEvidenceClientException failure) {
+                throw failure;
+            }
+            throw new IOException("Sidecar failure body could not be read", failed.getCause());
+        } finally {
+            read.cancel(true);
         }
     }
 

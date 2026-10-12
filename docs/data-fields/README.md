@@ -141,6 +141,15 @@ Synthesis, Probe, and `jvm_lifecycle` operation IDs through `operation_execute`.
 `failure_analysis` does not invoke MCP transport or another Feature Module's
 internal actions.
 
+Caller-supplied terminal reason codes remain bounded to 120 characters. Lowercase
+word-separated semantic codes (underscore or hyphen separators, with optional
+digits in words) retain their value even when longer than the generic token
+redaction threshold. Recognizable credential prefixes (`gh[pousr]_`, `github_pat_`
+and `sk-`) take precedence over this exemption, including tokens embedded after a
+separator. Credential assignments, authorization values, and opaque long tokens
+are redacted in terminal output; no input schema or reason vocabulary
+is added by this output policy.
+
 `analyze_trace` returns `INCONCLUSIVE` with `failure_fingerprint_incomplete` when the Sidecar cannot establish a complete reproduction key. `verify_reproduction` returns `INCONCLUSIVE` with `capture_not_found` when a bounded capture expires or was removed before comparison. Both outcomes explicitly set `diagnosisClaimed=false`.
 
 For a terminal Skill Workflow state, `verify_reproduction` returns the supplied non-diagnostic outcome (`BLOCKED_*`, `CANCELLED`, `ENVIRONMENT_MISMATCH`, or `INCONCLUSIVE`) without contacting the Sidecar. `REPRODUCED` and `NOT_REPRODUCED` cannot be supplied as terminal states. `cleanupStatus` is `cleanup_confirmed`, `cleanup_incomplete`, or `external_workflow_owned`.

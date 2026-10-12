@@ -122,6 +122,18 @@
 
   <profiles>
     <profile>
+      <id>java-it-failure</id>
+      <properties>
+        <mcp.it.groups>failure-analysis</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-failure-smoke</id>
+      <properties>
+        <mcp.it.groups>failure-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
       <id>java-it-route</id>
       <properties>
         <mcp.it.groups>route-synthesis</mcp.it.groups>
