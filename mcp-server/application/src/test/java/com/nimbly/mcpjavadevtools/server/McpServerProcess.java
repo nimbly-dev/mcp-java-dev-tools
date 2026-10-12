@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /** JSON-RPC STDIO process driver for packaged MCP acceptance tests. */
 class McpServerProcess implements AutoCloseable {
@@ -36,6 +37,7 @@ class McpServerProcess implements AutoCloseable {
     private final List<String> stdoutLines = Collections.synchronizedList(new ArrayList<>());
     private final Set<Integer> responseIds = ConcurrentHashMap.newKeySet();
     private final StringBuilder stderr = new StringBuilder();
+    private final Consumer<String> stderrObserver;
     private final ExecutorService readers = Executors.newFixedThreadPool(2);
     private volatile List<String> roots;
     private final Map<Integer, JsonNode> pendingResponses = new ConcurrentHashMap<>();
@@ -43,8 +45,9 @@ class McpServerProcess implements AutoCloseable {
     private volatile boolean rootsUnavailable;
     private boolean closed;
 
-    private McpServerProcess(Process process, Path workspaceRoot) {
+    private McpServerProcess(Process process, Path workspaceRoot, Consumer<String> stderrObserver) {
         this.process = process;
+        this.stderrObserver = stderrObserver;
         this.stdin = process.getOutputStream();
         this.roots = List.of(workspaceRoot.toUri().toString());
         JavaItScenario.own(process);
@@ -59,6 +62,11 @@ class McpServerProcess implements AutoCloseable {
 
     static McpServerProcess startWithEnvironment(Path jar, Path workspaceRoot,
             Map<String, String> environment, String... applicationArguments) throws IOException {
+        return startWithStderrObserver(jar, workspaceRoot, environment, line -> { }, applicationArguments);
+    }
+
+    static McpServerProcess startWithStderrObserver(Path jar, Path workspaceRoot,
+            Map<String, String> environment, Consumer<String> stderrObserver, String... applicationArguments) throws IOException {
         assertThat(jar).as("Executable application JAR prerequisite").isRegularFile();
         Files.createDirectories(workspaceRoot);
         List<String> command = new ArrayList<>(List.of(javaBinary(), "-jar", jar.toAbsolutePath().toString()));
@@ -70,7 +78,7 @@ class McpServerProcess implements AutoCloseable {
                         "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS").contains(key));
         builder.environment().putAll(environment);
         Process process = builder.start();
-        return new McpServerProcess(process, workspaceRoot);
+        return new McpServerProcess(process, workspaceRoot, stderrObserver);
     }
 
     synchronized void send(Map<String, Object> message) throws IOException {
@@ -300,6 +308,7 @@ class McpServerProcess implements AutoCloseable {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                stderrObserver.accept(line);
                 appendStderr(line);
             }
         } catch (IOException exception) {

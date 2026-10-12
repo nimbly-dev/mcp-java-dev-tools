@@ -30,6 +30,9 @@ for UT, on-demand smoke, complete capability and full opt-in selections. The
 Java server exposes `mcp-java-dev-tools://status` for safe runtime/workspace
 metadata alongside the three CDE Tools.
 
+For the complete HTTP/HTTPS transport capability and its separate smoke lane,
+see [Transport authentication, cancellation and coverage](docs/acceptance/mcpjvm-651-transport-it.md).
+
 ---
 
 ## Build

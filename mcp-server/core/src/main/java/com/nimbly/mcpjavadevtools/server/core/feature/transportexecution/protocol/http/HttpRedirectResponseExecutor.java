@@ -13,7 +13,6 @@ import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -160,11 +159,7 @@ public final class HttpRedirectResponseExecutor {
     private ValidatedHttpRequest redirected(ValidatedHttpRequest current, URI target, int statusCode) {
         Map<String, String> headers = new LinkedHashMap<>(current.headers());
         if (safetyPolicy.isCrossOrigin(current.uri(), target)) {
-            headers.keySet().removeIf(name -> {
-                String normalized = name.toLowerCase(Locale.ROOT);
-                return normalized.equals("authorization") || normalized.equals("proxy-authorization")
-                        || normalized.equals("cookie") || normalized.equals("set-cookie");
-            });
+            headers.keySet().removeIf(redactor::isSensitiveName);
         }
         boolean changeToGet = (statusCode == 301 || statusCode == 302 || statusCode == 303)
                 && !current.method().equals("GET") && !current.method().equals("HEAD");

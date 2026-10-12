@@ -145,6 +145,13 @@ Artifact persistence's complete capability selection is
 smoke selection is `-Pjava-it,java-it-artifact-smoke`.
 See [Artifact operations, storage corrections and evidence](../docs/acceptance/mcpjvm-650-artifact-it.md).
 
+Transport's complete HTTP/HTTPS, authentication, timeout and cancellation
+selection is `-Pjava-it,java-it-transport`; its separate one-scenario smoke
+selection is `-Pjava-it,java-it-transport-smoke`. Both use local controlled
+targets and need no Spring fixture packaging or JMeter. HTTPS additionally uses
+the current JDK's `keytool` to generate ephemeral scenario-local certificates.
+See [Transport scenarios, contracts and evidence](../docs/acceptance/mcpjvm-651-transport-it.md).
+
 ## Initial maintainability baseline
 
 The Foundation and `core` retain their established limits of 120 lines per

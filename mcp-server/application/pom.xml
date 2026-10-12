@@ -122,6 +122,18 @@
 
   <profiles>
     <profile>
+      <id>java-it-transport</id>
+      <properties>
+        <mcp.it.groups>transport</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-transport-smoke</id>
+      <properties>
+        <mcp.it.groups>transport-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
       <id>java-it-artifact</id>
       <properties>
         <mcp.it.groups>artifact</mcp.it.groups>

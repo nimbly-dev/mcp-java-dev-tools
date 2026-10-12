@@ -84,6 +84,6 @@ final class DelayedHttpTarget implements AutoCloseable {
     public void close() throws InterruptedException {
         server.stop(0);
         executor.shutdownNow();
-        executor.awaitTermination(2, TimeUnit.SECONDS);
+        assertThat(executor.awaitTermination(2, TimeUnit.SECONDS)).as("streaming target executor cleanup").isTrue();
     }
 }
