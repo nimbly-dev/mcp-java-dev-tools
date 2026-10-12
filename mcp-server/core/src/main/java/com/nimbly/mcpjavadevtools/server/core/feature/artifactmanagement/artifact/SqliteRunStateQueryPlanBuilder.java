@@ -57,6 +57,9 @@ final class SqliteRunStateQueryPlanBuilder {
 
     String queryOrder(SqliteRunStateQueryContext context) {
         String direction = SqliteRunStateQueryContract.sortDirection(context.query());
+        if ("suite_continuation_state".equals(context.table())) {
+            return " ORDER BY suite_run_id " + direction;
+        }
         String sortField = context.query().path("sort").path("field").asText("updatedAtEpochMs");
         String sortExpression;
         if ("plan_runs".equals(context.table())) {
@@ -78,6 +81,12 @@ final class SqliteRunStateQueryPlanBuilder {
             return;
         }
         if (expected == null || expected.isNull()) {
+            return;
+        }
+        if ("suite_continuation_state".equals(context.table())) {
+            if ("suite_run_id".equals(column)) {
+                addValueFilter(context, column, expected);
+            }
             return;
         }
         if ("plan_runs".equals(context.table()) || "plan_name".equals(column) || "run_id".equals(column)) {

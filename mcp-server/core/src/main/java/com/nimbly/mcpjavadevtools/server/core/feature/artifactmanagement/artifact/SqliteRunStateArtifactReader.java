@@ -36,13 +36,11 @@ final class SqliteRunStateArtifactReader {
                                 "state_store_scan_limit_exceeded", "Run Artifact scan exceeds the bounded limit");
                     }
                     Path executionResult = policy.check(run.resolve("execution.result.json"));
-                    Path legacyResult = policy.check(run.resolve("result.json"));
-                    Path artifact = Files.isRegularFile(executionResult) ? executionResult : legacyResult;
                     projections.add(readProjection(
                             suite,
                             plan.getFileName().toString(),
                             run.getFileName().toString(),
-                            artifact,
+                            executionResult,
                             relativeToWorkspace(databasePath, run),
                             policy));
                 }
@@ -127,6 +125,14 @@ final class SqliteRunStateArtifactReader {
     JsonNode includeSidecarState(Path runDirectory, JsonNode root, ArtifactPathPolicy policy)
             throws IOException {
         ObjectNode enriched = (ObjectNode) root.deepCopy();
+        // Direct Suite execution stores its real evidence in details. Normalize
+        // only the projection; the authoritative result Artifact stays unchanged.
+        // Keep each promoted evidence field in one location to preserve size bounds.
+        for (String field : List.of("steps", "watchers", "externalVerification", "correlation", "correlations", "continuation")) {
+            if (!enriched.has(field) && enriched.path("details") instanceof ObjectNode details && details.has(field)) {
+                enriched.set(field, details.remove(field));
+            }
+        }
         for (String sidecar : List.of(
                 "continuation.json", "correlation.json", "watchers.json", "external-verification.json")) {
             Path path = policy.check(runDirectory.resolve(sidecar));

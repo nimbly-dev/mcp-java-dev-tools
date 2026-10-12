@@ -23,6 +23,38 @@ class SqliteRunStateStoreTest {
     Path workspace;
 
     @Test
+    void continuationQueriesUseSuiteIdentityForFilteringAndPagination() throws Exception {
+        for (String suiteRunId : List.of("first", "second")) {
+            Path run = workspace.resolve(".mcpjvm/demo/plans/regression/plan/runs/" + suiteRunId);
+            Files.createDirectories(run);
+            Files.writeString(run.resolve("execution.result.json"),
+                    "{\"status\":\"blocked\",\"suiteRunId\":\"" + suiteRunId
+                            + "\",\"continuation\":{\"status\":\"in_progress\",\"complete\":false}}");
+        }
+        Path database = workspace.resolve(".mcpjvm/demo/run-state.sqlite");
+        SqliteRunStateStore store = new SqliteRunStateStore(new ObjectMapper());
+        store.rebuild(database, "demo", true);
+        ObjectNode query = new ObjectMapper().createObjectNode().put("sortDirection", "asc").put("pageSize", 1);
+
+        Map<String, Object> firstPage = store.query(database, "demo", "suite_continuation_state", query);
+        List<?> firstItems = (List<?>) firstPage.get("items");
+        assertThat(firstItems).hasSize(1);
+        assertThat(((Map<?, ?>) firstItems.getFirst()).get("suiteRunId")).isEqualTo("first");
+        assertThat(firstPage).containsEntry("hasMore", true);
+        query.put("cursor", String.valueOf(firstPage.get("nextCursor")));
+        Map<String, Object> secondPage = store.query(database, "demo", "suite_continuation_state", query);
+        assertThat(((Map<?, ?>) ((List<?>) secondPage.get("items")).getFirst()).get("suiteRunId")).isEqualTo("second");
+        assertThat(secondPage).containsEntry("hasMore", false);
+        query.remove("cursor");
+        query.put("suiteRunId", "second");
+        List<?> filtered = (List<?>) store.query(database, "demo", "suite_continuation_state", query).get("items");
+        assertThat(filtered).hasSize(1);
+        assertThat(((Map<?, ?>) filtered.getFirst()).get("suiteRunId")).isEqualTo("second");
+        query.put("suiteRunId", "' OR 1=1 --");
+        assertThat((List<?>) store.query(database, "demo", "suite_continuation_state", query).get("items")).isEmpty();
+    }
+
+    @Test
     void rebuildAndBackfillAreIdempotentAcrossRepeatedCalls() throws Exception {
         Path project = workspace.resolve(".mcpjvm/demo");
         Path run = project.resolve("plans/performance/load/runs/run-1");

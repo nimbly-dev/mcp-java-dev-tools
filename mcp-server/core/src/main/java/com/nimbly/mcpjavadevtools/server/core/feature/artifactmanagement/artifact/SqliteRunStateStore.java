@@ -51,7 +51,7 @@ public final class SqliteRunStateStore {
         return query(databasePath, projectName, stateSurface, null);
     }
 
-    /** Executes the bounded TypeScript-compatible run-state query contract. */
+    /** Executes the bounded current Java run-state query contract. */
     public Map<String, Object> query(
             Path databasePath, String projectName, String stateSurface, JsonNode input) {
         return query.query(databasePath, projectName, stateSurface, input);

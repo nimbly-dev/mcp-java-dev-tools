@@ -15,7 +15,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Timeout;
 
+@Tag("artifact")
+@Timeout(240)
 class McpServerCorrelationIT extends McpServerStdioSupport {
 
     @Test
@@ -152,6 +156,7 @@ class McpServerCorrelationIT extends McpServerStdioSupport {
                         .resolve(happyRun + "-1").resolve("correlation.json");
                 assertThat(happyArtifact).isRegularFile();
                 assertThat(JSON.readTree(happyArtifact.toFile()).path("status").asText()).isEqualTo("ok");
+                ArtifactCorrelationAssertions.verify(server, happyArtifact, projectName, happyPlan, happyRun + "-1");
 
                 String wrongRun = "stdio-644-event-wrong-" + System.currentTimeMillis();
                 server.send(executeRequest(96, "regression_suite.execute_plan", Map.of(
@@ -233,6 +238,8 @@ class McpServerCorrelationIT extends McpServerStdioSupport {
                 assertThat(crossConsumerArtifact).isRegularFile();
                 assertThat(JSON.readTree(crossConsumerArtifact.toFile()).path("keyValue").asText())
                         .isEqualTo(crossPlanSummary.path("keyValue").asText());
+                ArtifactCorrelationAssertions.verify(server, crossConsumerArtifact,
+                        projectName, crossPlanConsumer, crossPlanRun + "-2");
 
                 server.closeInputAndAwaitTermination();
                 assertThat(server.stdoutLines()).allSatisfy(this::assertJsonRpcMessage);

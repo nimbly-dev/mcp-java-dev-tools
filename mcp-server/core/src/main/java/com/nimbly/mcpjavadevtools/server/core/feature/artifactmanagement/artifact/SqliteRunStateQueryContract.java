@@ -17,6 +17,7 @@ final class SqliteRunStateQueryContract {
     static String tableFor(String stateSurface) {
         return switch (stateSurface == null ? "run_state" : stateSurface) {
             case "run_state" -> "plan_runs";
+            case "suite_continuation_state" -> "suite_continuation_state";
             case "correlation_state" -> "correlation_state";
             case "watcher_state" -> "watcher_state";
             case "external_verification_state" -> "external_verification_state";

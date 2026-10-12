@@ -122,6 +122,18 @@
 
   <profiles>
     <profile>
+      <id>java-it-artifact</id>
+      <properties>
+        <mcp.it.groups>artifact</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-artifact-smoke</id>
+      <properties>
+        <mcp.it.groups>artifact-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
       <id>java-it-failure</id>
       <properties>
         <mcp.it.groups>failure-analysis</mcp.it.groups>

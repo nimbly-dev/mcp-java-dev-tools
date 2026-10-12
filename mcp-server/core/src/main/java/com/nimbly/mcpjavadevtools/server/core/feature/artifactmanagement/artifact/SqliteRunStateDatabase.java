@@ -41,11 +41,33 @@ final class SqliteRunStateDatabase {
             throw new SQLException("SQLite parent directory could not be created", exception);
         }
         Connection connection = DriverManager.getConnection("jdbc:sqlite:" + databasePath);
-        try (Statement statement = connection.createStatement()) {
-            statement.execute("PRAGMA busy_timeout = " + BUSY_TIMEOUT_MS);
-            statement.execute("PRAGMA foreign_keys = ON");
+        try {
+            validateSchemaVersion(connection);
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("PRAGMA busy_timeout = " + BUSY_TIMEOUT_MS);
+                statement.execute("PRAGMA foreign_keys = ON");
+            }
+            return connection;
+        } catch (SQLException | RuntimeException failure) {
+            try {
+                connection.close();
+            } catch (SQLException closeFailure) {
+                failure.addSuppressed(closeFailure);
+            }
+            throw failure;
         }
-        return connection;
+    }
+
+    private static void validateSchemaVersion(Connection connection) throws SQLException {
+        if (!hasTable(connection, "schema_migrations")) {
+            return;
+        }
+        try (Statement statement = connection.createStatement();
+                var versions = statement.executeQuery("SELECT MAX(version) FROM schema_migrations")) {
+            if (versions.next() && versions.getInt(1) > 3) {
+                throw new ArtifactOperationException("state_store_schema_unsupported", "SQLite state-store schema is newer than supported");
+            }
+        }
     }
 
     static void createMetadataTables(Connection connection) throws SQLException {

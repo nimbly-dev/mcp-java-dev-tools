@@ -140,6 +140,11 @@ Failure Analysis's complete supported capability selection is
 `-Pjava-it,java-it-failure-smoke,java-it-jvm-fixtures`.
 See [Failure Analysis scenarios, Skill dependencies and evidence](../docs/acceptance/mcpjvm-649-failure-analysis-it.md).
 
+Artifact persistence's complete capability selection is
+`-Pjava-it,java-it-artifact,java-it-fixtures`; its separate registry lifecycle
+smoke selection is `-Pjava-it,java-it-artifact-smoke`.
+See [Artifact operations, storage corrections and evidence](../docs/acceptance/mcpjvm-650-artifact-it.md).
+
 ## Initial maintainability baseline
 
 The Foundation and `core` retain their established limits of 120 lines per

@@ -90,6 +90,9 @@ final class ArtifactOperationSchemas {
         root.with("properties").putObject("strict").put("type", "boolean").put("default", false);
         CanonicalOperationSchema.enumString(root, "stateSurface",
                 "run_state", "correlation_state", "watcher_state", "external_verification_state");
+        if (action == ArtifactManagementAction.RUN_RESULT_QUERY) {
+            root.with("properties").with("stateSurface").withArray("enum").add("suite_continuation_state");
+        }
         for (String field : java.util.List.of("scope", "retention", "query")) {
             root.with("properties").putObject(field)
                     .put("type", "object").put("additionalProperties", true);

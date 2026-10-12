@@ -23,9 +23,11 @@ final class SqliteRunStateProvisioningCleanup {
                     rollback(connection);
                     return false;
                 }
-                Files.move(databasePath, quarantine, StandardCopyOption.ATOMIC_MOVE);
                 commit(connection);
             }
+            // Windows cannot rename an open SQLite file. Keep the project mutation
+            // lock while closing JDBC and quarantining the verified empty store.
+            Files.move(databasePath, quarantine, StandardCopyOption.ATOMIC_MOVE);
         } catch (Exception exception) {
             restore(databasePath, quarantine);
             return false;

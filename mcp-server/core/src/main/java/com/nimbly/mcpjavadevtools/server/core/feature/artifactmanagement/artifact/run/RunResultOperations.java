@@ -37,12 +37,8 @@ public final class RunResultOperations {
             Path executionResult = workspace.paths().resolve(
                     ".mcpjvm", projectName, "plans", suiteType, planName, "runs", runId,
                     "execution.result.json");
-            Path legacyResult = workspace.paths().resolve(
-                    ".mcpjvm", projectName, "plans", suiteType, planName, "runs", runId,
-                    "result.json");
-            Path resultPath = Files.isRegularFile(executionResult) ? executionResult : legacyResult;
-            if (Files.isRegularFile(resultPath)) {
-                details.put("artifact", transportValue(support.jsonStore().read(resultPath)));
+            if (Files.isRegularFile(executionResult)) {
+                details.put("artifact", transportValue(support.jsonStore().read(executionResult)));
             }
             addOptionalRunState(details, new RunStatePath(workspace, projectName, suiteType, planName, runId),
                     "continuation", "continuation.json");
