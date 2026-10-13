@@ -38,22 +38,37 @@ final class RegressionExternalVerification {
     }
 
     Result execute(JsonNode input, Map<String, Object> context) {
+        return execute(input, support.context(context),
+                com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode(), 1000);
+    }
+
+    Result execute(JsonNode input, RegressionExecutionContext context, JsonNode prior, int batchSize) {
         JsonNode verifications = input.path("contract").path("externalVerification");
         if (!verifications.isArray() || verifications.isEmpty()) {
             return Result.notConfigured();
         }
         List<Map<String, Object>> results = new ArrayList<>();
+        prior.forEach(row -> results.add(support.object(row)));
+        int completed = results.size();
+        int executed = 0;
+        int index = 0;
         for (JsonNode verification : verifications) {
+            if (index++ < completed) {
+                continue;
+            }
+            if (executed++ >= batchSize) {
+                return Result.failure("external_verification_in_progress", results);
+            }
             String provider = verification.path("provider").path("type").asText();
             VerificationResult result = "http".equals(provider)
-                    ? executeHttp(verification, context)
-                    : executeSql(verification, input, context);
+                    ? executeHttp(verification, context.values())
+                    : executeSql(verification, input, context.values());
             results.add(row(verification, provider, result));
             if (!result.success()) {
                 return Result.failure(result.reasonCode(), results);
             }
             String expectationFailure = support.firstEnvelopeExpectationFailure(
-                    verification.path("expect"), result.envelope(), context);
+                    verification.path("expect"), result.envelope(), context.values());
             if (expectationFailure != null) {
                 results.set(results.size() - 1,
                         row(verification, provider,
@@ -277,7 +292,7 @@ final class RegressionExternalVerification {
     private String extract(
             JsonNode extractions,
             Map<String, Object> envelope,
-            Map<String, Object> context) {
+            RegressionExecutionContext context) {
         for (JsonNode extraction : extractions) {
             Object value = RegressionStepExpectationEvaluator.read(
                     envelope, extraction.path("from").asText());
@@ -285,7 +300,7 @@ final class RegressionExternalVerification {
                 return "external_verification_extract_missing";
             }
             if (value != null && !extraction.path("as").asText().isBlank()) {
-                context.put(extraction.path("as").asText(), value);
+                context.extract(extraction, value);
             }
         }
         return null;

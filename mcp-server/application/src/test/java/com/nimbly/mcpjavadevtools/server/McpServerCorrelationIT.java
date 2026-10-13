@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Timeout;
 
 @Tag("artifact")
+@Tag("regression")
 @Timeout(240)
 class McpServerCorrelationIT extends McpServerStdioSupport {
 
@@ -40,26 +41,32 @@ class McpServerCorrelationIT extends McpServerStdioSupport {
         String crossPlanSession = "packaged-cross-plan-flow";
         int producerProbePort = freePort();
         int consumerProbePort = freePort();
+        Path temporary = Files.createDirectories(workspace.resolve("tmp"));
 
         try (SpringFixtureTargetProcess consumer = SpringFixtureTargetProcess.start(
                     consumerJar,
-                    List.of("-Dmcp.probe.id=" + EVENT_CONSUMER_PROBE_ID),
+                    List.of("-Dmcp.probe.id=" + EVENT_CONSUMER_PROBE_ID, "-Djava.io.tmpdir=" + temporary),
                     List.of());
                 SpringFixtureTargetProcess producer = SpringFixtureTargetProcess.start(
                     producerJar,
                     List.of(
                             "-Dmcp.probe.id=" + EVENT_PRODUCER_PROBE_ID,
+                            "-Djava.io.tmpdir=" + temporary,
                             "-Dfixture.consumer.base-url=" + LOOPBACK_HTTP_PREFIX + consumer.port()),
                     List.of())) {
             consumer.awaitHealthy();
             producer.awaitHealthy();
             Files.writeString(workspace.resolve("event-correlation.env"),
                     "EVENT_AUTHORIZATION=Bearer alice-token" + System.lineSeparator());
-            writeProbeRegistry(workspace, producerProbePort, consumerProbePort);
-
-            try (McpServerProcess server = McpServerProcess.start(
-                    jarPath(), workspace, "--workspace-root=" + workspace)) {
+            try (McpServerProcess server = JvmProbeScenario.startServer(workspace)) {
                 initialize(server);
+                var registry = McpServerArtifactConfigIT.registry(workspace);
+                var probes = (com.fasterxml.jackson.databind.node.ObjectNode) registry.path("profiles").path("local").path("probes");
+                probes.removeAll();
+                probes.putObject(EVENT_PRODUCER_PROBE_ID).put("baseUrl", LOOPBACK_HTTP_PREFIX + producerProbePort);
+                probes.putObject(EVENT_CONSUMER_PROBE_ID).put("baseUrl", LOOPBACK_HTTP_PREFIX + consumerProbePort);
+                ArtifactMcpSupport.ok(server, "probe_config.upsert", Map.of("payload", registry));
+                assertThat(ArtifactMcpSupport.artifact(server, "probe_config.reload", Map.of()).path("status").asText()).isEqualTo("reloaded");
                 attach(server, 90, producer, producerProbePort, EVENT_PRODUCER_INCLUDE);
                 attach(server, 91, consumer, consumerProbePort, EVENT_CONSUMER_INCLUDE);
                 assertThat(producer.awaitSidecarReachability(

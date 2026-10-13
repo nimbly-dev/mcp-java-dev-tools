@@ -60,15 +60,35 @@ public final class RegressionPlanPreflight {
         if (prerequisiteResult != null) {
             return prerequisiteResult;
         }
+        RegressionSuiteResult suiteContextResult = validateSuiteReferences(input);
+        if (suiteContextResult != null) {
+            return suiteContextResult;
+        }
         return RegressionSuiteResult.ready(Map.of(
                 "targetCount", contract.path("targets").size(),
                 "stepCount", contract.path("steps").size(),
                 "checks", List.of("metadata", "targets", "steps", "pinned_probe_keys")));
     }
 
+    private RegressionSuiteResult validateSuiteReferences(JsonNode input) {
+        Matcher references = Pattern.compile("(?:\\$\\{|\\{\\{)(suite\\.[A-Za-z0-9_.-]+)\\}+")
+                .matcher(input.path("contract").toString());
+        while (references.find()) {
+            if (!input.path("providedContext").hasNonNull(references.group(1))) {
+                return blocked("suite_context_forward_reference", "use only explicitly promoted suite context");
+            }
+        }
+        return null;
+    }
+
     private RegressionSuiteResult validateMetadata(JsonNode metadata) {
         if (!"regression".equals(metadata.path("execution").path("intent").asText())) {
             return blocked("invalid_execution_intent", "set metadata.execution.intent to regression");
+        }
+        JsonNode batch = metadata.path("execution").path("verificationBatchSize");
+        if (!batch.isMissingNode() && (!batch.isIntegralNumber() || !batch.canConvertToInt()
+                || batch.asInt() < 1 || batch.asInt() > 1000)) {
+            return blocked("verification_batch_size_invalid", "set verificationBatchSize to an integer from 1 to 1000");
         }
         return null;
     }
@@ -216,11 +236,15 @@ public final class RegressionPlanPreflight {
             String scope = extraction.path("scope").asText("plan");
             if (!isObjectPath(from)
                     || name.isBlank()
-                    || !("plan".equals(scope) || "suite".equals(scope))) {
+                    || !("plan".equals(scope) || "suite".equals(scope))
+                    || extraction.has("secret") && !extraction.path("secret").isBoolean()) {
                 return blocked("step_extract_invalid", "provide deterministic from, as, and scope extraction values");
             }
             if ("suite".equals(scope) && extraction.path("secret").asBoolean()) {
                 return blocked("suite_context_secret_forbidden", "do not persist secret values in suite context");
+            }
+            if ("suite".equals(scope) && !extraction.path("secret").isBoolean()) {
+                return blocked("step_extract_invalid", "classify suite extractions explicitly with secret=false");
             }
         }
         return null;
@@ -253,7 +277,7 @@ public final class RegressionPlanPreflight {
             return blocked("probe_verification_configuration_invalid",
                     "enable metadata.execution.probeVerification for probe_line_hit expectations");
         }
-        RegressionSuiteResult watcherResult = validateWatchers(contract.path("watchers"));
+        RegressionSuiteResult watcherResult = validateWatchers(contract.path("watchers"), contract.path("steps"));
         if (watcherResult != null) {
             return watcherResult;
         }
@@ -279,7 +303,7 @@ public final class RegressionPlanPreflight {
         return false;
     }
 
-    private RegressionSuiteResult validateWatchers(JsonNode watchers) {
+    private RegressionSuiteResult validateWatchers(JsonNode watchers, JsonNode steps) {
         if (watchers.isMissingNode()) {
             return null;
         }
@@ -294,6 +318,13 @@ public final class RegressionPlanPreflight {
                 return blocked("watcher_configuration_invalid",
                         "provide an id, completed-step dependency, and HTTP provider request");
             }
+            if (watcher.path("dependency").path("stepOrder").asInt() > steps.size()) {
+                return blocked("watcher_dependency_invalid", "reference an existing trigger step");
+            }
+            RegressionSuiteResult policy = validateWatcherPolicy(watcher.path("waitPolicy"));
+            if (policy != null) {
+                return policy;
+            }
             RegressionSuiteResult expectations = validateVerificationExpectations(
                     watcher.path("expect"), "watcher_expectation_invalid");
             if (expectations != null) {
@@ -301,6 +332,23 @@ public final class RegressionPlanPreflight {
             }
         }
         return null;
+    }
+
+    private RegressionSuiteResult validateWatcherPolicy(JsonNode policy) {
+        if (policy.isMissingNode()) {
+            return null;
+        }
+        if (!policy.isObject() || !positiveBounded(policy, "timeoutMs", 60000)
+                || !positiveBounded(policy, "retryMax", 100) || !positiveBounded(policy, "intervalMs", 5000)) {
+            return blocked("watcher_wait_policy_invalid", "provide bounded positive integer Watcher policy values");
+        }
+        return null;
+    }
+
+    private boolean positiveBounded(JsonNode policy, String field, int maximum) {
+        JsonNode value = policy.path(field);
+        return value.isMissingNode() || value.isIntegralNumber() && value.canConvertToInt()
+                && value.asInt() > 0 && value.asInt() <= maximum;
     }
 
     private RegressionSuiteResult validateExternalVerification(JsonNode verifications) {

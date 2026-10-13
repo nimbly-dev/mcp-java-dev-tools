@@ -17,6 +17,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.List;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -97,7 +98,16 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
                     || !prior.path("directResult").isObject()) {
                 return blocked.apply("direct_suite_run_conflict");
             }
-            return mapper.convertValue(prior.path("directResult"), resultType);
+            String status = prior.path("directResult").path("status").asText();
+            if ("in_progress".equals(status)) {
+                JsonNode continuation = prior.path("directResult").path("details").path("continuation");
+                if (!continuation.isObject()) {
+                    return blocked.apply("regression_continuation_conflict");
+                }
+                input.set("continuation", continuation);
+            } else if (!List.of("needs_user_input", "needs_discovery").contains(status)) {
+                return mapper.convertValue(prior.path("directResult"), resultType);
+            }
         }
         if ("performance".equals(suiteType)) {
             input.put("runDirectory", runDirectory.toString());
@@ -255,6 +265,9 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
         payload.put("planName", plan);
         payload.put("order", 1);
         payload.set("details", resultNode.path("details"));
+        if ("in_progress".equals(resultNode.path("status").asText())) {
+            payload.set("activePhase", resultNode.path("details").path("continuation").path("phase"));
+        }
         payload.set("directResult", resultNode);
         if (resultNode.path("details").path("correlation").isObject()) {
             payload.set("correlation", resultNode.path("details").path("correlation"));

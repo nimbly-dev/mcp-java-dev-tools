@@ -40,9 +40,23 @@ public final class ArtifactRedactionPolicy {
                 sanitized.put("_truncated", true);
                 break;
             }
-            sanitized.put(entry.getKey(), sanitizeValue(entry.getKey(), entry.getValue(), 0));
+            sanitized.put(entry.getKey(), sanitizeResultField(entry.getKey(), entry.getValue()));
         }
         return sanitized;
+    }
+
+    private static Object sanitizeResultField(String key, Object value) {
+        // A plan envelope contains independently stored documents. Its wrapper must not
+        // consume their depth budget or turn a valid persisted request into different input.
+        if ("artifact".equals(key) && value instanceof Map<?, ?> documents
+                && documents.containsKey("contract")
+                && documents.keySet().stream().allMatch(name -> List.of("metadata", "contract", "plan").contains(name))) {
+            Map<String, Object> sanitized = new LinkedHashMap<>();
+            documents.forEach((name, document) -> sanitized.put(String.valueOf(name),
+                    sanitizeValue(String.valueOf(name), document, 0)));
+            return sanitized;
+        }
+        return sanitizeValue(key, value, 0);
     }
 
     /** Sanitizes a value before persisting it in a generated export or projection. */
@@ -56,6 +70,9 @@ public final class ArtifactRedactionPolicy {
     }
 
     private static Object sanitizeValue(String field, Object value, int depth) {
+        if ("secret".equals(field) && value instanceof Boolean) {
+            return value;
+        }
         if (isContextBindings(field) && value instanceof JsonNode node) {
             return sanitizeContextBindings(node, depth);
         }
@@ -106,6 +123,9 @@ public final class ArtifactRedactionPolicy {
     }
 
     private static JsonNode sanitizeJson(JsonNode value, int depth, String field) {
+        if ("secret".equals(field) && value != null && value.isBoolean()) {
+            return value;
+        }
         if (isContextBindings(field)) {
             return sanitizeContextBindings(value, depth);
         }

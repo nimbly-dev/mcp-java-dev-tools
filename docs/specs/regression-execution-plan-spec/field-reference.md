@@ -1,5 +1,24 @@
 # Field Reference
 
+## Java verification batching
+
+`metadata.execution.verificationBatchSize` is an optional positive integer from
+1 to 1000 (default 1000). It limits attempts per Watcher and external checks per
+invocation. It does not change a Watcher's total `retryMax` or original absolute
+deadline. A waiting invocation persists `details.continuation` and returns
+`in_progress`; the same direct-suite or orchestration selectors resume that
+phase without resending completed triggers or external checks. Changes to the
+execution contract, non-secret supplied context or credential-source identity
+invalidate continuation. Current credential values are reloaded on each resume.
+
+Suite extraction requires `scope="suite"` and explicit `secret=false`.
+Classification follows the most recent actual write to the extraction key.
+Secret values remain usable in the current invocation, are redacted from
+evidence, and are excluded from persisted extracted context.
+Raw HTTP response bodies are redacted in full when classified secrets are present;
+sanitized parsed JSON remains available as evidence. Raw-body encoding is never
+used as proof that a classified secret is absent.
+
 ## Package layout
 
 ```text

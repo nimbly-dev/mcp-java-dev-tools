@@ -120,6 +120,15 @@ selection, `-Pjava-it,java-it-smoke` for real functional smoke, or
 `-Pjava-it,java-it-fixtures` for all currently implemented application ITs.
 See [the exact commands, prerequisites and coverage inventory](../docs/acceptance/mcpjvm-646-java-it.md).
 
+The generated Regression capability selection is
+`-Pjava-it,java-it-regression,java-it-regression-fixtures`. It includes real strict
+Probe routes, producer/consumer and executor/KCL correlation, HTTP Watchers,
+SQLite/PostgreSQL verification, redaction, failures and persisted phase recovery.
+PostgreSQL requires a running Docker engine; its owned container uses temporary
+memory storage and is removed on cleanup. The separate one-scenario smoke is
+`-Pjava-it,java-it-regression-smoke` and has no Spring/Docker prerequisite.
+See [#652 commands and behavior inventory](../docs/acceptance/mcpjvm-652-regression-it.md).
+
 For real JVM Lifecycle/Probe acceptance, use
 `-Pjava-it,java-it-jvm,java-it-jvm-fixtures`; the separate
 `-Pjava-it,java-it-jvm-smoke,java-it-jvm-fixtures` selection runs one real strict

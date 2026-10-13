@@ -122,6 +122,55 @@
 
   <profiles>
     <profile>
+      <id>java-it-regression-postgresql</id>
+      <properties>
+        <mcp.it.groups>regression-postgresql</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-regression-fixtures</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>package-regression-fixtures</id>
+                <phase>pre-integration-test</phase>
+                <goals><goal>run</goal></goals>
+                <configuration>
+                  <skip>${mcp.it.skip-fixtures}</skip>
+                  <target>
+                    <exec executable="${mcp.fixture.maven.executable}" dir="${mcp.fixture.social-platform.root}" failonerror="true" failifexecutionfails="true">
+                      <arg value="-B" />
+                      <arg value="-pl" />
+                      <arg value="post-service/post-app,event-service/event-app,event-service/event-producer-app,event-service/event-consumer-app" />
+                      <arg value="-am" />
+                      <arg value="package" />
+                      <arg value="-DskipTests" />
+                    </exec>
+                  </target>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>java-it-regression</id>
+      <properties>
+        <mcp.it.groups>regression</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-regression-smoke</id>
+      <properties>
+        <mcp.it.groups>regression-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
       <id>java-it-transport</id>
       <properties>
         <mcp.it.groups>transport</mcp.it.groups>

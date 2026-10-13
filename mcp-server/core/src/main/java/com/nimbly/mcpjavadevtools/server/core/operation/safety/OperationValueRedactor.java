@@ -42,7 +42,8 @@ public class OperationValueRedactor {
                 Map.Entry<String, JsonNode> field = fields.next();
                 boolean redact = !"none".equalsIgnoreCase(policy)
                         && !"allow_all".equalsIgnoreCase(policy)
-                        && sensitive(field.getKey());
+                        && sensitive(field.getKey())
+                        && !("secret".equals(field.getKey()) && field.getValue().isBoolean());
                 JsonNode child = redact
                         ? JsonNodeFactory.instance.textNode(REDACTED)
                         : copy(field.getValue(), policy, budget);

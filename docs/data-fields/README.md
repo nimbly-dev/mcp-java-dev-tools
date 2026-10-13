@@ -632,16 +632,43 @@ Java CDE exposes `regression_suite.preflight` and
 an HTTP-only plan can return `result.status=ready` with
 `result.details.runStatus=pass` after its steps pass.
 
-Java currently cannot perform configured Probe hit, Watcher, external
-verification, or correlation phases. Preflight returns
-`result.status=blocked_runtime` with the phase-specific reason code
-`probe_verification_unavailable`, `watcher_verification_unavailable`,
-`external_verification_unavailable`, or `correlation_verification_unavailable`.
-Execute revalidates and persists the same blocked outcome without a passing
-`details.runStatus`. A completed outer CDE invocation does not override the
-inner blocked result. The TypeScript implementation remains the behavior
-reference for these phases until the Java capability has live verification
-evidence.
+Java executes optional strict Probe verification, HTTP Watchers, external HTTP
+and connection-reference SQL verification (SQLite/PostgreSQL), and Sidecar
+correlation. `result.status=failed` and `details.runStatus=fail` identify a failed
+trigger or verification; invalid plans and missing prerequisites retain their
+deterministic preflight classification. An outer CDE success only establishes
+that the operation returned an owner result.
+
+| fieldName | fieldDesc | toolUsedBy | required | exampleValue |
+| --- | --- | --- | --- | --- |
+| `result.details.steps[]` | Ordered trigger outcomes; includes conditional skips and the first failed step. | `regression_suite.execute_plan` | false | `{"order":1,"status":"pass","statusCode":200}` |
+| `result.details.probeVerification.lineHits[]` | Fresh strict line evidence after reset and actual triggers. | `regression_suite.execute_plan` | false | `{"strictLineKey":"example.Controller#get:20","lineHit":true,"probeId":"one"}` |
+| `result.details.watchers[]` | HTTP Watcher verdict, cumulative attempt count and bounded observation. A waiting row retains its original `deadlineEpochMs`. | `regression_suite.execute_plan` | false | `{"status":"in_progress","attemptCount":1,"deadlineEpochMs":1791850000000}` |
+| `result.details.externalVerification[]` | Ordered HTTP/SQL verification verdicts and sanitized evidence. | `regression_suite.execute_plan` | false | `{"id":"database","provider":"sql","status":"pass"}` |
+| `result.details.correlation` | Observed correlation timeline and deterministic `ok` or `fail_closed` classification. | `regression_suite.execute_plan` | false | `{"status":"ok"}` |
+| `result.details.suiteContext` | Explicit non-secret suite extractions from the latest actual write to each key; promoted only after the plan passes. | `regression_suite.execute_plan` | false | `{"suite.item":"created-id"}` |
+| `result.details.continuation` | Owner-produced phase checkpoint, with safe extracted context, actual classifications, completed outcomes and stable execution fingerprint. Resume the same selectors; do not construct this value. | `regression_suite.execute_plan` | false | `{"phase":"watchers"}` |
+
+`metadata.execution.verificationBatchSize` optionally limits verification work
+per invocation (integer 1–1000; default 1000). Exhausting a batch returns
+`status=in_progress`, `reasonCode=regression_phase_in_progress` and
+`details.runStatus=in_progress`. Resume preserves triggers, completed checks,
+Watcher deadlines and attempts; credentials are resolved anew from the same
+project-owned sources. Contract, source-identity or non-secret supplied-context
+changes fail closed with `regression_continuation_conflict`.
+
+Extraction classification is explicit: the boolean `secret` is metadata and
+survives Artifact reads; secret values are redacted from returned/persisted
+verification evidence and excluded from continuation context. A later secret
+write revokes an earlier public classification for the same key. When classified
+secrets are present, raw HTTP `response.body` evidence is replaced with
+`[REDACTED]`; sanitized `response.bodyJson` remains available. This also covers
+JSON escapes and incomplete raw JSON without matching encoded secret strings.
+Direct execution
+advertises no cancellation support. After resuming a checkpoint that omitted an
+ephemeral secret extraction, freeform HTTP/SQL evidence is conservatively redacted;
+phase controls and verdicts remain readable. Secrets needed later must be available
+from a runtime source. See [the #652 evidence and runnable selections](../acceptance/mcpjvm-652-regression-it.md).
 
 ## performance_suite (Java CDE)
 

@@ -7,6 +7,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.Transpo
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.TransportProtocol;
+import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.protocol.http.HttpTransportSafetyPolicy;
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -28,6 +29,10 @@ final class RegressionVerificationSupport {
     }
 
     Observation executeHttp(JsonNode requestNode, Map<String, Object> context) {
+        return executeHttp(requestNode, context, Long.MAX_VALUE);
+    }
+
+    Observation executeHttp(JsonNode requestNode, Map<String, Object> context, long remainingMillis) {
         Map<String, Object> request = resolveMap(
                 mapper.convertValue(requestNode, new TypeReference<>() { }), context);
         request.putIfAbsent("method", "GET");
@@ -42,6 +47,7 @@ final class RegressionVerificationSupport {
         if (!request.containsKey("url")) {
             return Observation.failure("verification_http_url_missing");
         }
+        boundTimeout(request, remainingMillis);
         ExecuteTransportResult result = transport.execute(
                 new ExecuteTransportRequest(TransportProtocol.HTTP, request, true));
         if (!"pass".equals(result.status())) {
@@ -55,6 +61,19 @@ final class RegressionVerificationSupport {
         response.put("body", result.bodyPreview());
         response.put("bodyJson", json(result.bodyPreview()));
         return Observation.success(Collections.unmodifiableMap(response), result.durationMs());
+    }
+
+    private void boundTimeout(Map<String, Object> request, long remainingMillis) {
+        Object configured = request.get("timeoutMs");
+        long timeout = HttpTransportSafetyPolicy.DEFAULT_TIMEOUT_MILLIS;
+        if (configured != null) {
+            if (!(configured instanceof Number number) || number.doubleValue() != number.longValue()
+                    || number.longValue() < 1 || number.longValue() > HttpTransportSafetyPolicy.MAXIMUM_TIMEOUT_MILLIS) {
+                return;
+            }
+            timeout = number.longValue();
+        }
+        request.put("timeoutMs", Math.max(1L, Math.min(timeout, remainingMillis)));
     }
 
     String firstExpectationFailure(JsonNode expectations, Observation observation) {
@@ -125,6 +144,14 @@ final class RegressionVerificationSupport {
 
     Object read(Map<String, Object> response, String path) {
         return RegressionStepExpectationEvaluator.read(Map.of("response", response), path);
+    }
+
+    Map<String, Object> object(JsonNode node) {
+        return mapper.convertValue(node, new TypeReference<>() { });
+    }
+
+    RegressionExecutionContext context(Map<String, Object> values) {
+        return new RegressionExecutionContext(mapper, values);
     }
 
     Object resolve(Object value, Map<String, Object> context) {

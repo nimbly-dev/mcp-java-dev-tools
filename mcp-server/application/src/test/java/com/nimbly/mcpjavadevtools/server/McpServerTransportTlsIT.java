@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Timeout;
 @Timeout(90)
 class McpServerTransportTlsIT extends McpServerStdioSupport {
     // Ephemeral fixture key material; never a user or product credential.
-    private static final String STORE_PASSWORD = "transport-fixture-only";
+    static final String STORE_PASSWORD = "transport-fixture-only";
 
     @Test
     void httpsUsesNormalCertificateValidationAndBlocksDowngradeBeforeHttpRequest() throws Exception {
@@ -53,7 +53,7 @@ class McpServerTransportTlsIT extends McpServerStdioSupport {
         }
     }
 
-    private Path createKeyStore(Path workspace) throws Exception {
+    static Path createKeyStore(Path workspace) throws Exception {
         Path store = workspace.resolve("fixture.p12");
         String suffix = System.getProperty("os.name").toLowerCase().contains("win") ? ".exe" : "";
         Path keytool = Path.of(System.getProperty("java.home"), "bin", "keytool" + suffix);

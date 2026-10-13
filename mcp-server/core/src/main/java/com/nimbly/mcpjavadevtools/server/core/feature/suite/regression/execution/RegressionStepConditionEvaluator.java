@@ -70,7 +70,8 @@ final class RegressionStepConditionEvaluator {
 
     private Object resolve(String left, Map<String, Object> context, Map<Integer, Map<String, Object>> outputs, int order) {
         if (left.startsWith("context.")) {
-            return RegressionStepExpectationEvaluator.read(context, left.substring(8));
+            String key = left.substring(8);
+            return context.containsKey(key) ? context.get(key) : RegressionStepExpectationEvaluator.read(context, key);
         }
         Matcher match = Pattern.compile("step\\[(\\d+)]\\.(.+)").matcher(left);
         if (!match.matches()) {

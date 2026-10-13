@@ -403,6 +403,9 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             if ("execution_suite_checkpoint_persist_failed".equals(progress.reasonCode())) {
                 return progress;
             }
+            if ("in_progress".equals(outcome.get("status"))) {
+                return progress;
+            }
             checkpoint();
             if (shouldStop(profile, plan, outcome)) {
                 return withSuiteContext(failed(input, profile, merged(prior, outcomes), String.valueOf(outcome.get("reasonCode"))), suiteContext);
@@ -504,10 +507,23 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         }
         String runId = runId(input, plan.path("order").asInt());
         ObjectNode envelope = envelope(input, context, suiteType, plan, planName, artifact);
+        if ("regression".equals(suiteType)) {
+            addRegressionContinuation(envelope, input, planName, runId);
+        }
         if ("performance".equals(suiteType) && !addRunDirectory(envelope, input, suiteType, planName, runId)) {
             return outcome(plan, "blocked", "execution_run_directory_unavailable", Map.of("runId", runId));
         }
         return route(plan, suiteType, envelope);
+    }
+
+    private void addRegressionContinuation(ObjectNode envelope, Input input, String planName, String runId) {
+        ObjectNode request = mapper.createObjectNode().put("projectName", input.projectName())
+                .put("suiteType", "regression").put("planName", planName).put("runId", runId);
+        var prior = artifacts.execute(new ArtifactManagementRequest(ArtifactType.RUN_RESULT, ArtifactAction.READ, request));
+        JsonNode artifact = mapper.valueToTree(prior.details().get("artifact"));
+        if ("ok".equals(prior.status()) && "in_progress".equals(artifact.path("status").asText())) {
+            envelope.set("continuation", artifact.path("details").path("continuation"));
+        }
     }
 
     private boolean addRunDirectory(
@@ -545,6 +561,9 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             payload.set("correlation", correlation);
         }
         payload.put("status", persistedStatus(outcome));
+        if ("in_progress".equals(payload.path("status").asText())) {
+            payload.set("activePhase", payload.path("details").path("continuation").path("phase"));
+        }
         payload.put("executionProfile", input.executionProfile());
         payload.put("suiteRunId", input.suiteRunIdOr(runId));
         payload.put("startedAt", Instant.now().toString());
@@ -626,6 +645,9 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
     }
 
     private void promoteContext(Map<String, Object> suiteContext, JsonNode plan, Map<String, Object> outcome) {
+        if (suiteFailed(outcome) || "in_progress".equals(outcome.get("status"))) {
+            return;
+        }
         suiteContext.putAll(safeContext(plan.path("providedContext")));
         Object details = outcome.get("details");
         if (details instanceof Map<?, ?> map) {
@@ -664,7 +686,8 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
 
     private static void addSafeContext(Map<String, Object> safe, String key, Object value) {
         String normalized = key.toLowerCase(java.util.Locale.ROOT);
-        if ((PROMOTABLE_CONTEXT_KEYS.contains(normalized) || CORRELATION_CONTEXT_KEY.matcher(key).matches())
+        if ((PROMOTABLE_CONTEXT_KEYS.contains(normalized) || CORRELATION_CONTEXT_KEY.matcher(key).matches()
+                || key.matches("suite\\.[A-Za-z_][A-Za-z0-9_.-]{0,125}"))
                 && safeValue(value)) {
             safe.put(key, value);
         }
@@ -754,8 +777,11 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         details.put("executionProfile", input.executionProfile());
         details.put("executionPolicy", profile.path("executionPolicy").asText());
         details.put("suiteRunId", input.suiteRunId());
-        Map<String, Object> progress = Map.of("completedPlanCount", outcomes.size(), "status", status,
-                "failedPlanCount", outcomes.stream().filter(ExecuteExecutionOrchestrationAction::suiteFailed).count());
+        Map<String, Object> progress = new LinkedHashMap<>();
+        progress.put("completedPlanCount", outcomes.stream().filter(row -> !"in_progress".equals(row.get("status"))).count());
+        progress.put("status", status);
+        progress.put("failedPlanCount", outcomes.stream().filter(ExecuteExecutionOrchestrationAction::suiteFailed).count());
+        addActivePhase(progress, outcomes);
         details.put("progressSummary", progress);
         details.put("progress", progress);
         details.put("planRuns", outcomes);
@@ -763,9 +789,19 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             details.put("correlations", correlations);
         }
         if (partial && !outcomes.isEmpty()) {
-            details.put("nextPlanOrder", ((Number) outcomes.getLast().get("order")).intValue() + 1);
+            int increment = "in_progress".equals(outcomes.getLast().get("status")) ? 0 : 1;
+            details.put("nextPlanOrder", ((Number) outcomes.getLast().get("order")).intValue() + increment);
         }
         return new ExecutionOrchestrationResult(status, code, next, input.metadata(), details);
+    }
+
+    private void addActivePhase(Map<String, Object> progress, List<Map<String, Object>> outcomes) {
+        if (!outcomes.isEmpty() && "in_progress".equals(outcomes.getLast().get("status"))) {
+            JsonNode active = mapper.valueToTree(outcomes.getLast());
+            progress.put("activePlan", Map.of("planName", active.path("planName").asText(),
+                    "order", active.path("order").asInt(),
+                    "phase", active.path("details").path("continuation").path("phase").asText()));
+        }
     }
 
     private static String resultStatus(boolean partial, boolean aggregateFailure) {
@@ -787,7 +823,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         if (details instanceof Map<?, ?> values && "fail".equals(values.get("runStatus"))) {
             return true;
         }
-        return !List.of("pass", "completed", "ready", "skipped").contains(String.valueOf(outcome.get("status")));
+        return !List.of("pass", "completed", "ready", "skipped", "in_progress").contains(String.valueOf(outcome.get("status")));
     }
 
     private static void checkpoint() {

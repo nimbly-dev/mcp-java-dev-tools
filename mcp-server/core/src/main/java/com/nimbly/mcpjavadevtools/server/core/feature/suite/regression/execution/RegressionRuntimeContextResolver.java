@@ -20,6 +20,12 @@ final class RegressionRuntimeContextResolver {
         Map<String, Object> values = input.path("providedContext").isObject()
                 ? new LinkedHashMap<>(mapper.convertValue(input.path("providedContext"), new TypeReference<>() {
                 })) : new LinkedHashMap<>();
+        for (JsonNode prerequisite : input.path("contract").path("prerequisites")) {
+            String key = prerequisite.path("key").asText();
+            if (!key.isBlank() && !values.containsKey(key) && prerequisite.hasNonNull("default")) {
+                values.put(key, mapper.convertValue(prerequisite.get("default"), Object.class));
+            }
+        }
         JsonNode bindings = input.path("credentialBindings");
         if (!bindings.isObject()) {
             return values;

@@ -67,23 +67,43 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
 
     @Override
     public RegressionSuiteResult preflight(JsonNode input) {
-        return preflight.validate(input);
+        if (input == null || !input.isObject()) {
+            return preflight.validate(input);
+        }
+        Map<String, Object> context = new RegressionRuntimeContextResolver(mapper).resolve(input);
+        return preflight.validate(resolvedInput(input, context));
     }
 
     /** Executes preflight-valid steps without emitting supplied context or response bodies. */
     @Override
     public RegressionSuiteResult executePlan(JsonNode input) {
-        Map<String, Object> context = new RegressionRuntimeContextResolver(mapper).resolve(input);
-        JsonNode contextResolvedInput = resolvedInput(input, context);
+        if (input == null || !input.isObject()) {
+            return preflight.validate(input);
+        }
+        RegressionExecutionContext context = new RegressionExecutionContext(mapper, new RegressionRuntimeContextResolver(mapper).resolve(input));
+        context.classifyPrerequisites(input);
+        return context.sanitize(executeResolved(input, context));
+    }
+
+    private RegressionSuiteResult executeResolved(JsonNode input, RegressionExecutionContext context) {
+        JsonNode contextResolvedInput = resolvedInput(input, context.values());
         RegressionProbeVerification.Resolution probeResolution = probeVerification.resolve(contextResolvedInput);
         if (!probeResolution.success()) {
             return verificationFailed(List.of(), probeResolution.reasonCode(),
                     Map.of("probeVerification", probeResolution.details()));
         }
         JsonNode resolvedInput = probeResolution.input();
-        RegressionSuiteResult checked = preflight(resolvedInput);
+        RegressionSuiteResult checked = preflight.validate(resolvedInput);
         if (!"ready".equals(checked.status())) {
             return checked;
+        }
+        RegressionPhaseContinuation continuation = new RegressionPhaseContinuation(mapper, resolvedInput, context);
+        if (continuation.resumed()) {
+            if (!continuation.valid()) {
+                return verificationFailed(List.of(), "regression_continuation_conflict", Map.of());
+            }
+            continuation.restore();
+            return continueVerification(resolvedInput, continuation);
         }
         Map<Integer, Map<String, Object>> outputs = new LinkedHashMap<>();
         List<Map<String, Object>> outcomes = new ArrayList<>();
@@ -98,7 +118,7 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
     private RegressionSuiteResult executePrepared(
             JsonNode input,
             JsonNode resolvedInput,
-            Map<String, Object> context,
+            RegressionExecutionContext context,
             Map<Integer, Map<String, Object>> outputs,
             List<Map<String, Object>> outcomes) {
         Map<Integer, Long> stepStartedAt = new LinkedHashMap<>();
@@ -126,7 +146,7 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
     private RegressionSuiteResult completePlan(
             RegressionCorrelationVerifier.Execution correlationExecution,
             JsonNode input,
-            Map<String, Object> context,
+            RegressionExecutionContext context,
             Map<Integer, Map<String, Object>> outputs,
             Map<Integer, Long> stepStartedAt,
             List<Map<String, Object>> outcomes) {
@@ -140,44 +160,45 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
             return verificationFailed(outcomes, probeResult.reasonCode(),
                     Map.of("probeVerification", probeResult.details()));
         }
-        RegressionWatcherVerification.Result watcherResult = watcherVerification.execute(
-                input.path("contract"), context, outputs);
-        if (!watcherResult.success()) {
-            return verificationFailed(outcomes, watcherResult.reasonCode(),
-                    Map.of("watchers", watcherResult.details()));
-        }
-        RegressionExternalVerification.Result externalResult = externalVerification.execute(input, context);
-        if (!externalResult.success()) {
-            return verificationFailed(outcomes, externalResult.reasonCode(),
-                    Map.of("externalVerification", externalResult.details()));
-        }
-        Map<String, Object> details = successfulDetails(
-                outcomes, verified, probeResult, watcherResult, externalResult);
-        return RegressionSuiteResult.ready(details);
-    }
-
-    private Map<String, Object> successfulDetails(
-            List<Map<String, Object>> outcomes,
-            RegressionCorrelationVerifier.Outcome correlationResult,
-            RegressionProbeVerification.Result probeResult,
-            RegressionWatcherVerification.Result watcherResult,
-            RegressionExternalVerification.Result externalResult) {
-        Map<String, Object> details = new LinkedHashMap<>();
-        details.put("runStatus", "pass");
-        details.put("steps", List.copyOf(outcomes));
-        if (correlationResult.configured()) {
-            details.put("correlation", correlationResult.artifact());
+        RegressionPhaseContinuation continuation = new RegressionPhaseContinuation(mapper, input, context);
+        continuation.details().put("steps", List.copyOf(outcomes));
+        if (verified.configured()) {
+            continuation.details().put("correlation", verified.artifact());
         }
         if (probeResult.configured()) {
-            details.put("probeVerification", probeResult.details());
+            continuation.details().put("probeVerification", probeResult.details());
         }
+        return continueVerification(input, continuation);
+    }
+
+    private RegressionSuiteResult continueVerification(JsonNode input, RegressionPhaseContinuation continuation) {
+        int batchSize = input.path("metadata").path("execution").path("verificationBatchSize").asInt(1000);
+        RegressionWatcherVerification.Result watcherResult = watcherVerification.execute(input.path("contract"),
+                continuation.context().values(), continuation.dependencies(), continuation.prior("watchers"), batchSize);
         if (watcherResult.configured()) {
-            details.put("watchers", watcherResult.details());
+            continuation.details().put("watchers", watcherResult.details());
         }
+        if (!watcherResult.success()) {
+            return phaseResult(continuation, "watchers", watcherResult.reasonCode());
+        }
+        RegressionExternalVerification.Result externalResult = externalVerification.execute(input,
+                continuation.context(), continuation.prior("externalVerification"), batchSize);
         if (externalResult.configured()) {
-            details.put("externalVerification", externalResult.details());
+            continuation.details().put("externalVerification", externalResult.details());
         }
-        return Map.copyOf(details);
+        if (!externalResult.success()) {
+            return phaseResult(continuation, "external_verification", externalResult.reasonCode());
+        }
+        continuation.details().put("runStatus", "pass");
+        continuation.details().put("suiteContext", continuation.context().promoted());
+        return RegressionSuiteResult.ready(Map.copyOf(continuation.details()));
+    }
+
+    private RegressionSuiteResult phaseResult(RegressionPhaseContinuation continuation, String phase, String reason) {
+        if (List.of("watcher_in_progress", "external_verification_in_progress").contains(reason)) {
+            return continuation.waiting(phase);
+        }
+        return verificationFailed(continuation.steps(), reason, continuation.details());
     }
 
     private JsonNode resolvedInput(JsonNode input, Map<String, Object> context) {
@@ -200,17 +221,17 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
 
     private Map<String, Object> executeStep(
             JsonNode step,
-            Map<String, Object> context,
+            RegressionExecutionContext context,
             Map<Integer, Map<String, Object>> outputs) {
         RegressionStepConditionEvaluator.Evaluation condition = new RegressionStepConditionEvaluator()
-                .evaluate(step.path("when"), context, outputs, step.path("order").asInt());
+                .evaluate(step.path("when"), context.values(), outputs, step.path("order").asInt());
         if (condition.blocked()) {
             return outcome(step, "blocked", condition.reasonCode(), null);
         }
         if (!condition.matches()) {
             return outcome(step, "skipped", "step_condition_false", null);
         }
-        Map<String, Object> request = httpRequest(step.path("transport").path("http"), context);
+        Map<String, Object> request = httpRequest(step.path("transport").path("http"), context.values());
         if (!request.containsKey("url")) {
             return outcome(step, "blocked", "http_url_missing", null);
         }
@@ -272,7 +293,7 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
     private Map<String, Object> evaluate(
             JsonNode step,
             ExecuteTransportResult result,
-            Map<String, Object> context,
+            RegressionExecutionContext context,
             Map<Integer, Map<String, Object>> outputs) {
         if (!"pass".equals(result.status())) {
             return outcome(step, "blocked", result.reasonCode(), result);
@@ -307,14 +328,14 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
         }
     }
 
-    private String extract(JsonNode extracts, Map<String, Object> output, Map<String, Object> context) {
+    private String extract(JsonNode extracts, Map<String, Object> output, RegressionExecutionContext context) {
         for (JsonNode extract : extracts) {
             Object value = RegressionStepExpectationEvaluator.read(output, extract.path("from").asText());
             if (value == null && extract.path("required").asBoolean()) {
                 return "extract_path_missing";
             }
             if (value != null && !extract.path("as").asText().isBlank()) {
-                context.put(extract.path("as").asText(), value);
+                context.extract(extract, value);
             }
         }
         return null;
@@ -327,7 +348,9 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
         output.put("status", status);
         output.put("reasonCode", reasonCode == null ? "transport_failed" : reasonCode);
         if (result != null) {
-            output.put("statusCode", result.statusCode());
+            if (result.statusCode() != null) {
+                output.put("statusCode", result.statusCode());
+            }
             output.put("durationMs", result.durationMs());
         }
         return Map.copyOf(output);

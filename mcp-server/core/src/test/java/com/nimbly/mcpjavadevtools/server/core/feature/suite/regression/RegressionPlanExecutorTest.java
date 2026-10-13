@@ -334,6 +334,40 @@ class RegressionPlanExecutorTest {
     }
 
     @Test
+    void transportFailureWithoutAnHttpStatusKeepsItsDeterministicReason() {
+        TransportExecutionFeature timeout = request -> ExecuteTransportResult.blockedRuntime(
+                "transport_request_timeout", "request timed out", "http", 100);
+
+        RegressionSuiteResult result = execute(timeout, validPlan());
+
+        assertThat(result.status()).isEqualTo("failed");
+        assertThat(result.reasonCode()).isEqualTo("transport_request_timeout");
+        assertThat(result.details()).containsEntry("runStatus", "fail");
+        assertThat(mapper.valueToTree(result.details()).path("steps").get(0).has("statusCode")).isFalse();
+    }
+
+    @Test
+    void secretValueEqualToAnOwnerStatusDoesNotChangeTheControlResult() {
+        ObjectNode input = validPlan();
+        ObjectNode external = ((ObjectNode) input.path("contract")).putArray("externalVerification").addObject().put("id", "secret");
+        external.putObject("provider").put("type", "http");
+        external.putObject("request").putObject("http").put("url", "https://example.test/secret");
+        external.putArray("expect").addObject().put("id", "status").put("actualPath", "response.statusCode")
+                .put("operator", "field_equals").put("expected", 200);
+        external.putArray("extract").addObject().put("from", "response.bodyJson.value").put("as", "value").put("secret", true);
+        TransportExecutionFeature response = request -> ExecuteTransportResult.httpResponse(
+                "pass", "http", 200, Map.of(), "{\"value\":\"ready\"}", 1);
+
+        RegressionSuiteResult result = execute(response, input);
+
+        assertThat(result.status()).isEqualTo("ready");
+        assertThat(result.reasonCode()).isEqualTo("ok");
+        assertThat(result.details()).containsEntry("runStatus", "pass");
+        assertThat(mapper.valueToTree(result.details()).path("externalVerification").get(0)
+                .path("response").path("bodyJson").path("value").asText()).isEqualTo("[REDACTED]");
+    }
+
+    @Test
     void correlatesResponseDerivedProducerKeyWithConsumerRuntimeEvidence() {
         ObjectNode input = correlatedPlan();
         TransportExecutionFeature response = request -> ExecuteTransportResult.httpResponse(
