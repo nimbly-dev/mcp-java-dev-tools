@@ -29,6 +29,9 @@ final class SecurityCredentialRefresh {
     Result refresh(JsonNode source, Map<String, String> environment) {
         for (JsonNode reference : source.path("profileScriptRefs")) {
             JsonNode script = script(source.path("scripts"), reference.path("name").asText());
+            if (script == null && "prePlan".equals(reference.path("phase").asText("prePlan"))) {
+                return new Result(false, "security_credential_refresh_failed");
+            }
             if (script != null && "prePlan".equals(phase(reference, script)) && !run(source, script, environment)) {
                 return new Result(false, "security_credential_refresh_failed");
             }
@@ -68,39 +71,70 @@ final class SecurityCredentialRefresh {
             builder.environment().putAll(environment);
             script.path("env").fields().forEachRemaining(entry -> builder.environment().put(entry.getKey(), entry.getValue().asText()));
             process = builder.start();
-            process.getOutputStream().close();
             return completed(process);
         } catch (IOException exception) {
             return false;
         } catch (InterruptedException exception) {
-            if (process != null) {
-                destroyAfterInterrupt(process);
-            }
             Thread.currentThread().interrupt();
             return false;
         }
     }
 
-    private boolean completed(Process process) throws InterruptedException {
-        if (process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)) {
-            return process.exitValue() == 0;
+    private boolean completed(Process process) throws InterruptedException, IOException {
+        Map<Long, ProcessHandle> owned = new java.util.LinkedHashMap<>();
+        owned.put(process.pid(), process.toHandle());
+        try {
+            process.getOutputStream().close();
+            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+            while (System.nanoTime() < deadline) {
+                trackDescendants(owned);
+                long remaining = Math.max(1, deadline - System.nanoTime());
+                if (process.waitFor(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(5)), TimeUnit.NANOSECONDS)) {
+                    return process.exitValue() == 0;
+                }
+            }
+            return false;
+        } finally {
+            stopTree(owned);
         }
-        terminate(process);
-        return false;
     }
 
-    private static void terminate(Process process) throws InterruptedException {
-        process.destroy();
-        if (!process.waitFor(TERMINATION_GRACE_MILLIS, TimeUnit.MILLISECONDS)) {
-            process.destroyForcibly();
-            process.waitFor(TERMINATION_GRACE_MILLIS, TimeUnit.MILLISECONDS);
+    private static void trackDescendants(Map<Long, ProcessHandle> owned) {
+        List<ProcessHandle> pending = new ArrayList<>(owned.values());
+        for (int index = 0; index < pending.size(); index++) {
+            pending.get(index).children().forEach(child -> {
+                if (owned.putIfAbsent(child.pid(), child) == null) {
+                    pending.add(child);
+                }
+            });
         }
     }
 
-    private static void destroyAfterInterrupt(Process process) {
-        process.destroy();
-        if (process.isAlive()) {
-            process.destroyForcibly();
+    private static void stopTree(Map<Long, ProcessHandle> owned) throws IOException {
+        trackDescendants(owned);
+        List<ProcessHandle> processes = List.copyOf(owned.values());
+        boolean interrupted = Thread.interrupted();
+        try {
+            processes.reversed().forEach(handle -> {
+                if (handle.isAlive()) {
+                    handle.destroyForcibly();
+                }
+            });
+            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(TERMINATION_GRACE_MILLIS);
+            while (processes.stream().anyMatch(ProcessHandle::isAlive) && System.nanoTime() < deadline) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException exception) {
+                    interrupted = true;
+                }
+            }
+            if (processes.stream().anyMatch(ProcessHandle::isAlive)) {
+                throw new IOException("security_credential_refresh_cleanup_failed");
+            }
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

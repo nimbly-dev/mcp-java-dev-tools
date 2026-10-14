@@ -8,6 +8,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusEntry;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.action.status.ProbeStatusResult;
 import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.result.ProbeResult;
+import com.nimbly.mcpjavadevtools.server.core.feature.probe.model.response.ProbeRuntimeHints;
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.knowledge.SecurityKnowledgeCatalog;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.TransportExecutionFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.transportexecution.model.action.execute.ExecuteTransportRequest;
@@ -81,7 +82,8 @@ class SecurityPlanExecutorTest {
         ProbeFeature hitProbe = request -> request instanceof ProbeSingleStatusRequest status
                 ? ProbeResult.success(new ProbeStatusResult(List.of(new ProbeStatusEntry(
                         status.keySelector().key(), status.keySelector().key(), 200, true,
-                        1L, 1L, true, null, null, null))))
+                        1L, System.currentTimeMillis(), true, null, null,
+                        new ProbeRuntimeHints(null, null, "fixture-runtime", null, null, null, null, null, null, null)))))
                 : ProbeResult.success();
         var result = executor(bypassingTransport, hitProbe)
                 .executePlan(mapper.readTree(sidecarContract()));

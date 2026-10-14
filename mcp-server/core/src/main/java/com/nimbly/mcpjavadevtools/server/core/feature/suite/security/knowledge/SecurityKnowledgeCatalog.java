@@ -40,7 +40,8 @@ public final class SecurityKnowledgeCatalog {
                         rule.path("mutationBoundary").asText(), rule.path("category").asText(),
                         rule.path("severity").asText(), rule.path("title").asText(), rule.path("payload").asText(),
                         textValues(rule.path("requiredFixtureContextKeys")), integerValues(rule.path("expectedDenyStatusCodes")),
-                        rule.path("requiredAuthentication").asBoolean(false), rule.path("removeCredential").asBoolean(false)));
+                        rule.path("requiredAuthentication").asBoolean(false), rule.path("removeCredential").asBoolean(false),
+                        textValues(rule.path("cwe"))));
             }
         }
         return List.copyOf(cases);
@@ -146,11 +147,13 @@ public final class SecurityKnowledgeCatalog {
             List<String> requiredFixtureContextKeys,
             List<Integer> expectedDenyStatusCodes,
             boolean requiredAuthentication,
-            boolean removeCredential) {
+            boolean removeCredential,
+            List<String> cwe) {
         /** Defensively copies bounded immutable rule values. */
         public GeneratedCase {
             requiredFixtureContextKeys = List.copyOf(requiredFixtureContextKeys);
             expectedDenyStatusCodes = List.copyOf(expectedDenyStatusCodes);
+            cwe = List.copyOf(cwe);
         }
     }
 

@@ -122,6 +122,18 @@
 
   <profiles>
     <profile>
+      <id>java-it-security</id>
+      <properties>
+        <mcp.it.groups>security</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-security-smoke</id>
+      <properties>
+        <mcp.it.groups>security-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
       <id>java-it-performance</id>
       <properties>
         <mcp.it.groups>performance</mcp.it.groups>

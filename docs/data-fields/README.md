@@ -871,7 +871,7 @@ When `directResult.status=completed`, `directResult.details` and the normalized
 
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
 | --- | --- | --- | --- | --- |
-| `details.runStatus` | Completed suite verdict: `pass` when no finding is present, otherwise `fail`. | `security_suite.execute_plan` | true | `"pass"` |
+| `details.runStatus` | Completed suite verdict: `fail` when a confirmed finding matches `verdictPolicy.failOnSeverity`, otherwise `pass`. Omitted policy retains fail-on-any-finding behavior. Findings remain visible even when their severity does not fail the suite. | `security_suite.execute_plan` | true | `"pass"` |
 | `details.securityMode` | Executed Security mode. | `security_suite.execute_plan` | true | `"blackbox"` |
 | `details.knowledgeSnapshot.packs[]` | Exact reviewed pack references selected for the completed run. | `security_suite.execute_plan` | true | `["web-api-core@1.0.0"]` |
 | `details.knowledgeSnapshot.digest` | Deterministic digest of the selected immutable knowledge snapshot. | `security_suite.execute_plan` | true | `"a01625ab..."` |
@@ -882,6 +882,53 @@ When `directResult.status=completed`, `directResult.details` and the normalized
 | `details.coverage.complete` | Whether every required case received a non-blocked terminal classification. | `security_suite.execute_plan` | true | `true` |
 | `details.cases[]` | Bounded per-case classifications for the executed matrix. | `security_suite.execute_plan` | true | `[{"outcome":"passed"}]` |
 | `details.findings[]` | Bounded findings with outcome and proof classification; an empty list represents no finding only when coverage is complete. | `security_suite.execute_plan` | true | `[]` |
+| `details.cases[].runtimeEvidence[]` | Actual Sidecar status observations for baseline and attack: `phase`, `targetId`, `strictLineKey`, fresh `lineHit`, `hitCount`, `lastHitEpoch`, and `runtimeInstanceId`. Contains no headers, credentials, capture bodies or source. | `security_suite.execute_plan` | false | `[{"phase":"attack","targetId":"controller","lineHit":true,"hitCount":1}]` |
+| `details.cases[].caseId` | Unique baseline or reviewed-rule identity joined to its entrypoint and authentication profile; declared custom/Sidecar cases use their declared ID. | `security_suite.execute_plan` | true | `"baseline-health-actor"` |
+| `details.cases[].authenticationProfileRef` | Authentication profile actually used by the matrix row. | `security_suite.execute_plan` | true | `"actor"` |
+| `details.cases[].evidenceRefIds[]` | References to actual bounded baseline/attack HTTP evidence for completed mutation/custom/Sidecar cases. N/A cases do not claim request evidence. | `security_suite.execute_plan` | false | `["http-case-baseline","http-case-attack"]` |
+| `details.findings[].cwe[]` | Reviewed catalog CWE identifiers. This corrects the former erroneous Java rule-ID string; the selected knowledge snapshot stays unchanged. | `security_suite.execute_plan` | false | `["CWE-639"]` |
+
+Security execution honors declared positive `safetyPolicy.maxDurationMs` and
+`maxRequestsPerSecond` bounds. Execution remains sequential (within any positive
+`maxConcurrency` bound). The hard execution ceiling is five minutes, and each
+HTTP request is bounded by the remaining execution budget and twenty seconds.
+Absent safety policy retains bounded defaults; explicitly supplied safety,
+verdict and exhaustiveness policies are validated. Invalid policies return
+`security_contract_safety_policy_invalid`, `security_contract_verdict_policy_invalid`
+or `security_contract_exhaustiveness_invalid` before target requests. Budget
+exhaustion blocks with `security_blackbox_duration_exceeded` or
+`security_sidecar_duration_exceeded`; incomplete coverage is never a passing run.
+Sidecar observations require an available resolvable target and runtime identity.
+Missing status/identity blocks with `security_sidecar_probe_status_unavailable`
+or `security_sidecar_runtime_identity_missing`; changed baseline/attack identity
+blocks with `security_sidecar_runtime_mismatch`. No unavailable status is a hit.
+
+Explicit `customCases` select the declared Black-box cases instead of generated
+catalog mutations, including when the array is empty; declared entrypoint/profile
+baselines still run. Explicit authentication headers take precedence over profile
+defaults regardless of header-name casing, and existing Basic/Bearer schemes are
+preserved case-insensitively. Authentication mutations remove standard credential
+headers and headers bound to the selected credential reference. Entrypoint,
+authentication, custom/attack and runtime-target IDs must be nonblank and unique
+within their arrays. Authentication kinds are anonymous, bearer, basic, api_key
+and custom. Missing declared prePlan scripts block with
+`security_credential_refresh_failed` before target execution.
+
+Fixture expressions in transport paths, path parameters, query values, headers
+and nested/textual bodies resolve before URL encoding. Context precedence is
+`targetBoundary.fixtureContext`, then `targetBoundary.details.fixtureContext`,
+then `entrypoint.details.fixtureContext`; headers also use project credential
+bindings. Missing expressions block before HTTP with
+`security_blackbox_fixture_unresolved`. Resolved URLs are checked against the
+declared target boundary. Explicit query values replace all existing values of
+the same decoded parameter name instead of appending duplicate parameters.
+Substituted transport-path fixture data is URI encoded (including spaces,
+Unicode and literal percent signs); existing escapes in the path/query template
+are preserved.
+Runtime targets must reference declared entrypoints, or preflight blocks with
+`security_contract_runtime_targets_invalid`. An HTTP Sidecar case without a
+selected runtime target blocks with `security_sidecar_runtime_target_ambiguous`;
+empty runtime evidence cannot establish a passing Sidecar case.
 
 ### Incomplete Security coverage
 
@@ -894,12 +941,13 @@ snapshot digest rather than the successful shape's `{packs,digest}` object.
 | --- | --- | --- | --- | --- |
 | `details.securityMode` | Mode whose coverage could not be completed. | `security_suite.execute_plan` | true | `"blackbox"` |
 | `details.knowledgeSnapshot` | Digest of the selected immutable knowledge snapshot. | `security_suite.execute_plan` | true | `"a01625ab..."` |
-| `details.coverage.plannedCount` | Number of cases known when execution blocked. | `security_suite.execute_plan` | true | `1` |
+| `details.coverage.plannedCount` | Full finite matrix size, including cases not reached before a blocking condition. | `security_suite.execute_plan` | true | `10` |
+| `details.coverage.completedCount` | Black-box cases classified before or at the blocking condition. | `security_suite.execute_plan` | false | `1` |
 | `details.coverage.complete` | Always `false` for incomplete coverage. | `security_suite.execute_plan` | true | `false` |
 | `details.coverage.executedCount` | Sidecar-assisted classified-case count. | `security_suite.execute_plan` | false | `1` |
 | `details.coverage.blockedCount` | Sidecar-assisted blocked-case count. | `security_suite.execute_plan` | false | `1` |
 | `details.cases[]` | Cases classified before or at the blocking condition. | `security_suite.execute_plan` | true | `[{"outcome":"blocked"}]` |
-| `details.findings[]` | Findings accumulated before incomplete Sidecar-assisted coverage. Black-box incomplete results omit this field. | `security_suite.execute_plan` | false | `[]` |
+| `details.findings[]` | Findings established before coverage became incomplete in either mode. A later blocked case never discards a confirmed finding. | `security_suite.execute_plan` | true | `[]` |
 
 ### Security preflight rejection
 

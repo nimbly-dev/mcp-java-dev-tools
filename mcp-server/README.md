@@ -139,6 +139,15 @@ The separate smoke selection is
 `-Pjava-it,java-it-performance-smoke,java-it-jvm-fixtures`.
 See [#653 prerequisites, commands and assertions](../docs/acceptance/mcpjvm-653-performance-it.md).
 
+The Security capability selection is
+`-Pjava-it,java-it-security,java-it-jvm-fixtures`. It runs controlled Black-box
+mutation cases, project credentials/refresh, real Sidecar line evidence, persisted
+findings, safety limits, failure and recovery. It requires the current JDK and
+PowerShell on Windows or `sh` on Unix for credential refresh; no external scan or
+JMeter is used. The separate one-scenario smoke selection is
+`-Pjava-it,java-it-security-smoke` and does not build or attach a Spring fixture.
+See [#654 commands, coverage and evidence](../docs/acceptance/mcpjvm-654-security-it.md).
+
 For real JVM Lifecycle/Probe acceptance, use
 `-Pjava-it,java-it-jvm,java-it-jvm-fixtures`; the separate
 `-Pjava-it,java-it-jvm-smoke,java-it-jvm-fixtures` selection runs one real strict
