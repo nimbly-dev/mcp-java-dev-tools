@@ -20,6 +20,28 @@ import org.junit.jupiter.api.Test;
 class HttpProbeEndpointClientTest {
 
     @Test
+    void binaryCaptureAtTheByteLimitIsNotDecodedAndInflatedAsUtf8Text() throws Exception {
+        byte[] bytes = new byte[64];
+        java.util.Arrays.fill(bytes, (byte) 0xff);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/__probe/status", exchange -> {
+            try (exchange) {
+                exchange.getResponseHeaders().set("Content-Type", "application/octet-stream");
+                exchange.sendResponseHeaders(200, bytes.length);
+                exchange.getResponseBody().write(bytes);
+            }
+        });
+        server.start();
+        try {
+            ProbeEndpointResponse response = new HttpProbeEndpointClient().exchange(request(server, configuration(bytes.length)));
+            assertThat(response.payloadBytes()).containsExactly(bytes);
+            assertThat(response.payload()).isEmpty();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void returnsAValidatedBoundedResponseFromTheSidecarEndpointContract() throws Exception {
         HttpServer server = server("{}", "X-Request-Id", "request-1");
         try {

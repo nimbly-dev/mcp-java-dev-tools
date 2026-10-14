@@ -63,7 +63,7 @@ public final class JmeterJmxRenderer {
                 + "          <stringProp name=\"HTTPSampler.port\">" + port(target) + "</stringProp>\n"
                 + "          <stringProp name=\"HTTPSampler.protocol\">" + escape(target.getScheme()) + "</stringProp>\n"
                 + "          <stringProp name=\"HTTPSampler.contentEncoding\"></stringProp>\n"
-                + "          <stringProp name=\"HTTPSampler.path\">" + escape(path(target)) + "</stringProp>\n"
+                + "          <stringProp name=\"HTTPSampler.path\">" + escape(path(target, request.environment())) + "</stringProp>\n"
                 + "          <stringProp name=\"HTTPSampler.method\">" + escape(request.method()) + "</stringProp>\n"
                 + body(request.body())
                 + "          <boolProp name=\"HTTPSampler.follow_redirects\">true</boolProp>\n"
@@ -81,10 +81,21 @@ public final class JmeterJmxRenderer {
         return URI.create(url);
     }
 
-    private static String path(URI target) {
+    private static String path(URI target, Map<String, String> environment) {
         String path = target.getRawPath();
         path = path == null || path.isBlank() ? "/" : path;
-        return target.getRawQuery() == null ? path : path + "?" + target.getRawQuery();
+        String query = target.getRawQuery();
+        if (query == null) {
+            return path;
+        }
+        // Restore only expressions for credentials explicitly bound to this workload.
+        // Keep the URI valid until rendering; JMeter encodes the evaluated secret, not the function syntax.
+        for (String key : environment.keySet()) {
+            String expression = "${__groovy(System.getenv('" + key + "'))}";
+            String encoded = java.net.URLEncoder.encode(expression, java.nio.charset.StandardCharsets.UTF_8);
+            query = query.replace(encoded, "${__urlencode(" + expression + ")}");
+        }
+        return path + "?" + query;
     }
 
     private static String port(URI target) {

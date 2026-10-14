@@ -687,7 +687,7 @@ only means the operation completed. Consumers must inspect the inner
 | `result.details.metrics` | Persisted request count, failures, latencies, error rate, throughput, and p95 latency. | `performance_suite.execute_plan` | false | `{"totalRequests":419,"throughputPerSec":209.5,"p95LatencyMs":9}` |
 | `result.details.thresholdResults` | Per-threshold actual value, configured limit, and deterministic pass verdict. | `performance_suite.execute_plan` | false | `{"minThroughputPerSec":{"actual":209.5,"limit":0.1,"pass":true}}` |
 | `result.details.requiredLineHits[]` | Strict Line Keys positively observed after their counters were reset and the workload ran. | `performance_suite.execute_plan` | false | `["com.example.UserController#get:20"]` |
-| `result.details.artifacts` | Generated JMeter JMX, JTL, and log paths within the selected run directory. | `performance_suite.execute_plan` | false | `{"jtlPath":".../workload.jmeter.jtl"}` |
+| `result.details.artifacts` | Optional JMeter JMX/JTL/log and JFR/MSTA/correlation evidence paths within the selected run directory. | `performance_suite.execute_plan` | false | `{"jtlPath":".../workload.jmeter.jtl"}` |
 | `result.details.profiler` | Bounded profiler disposition. It is `not_configured` when execution timing analysis was not requested. | `performance_suite.execute_plan` | false | `{"status":"not_configured"}` |
 | `result.details.msta` | Method-scoped timing-analysis disposition or evidence when configured. | `performance_suite.execute_plan` | false | `{"status":"not_configured"}` |
 
@@ -695,6 +695,74 @@ The persisted `execution.result.json` preserves the run status, threshold
 results, timing metrics, required-line coverage, and generated Artifact paths.
 An impossible threshold persists `status=fail`; a missing required line hit
 persists `status=blocked` without a passing `details.runStatus`.
+
+`workloadProvider.type=builtin` and an omitted provider use concurrency-based
+HTTP execution through the existing wrapped Transport owner. JMeter uses
+`type=jmeter, mode=generated_http`; configuration precedence is an explicit
+installation/executable, `MCP_JAVA_DEV_TOOLS_JMETER_HOME`, then PATH discovery.
+Both providers share strict line verification, metrics and threshold results.
+Builtin transport failures retain their Transport reason code. Its hard
+100,000-sample memory ceiling returns `performance_workload_sample_limit_exceeded`
+instead of a passing result with truncated measurements.
+JMeter `emitJmx`, `emitJtl` and `emitLog` default to true; false removes the
+supplementary file after execution/collection and excludes its path from
+`details.artifacts`. It does not disable workload execution or collection.
+Generated JMeter JTL omits the supplementary URL column to avoid retaining
+resolved query credentials; latency, success and threshold metrics remain enabled.
+
+Execution timing honors `provider` (`jfr`, `auto`, `async-profiler`), `event`,
+`intervalNanos` and JFR output. MSTA-enabled plans default to `event=wall`;
+profiler-only plans retain `cpu`, and an explicit event takes precedence.
+Unsupported native platforms/events fail closed.
+MSTA distinguishes `not_configured`, `disabled`, `no_anchor_samples`, `partial_anchor_samples` and
+`available`; `method_targets` and `target_plus_path` honor explicit method
+targets, while dynamic anchors come from verified required line hits.
+`includePackages` and `allowThirdPartyFrames` restrict dependency frames, never
+the requested anchor. Sample counts and dominant paths are derived from JFR;
+they are approximate attribution. `methods[].estimatedTimeMs` sums sampled time
+for that method; it is no longer an anchor percentage multiplied by the workload
+window. `timingBasis` identifies `sampled_wall_time` or `sampled_cpu_time`.
+Wall-clock JFR samples use actual monotonic time between platform-thread snapshots,
+including sleeping/waiting methods. CPU/native samples estimate sampled time as
+weighted sample count times requested interval (10 ms when omitted).
+`timingScope=aggregate_inclusive_thread_time`: repeated calls and concurrent
+threads accumulate time; these values are not a per-invocation mean or exclusive
+time. Nested method times must not be summed as disjoint elapsed time.
+`targets[].dominantPathApproxTimeMs` is the dominant path's sampled time;
+`durationMs` remains the configured workload window. Sample percentages retain
+their anchor-relative meaning. Missing targets are listed in `missingMethodTargets`;
+required MSTA rejects partial/missing coverage.
+
+JFR wall sampling reports `sampling.complete`, effective `intervalNanos`,
+`initialDelayMs`, `availableProcessors` (JVM-visible logical CPUs) and
+`threadScope=platform_threads`. The interval is bounded to 100 ms–1 s. Real sample
+gaps account for scheduling/CPU variation; CPU count is context, not a guessed
+speed multiplier. Virtual-thread wall timing is not covered by this sampler, which
+uses the [JDK platform-thread management API](https://docs.oracle.com/en/java/javase/21/docs/api/java.management/java/lang/management/ThreadMXBean.html).
+Initial warm-up and sub-interval methods may be missed. The Sidecar caps capture
+at 256 platform threads, 64 stack frames and 80,000 samples. Stack definitions
+use bounded gzip/base64 encoding: 512,000 encoded dictionary bytes, 4 MiB of
+retained raw definitions and 16 KiB decoded per stack. Excessive gaps (over max(1 s, five effective periods)), limits
+and sampler errors mark the capture incomplete; Core refuses successful MSTA
+evidence from that capture. Session tags isolate JVM-global JFR events, and each
+unique stack is recorded once to keep capture/download size bounded.
+Profiler downloads preserve `application/octet-stream` as raw bytes, avoiding
+UTF-8 decoding/re-encoding inflation in the same payload-size check.
+`available` indicates complete requested anchor coverage, not exact timing.
+`details.correlation` preserves provider/workload identity, verified anchors
+and sampled anchor/dependency attributions. With correlation `requireMsta=true`,
+absent anchor samples block completion. Explicit `analysis.correlation.enabled=false`
+returns `details.correlation.status=disabled` with empty attributions, creates no
+correlation file and omits `details.artifacts.correlationPath`; its `requireMsta`
+setting is inactive. Omission retains the existing automatic correlation behavior
+when MSTA is collected. Profiler output is referenced by
+`details.artifacts.jfrPath`, including profiler-only runs.
+
+The CDE selector and result envelopes are unchanged. Builtin/default-provider
+and analysis restoration under #653 is additive; no retired invocation returns.
+The operation remains non-cancellable: cancelling the MCP wait suppresses that
+response while bounded execution finishes and persists a recoverable result.
+See [#653 runnable scenarios and evidence](../acceptance/mcpjvm-653-performance-it.md).
 
 ## execution_orchestration
 

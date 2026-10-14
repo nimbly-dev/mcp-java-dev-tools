@@ -59,7 +59,7 @@ public class HttpProbeEndpointClient implements ProbeEndpointClient {
                 return new ProbeEndpointResponse(
                         response.statusCode(),
                         headers,
-                        new String(responseBytes, StandardCharsets.UTF_8),
+                        responsePayload(response, responseBytes),
                         responseBytes,
                         request.configuration());
             }
@@ -75,6 +75,14 @@ public class HttpProbeEndpointClient implements ProbeEndpointClient {
                     "Probe endpoint is unreachable",
                     exception);
         }
+    }
+
+    private static String responsePayload(HttpResponse<?> response, byte[] bytes) {
+        String contentType = response.headers().firstValue("Content-Type").orElse("");
+        if ("application/octet-stream".equalsIgnoreCase(contentType.split(";", 2)[0].trim())) {
+            return "";
+        }
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private static HttpRequest httpRequest(ProbeEndpointRequest request) {

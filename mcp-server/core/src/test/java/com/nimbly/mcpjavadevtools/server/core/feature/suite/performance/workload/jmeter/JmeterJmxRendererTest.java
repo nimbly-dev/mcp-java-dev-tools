@@ -9,6 +9,23 @@ import org.junit.jupiter.api.Test;
 class JmeterJmxRendererTest {
 
     @Test
+    void evaluatesOnlyBoundCredentialExpressionsAndEncodesTheirRuntimeQueryValues() {
+        String bound = "${__groovy(System.getenv('BOUND'))}";
+        String unbound = "${__groovy(System.getenv('UNBOUND'))}";
+        String encoded = java.net.URLEncoder.encode(bound, java.nio.charset.StandardCharsets.UTF_8);
+        String literal = java.net.URLEncoder.encode(unbound, java.nio.charset.StandardCharsets.UTF_8);
+        JmeterWorkloadRequest request = new JmeterWorkloadRequest(Path.of("run"), "query", "jmeter", "PUT",
+                "http://localhost/query?token=prefix+" + encoded + "+suffix&literal=" + literal + "&value=a%2Bb%26c",
+                Map.of(), "{}", Map.of("BOUND", "synthetic-secret"), 2500, 1, 0, 1);
+
+        String xml = new JmeterJmxRenderer().render(request);
+
+        assertThat(xml).contains("token=prefix+${__urlencode(${__groovy(System.getenv(&apos;BOUND&apos;))})}+suffix")
+                .contains("literal=" + literal, "value=a%2Bb%26c", "HTTPSampler.postBodyRaw\">true")
+                .doesNotContain("synthetic-secret", "System.getenv(&apos;UNBOUND&apos;)");
+    }
+
+    @Test
     void rendersExecutableJmeterElementsAndDecomposesTargetUrl() {
         JmeterWorkloadRequest request = new JmeterWorkloadRequest(
                 Path.of("run"), "plan & one", "jmeter", "GET",

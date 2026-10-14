@@ -129,6 +129,16 @@ memory storage and is removed on cleanup. The separate one-scenario smoke is
 `-Pjava-it,java-it-regression-smoke` and has no Spring/Docker prerequisite.
 See [#652 commands and behavior inventory](../docs/acceptance/mcpjvm-652-regression-it.md).
 
+The complete Performance capability selection is
+`-Pjava-it,java-it-performance,java-it-jvm-fixtures`. It requires explicitly
+configured Apache JMeter, exercises real JMeter and builtin workloads, and
+includes profiler/JFR, MSTA, failure, timeout and continuation scenarios.
+MSTA calibration uses real wall samples, repeated sleep ranges, independent
+timers for CPU work on the tested machine, and a minute-outlier rejection.
+The separate smoke selection is
+`-Pjava-it,java-it-performance-smoke,java-it-jvm-fixtures`.
+See [#653 prerequisites, commands and assertions](../docs/acceptance/mcpjvm-653-performance-it.md).
+
 For real JVM Lifecycle/Probe acceptance, use
 `-Pjava-it,java-it-jvm,java-it-jvm-fixtures`; the separate
 `-Pjava-it,java-it-jvm-smoke,java-it-jvm-fixtures` selection runs one real strict

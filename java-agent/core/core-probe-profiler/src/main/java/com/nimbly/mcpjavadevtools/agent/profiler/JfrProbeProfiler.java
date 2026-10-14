@@ -23,6 +23,7 @@ public final class JfrProbeProfiler implements ProbeProfiler {
   private final Object lock = new Object();
   private final Path outputDirectory;
   private volatile ProfilerSession activeSession;
+  private JfrWallClockSampler wallSampler;
   private volatile ProfilerStateSnapshot lastState;
 
   private JfrProbeProfiler(Path outputDirectory) {
@@ -92,9 +93,16 @@ public final class JfrProbeProfiler implements ProbeProfiler {
       Recording recording = null;
       try {
         recording = new Recording();
-        configureRecording(recording, intervalNanos);
+        if ("cpu".equals(event)) {
+          configureRecording(recording, intervalNanos);
+        } else {
+          wallSampler = new JfrWallClockSampler(recording, intervalNanos, sessionId);
+        }
         recording.setDestination(outputPath);
         recording.start();
+        if (wallSampler != null) {
+          wallSampler.activate();
+        }
         long startedAtEpochMs = Instant.now().toEpochMilli();
         activeSession = new ProfilerSession(
             sessionId,
@@ -117,6 +125,7 @@ public final class JfrProbeProfiler implements ProbeProfiler {
             "running"
         );
       } catch (IOException | RuntimeException ex) {
+        closeWallSampler();
         closeQuietly(recording);
         lastState = new ProfilerStateSnapshot(
             "failed",
@@ -167,6 +176,7 @@ public final class JfrProbeProfiler implements ProbeProfiler {
 
       ProfilerSession session = activeSession;
       try {
+        closeWallSampler();
         session.recording.stop();
         session.recording.close();
         boolean outputReady = waitForOutputFile(
@@ -222,6 +232,7 @@ public final class JfrProbeProfiler implements ProbeProfiler {
             "completed"
         );
       } catch (RuntimeException ex) {
+        closeWallSampler();
         closeQuietly(session.recording);
         lastState = new ProfilerStateSnapshot(
             "failed",
@@ -291,6 +302,13 @@ public final class JfrProbeProfiler implements ProbeProfiler {
       recording.enable("jdk.NativeMethodSample").withPeriod(period).withStackTrace();
     } catch (IllegalArgumentException ignored) {
       // ExecutionSample is the required cross-platform event; native samples are optional.
+    }
+  }
+
+  private void closeWallSampler() {
+    if (wallSampler != null) {
+      wallSampler.close();
+      wallSampler = null;
     }
   }
 

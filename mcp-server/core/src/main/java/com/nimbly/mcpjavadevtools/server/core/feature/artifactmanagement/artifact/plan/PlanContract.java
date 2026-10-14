@@ -61,7 +61,9 @@ final class PlanContract {
         }
         requireObjectField(contract, "loadModel", "performance_load_model_required");
         requireObjectField(contract, "successCriteria", "performance_success_criteria_required");
-        requireObjectField(contract, "workloadProvider", "performance_workload_provider_required");
+        if (!contract.path("workloadProvider").isMissingNode()) {
+            requireObjectField(contract, "workloadProvider", "performance_workload_provider_required");
+        }
         JsonNode loadModel = contract.path("loadModel");
         if (!"concurrency".equals(loadModel.path("mode").asText("")
                 ) || loadModel.path("concurrency").asInt(0) < 1

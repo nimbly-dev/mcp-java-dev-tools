@@ -122,6 +122,18 @@
 
   <profiles>
     <profile>
+      <id>java-it-performance</id>
+      <properties>
+        <mcp.it.groups>performance</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-performance-smoke</id>
+      <properties>
+        <mcp.it.groups>performance-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
       <id>java-it-regression-postgresql</id>
       <properties>
         <mcp.it.groups>regression-postgresql</mcp.it.groups>
