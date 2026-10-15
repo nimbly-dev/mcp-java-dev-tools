@@ -146,7 +146,15 @@ Rules:
 
 ## Write Order
 
-Writers MUST persist artifacts in this order:
+For the current Java CDE runtime under `.mcpjvm/<project>/plans/<suite>/...`,
+the canonical `execution.result.json` is also consumed as resume completion
+evidence. Its writer stages and validates the complete run file set, including
+optional `correlation.json`, before replacing any file. It saves the previous
+bytes, publishes `execution.result.json` last, and restores earlier replacements
+if publication fails. Rejected preparation leaves the previous set untouched.
+Each replacement is atomic where supported; this is rollback for write failures,
+not a crash-atomic multi-file transaction or a concurrent-reader snapshot.
+The legacy writer sequence below describes the historical layout shown above:
 
 1. `context.resolved.json`
 2. `execution.result.json`

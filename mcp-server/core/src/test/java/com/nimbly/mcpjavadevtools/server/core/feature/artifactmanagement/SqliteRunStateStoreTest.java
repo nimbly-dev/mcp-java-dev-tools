@@ -15,12 +15,52 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Verifies transactional SQLite projection lifecycle guarantees. */
 class SqliteRunStateStoreTest {
 
     @TempDir
     Path workspace;
+
+    @ParameterizedTest
+    @ValueSource(strings = {"nested", "duplicate", "direct"})
+    void duplicatedSuiteEvidenceProjectsOnceWithinTheExistingLimit(String shape) throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        Path run = workspace.resolve(".mcpjvm/demo/plans/regression/plan/runs/run");
+        Files.createDirectories(run);
+        ObjectNode payload = mapper.createObjectNode().put("status", "blocked");
+        ObjectNode details = payload.putObject("details").put("summary", "retained");
+        var watchers = details.putArray("watchers");
+        for (int index = 0; index < 14; index++) {
+            watchers.addObject().put("id", "watcher-" + index).put("status", "blocked").put("evidence", "x".repeat(2800));
+        }
+        if (!shape.equals("nested")) {
+            payload.set("watchers", watchers.deepCopy());
+        }
+        if (shape.equals("direct")) {
+            payload.putObject("directResult").set("details", details.deepCopy());
+        }
+        Path canonical = run.resolve("execution.result.json");
+        mapper.writeValue(canonical.toFile(), payload);
+        byte[] original = Files.readAllBytes(canonical);
+        Path database = workspace.resolve(".mcpjvm/demo/run-state.sqlite");
+        SqliteRunStateStore store = new SqliteRunStateStore(mapper);
+        assertThat(store.rebuild(database, "demo", true)).containsEntry("replayedRuns", 1);
+        var rows = (List<?>) store.query(database, "demo", "watcher_state").get("items");
+        assertThat(mapper.<com.fasterxml.jackson.databind.JsonNode>valueToTree(((Map<?, ?>) rows.getFirst()).get("state")))
+                .isEqualTo(watchers);
+        try (var connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + database);
+                var statement = connection.createStatement(); var result = statement.executeQuery("SELECT state_json FROM plan_runs")) {
+            assertThat(result.next()).isTrue();
+            String state = result.getString(1);
+            assertThat(state.getBytes(java.nio.charset.StandardCharsets.UTF_8).length).isLessThanOrEqualTo(64 * 1024);
+            assertThat(mapper.readTree(state).path("details").path("summary").asText()).isEqualTo("retained");
+            assertThat(mapper.readTree(state).path("details").has("watchers")).isFalse();
+        }
+        assertThat(Files.readAllBytes(canonical)).isEqualTo(original);
+    }
 
     @Test
     void continuationQueriesUseSuiteIdentityForFilteringAndPagination() throws Exception {

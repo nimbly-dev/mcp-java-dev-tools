@@ -265,6 +265,12 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
         payload.put("planName", plan);
         payload.put("order", 1);
         payload.set("details", resultNode.path("details"));
+        for (String field : List.of("steps", "watchers", "externalVerification", "probeVerification",
+                "metrics", "thresholdResults", "msta", "profiler", "coverage", "findings", "securityMode", "requiredLineHits")) {
+            if (resultNode.path("details").has(field)) {
+                payload.set(field, resultNode.path("details").path(field));
+            }
+        }
         if ("in_progress".equals(resultNode.path("status").asText())) {
             payload.set("activePhase", resultNode.path("details").path("continuation").path("phase"));
         }

@@ -11,7 +11,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Bounded JSON Artifact storage with atomic replacement semantics. */
 public final class ArtifactJsonStore {
@@ -68,6 +71,92 @@ public final class ArtifactJsonStore {
             throw new ArtifactOperationException("artifact_json_write_failed", "Artifact JSON could not be encoded");
         } catch (IOException exception) {
             throw new ArtifactOperationException("artifact_write_failed", "Artifact could not be persisted");
+        }
+    }
+
+    /** Prepares a bounded run file set and restores replaced files if publication fails. */
+    public synchronized void writeSet(Map<Path, JsonNode> values) {
+        if (values.isEmpty() || values.size() > 4) {
+            throw new ArtifactOperationException("artifact_write_failed", "Invalid run Artifact file set");
+        }
+        Path stage = null;
+        Map<Path, Path> backups = new LinkedHashMap<>();
+        List<Path> published = new ArrayList<>();
+        boolean restored = true;
+        try {
+            Path parent = values.keySet().iterator().next().getParent();
+            Files.createDirectories(parent);
+            stage = Files.createTempDirectory(parent, ".artifact-set-");
+            Map<Path, Path> prepared = prepareSet(stage, parent, values, backups);
+            for (var entry : prepared.entrySet()) {
+                moveIntoPlace(entry.getValue(), entry.getKey());
+                published.add(entry.getKey());
+            }
+        } catch (IOException | RuntimeException failure) {
+            restored = restoreSet(published, backups, failure);
+            if (failure instanceof ArtifactOperationException operationFailure) {
+                throw operationFailure;
+            }
+            throw new ArtifactOperationException("artifact_write_failed", "Run Artifact file set could not be persisted");
+        } finally {
+            if (stage != null && restored) {
+                removeStage(stage);
+            }
+        }
+    }
+
+    private Map<Path, Path> prepareSet(Path stage, Path parent, Map<Path, JsonNode> values,
+            Map<Path, Path> backups) throws IOException {
+        Map<Path, Path> prepared = new LinkedHashMap<>();
+        for (var entry : values.entrySet()) {
+            Path target = entry.getKey();
+            if (!parent.equals(target.getParent())) {
+                throw new ArtifactOperationException("artifact_write_failed", "Run Artifacts must share a directory");
+            }
+            Path next = stage.resolve("new-" + prepared.size());
+            write(next, entry.getValue());
+            Path backup = null;
+            if (Files.exists(target, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                if (Files.size(target) > MAX_BYTES) {
+                    throw new ArtifactOperationException("artifact_read_limit_exceeded", "Prior run Artifact exceeds the read limit");
+                }
+                backup = stage.resolve("old-" + prepared.size());
+                Files.copy(target, backup, java.nio.file.LinkOption.NOFOLLOW_LINKS);
+            }
+            backups.put(target, backup);
+            prepared.put(target, next);
+        }
+        return prepared;
+    }
+
+    private static boolean restoreSet(List<Path> published, Map<Path, Path> backups, Exception failure) {
+        boolean restored = true;
+        for (Path target : published.reversed()) {
+            try {
+                Path backup = backups.get(target);
+                if (backup == null) {
+                    Files.deleteIfExists(target);
+                } else {
+                    moveIntoPlace(backup, target);
+                }
+            } catch (IOException rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
+                restored = false;
+            }
+        }
+        return restored;
+    }
+
+    private static void removeStage(Path stage) {
+        try {
+            try (var files = Files.list(stage)) {
+                for (Path file : files.toList()) {
+                    Files.delete(file);
+                }
+            }
+            Files.delete(stage);
+        } catch (IOException failure) {
+            throw new ArtifactOperationException("artifact_write_failed", "Run Artifact staging files could not be removed");
         }
     }
 

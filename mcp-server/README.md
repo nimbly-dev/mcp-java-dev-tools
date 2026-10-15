@@ -117,8 +117,21 @@ java -jar application/target/mcp-java-dev-tools-server-0.1.9.jar
 packaging; it does not implicitly run process ITs or package fixtures.
 Explicitly enable `-Pjava-it,java-it-lifecycle` for the complete shared lifecycle
 selection, `-Pjava-it,java-it-smoke` for real functional smoke, or
-`-Pjava-it,java-it-fixtures` for all currently implemented application ITs.
+`-Pjava-it,java-it-fixtures,java-it-regression-fixtures` with the declared
+receiving-tool/JMeter/Docker prerequisites for the complete application IT lane.
 See [the exact commands, prerequisites and coverage inventory](../docs/acceptance/mcpjvm-646-java-it.md).
+
+The complete cross-feature and Skill-facing Tool/Artifact workflow selection is
+`-Pjava-it,java-it-workflows,java-it-fixtures`; its separate inventory smoke is
+`-Pjava-it,java-it-workflows-smoke`. See the
+[consolidated operation/Skill inventory, prerequisites and full Java IT command](../docs/acceptance/mcpjvm-656-skill-workflows-it.md).
+This lane uses existing real JVM/Probe, exception investigation, correlation,
+suite, restart, migration and receiving-tool replay scenarios. Automated
+Tool/Artifact/helper compatibility and actual conversational Skill use are
+reported separately.
+Behavior-focused workflow classes also cover exception investigation becoming a
+durable regression guard and downstream repair requiring a fresh run after
+restart. Skill references provide many-to-many traceability across these flows.
 
 The generated Regression capability selection is
 `-Pjava-it,java-it-regression,java-it-regression-fixtures`. It includes real strict

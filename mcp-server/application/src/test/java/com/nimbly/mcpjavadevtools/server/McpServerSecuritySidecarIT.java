@@ -101,6 +101,7 @@ class McpServerSecuritySidecarIT extends SecurityMcpSupport {
     }
 
     @Test
+    @Tag("skill-workflows")
     void realFreshRequiredAndForbiddenHitsDistinguishPassInternalAndCorroboratedFindings() throws Exception {
         try (JvmProbeScenario s = JvmProbeScenario.start()) {
             s.attach();

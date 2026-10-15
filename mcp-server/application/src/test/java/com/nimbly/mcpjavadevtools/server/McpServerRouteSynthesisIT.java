@@ -16,6 +16,7 @@ class McpServerRouteSynthesisIT extends McpServerStdioSupport {
 
     @Test
     @Tag("route-smoke")
+    @Tag("skill-workflows")
     void discoveryRecipeTransportEffectAndCapture() throws Exception {
         try (RouteSynthesisScenario s = RouteSynthesisScenario.start()) {
             s.runtime.attach();

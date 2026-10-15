@@ -122,6 +122,18 @@
 
   <profiles>
     <profile>
+      <id>java-it-workflows</id>
+      <properties>
+        <mcp.it.groups>skill-workflows</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-workflows-smoke</id>
+      <properties>
+        <mcp.it.groups>workflow-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
       <id>java-it-orchestration</id>
       <properties>
         <mcp.it.groups>orchestration</mcp.it.groups>

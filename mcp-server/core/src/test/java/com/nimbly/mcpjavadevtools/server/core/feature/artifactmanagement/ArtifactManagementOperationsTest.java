@@ -32,6 +32,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Focused lifecycle and Fail-Closed tests for the Artifact Core Feature. */
 class ArtifactManagementOperationsTest {
@@ -143,6 +145,102 @@ class ArtifactManagementOperationsTest {
                 .isInstanceOf(Map.class)
                 .extracting(value -> ((Map<?, ?>) value).get("status"))
                 .isEqualTo("pass");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"regression", "performance", "security"})
+    void runCompanionsPreserveObservedEvidenceAndRedaction(String suite) throws Exception {
+        Map<String, Object> details = Map.of("steps", List.of(Map.of("status", "fail", "durationMs", 7)),
+                "password", "companion-secret", "msta", Map.of("status", "disabled"));
+        Map<String, Object> input = Map.of("projectName", "demo", "suiteType", suite,
+                "planName", "plan", "runId", "run", "payload", Map.of("status", "fail", "reasonCode", "observed_failure", "details", details));
+        assertThat(operations.upsertRunResult(request(ArtifactType.RUN_RESULT, ArtifactAction.UPSERT, input)).status()).isEqualTo("ok");
+        Path directory = workspace.resolve(".mcpjvm/demo/plans/" + suite + "/plan/runs/run");
+        JsonNode evidence = mapper.readTree(directory.resolve("evidence.json").toFile());
+        JsonNode context = mapper.readTree(directory.resolve("context.resolved.json").toFile());
+        assertThat(evidence.path("status").asText()).isEqualTo("fail");
+        assertThat(evidence.path("reasonCode").asText()).isEqualTo("observed_failure");
+        assertThat(evidence.path("steps").get(0).path("durationMs").asInt()).isEqualTo(7);
+        assertThat(evidence.path("msta").path("status").asText()).isEqualTo("disabled");
+        assertThat(evidence.path("planRef").path("name").asText()).isEqualTo("plan");
+        assertThat(evidence.path("targetResolution").isArray()).isTrue();
+        assertThat(evidence.toString()).doesNotContain("companion-secret");
+        assertThat(java.time.Instant.parse(context.path("resolvedAt").asText())).isNotNull();
+        assertThat(context.size()).as("No unavailable resolved values are invented").isEqualTo(1);
+        ArtifactManagementResult read = operations.readRunResult(request(ArtifactType.RUN_RESULT, ArtifactAction.READ,
+                Map.of("projectName", "demo", "suiteType", suite, "planName", "plan", "runId", "run")));
+        assertThat(mapper.<JsonNode>valueToTree(read.details().get("evidence"))).isEqualTo(evidence);
+        assertThat(mapper.<JsonNode>valueToTree(read.details().get("context"))).isEqualTo(context);
+    }
+
+    @Test
+    void companionWriteFailureIsNotReportedAsPersistedAndCanBeRetried() throws Exception {
+        Path evidence = workspace.resolve(".mcpjvm/demo/plans/regression/plan/runs/run/evidence.json");
+        Files.createDirectories(evidence);
+        Files.writeString(evidence.resolve("owned-blocker"), "controlled write failure");
+        Map<String, Object> input = Map.of("projectName", "demo", "planName", "plan", "runId", "run",
+                "payload", Map.of("status", "pass", "reasonCode", "controlled_observation"));
+        ArtifactManagementRequest request = request(ArtifactType.RUN_RESULT, ArtifactAction.UPSERT, input);
+        ArtifactManagementResult failed = operations.upsertRunResult(request);
+        assertThat(failed.status()).isEqualTo("artifact_write_failed");
+        assertThat(evidence.resolveSibling("execution.result.json")).doesNotExist();
+        Files.delete(evidence.resolve("owned-blocker"));
+        Files.delete(evidence);
+        assertThat(operations.upsertRunResult(request).status()).isEqualTo("ok");
+        assertThat(mapper.readTree(evidence.toFile()).path("status").asText()).isEqualTo("pass");
+    }
+
+    @Test
+    void failedRunUpdatePreservesEveryPreviouslyPublishedFile() throws Exception {
+        ObjectNode payload = mapper.createObjectNode().put("status", "pass");
+        payload.putObject("details").put("note", "original");
+        payload.putObject("correlation").put("correlationSessionId", "original");
+        Map<String, Object> input = Map.of("projectName", "demo", "planName", "plan", "runId", "run", "payload", payload);
+        ArtifactManagementRequest request = request(ArtifactType.RUN_RESULT, ArtifactAction.UPSERT, input);
+        assertThat(operations.upsertRunResult(request).status()).isEqualTo("ok");
+        Path directory = workspace.resolve(".mcpjvm/demo/plans/regression/plan/runs/run");
+        Map<String, byte[]> before = new LinkedHashMap<>();
+        for (String file : List.of("execution.result.json", "context.resolved.json", "evidence.json", "correlation.json")) {
+            before.put(file, Files.readAllBytes(directory.resolve(file)));
+        }
+        payload.put("status", "fail");
+        var padding = payload.putArray("padding");
+        for (int row = 0; row < 25; row++) {
+            var values = padding.addArray();
+            for (int column = 0; column < 50; column++) {
+                values.add("x".repeat(4096));
+            }
+        }
+        payload.withObject("details").put("note", "replacement");
+        payload.withObject("correlation").put("correlationSessionId", "replacement");
+        assertThat(operations.upsertRunResult(request(ArtifactType.RUN_RESULT, ArtifactAction.UPSERT, input)).reasonCode())
+                .isEqualTo("artifact_write_limit_exceeded");
+        for (var file : before.entrySet()) {
+            assertThat(Files.readAllBytes(directory.resolve(file.getKey()))).as(file.getKey()).isEqualTo(file.getValue());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void mixedShapeEvidenceRetainsRootFieldsAndUsesRootPrecedence(boolean duplicate) throws Exception {
+        ObjectNode payload = mapper.createObjectNode().put("status", "fail");
+        payload.putObject("directResult").put("retained", "root metadata");
+        payload.putArray("steps").addObject().put("id", "canonical").put("status", "fail").put("durationMs", 7);
+        ObjectNode details = payload.putObject("details").put("summary", "retained metadata");
+        details.putObject("msta").put("status", "disabled");
+        if (duplicate) {
+            details.putArray("steps").addObject().put("id", "nested-conflict");
+        }
+        var result = operations.upsertRunResult(request(ArtifactType.RUN_RESULT, ArtifactAction.UPSERT,
+                Map.of("projectName", "demo", "planName", "plan", "runId", "mixed", "payload", payload)));
+        assertThat(result.status()).isEqualTo("ok");
+        Path directory = workspace.resolve(".mcpjvm/demo/plans/regression/plan/runs/mixed");
+        JsonNode evidence = mapper.readTree(directory.resolve("evidence.json").toFile());
+        assertThat(evidence.path("steps")).isEqualTo(payload.path("steps"));
+        assertThat(evidence.path("summary").asText()).isEqualTo("retained metadata");
+        assertThat(evidence.path("msta").path("status").asText()).isEqualTo("disabled");
+        assertThat(evidence.path("directResult")).isEqualTo(payload.path("directResult"));
+        assertThat(mapper.readTree(directory.resolve("execution.result.json").toFile())).isEqualTo(payload);
     }
 
     @Test

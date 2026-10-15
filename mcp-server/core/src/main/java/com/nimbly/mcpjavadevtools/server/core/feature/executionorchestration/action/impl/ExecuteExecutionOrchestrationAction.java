@@ -599,6 +599,12 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             payload.set("correlation", correlation);
         }
         payload.put("status", persistedStatus(outcome));
+        for (String field : List.of("steps", "watchers", "externalVerification", "probeVerification",
+                "metrics", "thresholdResults", "msta", "profiler", "coverage", "findings", "securityMode", "requiredLineHits")) {
+            if (payload.path("details").has(field)) {
+                payload.set(field, payload.path("details").path(field));
+            }
+        }
         if ("in_progress".equals(payload.path("status").asText())) {
             payload.set("activePhase", payload.path("details").path("continuation").path("phase"));
         }

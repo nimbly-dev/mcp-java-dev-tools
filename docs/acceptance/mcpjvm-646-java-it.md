@@ -1,5 +1,9 @@
 # #646 shared Java process IT contract
 
+The current consolidated inventory, Skill mappings and complete Java IT command
+are in [#656 cross-feature acceptance](mcpjvm-656-skill-workflows-it.md).
+This document retains the shared-support evidence and prerequisite ownership.
+
 The accepted Java-only CDE runtime is the subject of these tests. #582's process,
 STDIO, Roots, workspace, cleanup and fixture requirements remain applicable.
 #583's substantive behavior and safety requirements remain references; its old

@@ -8,6 +8,7 @@ import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.r
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.result.ArtifactManagementResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -48,6 +49,10 @@ public final class RunResultOperations {
                     "watchers", "watchers.json");
             addOptionalRunState(details, new RunStatePath(workspace, projectName, suiteType, planName, runId),
                     "externalVerification", "external-verification.json");
+            addOptionalRunState(details, new RunStatePath(workspace, projectName, suiteType, planName, runId),
+                    "evidence", "evidence.json");
+            addOptionalRunState(details, new RunStatePath(workspace, projectName, suiteType, planName, runId),
+                    "context", "context.resolved.json");
             return support.success(request, details);
         });
     }
@@ -79,13 +84,22 @@ public final class RunResultOperations {
             Path result = workspace.paths().resolve(
                     ".mcpjvm", projectName, "plans", suiteType, planName, "runs", runId,
                     "execution.result.json");
+            Map<Path, JsonNode> files = new LinkedHashMap<>();
             if (payload.path("correlation").isObject()) {
                 Path correlation = workspace.paths().resolve(
                         ".mcpjvm", projectName, "plans", suiteType, planName, "runs", runId,
                         "correlation.json");
-                support.jsonStore().write(correlation, payload.path("correlation"));
+                files.put(correlation, payload.path("correlation"));
             }
-            support.jsonStore().write(result, payload);
+            Path context = workspace.paths().check(result.resolveSibling("context.resolved.json"));
+            Path evidence = workspace.paths().check(result.resolveSibling("evidence.json"));
+            ObjectNode resolved = support.mapper().createObjectNode().put("resolvedAt", Instant.now().toString());
+            // The storage boundary does not possess secret-safe resolved inputs. Do not reconstruct
+            // them from configuration or credentials; the context contract permits metadata only.
+            files.put(context, resolved);
+            files.put(evidence, runEvidence(payload, planName));
+            files.put(result, payload);
+            support.jsonStore().writeSet(files);
             return support.success(request, Map.of(
                     "projectName", projectName,
                     "planName", planName,
@@ -93,6 +107,27 @@ public final class RunResultOperations {
                     "path", workspace.paths().relative(result),
                     "status", "persisted"));
         });
+    }
+
+    private ObjectNode runEvidence(JsonNode payload, String planName) {
+        ObjectNode evidence = payload.deepCopy();
+        if (payload.path("details").isObject()) {
+            evidence.remove("details");
+        }
+        payload.path("details").fields().forEachRemaining(field -> {
+            if (!evidence.has(field.getKey())) {
+                evidence.set(field.getKey(), field.getValue());
+            }
+        });
+        evidence.set("status", payload.path("status"));
+        if (payload.has("reasonCode")) {
+            evidence.set("reasonCode", payload.path("reasonCode"));
+        }
+        evidence.putObject("planRef").put("name", planName);
+        if (!evidence.path("targetResolution").isArray()) {
+            evidence.putArray("targetResolution");
+        }
+        return evidence;
     }
 
     /** Rebuilds all run-state surfaces transactionally. */

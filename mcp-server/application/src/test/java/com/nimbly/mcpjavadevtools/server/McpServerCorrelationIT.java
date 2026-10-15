@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Timeout;
 class McpServerCorrelationIT extends McpServerStdioSupport {
 
     @Test
+    @org.junit.jupiter.api.Tag("skill-workflows")
     void executableJarCorrelatesCrossServiceEventsWithConsumerRuntimeEvidence() throws Exception {
         Path fixtureRoot = repositoryRoot().resolve("test/fixtures/spring-apps/social-platform/event-service");
         Path producerJar = fixtureRoot.resolve(

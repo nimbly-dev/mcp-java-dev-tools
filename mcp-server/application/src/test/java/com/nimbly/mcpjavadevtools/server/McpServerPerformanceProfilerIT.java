@@ -52,6 +52,7 @@ class McpServerPerformanceProfilerIT extends PerformanceMcpSupport {
     }
 
     @Test
+    @Tag("skill-workflows")
     void realWorkloadOwnsJfrLifecycleSampledMethodAttributionAndCorrelation() throws Exception {
         try (JvmProbeScenario s = JvmProbeScenario.start()) {
             s.attach();

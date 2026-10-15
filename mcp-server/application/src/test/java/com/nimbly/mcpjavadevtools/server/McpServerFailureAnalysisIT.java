@@ -21,6 +21,7 @@ class McpServerFailureAnalysisIT extends McpServerStdioSupport {
     @ParameterizedTest
     @ValueSource(strings = {"guided", "hands_off"})
     @Tag("failure-smoke")
+    @Tag("skill-workflows")
     void realTraceTargetTriggerCaptureAndProposalEvidence(String mode) throws Exception {
         Path original = repositoryRoot().resolve(JvmProbeScenario.SOURCE
                 + FailureAnalysisScenario.SERVICE.replace('.', '/') + ".java");

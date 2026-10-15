@@ -128,11 +128,9 @@ final class SqliteRunStateArtifactReader {
         // Direct Suite execution stores its real evidence in details. Normalize
         // only the projection; the authoritative result Artifact stays unchanged.
         // Keep each promoted evidence field in one location to preserve size bounds.
-        for (String field : List.of("steps", "watchers", "externalVerification", "correlation", "correlations", "continuation")) {
-            if (!enriched.has(field) && enriched.path("details") instanceof ObjectNode details && details.has(field)) {
-                enriched.set(field, details.remove(field));
-            }
-        }
+        normalizeEvidence(enriched, enriched.path("details"));
+        normalizeEvidence(enriched, enriched.path("directResult").path("details"));
+        normalizeEvidence(enriched, enriched.path("directResult"));
         for (String sidecar : List.of(
                 "continuation.json", "correlation.json", "watchers.json", "external-verification.json")) {
             Path path = policy.check(runDirectory.resolve(sidecar));
@@ -147,6 +145,24 @@ final class SqliteRunStateArtifactReader {
             }
         }
         return enriched;
+    }
+
+    private static void normalizeEvidence(ObjectNode root, JsonNode source) {
+        if (!(source instanceof ObjectNode nested)) {
+            return;
+        }
+        for (String field : List.of("steps", "watchers", "externalVerification", "correlation", "correlations", "continuation",
+                "probeVerification", "metrics", "thresholdResults", "msta", "profiler", "coverage", "findings",
+                "securityMode", "requiredLineHits")) {
+            if (!nested.has(field)) {
+                continue;
+            }
+            if (!root.has(field)) {
+                root.set(field, nested.remove(field));
+            } else if (root.path(field).equals(nested.path(field))) {
+                nested.remove(field);
+            }
+        }
     }
 
     List<Path> findFiles(Path root, String fileName) {
