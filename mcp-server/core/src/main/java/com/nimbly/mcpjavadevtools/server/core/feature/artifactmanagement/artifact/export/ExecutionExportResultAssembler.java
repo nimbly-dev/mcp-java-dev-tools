@@ -43,7 +43,8 @@ final class ExecutionExportResultAssembler {
         if ("postman".equals(mode)) {
             return Map.of(
                     "collectionPathAbs", export.resolve(replayName).toString(),
-                    "environmentPathAbs", export.resolve("project.env").toString());
+                    "environmentPathAbs", export.resolve("environment.postman.json").toString(),
+                    "readmePathAbs", export.resolve("README.postman.md").toString());
         }
         String prefix = "performance".equals(suiteType) ? "performance" : "execution";
         Map<String, Object> output = new LinkedHashMap<>();

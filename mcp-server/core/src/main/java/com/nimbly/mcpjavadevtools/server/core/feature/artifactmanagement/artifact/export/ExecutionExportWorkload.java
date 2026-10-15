@@ -49,6 +49,10 @@ public final class ExecutionExportWorkload {
         List<PlanWorkload> plans = new ArrayList<>();
         for (PlanSelection planSelection : selections) {
             String suiteType = resolveSuiteType(policy, projectName, planSelection, profileSuite);
+            if ("security".equals(suiteType)) {
+                throw new ArtifactOperationException("security_export_unsupported",
+                        "Security Suite execution profiles do not produce workload replay exports");
+            }
             Path contractPath = policy.resolve(
                     ".mcpjvm", projectName, "plans", suiteType, planSelection.planName(), "contract.json");
             if (!Files.isRegularFile(contractPath)) {
@@ -191,9 +195,11 @@ public final class ExecutionExportWorkload {
         if (request.has("body")) {
             http.set("body", request.get("body"));
         }
-        if (request.has("headers")) {
-            http.set("headers", request.get("headers"));
-        }
+        Map<String, String> headers = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        transport.path("defaultHeaders").fields().forEachRemaining(entry -> headers.put(entry.getKey(), entry.getValue().asText()));
+        request.path("headers").fields().forEachRemaining(entry -> headers.put(entry.getKey(), entry.getValue().asText()));
+        ObjectNode mergedHeaders = http.putObject("headers");
+        headers.forEach(mergedHeaders::put);
         return toRequest(http, entrypoint.path("providedContext"),
                 text(entrypoint, "id").orElse("entrypoint-" + index), planName, contextBindings);
     }

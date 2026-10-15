@@ -11,6 +11,10 @@ final class ExecutionExportRuntimeRenderer {
             script.append("Write-Host '[R00] runtime startup skipped by export options'\n");
             return;
         }
+        if (dynamicEnabled(options, profile)) {
+            script.append("Write-Host '[R] runtime owned by portable lifecycle wrapper'\n");
+            return;
+        }
         JsonNode context = runtimeContext(options.workspace(), profile);
         if (context == null) {
             script.append("Write-Host '[R00] runtime startup skipped: no runtime context'\n");
@@ -48,6 +52,10 @@ final class ExecutionExportRuntimeRenderer {
             StringBuilder script, ExecutionExportOptions options, JsonNode profile) {
         if (!options.includeRuntimeStartup()) {
             script.append("echo '[R00] runtime startup skipped by export options'\n");
+            return;
+        }
+        if (dynamicEnabled(options, profile)) {
+            script.append("echo '[R] runtime owned by portable lifecycle wrapper'\n");
             return;
         }
         JsonNode context = runtimeContext(options.workspace(), profile);
@@ -96,12 +104,15 @@ final class ExecutionExportRuntimeRenderer {
                     script.append("Write-Host ")
                             .append(ExecutionExportShellQuoting.powerShellSingleQuoted("[H] " + id))
                             .append("\n")
-                            .append("$__health = Invoke-WebRequest -UseBasicParsing -Uri ")
+                            .append("$__health_deadline = (Get-Date).AddSeconds(60)\n$__health_ok = $false\n")
+                            .append("do { try { $__health = Invoke-WebRequest -UseBasicParsing -Uri ")
                             .append(ExecutionExportShellQuoting.powerShellSingleQuoted(
                                     check.path("url").asText()))
-                            .append(" -TimeoutSec 5\n")
-                            .append("if ($__health.StatusCode -lt 200 -or $__health.StatusCode -ge 500) { ")
-                            .append("throw 'healthcheck gate failed' }\n");
+                            .append(" -TimeoutSec 2\n")
+                            .append("if ($__health.StatusCode -ge 200 -and $__health.StatusCode -lt 500) { $__health_ok = $true } ")
+                            .append("} catch { }\nif ($__health_ok) { break }; Start-Sleep -Seconds 2\n")
+                            .append("} while ((Get-Date) -lt $__health_deadline)\n")
+                            .append("if (-not $__health_ok) { throw 'healthcheck gate failed' }\n");
                 }
                 if ("tcp".equals(check.path("type").asText())
                         && check.path("target").isTextual()) {
@@ -132,10 +143,13 @@ final class ExecutionExportRuntimeRenderer {
                     script.append("echo ")
                             .append(ExecutionExportShellQuoting.shellSingleQuoted("[H] " + id))
                             .append("\n")
-                            .append("curl --fail --silent --show-error ")
+                            .append("__health_deadline=$((SECONDS+60))\n__health_ok=false\n")
+                            .append("while [ \"$SECONDS\" -lt \"$__health_deadline\" ]; do\n")
+                            .append("if curl --fail --silent --show-error --connect-timeout 2 --max-time 2 ")
                             .append(ExecutionExportShellQuoting.shellSingleQuoted(
                                     check.path("url").asText()))
-                            .append(" >/dev/null\n");
+                            .append(" >/dev/null; then __health_ok=true; break; fi\nsleep 2\ndone\n")
+                            .append("if [ \"$__health_ok\" != true ]; then echo 'healthcheck gate failed' >&2; exit 1; fi\n");
                 }
                 if ("tcp".equals(check.path("type").asText())
                         && check.path("target").isTextual()) {
@@ -149,6 +163,12 @@ final class ExecutionExportRuntimeRenderer {
                 }
             }
         }
+    }
+
+    boolean dynamicEnabled(ExecutionExportOptions options, JsonNode profile) {
+        JsonNode context = runtimeContext(options.workspace(), profile);
+        return options.includeRuntimeStartup() && context != null
+                && "dynamic_attach_local".equals(context.path("sidecarLifecycle").path("activation").asText());
     }
 
     private JsonNode runtimeContext(JsonNode workspace, JsonNode profile) {

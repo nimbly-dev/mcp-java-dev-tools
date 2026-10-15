@@ -66,8 +66,8 @@ public class ExecutionOrchestrationConfiguration {
 
     @Bean
     ExecutionRuntimeLifecycle executionRuntimeLifecycle(
-            JvmLifecycleFeature jvms, ProbeFeature probe, ObjectMapper mapper) {
-        return new ApplicationExecutionRuntimeLifecycle(jvms, probe, mapper);
+            JvmLifecycleFeature jvms, ProbeFeature probe, ObjectMapper mapper, ArtifactManagementFeature artifacts) {
+        return new ApplicationExecutionRuntimeLifecycle(jvms, probe, mapper, artifacts);
     }
 
     private static Optional<String> runDirectory(

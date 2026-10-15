@@ -24,10 +24,21 @@ final class ExecutionExportPowerShellRenderer {
             JsonNode profile,
             List<ExecutionExportScriptInvocation> scriptInvocations) {
         StringBuilder script = new StringBuilder(header.render(options));
+        if (runtime.dynamicEnabled(options, profile)) {
+            script.append("if ($env:MCPJVM_PORTABLE_RUNTIME_ACTIVE -ne '1') {\n");
+            scripts.append(script, scriptInvocations, "preRuntime");
+            script.append("& node (Join-Path $PSScriptRoot 'run-portable-sidecar-lifecycle.js') ")
+                    .append("--config (Join-Path $PSScriptRoot 'portable-sidecar-attach.config.json') ")
+                    .append("--action run --mode ps1 --shell (Get-Process -Id $PID).Path --script $PSCommandPath\n")
+                    .append("exit $LASTEXITCODE\n}\n");
+        } else {
+            scripts.append(script, scriptInvocations, "preRuntime");
+        }
         runtime.appendPowerShellRuntime(script, options, profile);
-        scripts.append(script, scriptInvocations);
+        scripts.append(script, scriptInvocations, "postRuntime");
         runtime.appendPowerShellHealthchecks(script, options.workspace(), options.includeHealthcheckGate());
-        workload.append(script, selectedWorkload);
+        scripts.append(script, scriptInvocations, "postHealthcheck");
+        workload.append(script, selectedWorkload, scriptInvocations);
         return script.toString();
     }
 }

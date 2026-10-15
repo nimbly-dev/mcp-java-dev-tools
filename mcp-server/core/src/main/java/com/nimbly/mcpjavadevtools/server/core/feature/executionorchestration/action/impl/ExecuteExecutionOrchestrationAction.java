@@ -128,6 +128,10 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
 
     private ExecutionOrchestrationResult executeProfile(Input input, JsonNode profile, JsonNode workspace) {
         checkpoint();
+        Map<String, Object> terminalEvidence = completedLifecycle(input);
+        if (terminalEvidence != null) {
+            return persistCheckpoint(input, profile, withLifecycle(runProfileSafely(input, profile, workspace), terminalEvidence));
+        }
         ExecutionRuntimeLifecycle.RuntimeLifecycleRequest lifecycleRequest = lifecycleRequest(input, profile, workspace);
         var prepared = runtimeLifecycle.prepare(lifecycleRequest);
         if (!prepared.successful()) {
@@ -162,6 +166,24 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             cleanupAfterCancellation(input, profile, prepared, cleanupRequest, exception);
             throw exception;
         }
+    }
+
+    private Map<String, Object> completedLifecycle(Input input) {
+        var persisted = suiteState.read(input.projectName(), input.suiteRunId());
+        if (persisted.isEmpty()) {
+            return null;
+        }
+        Map<String, Object> state = persisted.get();
+        if (!List.of("pass", "fail", "partial_fail").contains(state.get("status"))
+                || !Objects.equals(state.get("nextPlanOrder"), 0)) {
+            return null;
+        }
+        Object evidence = state.get("runtimeLifecycle");
+        if (evidence instanceof Map<?, ?> values && "terminal".equals(values.get("status"))
+                && "ok".equals(values.get("cleanupStatus"))) {
+            return mapper.convertValue(evidence, Map.class);
+        }
+        return null;
     }
 
     private void cleanupAfterCancellation(
@@ -383,6 +405,10 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         Map<String, Object> suiteContext = suiteContext(input);
         List<Map<String, Object>> prior = terminalOutcomes(
                 input, suiteType, profile.path("plans"), suiteContext);
+        ExecutionOrchestrationResult stopped = priorStop(input, profile, prior);
+        if (stopped != null) {
+            return withSuiteContext(stopped, suiteContext);
+        }
         List<JsonNode> pending = pendingPlans(input, suiteType, profile.path("plans"));
         if (pending.isEmpty()) {
             return withSuiteContext(completed(input, profile, prior, false), suiteContext);
@@ -413,6 +439,18 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         }
         boolean partial = pending.size() > plans.size();
         return withSuiteContext(completed(input, profile, merged(prior, outcomes), partial), suiteContext);
+    }
+
+    private static ExecutionOrchestrationResult priorStop(
+            Input input, JsonNode profile, List<Map<String, Object>> prior) {
+        for (JsonNode plan : ordered(profile.path("plans"))) {
+            for (Map<String, Object> outcome : prior) {
+                if (Objects.equals(outcome.get("order"), plan.path("order").asInt()) && shouldStop(profile, plan, outcome)) {
+                    return failed(input, profile, prior, String.valueOf(outcome.get("reasonCode")));
+                }
+            }
+        }
+        return null;
     }
 
     private Map<String, Object> suiteContext(Input input) {
@@ -743,10 +781,7 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
     }
 
     private static boolean shouldStop(JsonNode profile, JsonNode plan, Map<String, Object> outcome) {
-        String status = String.valueOf(outcome.get("status"));
-        Object details = outcome.get("details");
-        boolean suiteFailed = details instanceof Map<?, ?> values && "fail".equals(values.get("runStatus"));
-        if (("completed".equals(status) || "ready".equals(status)) && !suiteFailed) {
+        if (!suiteFailed(outcome)) {
             return false;
         }
         String onFail = plan.path("onFail").asText("inherit");

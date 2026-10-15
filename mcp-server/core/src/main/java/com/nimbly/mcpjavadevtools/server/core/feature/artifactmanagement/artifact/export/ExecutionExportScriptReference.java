@@ -42,7 +42,8 @@ final class ExecutionExportScriptReference {
         List<String> copiedArguments = arguments.copy(context, scriptRoot, script);
         String appdir = script.path("appdir").asText("").trim();
         if (!appdir.isBlank()) {
-            appdir = context.workspace().paths().check(context.workspace().root().resolve(appdir)).toString();
+            var directory = context.workspace().paths().check(context.workspace().root().resolve(appdir));
+            appdir = context.workspace().root().relativize(directory).toString();
         }
         return new ExecutionExportScriptInvocation(
                 name, phase, command, copiedArguments, appdir,

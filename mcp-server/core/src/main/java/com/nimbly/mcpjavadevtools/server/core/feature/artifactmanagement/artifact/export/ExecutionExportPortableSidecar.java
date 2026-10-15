@@ -1,11 +1,15 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.MissingNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactOperationException;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactPathPolicy;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -22,19 +26,20 @@ public final class ExecutionExportPortableSidecar {
     }
 
     public static void writeIfRequired(
-            Path export,
-            Path workspaceRoot,
-            JsonNode workspace,
-            JsonNode profile,
-            ObjectMapper mapper) {
+            ExecutionExportContext exportContext, ArtifactManagementSupport support) {
+        Path export = exportContext.export();
+        Path workspaceRoot = exportContext.workspace().root();
+        JsonNode workspace = exportContext.options().workspace();
+        JsonNode profile = exportContext.profile();
+        var mapper = support.mapper();
         JsonNode context = findContext(workspace, profile == null ? NullNode.getInstance() : profile);
         JsonNode policy = context.path("sidecarLifecycle");
-        if (!"dynamic_attach_local".equals(policy.path("activation").asText())) {
+        if (!exportContext.options().includeRuntimeStartup() || !"dynamic_attach_local".equals(policy.path("activation").asText())) {
             return;
         }
         validateContext(context, policy);
         String probeId = required(policy, "probeId", "portable_dynamic_attach_runtime_invalid");
-        JsonNode probe = findProbe(workspaceRoot, probeId, mapper);
+        JsonNode probe = findProbe(probeId, support);
         String helper = copyArtifact(export, "MCP_JAVA_ATTACH_HELPER_JAR",
                 workspaceRoot, "java-agent/core/core-jvm-attach/target", "mcp-java-dev-tools-core-jvm-attach-");
         String agent = copyArtifact(export, "MCP_JAVA_AGENT_JAR",
@@ -50,6 +55,7 @@ public final class ExecutionExportPortableSidecar {
         config.put("agentJarRel", agent);
         config.put("statusPath", "/__probe/status");
         config.put("resetPath", "/__probe/reset");
+        config.set("startup", startup(export, workspaceRoot, context, support));
         if (probe.has("include")) {
             config.set("include", probe.get("include"));
         }
@@ -90,43 +96,63 @@ public final class ExecutionExportPortableSidecar {
         return fallback == null ? NullNode.getInstance() : fallback;
     }
 
-    private static JsonNode findProbe(Path root, String probeId, ObjectMapper mapper) {
-        Path path = root.resolve(".mcpjvm").resolve("probe-config.json");
+    private static JsonNode findProbe(String probeId, ArtifactManagementSupport support) {
         try {
-            JsonNode probes = mapper.readTree(Files.readString(path));
-            JsonNode entry = probes.path("probes").isObject()
-                    ? probes.path("probes").path(probeId) : findProbeArray(probes.path("probes"), probeId);
-            String baseUrl = entry.path("baseUrl").asText("");
-            URI uri = URI.create(baseUrl);
-            if (entry.isMissingNode() || uri.getHost() == null || uri.getPort() <= 0) {
-                throw new IllegalArgumentException();
+            var result = new ProbeConfigOperations(support).read(new ArtifactManagementRequest(
+                    ArtifactType.PROBE_CONFIG, ArtifactAction.READ, support.mapper().createObjectNode()));
+            for (JsonNode entry : support.mapper().valueToTree(result.details()).path("probes")) {
+                if (probeId.equals(entry.path("id").asText())) {
+                    return probeEndpoint(entry, support);
+                }
             }
-            ObjectNode normalized = mapper.createObjectNode();
-            normalized.put("host", uri.getHost());
-            normalized.put("port", uri.getPort());
-            if (entry.has("include")) {
-                normalized.set("include", entry.get("include"));
-            }
-            if (entry.has("exclude")) {
-                normalized.set("exclude", entry.get("exclude"));
-            }
-            return normalized;
+            throw new IllegalArgumentException();
         } catch (Exception exception) {
             throw new ArtifactOperationException("probe_registry_unavailable",
                     "Portable Sidecar export requires a readable Probe registry");
         }
     }
 
-    private static JsonNode findProbeArray(JsonNode probes, String probeId) {
-        if (!probes.isArray()) {
-            return MissingNode.getInstance();
+    private static JsonNode probeEndpoint(JsonNode entry, ArtifactManagementSupport support) {
+        String baseUrl = entry.path("baseUrl").asText("");
+        URI uri = URI.create(baseUrl);
+        if (entry.isMissingNode() || uri.getHost() == null || uri.getPort() <= 0) {
+            throw new IllegalArgumentException();
         }
-        for (JsonNode probe : probes) {
-            if (probeId.equals(probe.path("id").asText())) {
-                return probe;
-            }
+        ObjectNode normalized = support.mapper().createObjectNode();
+        normalized.put("host", uri.getHost());
+        normalized.put("port", uri.getPort());
+        if (entry.has("include")) {
+            normalized.set("include", entry.get("include"));
         }
-        return MissingNode.getInstance();
+        if (entry.has("exclude")) {
+            normalized.set("exclude", entry.get("exclude"));
+        }
+        return normalized;
+    }
+
+    private static ObjectNode startup(Path export, Path root, JsonNode context, ArtifactManagementSupport support) {
+        JsonNode startup = context.path("startups").get(0);
+        List<String> args = new java.util.ArrayList<>();
+        startup.path("args").forEach(value -> args.add(value.asText()));
+        int jar = args.indexOf("-jar");
+        if (jar < 0 || jar + 1 >= args.size()) {
+            throw new ArtifactOperationException("portable_dynamic_attach_startup_not_direct_java", "A direct Java JAR startup is required");
+        }
+        ArtifactPathPolicy paths = new ArtifactPathPolicy(root);
+        Path directory = paths.check(root.resolve(startup.path("appdir").asText(".")));
+        Path source = paths.check(directory.resolve(args.get(jar + 1)));
+        try {
+            Path target = export.resolve("runtime/target.jar");
+            Files.createDirectories(target.getParent());
+            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+            args.set(jar + 1, "runtime/target.jar");
+            args.removeIf(value -> value.startsWith("-Djava.io.tmpdir="));
+            ObjectNode result = support.mapper().createObjectNode();
+            result.set("args", support.mapper().valueToTree(args));
+            return result;
+        } catch (IOException exception) {
+            throw new ArtifactOperationException("execution_export_write_failed", "The declared runtime JAR could not be bundled");
+        }
     }
 
     private static String copyArtifact(
@@ -190,24 +216,14 @@ public final class ExecutionExportPortableSidecar {
     }
 
     private static String runner() {
-        return String.join("\n", List.of(
-                "#!/usr/bin/env node",
-                "const fs=require('node:fs');",
-                "const path=require('node:path');",
-                "const cp=require('node:child_process');",
-                "const a=process.argv.slice(2),v={};",
-                "for(let i=0;i<a.length;i+=1){if(a[i].startsWith('--'))v[a[i].slice(2)]=a[++i];}",
-                "if(!v.config||!fs.existsSync(v.config))process.exit(2);",
-                "const c=JSON.parse(fs.readFileSync(v.config,'utf8'));",
-                "const action=v.action||'attach';",
-                "const args=[action,'--pid',v.pid||'',",
-                "  '--agent-jar',path.resolve(path.dirname(v.config),c.agentJarRel),'--confirm','true'];",
-                "if(action==='attach')args.push('--agent-args',`host=${c.probeHost};port=${c.probePort}`);",
-                "const helper=path.resolve(path.dirname(v.config),c.helperJarRel);",
-                "const r=cp.spawnSync('java',['-jar',helper,...args],{stdio:'inherit'});",
-                "if(r.error||r.status!==0)process.exit(r.status||1);",
-                "if(v.evidence)fs.writeFileSync(v.evidence,",
-                "  JSON.stringify({status:'ok',action,probeId:c.probeId},null,2)+'\\n');",
-                ""));
+        try (var source = ExecutionExportPortableSidecar.class.getResourceAsStream(
+                "/execution-export/run-portable-sidecar-lifecycle.js")) {
+            if (source == null) {
+                throw new IOException("missing packaged portable lifecycle resource");
+            }
+            return new String(source.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new ArtifactOperationException("execution_export_write_failed", "Portable lifecycle resource is unavailable");
+        }
     }
 }

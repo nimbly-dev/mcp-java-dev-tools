@@ -5,8 +5,13 @@ import java.util.Map;
 /** Appends HTTP workload requests to an exported POSIX shell replay. */
 final class ExecutionExportShellWorkload {
 
-    void append(StringBuilder script, ExecutionExportWorkload.Workload workload) {
+    void append(StringBuilder script, ExecutionExportWorkload.Workload workload,
+            java.util.List<ExecutionExportScriptInvocation> scripts) {
         for (ExecutionExportWorkload.PlanWorkload plan : workload.plans()) {
+            if ("performance".equals(plan.suiteType())) {
+                continue;
+            }
+            new ExecutionExportShellScripts().append(script, scripts, "prePlan");
             script.append("echo ").append(ExecutionExportShellQuoting.shellSingleQuoted(
                     "[" + plan.suiteType() + ":" + plan.planName() + "] replay workload")).append("\n");
             for (ExecutionExportWorkload.WorkloadRequest request : plan.requests()) {

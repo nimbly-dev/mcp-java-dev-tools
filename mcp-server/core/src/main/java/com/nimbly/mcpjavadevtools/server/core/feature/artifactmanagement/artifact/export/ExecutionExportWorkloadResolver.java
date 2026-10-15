@@ -27,11 +27,6 @@ final class ExecutionExportWorkloadResolver {
                         request.text("executionProfile").orElse(null),
                         request.text("planName").orElse(null),
                         options.contextBindings()));
-        if (workload.plans().stream().anyMatch(plan -> "security".equals(plan.suiteType()))) {
-            throw new ArtifactOperationException(
-                    "security_export_unsupported",
-                    "Security Suite execution profiles do not produce workload replay exports");
-        }
         if (workload.plans().stream().anyMatch(plan -> "performance".equals(plan.suiteType()))
                 && "postman".equals(mode)) {
             throw new ArtifactOperationException(

@@ -22,7 +22,7 @@ final class ExecutionExportShellQuoting {
             return "\"$__MCPJVM_PROJECT_ENV\"";
         }
         if (value.startsWith("__MCPJVM_SCRIPT__")) {
-            return "\"$PWD/" + value.substring("__MCPJVM_SCRIPT__".length()) + "\"";
+            return "\"$__MCPJVM_EXPORT_ROOT/" + value.substring("__MCPJVM_SCRIPT__".length()) + "\"";
         }
         return shellSingleQuoted(value);
     }

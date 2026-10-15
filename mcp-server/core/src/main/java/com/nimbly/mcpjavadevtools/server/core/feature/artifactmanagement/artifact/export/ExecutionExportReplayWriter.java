@@ -27,17 +27,14 @@ final class ExecutionExportReplayWriter {
         List<ExecutionExportScriptInvocation> scripts = scriptPreparation.prepare(context);
         boolean performance = ExecutionExportWorkloadKind.isPerformance(context.workload());
         List<String> jmeterPaths = performance
-                ? new ExecutionExportPerformanceArtifacts(support.mapper()).write(
+                ? new ExecutionExportPerformanceArtifacts(support).write(
                         context.export(), context.exportId(),
                         context.profile() == null
                                 ? "stop_on_fail" : context.profile().path("executionPolicy").asText("stop_on_fail"),
-                        context.workload())
+                        context.workload(), context.options(), scripts)
                 : List.of();
-        ExecutionExportPortableSidecar.writeIfRequired(
-                context.export(), context.workspace().root(), context.options().workspace(),
-                context.profile(), support.mapper());
-        String content = renderer.render(
-                context.mode(), context.workload(), context.options(), context.profile(), scripts);
+        ExecutionExportPortableSidecar.writeIfRequired(context, support);
+        String content = renderer.render(context, scripts);
         if (performance) {
             content += ExecutionExportMode.performanceRunner(context.mode());
         }

@@ -1,6 +1,5 @@
 package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.export;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactOperationException;
 import java.util.List;
@@ -20,15 +19,12 @@ final class ExecutionExportReplayRenderer {
     }
 
     String render(
-            String mode,
-            ExecutionExportWorkload.Workload workload,
-            ExecutionExportOptions options,
-            JsonNode profile,
+            ExecutionExportContext context,
             List<ExecutionExportScriptInvocation> scripts) {
-        return switch (mode) {
-            case "ps1" -> powerShell.render(workload, options, profile, scripts);
-            case "sh" -> shell.render(workload, options, profile, scripts);
-            case "postman" -> postman.render(workload, options);
+        return switch (context.mode()) {
+            case "ps1" -> powerShell.render(context.workload(), context.options(), context.profile(), scripts);
+            case "sh" -> shell.render(context.workload(), context.options(), context.profile(), scripts);
+            case "postman" -> postman.render(context, scripts);
             default -> throw new ArtifactOperationException(
                     "execution_export_mode_invalid", "export mode is unsupported");
         };

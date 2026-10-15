@@ -7,12 +7,9 @@ import java.util.List;
 final class ExecutionExportReplayReadme {
 
     void write(ExecutionExportContext context, List<String> jmeterPaths) {
-        if ("postman".equals(context.mode())) {
-            return;
-        }
         List<String> plans = context.workload().plans().stream()
                 .sorted(Comparator.comparingInt(ExecutionExportWorkload.PlanWorkload::order))
-                .map(plan -> "[" + plan.order() + "] " + plan.planName() + " (source_status=blocked)")
+                .map(plan -> "[" + plan.order() + "] " + plan.planName())
                 .toList();
         ExecutionExportReadme.write(
                 context.export(), new ExecutionExportReadme.ReadmeInput(

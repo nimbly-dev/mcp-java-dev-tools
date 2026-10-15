@@ -4,6 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactOperationException;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactManagementSupport;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.probeconfig.ProbeConfigOperations;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.policy.ArtifactRedactionPolicy;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -21,16 +27,20 @@ import java.util.TreeMap;
 public final class ExecutionExportPerformanceArtifacts {
 
     private final ObjectMapper mapper;
+    private final ArtifactManagementSupport support;
 
-    public ExecutionExportPerformanceArtifacts(ObjectMapper mapper) {
-        this.mapper = mapper;
+    public ExecutionExportPerformanceArtifacts(ArtifactManagementSupport support) {
+        this.mapper = support.mapper();
+        this.support = support;
     }
 
     public List<String> write(
             Path export,
             String exportId,
             String executionPolicy,
-            ExecutionExportWorkload.Workload workload) {
+            ExecutionExportWorkload.Workload workload,
+            ExecutionExportOptions options,
+            List<ExecutionExportScriptInvocation> scripts) {
         List<String> jmeterPaths = new ArrayList<>();
         ObjectNode bundle = mapper.createObjectNode();
         bundle.put("exportId", exportId);
@@ -38,16 +48,14 @@ public final class ExecutionExportPerformanceArtifacts {
         bundle.put("executionProfile", workload.executionProfile() == null
                 ? "ad-hoc" : workload.executionProfile());
         bundle.put("executionPolicy", executionPolicy);
+        ObjectNode runtime = bundle.putObject("runtimeConfig");
+        runtime.set("contextBindings", mapper.valueToTree(options.contextBindings()));
+        runtime.set("prePlanScripts", mapper.valueToTree(scripts.stream().filter(script -> "prePlan".equals(script.phase())).toList()));
+        JsonNode profile = ExecutionExportProfileSelector.select(options.workspace(), workload.executionProfile());
         var plans = bundle.putArray("plans");
         for (ExecutionExportWorkload.PlanWorkload plan : workload.plans()) {
-            ObjectNode planNode = plans.addObject();
-            planNode.put("order", plan.order());
-            planNode.put("planName", plan.planName());
-            JsonNode observation = plan.contract().path("observationTargets");
-            if (observation.path("baseUrl").isTextual()) {
-                planNode.put("probeBaseUrl", observation.path("baseUrl").asText());
-            }
-            planNode.set("contract", plan.contract());
+            ObjectNode planNode = planNode(plan, profile, options);
+            plans.add(planNode);
             if (isJmeter(plan.contract())) {
                 String relative = writeJmeter(export, plan);
                 planNode.putObject("exportedArtifacts").put("jmxPathRel", relative);
@@ -59,6 +67,89 @@ public final class ExecutionExportPerformanceArtifacts {
         return List.copyOf(jmeterPaths);
     }
 
+    private ObjectNode planNode(ExecutionExportWorkload.PlanWorkload plan, JsonNode profile, ExecutionExportOptions options) {
+        ObjectNode node = mapper.createObjectNode().put("order", plan.order()).put("planName", plan.planName());
+        JsonNode selected = selectedPlan(profile, plan.planName());
+        node.put("onFail", selected.path("onFail").asText("inherit"));
+        node.set("providedContext", providedContext(profile, selected, options.includeResolvedSecrets()));
+        String endpoint = probeBaseUrl(plan.contract().path("observationTargets"));
+        if (endpoint != null) {
+            node.put("probeBaseUrl", endpoint);
+        }
+        node.set("contract", portableContract(plan));
+        return node;
+    }
+
+    private JsonNode selectedPlan(JsonNode profile, String name) {
+        if (profile != null) {
+            for (JsonNode plan : profile.path("plans")) {
+                if (name.equals(plan.path("planName").asText())) {
+                    return plan;
+                }
+            }
+        }
+        return mapper.createObjectNode();
+    }
+
+    private JsonNode providedContext(JsonNode profile, JsonNode plan, boolean includeSecrets) {
+        ObjectNode provided = mapper.createObjectNode();
+        if (profile != null && profile.path("providedContext").isObject()) {
+            provided.setAll((ObjectNode) profile.path("providedContext"));
+        }
+        if (plan.path("providedContext").isObject()) {
+            provided.setAll((ObjectNode) plan.path("providedContext"));
+        }
+        if (includeSecrets) {
+            return provided;
+        }
+        return mapper.valueToTree(ArtifactRedactionPolicy.sanitizeMap(mapper.convertValue(provided, Map.class)));
+    }
+
+    private String probeBaseUrl(JsonNode observation) {
+        if (observation.path("probeBaseUrl").isTextual()) {
+            return observation.path("probeBaseUrl").asText();
+        }
+        String id = observation.path("probeId").asText("");
+        if (id.isBlank()) {
+            return null;
+        }
+        var result = new ProbeConfigOperations(support).read(new ArtifactManagementRequest(
+                ArtifactType.PROBE_CONFIG, ArtifactAction.READ, mapper.createObjectNode()));
+        if ("ok".equals(result.status())) {
+            for (JsonNode probe : mapper.valueToTree(result.details()).path("probes")) {
+                if (id.equals(probe.path("id").asText())) {
+                    return probe.path("baseUrl").asText();
+                }
+            }
+        }
+        throw new ArtifactOperationException("probe_registry_unavailable", "Performance export requires the selected Probe registry entry");
+    }
+
+    private ObjectNode portableContract(ExecutionExportWorkload.PlanWorkload plan) {
+        ObjectNode contract = plan.contract().deepCopy();
+        JsonNode options = contract.path("workloadProvider").path("options");
+        if (options.isObject()) {
+            ((ObjectNode) options).remove("installationPath");
+        }
+        for (int index = 0; index < contract.path("entrypoints").size(); index++) {
+            ObjectNode entry = (ObjectNode) contract.path("entrypoints").get(index);
+            ObjectNode headers = entry.withObject("request").putObject("headers");
+            plan.requests().get(index).headers().forEach((name, value) -> headers.put(name, replayTemplate(value)));
+            entry.withObject("transport").remove("defaultHeaders");
+        }
+        return contract;
+    }
+
+    private static String replayTemplate(String value) {
+        var matcher = java.util.regex.Pattern.compile("\\{\\{([A-Za-z_][A-Za-z0-9_]*)}}").matcher(value);
+        StringBuilder output = new StringBuilder();
+        while (matcher.find()) {
+            matcher.appendReplacement(output, java.util.regex.Matcher.quoteReplacement("${" + matcher.group(1) + "}"));
+        }
+        matcher.appendTail(output);
+        return output.toString();
+    }
+
     private String writeJmeter(Path export, ExecutionExportWorkload.PlanWorkload plan) {
         JsonNode entrypoint = plan.contract().path("entrypoints").path(0);
         if (entrypoint.isMissingNode()) {
@@ -67,13 +158,28 @@ public final class ExecutionExportPerformanceArtifacts {
         }
         JsonNode request = entrypoint.path("request");
         String method = request.path("method").asText("GET").toUpperCase(Locale.ROOT);
-        String url = requestUrl(entrypoint);
-        Map<String, String> headers = headers(entrypoint);
+        String url = plan.requests().getFirst().url();
+        if (!url.contains("{{")) {
+            url = requestUrl(entrypoint);
+        }
+        Map<String, String> headers = new TreeMap<>();
+        plan.requests().getFirst().headers().forEach((name, value) -> headers.put(name, jmeterTemplate(value)));
         String body = requestBody(request);
         String relative = "artifacts/jmeter/" + safeSegment(plan.planName()) + ".workload.jmeter.jmx";
         Path target = export.resolve(relative.replace('/', File.separatorChar));
         writeText(target, renderJmx(plan.planName(), method, url, headers, body, plan.contract().path("loadModel")));
         return relative;
+    }
+
+    private static String jmeterTemplate(String value) {
+        var matcher = java.util.regex.Pattern.compile("\\{\\{([A-Za-z_][A-Za-z0-9_]*)}}").matcher(value);
+        StringBuilder output = new StringBuilder();
+        while (matcher.find()) {
+            String replacement = "${__groovy(System.getenv('" + matcher.group(1) + "') ?: '')}";
+            matcher.appendReplacement(output, java.util.regex.Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(output);
+        return output.toString();
     }
 
     private String requestUrl(JsonNode entrypoint) {
@@ -91,15 +197,6 @@ public final class ExecutionExportPerformanceArtifacts {
                 ? entry.getValue().asText() : entry.getValue().toString())));
         values.sort(String::compareTo);
         return url + "?" + String.join("&", values);
-    }
-
-    private Map<String, String> headers(JsonNode entrypoint) {
-        Map<String, String> headers = new TreeMap<>();
-        entrypoint.path("transport").path("defaultHeaders").fields()
-                .forEachRemaining(entry -> headers.put(entry.getKey(), entry.getValue().asText()));
-        entrypoint.path("request").path("headers").fields()
-                .forEachRemaining(entry -> headers.put(entry.getKey(), entry.getValue().asText()));
-        return headers;
     }
 
     private String renderJmx(
@@ -165,6 +262,9 @@ public final class ExecutionExportPerformanceArtifacts {
     }
 
     private JmeterTarget jmeterTarget(String url) {
+        if (url.contains("{{")) {
+            return new JmeterTarget("", "", "", jmeterTemplate(url));
+        }
         try {
             URI parsed = URI.create(url);
             String path = parsed.getRawPath();
@@ -280,30 +380,15 @@ public final class ExecutionExportPerformanceArtifacts {
     }
 
     private static String runnerScript() {
-        return String.join("\n", List.of(
-                "#!/usr/bin/env node",
-                "const fs=require('node:fs');",
-                "const path=require('node:path');",
-                "const cp=require('node:child_process');",
-                "const a=process.argv.slice(2),v={};",
-                "for(let i=0;i<a.length;i+=1){if(a[i].startsWith('--'))v[a[i].slice(2)]=a[++i];}",
-                "function fail(reason){process.stderr.write(JSON.stringify({status:'blocked',reasonCode:reason})+'\\n');process.exit(1);}",
-                "if(!v.bundle||!fs.existsSync(v.bundle))fail('performance_export_bundle_missing');",
-                "const b=JSON.parse(fs.readFileSync(v.bundle,'utf8'));",
-                "for(const p of (b.plans||[])){",
-                "  const r=p.exportedArtifacts&&p.exportedArtifacts.jmxPathRel;if(!r)continue;",
-                "  const j=path.resolve(v.exportDir||path.dirname(v.bundle),r);",
-                "  if(!fs.existsSync(j))fail('performance_export_jmeter_artifact_missing');",
-                "  const d=process.env.MCP_JAVA_DEV_TOOLS_JMETER_HOME;",
-                "  let exe='jmeter';",
-                "  if(d)exe=path.join(d,'bin',process.platform==='win32'?'jmeter.bat':'jmeter');",
-                "  const out=path.join(path.dirname(j),p.planName+'.jtl');",
-                "  const log=path.join(path.dirname(j),p.planName+'.log');",
-                "  const x=cp.spawnSync(exe,['-n','-t',j,'-l',out,'-j',log],{stdio:'inherit',shell:process.platform==='win32'});",
-                "  if(x.error||x.status!==0)fail('performance_export_jmeter_failed');",
-                "}",
-                "process.stdout.write(JSON.stringify({status:'ok',exportId:b.exportId,suiteType:b.suiteType})+'\\n');",
-                ""));
+        try (var source = ExecutionExportPerformanceArtifacts.class.getResourceAsStream(
+                "/execution-export/run-performance-profile.js")) {
+            if (source == null) {
+                throw new IOException("missing packaged performance replay resource");
+            }
+            return new String(source.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new ArtifactOperationException("execution_export_write_failed", "Performance replay resource is unavailable");
+        }
     }
 
     private record JmeterTarget(String protocol, String domain, String port, String path) {

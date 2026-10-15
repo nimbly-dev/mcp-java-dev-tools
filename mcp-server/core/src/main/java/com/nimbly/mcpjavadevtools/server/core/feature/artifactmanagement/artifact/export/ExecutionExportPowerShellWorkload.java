@@ -5,8 +5,13 @@ import java.util.Map;
 /** Appends HTTP workload requests to an exported PowerShell replay. */
 final class ExecutionExportPowerShellWorkload {
 
-    void append(StringBuilder script, ExecutionExportWorkload.Workload workload) {
+    void append(StringBuilder script, ExecutionExportWorkload.Workload workload,
+            java.util.List<ExecutionExportScriptInvocation> scripts) {
         for (ExecutionExportWorkload.PlanWorkload plan : workload.plans()) {
+            if ("performance".equals(plan.suiteType())) {
+                continue;
+            }
+            new ExecutionExportPowerShellScripts().append(script, scripts, "prePlan");
             script.append("Write-Host ").append(ExecutionExportShellQuoting.powerShellSingleQuoted(
                     "[" + plan.suiteType() + ":" + plan.planName() + "] replay workload")).append("\n");
             for (ExecutionExportWorkload.WorkloadRequest request : plan.requests()) {

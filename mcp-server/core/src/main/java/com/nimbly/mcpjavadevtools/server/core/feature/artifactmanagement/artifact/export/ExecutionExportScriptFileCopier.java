@@ -19,7 +19,7 @@ final class ExecutionExportScriptFileCopier {
     String copyIfFile(ExecutionExportContext context, String scriptRoot, String value) {
         String extension = value.toLowerCase(Locale.ROOT);
         if (!(extension.endsWith(".ps1") || extension.endsWith(".sh") || extension.endsWith(".bash")
-                || extension.endsWith(".js") || extension.endsWith(".mjs") || extension.endsWith(".py"))) {
+                || extension.endsWith(".js") || extension.endsWith(".mjs") || extension.endsWith(".cjs") || extension.endsWith(".py"))) {
             return value;
         }
         return copy(context, scriptRoot, value);

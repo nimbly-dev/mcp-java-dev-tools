@@ -122,6 +122,18 @@
 
   <profiles>
     <profile>
+      <id>java-it-orchestration</id>
+      <properties>
+        <mcp.it.groups>orchestration</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
+      <id>java-it-orchestration-smoke</id>
+      <properties>
+        <mcp.it.groups>orchestration-smoke</mcp.it.groups>
+      </properties>
+    </profile>
+    <profile>
       <id>java-it-security</id>
       <properties>
         <mcp.it.groups>security</mcp.it.groups>

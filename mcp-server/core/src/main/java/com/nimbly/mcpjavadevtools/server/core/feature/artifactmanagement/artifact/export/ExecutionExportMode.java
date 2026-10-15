@@ -36,7 +36,7 @@ final class ExecutionExportMode {
             return "\n& node (Join-Path $PSScriptRoot 'run-performance-profile.js') "
                     + "--bundle (Join-Path $PSScriptRoot 'performance-export.bundle.json') "
                     + "--env-file (Join-Path $PSScriptRoot 'project.env') "
-                    + "--export-dir $PSScriptRoot\n";
+                    + "--export-dir $PSScriptRoot\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\n";
         }
         if ("sh".equals(mode)) {
             return "\nnode \"$PWD/run-performance-profile.js\" --bundle \"$PWD/performance-export.bundle.json\" "

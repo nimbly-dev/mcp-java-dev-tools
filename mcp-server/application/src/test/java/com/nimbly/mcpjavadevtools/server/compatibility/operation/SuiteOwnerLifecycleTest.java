@@ -409,7 +409,8 @@ class SuiteOwnerLifecycleTest {
         private Process process;
         private long started;
         private final ApplicationExecutionRuntimeLifecycle production =
-                new ApplicationExecutionRuntimeLifecycle(this::jvmAction, request -> ProbeResult.success(), JSON);
+                new ApplicationExecutionRuntimeLifecycle(this::jvmAction, request -> ProbeResult.success(), JSON,
+                        request -> { throw new AssertionError("Cleanup must use persisted ownership, not registry configuration"); });
 
         private RecordingLifecycle(List<Process> processes) {
             this.processes = processes;

@@ -122,8 +122,8 @@ class ExecuteExecutionOrchestrationActionTest {
                 ExecutionOrchestrationAction.EXECUTE,
                 mapper.readTree("{\"projectName\":\"demo\",\"executionProfile\":\"nightly\",\"suiteRunId\":\"failed\"}")));
 
-        assertThat(result.status()).isEqualTo("partial_fail");
-        assertThat(result.reasonCode()).isEqualTo("execution_suite_partial_fail");
+        assertThat(result.status()).isEqualTo("fail");
+        assertThat(result.reasonCode()).isEqualTo("threshold_exceeded");
         assertThat(result.details().get("planRuns").toString()).contains("perf-smoke").contains("fail");
     }
 

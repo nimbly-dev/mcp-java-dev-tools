@@ -3,8 +3,11 @@ package com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifa
 /** Appends prepared project script invocations to a PowerShell replay. */
 final class ExecutionExportPowerShellScripts {
 
-    void append(StringBuilder script, java.util.List<ExecutionExportScriptInvocation> scripts) {
+    void append(StringBuilder script, java.util.List<ExecutionExportScriptInvocation> scripts, String phase) {
         for (ExecutionExportScriptInvocation invocation : scripts) {
+            if (!phase.equals(invocation.phase())) {
+                continue;
+            }
             script.append("Write-Host ")
                     .append(ExecutionExportShellQuoting.powerShellSingleQuoted(
                             "[S] " + invocation.phase() + " " + invocation.name())).append("\n")
@@ -12,9 +15,10 @@ final class ExecutionExportPowerShellScripts {
             invocation.env().forEach((key, value) -> script.append("$env:").append(key).append(" = ")
                     .append(ExecutionExportShellQuoting.powerShellSingleQuoted(value)).append("\n"));
             if (!invocation.appdir().isBlank()) {
-                script.append("Push-Location -LiteralPath ")
+                script.append("$__mcpjvm_script_directory = Join-Path $PSScriptRoot ")
                         .append(ExecutionExportShellQuoting.powerShellSingleQuoted(invocation.appdir()))
-                        .append("\n");
+                        .append("\nNew-Item -ItemType Directory -Path $__mcpjvm_script_directory -Force | Out-Null\n")
+                        .append("Push-Location -LiteralPath $__mcpjvm_script_directory\n");
             }
             script.append("& ")
                     .append(ExecutionExportShellQuoting.powerShellSingleQuoted(invocation.command()));

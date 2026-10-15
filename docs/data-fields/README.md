@@ -424,6 +424,36 @@ Arm target validation is fail-closed and occurs before session creation or repla
 
 ## execution_profile_export
 
+Java packages contain `manifest.json`, runtime inputs in `project.env`, and the
+selected executable or Postman collection. Postman output uses
+`environment.postman.json` for `output.environmentPathAbs`; import it with the
+collection or pass it to Newman with `-e`. Supply redacted credentials locally.
+Explicit `includeResolvedSecrets=true` is required to include resolved credentials;
+workspace export defaults never opt into secret inclusion.
+
+Postman context precedence is environment fallback, profile `providedContext`,
+selected-plan `providedContext`, then explicit export `contextValues`. Multi-plan
+overrides use editable `__MCPJVM_PLAN_<order>_<key>` environment entries, preserving
+each plan's scope and the profile defaults for other plans. Sensitive logical names
+remain redacted even when bound to neutral environment names. Persisted redaction
+cannot be reversed; explicitly supply local credentials when needed.
+Response-extracted runtime context retains precedence over configured plan defaults.
+
+PowerShell and Bash exports preserve startup/script/health/workload ordering.
+Performance packages execute builtin/default or JMeter workloads with actual
+metrics, thresholds, strict Probe verification and optional JFR evidence. Set the
+receiver's JMeter installation through `MCP_JAVA_DEV_TOOLS_JMETER_HOME` or PATH;
+the exporter does not embed the producer's installation directory. A failed
+performance replay returns a nonzero process exit. A returned failed JFR download
+or empty recording blocks replay with `performance_profiler_download_failed` at
+`profiler_download`; download status and the nonempty output file must both verify.
+Portable dynamic attach bundles
+the declared direct-Java JAR and repository-owned helper/agent, verifies the exact
+spawned PID/start identity, and records deactivation/runtime cleanup evidence.
+The generated README lists platform/runtime prerequisites. Security workload
+export and Performance-to-Postman remain deterministic unsupported selections.
+See [#655 scenarios, commands and evidence](../acceptance/mcpjvm-655-orchestration-it.md).
+
 Java CDE clients invoke `operation_execute` with
 `{"operationId":"execution_profile_export.export","arguments":{...},"confirmed":true}`.
 Use `operation_describe` for the Java-owned argument schema and safety policy. The
@@ -446,8 +476,8 @@ profile returns top-level `status=succeeded` with inner
 | `executionProfile`          | Execution profile selector echoed when supplied by the caller.                                                                                                                                                      | `execution_profile_export` | false    | `"regression-test-run"`                                                     |
 | `exportDirAbs`              | Fresh one-off export directory containing generated artifacts.                                                                                                                                                      | `execution_profile_export` | true     | `"C:\\repo\\.mcpjvm\\test-project\\exports\\2026-05-21-..."`                |
 | `output.scriptPathAbs`      | Absolute path to the generated executable replay script.                                                                                                                                                            | `execution_profile_export` | true     | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\run-execution-profile.sh"` |
-| `output.readmePathAbs`      | Absolute path to generated export usage notes when the selected mode emits a README artifact. SH mode does not emit this file.                                                                                      | `execution_profile_export` | false    | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\README.ps1.md"`            |
-| `output.collectionPathAbs`  | Absolute path to generated Postman collection artifact when `mode=postman`.                                                                                                                                         | `execution_profile_export` | false    | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\collection.postman.json"`  |
+| `output.readmePathAbs`      | Absolute path to generated export usage notes when the selected mode emits a README artifact. All supported modes emit portable usage and prerequisite notes.                                                                                      | `execution_profile_export` | false    | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\README.ps1.md"`            |
+| `output.collectionPathAbs`  | Absolute path to generated Postman collection artifact when `mode=postman`.                                                                                                                                         | `execution_profile_export` | false    | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\replay.postman.json"`  |
 | `output.environmentPathAbs` | Absolute path to generated Postman environment artifact when `mode=postman`.                                                                                                                                        | `execution_profile_export` | false    | `"C:\\repo\\.mcpjvm\\test-project\\exports\\...\\environment.postman.json"` |
 | `reasonCode`                | Deterministic failure code for fail-closed report outputs. Includes Postman-specific gates such as `postman_script_conversion_required`, `postman_script_invalid_format`, and `postman_provisioning_not_supported`. | `execution_profile_export` | false    | `"postman_provisioning_not_supported"`                                      |
 | `nextActionCode`            | Verb-style deterministic follow-up action key for fail-closed outputs.                                                                                                                                              | `execution_profile_export` | false    | `"choose_supported_mode"`                                                   |

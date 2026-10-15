@@ -16,10 +16,6 @@ public final class ExecutionExportReadme {
     }
 
     public static void write(Path export, ReadmeInput input) {
-        String script = "performance".equals(input.suiteType())
-                ? "run-performance-profile." + input.mode() : "run-execution-profile." + input.mode();
-        String name = "performance".equals(input.suiteType())
-                ? "README.performance." + input.mode() + ".md" : "README." + input.mode() + ".md";
         StringBuilder output = new StringBuilder("# Execution Profile ")
                 .append(input.mode().toUpperCase(Locale.ROOT)).append(" Export\n\n")
                 .append("- exportId: `").append(input.exportId()).append("`\n")
@@ -38,17 +34,60 @@ public final class ExecutionExportReadme {
                 output.append("- `").append(path).append("`\n");
             }
         }
+        usage(output, input);
+        write(export.resolve(readmeName(input)), output.toString());
+    }
+
+    private static String readmeName(ReadmeInput input) {
+        if ("postman".equals(input.mode())) {
+            return "README.postman.md";
+        }
+        String prefix = "performance".equals(input.suiteType()) ? "README.performance." : "README.";
+        return prefix + input.mode() + ".md";
+    }
+
+    private static String scriptName(ReadmeInput input) {
+        if ("postman".equals(input.mode())) {
+            return "replay.postman.json";
+        }
+        String prefix = "performance".equals(input.suiteType()) ? "run-performance-profile." : "run-execution-profile.";
+        return prefix + input.mode();
+    }
+
+    private static void usage(StringBuilder output, ReadmeInput input) {
         output.append("\n## Usage\n\n")
-                .append("1. Open `").append(script).append("`.\n")
-                .append("2. Confirm `project.env` contains the local runtime inputs.\n")
-                .append("3. Run the script from inside the project workspace.\n\n")
+                .append("1. Open `").append(scriptName(input)).append("`.\n")
+                .append("2. Confirm `").append("postman".equals(input.mode()) ? "environment.postman.json" : "project.env")
+                .append("` contains the local runtime inputs.\n")
+                .append("postman".equals(input.mode())
+                        ? "3. Import the collection/environment into Postman or use Newman below.\n\n"
+                        : "3. Run the script from this export directory.\n\n")
                 .append("This package replays exported workload execution; it does not depend on live MCP orchestration.\n");
+        prerequisites(output, input);
         if (!input.options().includeResolvedSecrets()) {
-            output.append("\n> `project.env` is intentionally redacted. Supply credentials locally before replay.\n");
+            output.append("\n> Runtime credential values are intentionally redacted. Supply them locally before replay.\n");
         } else {
             output.append("\n> SENSITIVE EXPORT: includeResolvedSecrets=true\n");
         }
-        write(export.resolve(name), output.toString());
+    }
+
+    private static void prerequisites(StringBuilder output, ReadmeInput input) {
+        output.append("\n## Prerequisites\n\n");
+        if ("postman".equals(input.mode())) {
+            output.append("Use Postman or Newman with `replay.postman.json` and `environment.postman.json`.\n")
+                    .append("Supply receiver credentials in that environment, then run:\n\n")
+                    .append("`newman run replay.postman.json -e environment.postman.json`\n\n")
+                    .append("Profile context seeds the environment; plan context overrides it, followed by explicit export context values.\n")
+                    .append("For multiple plans, edit the plan-specific `__MCPJVM_PLAN_<order>_<key>` environment entries to override those inputs.\n")
+                    .append("Provision runtime startup, health readiness and shared scripts before running the collection.\n");
+        } else {
+            output.append("PowerShell 7 for ps1; Bash and curl for sh.\n")
+                    .append("Node.js 22 is required for performance replay and portable dynamic attach.\n")
+                    .append("Dynamic attach requires a local JDK 21+ with attach support; the declared JAR, helper and agent are bundled.\n")
+                    .append("JMeter plans require Java and Apache JMeter; set `MCP_JAVA_DEV_TOOLS_JMETER_HOME` locally or put JMeter on PATH.\n")
+                    .append("Docker startup requires a running Docker engine, Compose, and receiver-provisioned compose files/assets.\n")
+                    .append("Review startup commands, health endpoints and scripts; provide other declared local prerequisites.\n");
+        }
     }
 
     public record ReadmeInput(

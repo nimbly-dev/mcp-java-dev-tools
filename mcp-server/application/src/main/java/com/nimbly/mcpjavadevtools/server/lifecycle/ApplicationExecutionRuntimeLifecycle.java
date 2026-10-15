@@ -3,6 +3,10 @@ package com.nimbly.mcpjavadevtools.server.lifecycle;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lifecycle.ExecutionRuntimeLifecycle;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.ArtifactManagementFeature;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactType;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.action.ArtifactAction;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.model.request.ArtifactManagementRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.JvmLifecycleFeature;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.attach.AttachRequest;
 import com.nimbly.mcpjavadevtools.server.core.feature.jvmlifecycle.model.action.deactivate.DeactivateRequest;
@@ -34,12 +38,15 @@ public final class ApplicationExecutionRuntimeLifecycle implements ExecutionRunt
     private final JvmLifecycleFeature jvms;
     private final ProbeFeature probe;
     private final ObjectMapper mapper;
+    private final ArtifactManagementFeature artifacts;
 
     /** Creates the Application lifecycle adapter from existing public Core Feature boundaries. */
-    public ApplicationExecutionRuntimeLifecycle(JvmLifecycleFeature jvms, ProbeFeature probe, ObjectMapper mapper) {
+    public ApplicationExecutionRuntimeLifecycle(JvmLifecycleFeature jvms, ProbeFeature probe,
+            ObjectMapper mapper, ArtifactManagementFeature artifacts) {
         this.jvms = jvms;
         this.probe = probe;
         this.mapper = mapper;
+        this.artifacts = artifacts;
     }
 
     @Override
@@ -243,7 +250,7 @@ public final class ApplicationExecutionRuntimeLifecycle implements ExecutionRunt
     private Selection selection(JsonNode workspace, JsonNode context, JsonNode policy) {
         JsonNode startup = startup(context, policy.path("targetStartupName").asText());
         Path root = Path.of(workspace.path("projectRoot").asText()).toAbsolutePath().normalize();
-        ProbeEndpoint endpoint = probeEndpoint(root, policy.path("probeId").asText());
+        ProbeEndpoint endpoint = probeEndpoint(policy.path("probeId").asText());
         if (!valid(context, startup, policy, root, endpoint)) {
             return null;
         }
@@ -272,15 +279,30 @@ public final class ApplicationExecutionRuntimeLifecycle implements ExecutionRunt
         return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
     }
 
-    private ProbeEndpoint probeEndpoint(Path root, String probeId) {
+    private ProbeEndpoint probeEndpoint(String probeId) {
         try {
-            JsonNode config = mapper.readTree(Files.readString(root.resolve(".mcpjvm/probe-config.json")));
-            JsonNode probe = config.path("probes").path(probeId);
-            URI uri = URI.create(probe.path("baseUrl").asText());
-            return new ProbeEndpoint(uri.getHost(), uri.getPort(), probe.path("include").asText(null), probe.path("exclude").asText(null));
+            var result = artifacts.execute(new ArtifactManagementRequest(
+                    ArtifactType.PROBE_CONFIG, ArtifactAction.READ, mapper.createObjectNode()));
+            if (!"ok".equals(result.status())) {
+                return null;
+            }
+            for (JsonNode registration : mapper.valueToTree(result.details()).path("probes")) {
+                if (probeId.equals(registration.path("id").asText())) {
+                    URI uri = URI.create(registration.path("baseUrl").asText());
+                    return new ProbeEndpoint(uri.getHost(), uri.getPort(),
+                            filters(registration.path("include")), filters(registration.path("exclude")));
+                }
+            }
+            return null;
         } catch (Exception exception) {
             return null;
         }
+    }
+
+    private static String filters(JsonNode values) {
+        List<String> filters = new java.util.ArrayList<>();
+        values.forEach(value -> filters.add(value.asText()));
+        return filters.isEmpty() ? null : String.join(",", filters);
     }
 
     private static boolean valid(JsonNode context, JsonNode startup, JsonNode policy, Path root, ProbeEndpoint endpoint) {
