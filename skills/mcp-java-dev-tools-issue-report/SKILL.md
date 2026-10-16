@@ -5,6 +5,8 @@ description: "Create sanitized, reproducible bug/issue reports from session evid
 
 # MCP Java Dev Tools Issue Report
 
+MCP evidence supplied by an investigation uses the Java CDE boundary (`operation_catalog`, `operation_describe`, `operation_execute`). This report workflow consumes sanitized evidence locally; it requires no MCP invocation and authorizes no external publication.
+
 Create a reproducible issue report from the active session. Prefer current-thread evidence over speculation.
 
 ## Contract

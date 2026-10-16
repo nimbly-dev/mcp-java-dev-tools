@@ -5,6 +5,20 @@ description: "Run MCP-first Java performance suites with required strict line-hi
 
 # MCP JVM Performance Suite
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.project_context.read`
+- `artifact_management.performance_plan.read`
+- `performance_suite.execute_plan`
+- `execution_orchestration.execute`
+- `artifact_management.run_result.read`
+
 Single-call execution skill for performance plans.
 
 ## Intent Router
@@ -36,13 +50,15 @@ Single-call execution skill for performance plans.
 ## Branch Router
 
 1. `execution_profile` present => `runtime_suite_branch`:
-   - load workspace execution profile through `artifact_management` (`artifactType=project_context`, `action=read`)
+   - load workspace execution profile through `artifact_management.project_context.read`
    - require `executionProfiles[].suiteType=performance`
    - validate ordered `plans[]` and execution policy
    - load each ordered performance plan through the canonical performance-plan Artifact path/tooling when available
 2. `plan_name` present => `single_plan_branch`
 3. both present => fail closed (`execution_input_conflict`)
 4. neither present => fail closed (`execution_input_required`)
+
+For a single plan, resolve its containing execution profile from project context and call `performance_suite.execute_plan` with the described `projectName`, `executionProfile`, `planName`, and a fresh `suiteRunId`. An execution-profile request uses `execution_orchestration.execute` with bounded `maxPlansPerCall`; continue the same returned suite identity while `result.status=in_progress`. Java owns workload execution, strict-hit verification, threshold evaluation, and Artifact persistence.
 
 ## Reference Router
 
@@ -119,10 +135,10 @@ Always align with:
 
 ## MCP-First and Wrapped Transport
 
-1. Mandatory MCP tools remain:
-   - `probe`
-   - `artifact_management`
-   - `route_synthesis` when transport facts need discovery
+1. Required CDE operations:
+   - Probe operations
+   - Artifact Management operations
+   - Route Synthesis operations when transport facts need discovery
 2. Wrapped transport remains the canonical request path for entrypoint execution.
 3. Third-party load generators are implementation details, not the primary Artifact contract.
 4. If the performance executor/toolchain is unavailable, fail closed with `reasonCode=toolchain_unavailable`.
@@ -140,16 +156,18 @@ Always align with:
 
 ## SQLite Retention Maintenance
 
-After performance runs are no longer needed for operational queries, use the `artifact_management` MCP Tool for explicit `run_result` SQLite retention maintenance. This is separate from runtime process shutdown:
+After performance runs are no longer needed for operational queries, use the Artifact Management operations for explicit `run_result` SQLite retention maintenance. This is separate from runtime process shutdown:
 
 ```json
 {
-  "artifactType": "run_result",
-  "action": "cleanup",
-  "input": {
+  "operationId": "artifact_management.run_result.cleanup",
+  "arguments": {
     "projectName": "<project_name>",
-    "retention": { "dryRun": true }
-  }
+    "retention": {
+      "dryRun": true
+    }
+  },
+  "confirmed": true
 }
 ```
 

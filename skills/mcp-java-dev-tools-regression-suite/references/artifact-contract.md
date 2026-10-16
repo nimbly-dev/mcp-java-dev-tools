@@ -22,12 +22,9 @@ Runtime suite manifest path:
 
 ## Run ID Contract
 
-1. Canonical run ID format is mandatory:
-   - `MM-DD-YYYY-hh-mm-ssAM`
-2. Example:
-   - `05-09-2026-08-33-41PM`
-3. Non-canonical run IDs MUST fail closed before artifact persistence.
-4. Ad-hoc IDs are forbidden (for example `20260509T134827387Z-customers`).
+1. Supply the described `suiteRunId` to Java execution and retain the returned/persisted `runId` for result reads and continuation.
+2. Java owns run identity and persistence validation. Direct plan execution can persist `<suiteRunId>-1`; do not reject that identity using a former timestamp-only convention.
+3. Never rename run directories, manufacture a result identity, or rewrite a terminal run. Reuse the exact suite identity only for supported continuation; a fresh run needs a fresh identity.
 
 ## Deterministic Fields
 

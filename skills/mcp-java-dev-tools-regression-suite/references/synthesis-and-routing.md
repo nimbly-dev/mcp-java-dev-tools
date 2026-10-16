@@ -2,11 +2,11 @@
 
 ## MCP-First Requirement
 
-1. Mandatory tools:
-   - `probe` (`action=check`)
-   - `artifact_management`
-   - `route_synthesis` (`action=create_recipe`)
-2. HTTP transport must use MCP-wrapped `transport_execute`.
+1. Required CDE operations:
+   - `probe.check`
+   - Artifact Management operations
+   - `route_synthesis.create_recipe`
+2. HTTP transport must use MCP-wrapped `transport_execute.execute`.
 3. Never fall back to raw curl/direct HTTP execution.
 4. If toolchain is unavailable, stop with:
    - `reasonCode=toolchain_unavailable`
@@ -20,7 +20,7 @@
 
 ## Recipe Synthesis Policy
 
-1. Treat `route_synthesis` with `action=create_recipe` as deterministic and fail-closed.
+1. Treat `route_synthesis.create_recipe` as deterministic and fail-closed.
 2. Use `intentMode=regression`.
 3. Pass exact FQCN in `classHint`.
 4. Runtime synthesis scope excludes test sources.

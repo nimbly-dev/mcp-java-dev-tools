@@ -47,7 +47,6 @@ class McpServerArtifactStateIT extends ArtifactMcpSupport {
                 assertThat(saved.path("nextPlanOrder").asInt()).isEqualTo(2);
                 completed = Files.readAllBytes(firstResult);
                 assertThat(JSON.readTree(completed).path("status").asText()).isEqualTo("pass");
-                storeProducedCheckpoint(server, saved);
                 assertContinuationProjection(server, saved);
             }
             try (McpServerProcess restarted = start(workspace)) {
@@ -61,9 +60,8 @@ class McpServerArtifactStateIT extends ArtifactMcpSupport {
                 assertThat(saved.path("planRuns")).allSatisfy(run -> assertThat(run.path("details").path("runStatus").asText()).isEqualTo("pass"));
                 assertThat(ok(restarted, "run_result.read", Map.of("projectName", PROJECT, "planName", "second", "runId", "resume-2"))
                         .path("artifact").path("status").asText()).isEqualTo("pass");
-                storeProducedCheckpoint(restarted, saved);
                 assertContinuationProjection(restarted, saved);
-                assertThat(query(restarted, "run_state", Map.of()).path("items")).hasSize(3);
+                assertThat(query(restarted, "run_state", Map.of()).path("items")).hasSize(2);
             }
             try (McpServerProcess restarted = start(workspace)) {
                 assertContinuationProjection(restarted, JSON.readTree(checkpoint.toFile()));
@@ -72,19 +70,7 @@ class McpServerArtifactStateIT extends ArtifactMcpSupport {
         }
     }
 
-    private void storeProducedCheckpoint(McpServerProcess server, JsonNode produced) throws Exception {
-        // Ingest the genuine checkpoint unchanged through the supported Artifact
-        // storage boundary. The orchestration owner retains its canonical file.
-        ok(server, "run_result.upsert", Map.of("projectName", PROJECT, "planName", "checkpoint-snapshot", "runId", "resume",
-                "payload", produced));
-        ok(server, "run_result.rebuild", Map.of("projectName", PROJECT, "strict", true));
-    }
-
     private void assertContinuationProjection(McpServerProcess server, JsonNode produced) throws Exception {
-        JsonNode read = ok(server, "run_result.read", Map.of("projectName", PROJECT, "planName", "checkpoint-snapshot", "runId", "resume"));
-        assertThat(read.path("artifact").path("progressSummary")).isEqualTo(produced.path("progressSummary"));
-        assertThat(read.path("artifact").path("status")).isEqualTo(produced.path("status"));
-        assertThat(read.path("artifact").path("suiteRunId").asText()).isEqualTo("resume");
         assertStoredContinuation(server, produced.path("progressSummary"));
         ok(server, "run_result.rebuild", Map.of("projectName", PROJECT, "strict", true));
         assertStoredContinuation(server, produced.path("progressSummary"));

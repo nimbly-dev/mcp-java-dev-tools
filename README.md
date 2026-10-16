@@ -322,6 +322,12 @@ capabilities are operations behind this single Catalog-Describe-Execute surface.
 | `operation_describe` | Read the Java-owned schema, documentation, and safety policy for one operation |
 | `operation_execute`  | Validate and execute one canonical operation through its substantive owner |
 
+Use `operation_describe` with `{"operationId":"probe.check"}`, then
+`operation_execute` with `{"operationId":"probe.check","arguments":{"baseUrl":"http://127.0.0.1:<probe-port>"},"confirmed":false}`.
+Java Describe owns current schemas and confirmation requirements; confirmation
+belongs outside `arguments`. Shipped Skills use this boundary. See
+[Skill migration and actual MCP use](docs/acceptance/mcpjvm-658-cde-skills.md).
+
 Probe config Artifact runtime behavior:
 
 - Registry config is loaded from discovered workspace `.mcpjvm/probe-config.json`.

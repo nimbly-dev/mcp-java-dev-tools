@@ -1,6 +1,6 @@
 # Black-box Knowledge-Pack Index
 
-This index is Skill Workflow routing guidance. Detailed machine-readable manifests and rules are independently stored under `tools/features/security-suite/knowledge-packs/<pack-id>/` and loaded by the Security Suite Feature Module.
+This index is Skill Workflow routing guidance. The packaged Java Security Suite loads its reviewed knowledge from `mcp-server/core/src/main/resources/security-knowledge-packs.json`. Use Java validation and the run's immutable knowledge snapshot for current compatibility and selected rule evidence.
 
 | Pinned reference                   | Routing signal                                                    | Default severity |
 | ---------------------------------- | ----------------------------------------------------------------- | ---------------- |

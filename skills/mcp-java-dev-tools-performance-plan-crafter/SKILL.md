@@ -5,6 +5,20 @@ description: "Create or update deterministic performance plans (`metadata.json`,
 
 # MCP JVM Performance Plan Crafter
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.project_context.read`
+- `route_synthesis.create_recipe`
+- `artifact_management.performance_plan.validate`
+- `artifact_management.performance_plan.upsert`
+- `artifact_management.performance_plan.read`
+
 Use this skill to author or refine a persisted performance plan package before execution.
 
 ## Execution Mode
@@ -182,6 +196,8 @@ Before finalizing, verify:
 7. when MSTA is enabled, timing-analysis configuration and method targets are coherent
 
 ## Required Deliverables Per Craft Request
+
+Use `artifact_management.performance_plan.read` and `artifact_management.performance_plan.validate` before updating an existing plan. `validate` checks persisted state and reports `artifact_missing` for a new plan; it does not validate an in-memory payload. The authorized `artifact_management.performance_plan.upsert` validates its prepared payload before writing. Validate/read back after success and stop on failure.
 
 When user asks to craft a plan, produce or update:
 

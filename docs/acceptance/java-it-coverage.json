@@ -2116,14 +2116,31 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerFailureAnalysisIT.realTraceTargetTriggerCaptureAndProposalEvidence",
         "McpServerRouteSynthesisIT.discoveryRecipeTransportEffectAndCapture",
         "McpServerInvestigationRegressionWorkflowIT.reproducedExceptionBecomesAFailingGuardThatSurvivesRestartAndHealthyTraffic"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-bug-drill/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-bug-drill/references/report-contract.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "b578cbc414d6ff7eb07f0a4a1fc84b2c8a817c2a8436a5304441519c172474b3"
+      }
     },
     {
       "name": "bug-fix",
@@ -2144,14 +2161,36 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerFailureAnalysisIT.realTraceTargetTriggerCaptureAndProposalEvidence",
         "McpServerRouteSynthesisIT.discoveryRecipeTransportEffectAndCapture",
         "McpServerInvestigationRegressionWorkflowIT.reproducedExceptionBecomesAFailingGuardThatSurvivesRestartAndHealthyTraffic"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-bug-fix/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-bug-fix/agents/openai.yaml",
+            "disposition": "non_invocation",
+            "rationale": "Discovery/UI metadata; no executable MCP invocation."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-bug-fix/references/report-contract.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "c633fb839cac1e3a6cd2a8bbd2e75ef97012d7a2eea0f8edd971218631205491"
+      }
     },
     {
       "name": "failure-lens",
@@ -2171,14 +2210,31 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerFailureAnalysisIT.realTraceTargetTriggerCaptureAndProposalEvidence",
         "McpServerRouteSynthesisIT.discoveryRecipeTransportEffectAndCapture",
         "McpServerInvestigationRegressionWorkflowIT.reproducedExceptionBecomesAFailingGuardThatSurvivesRestartAndHealthyTraffic"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-failure-lens/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-failure-lens/agents/openai.yaml",
+            "disposition": "non_invocation",
+            "rationale": "Discovery/UI metadata; no executable MCP invocation."
+          }
+        ],
+        "revisionSha256Lf": "426a3753b546194fc1ff244380dda7b5a3c48418687b10ce97d64d1583e198ad"
+      }
     },
     {
       "name": "issue-report",
@@ -2193,14 +2249,37 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_completed",
+      "limitations": "Explicit linked-repository Skill prompt completed in an ephemeral Codex session; only the bounded fixture scenario in #658 was exercised.",
       "scenarios": [
         "McpServerFailureAnalysisIT.realTraceTargetTriggerCaptureAndProposalEvidence",
         "McpServerRouteSynthesisIT.discoveryRecipeTransportEffectAndCapture",
         "McpServerInvestigationRegressionWorkflowIT.reproducedExceptionBecomesAFailingGuardThatSurvivesRestartAndHealthyTraffic"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-issue-report/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-issue-report/references/output-template.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-issue-report/references/sanitization-rules.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "c55a78bf85efadd58331e8c79e9d61029a902096733f2ae917b1058b311d261b"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "jvm-lifecycle",
@@ -2219,13 +2298,31 @@
         "projects.json"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_completed",
+      "limitations": "Explicit linked-repository Skill prompt completed in an ephemeral Codex session; only the bounded fixture scenario in #658 was exercised.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerRouteSynthesisIT.discoveryRecipeTransportEffectAndCapture"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-jvm-lifecycle/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-jvm-lifecycle/agents/openai.yaml",
+            "disposition": "non_invocation",
+            "rationale": "Discovery/UI metadata; no executable MCP invocation."
+          }
+        ],
+        "revisionSha256Lf": "7fda70affe112175edb5f359698f7c5d859884386f7f4eb5a9b593f0a7f0a77c"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "line-probe-run",
@@ -2245,13 +2342,25 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerRouteSynthesisIT.discoveryRecipeTransportEffectAndCapture"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-line-probe-run/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          }
+        ],
+        "revisionSha256Lf": "6b6328f174a8b2f989fc188b46ad0608e5c719fcd503fdf25d9c9dd4876db39b"
+      }
     },
     {
       "name": "performance-export",
@@ -2281,13 +2390,45 @@
         "performance-export.bundle.json"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerPerformanceProfilerIT.realWorkloadOwnsJfrLifecycleSampledMethodAttributionAndCorrelation"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-performance-export/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-export/references/authoring-checklist.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-export/references/spec-rules.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-export/references/templates/execution_profile_export.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-export/references/templates/index.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "346b4b8daa6cd62cde0bf8a20a3d36d19565243afb397b1bfaee5cb2d677e545"
+      }
     },
     {
       "name": "performance-plan-crafter",
@@ -2321,13 +2462,56 @@
         "references/templates/plan.template.md"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_completed",
+      "limitations": "Created/validated both real Petclinic performance plans via CDE with exact runtime-validated line targets; builtin HTTP workload only, no JMeter/profiler/MSTA coverage.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerPerformanceProfilerIT.realWorkloadOwnsJfrLifecycleSampledMethodAttributionAndCorrelation"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-performance-plan-crafter/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-plan-crafter/agents/openai.yaml",
+            "disposition": "non_invocation",
+            "rationale": "Discovery/UI metadata; no executable MCP invocation."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-plan-crafter/references/authoring-checklist.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-plan-crafter/references/spec-rules.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-plan-crafter/references/templates/contract.template.json",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-plan-crafter/references/templates/metadata.template.json",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-plan-crafter/references/templates/plan.template.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "53f1fb5c4aa62b8e021eccb74fc9b08b031a52fed6210a265e2768db99473e0d"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "performance-result",
@@ -2360,15 +2544,53 @@
         "execution-timing.msta.json"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_completed",
+      "limitations": "Rendered actual metrics, thresholds and line-hit proof for two real runs; explicitly reported unusable persisted elapsed timestamps and empty SQLite projection.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerPerformanceProfilerIT.realWorkloadOwnsJfrLifecycleSampledMethodAttributionAndCorrelation",
         "McpServerRunArtifactRecoveryIT.failedCanonicalMoveRollsBackCompanionsBeforeReadAndRetry",
         "McpServerRunArtifactRecoveryIT.largeMixedShapeEvidenceRemainsReadableAndProjectsOnceAfterRestart"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-performance-result/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-result/agents/openai.yaml",
+            "disposition": "non_invocation",
+            "rationale": "Discovery/UI metadata; no executable MCP invocation."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-result/references/authoring-checklist.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-result/references/spec-rules.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-result/references/templates/index.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-result/references/templates/performance_summary_result.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "2fda061e8fbb6118b3114e06752b3aa8dcc401020685305fed53d1004b9fb2cf"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "performance-suite",
@@ -2404,13 +2626,61 @@
         "correlation/correlation.json"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_completed_with_persistence_gap",
+      "limitations": "Real Petclinic two-plan profile passed, real HTTP and strict hits. SQLite schema exists but runtime run/continuation projections are empty; no rebuild performed.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerPerformanceProfilerIT.realWorkloadOwnsJfrLifecycleSampledMethodAttributionAndCorrelation"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-performance-suite/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-suite/agents/openai.yaml",
+            "disposition": "non_invocation",
+            "rationale": "Discovery/UI metadata; no executable MCP invocation."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-suite/references/artifact-contract.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-suite/references/execution-contract.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-suite/references/execution-fsm.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-suite/references/output-contract.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-suite/references/reason-codes.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-performance-suite/references/runtime-policy.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "0400c0355e3ff03fbc60acca1fdb09d73f5d652df79a0542d581ec46309e14e7"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "probe-registry-manager",
@@ -2429,13 +2699,25 @@
         ".mcpjvm/probe-config.json"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerRouteSynthesisIT.discoveryRecipeTransportEffectAndCapture"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-probe-registry-manager/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          }
+        ],
+        "revisionSha256Lf": "7386d42a9ac3ce4eebeaab0de11ac5a06a336320c8305a5f1752977484cd3fd4"
+      }
     },
     {
       "name": "project-artifact-manager",
@@ -2469,16 +2751,59 @@
         "references/keycloak.md"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_completed",
+      "limitations": "Created and preserved the isolated real-app project with all three ordered profiles and SQLite schema through CDE. Does not claim live run-index population.",
       "scenarios": [
         "McpServerSkillWorkflowIT.independentWorkspacesResumeInspectMigrateAndReplay",
         "McpServerSkillWorkflowIT.inventoryMatchesPackagedCatalogAndEverySkillDependency",
         "McpServerSkillWorkflowIT.repositoryHelpersPreserveBlockedFailedAndCleanupBoundaries",
         "McpServerCorrelationIT.executableJarCorrelatesCrossServiceEventsWithConsumerRuntimeEvidence",
         "McpServerPerformanceProfilerIT.realWorkloadOwnsJfrLifecycleSampledMethodAttributionAndCorrelation"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-project-artifact-manager/README.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-project-artifact-manager/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-project-artifact-manager/references/dynamodb.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-project-artifact-manager/references/keycloak.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-project-artifact-manager/references/postgres.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-project-artifact-manager/references/validation-rules.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-project-artifact-manager/templates/projects.terminal.example.json",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "e3e1a89f4e99c1592046a4c9de5f659a73720ba4f97bfb3ba1c0187c4c32ddfc"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "project-state-migration",
@@ -2498,9 +2823,9 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerSkillWorkflowIT.independentWorkspacesResumeInspectMigrateAndReplay",
         "McpServerSkillWorkflowIT.inventoryMatchesPackagedCatalogAndEverySkillDependency",
@@ -2510,7 +2835,24 @@
         "McpServerDownstreamRecoveryWorkflowIT.restartRetainsTerminalFailureAndARepairedDownstreamRequiresANewRun",
         "McpServerRunArtifactRecoveryIT.failedCanonicalMoveRollsBackCompanionsBeforeReadAndRetry",
         "McpServerRunArtifactRecoveryIT.largeMixedShapeEvidenceRemainsReadableAndProjectsOnceAfterRestart"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-project-state-migration/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-project-state-migration/agents/openai.yaml",
+            "disposition": "non_invocation",
+            "rationale": "Discovery/UI metadata; no executable MCP invocation."
+          }
+        ],
+        "revisionSha256Lf": "8836db934e08762432543b79ef88886f65f111dc3f3256dbd68fd817509bb968"
+      }
     },
     {
       "name": "regression-export",
@@ -2538,16 +2880,48 @@
         ".mcpjvm/<project_name>/plans/regression/<plan>/contract.json"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerSkillWorkflowIT.independentWorkspacesResumeInspectMigrateAndReplay",
         "McpServerSkillWorkflowIT.inventoryMatchesPackagedCatalogAndEverySkillDependency",
         "McpServerSkillWorkflowIT.repositoryHelpersPreserveBlockedFailedAndCleanupBoundaries",
         "McpServerCorrelationIT.executableJarCorrelatesCrossServiceEventsWithConsumerRuntimeEvidence",
         "McpServerPerformanceProfilerIT.realWorkloadOwnsJfrLifecycleSampledMethodAttributionAndCorrelation"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-regression-export/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-export/references/authoring-checklist.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-export/references/spec-rules.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-export/references/templates/execution_profile_export.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-export/references/templates/index.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "47b9614bb4b4724723b531f11d0068693ef7db06b52195d882f3c11491b30a4a"
+      }
     },
     {
       "name": "regression-plan-crafter",
@@ -2582,9 +2956,9 @@
         ".mcpjvm/<project_name>/projects.json"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_partial",
+      "limitations": "Created real-app machine contracts and passed execution; human plan.md content required a later MCP authoring correction after execution. Final required files verified present.",
       "scenarios": [
         "McpServerSkillWorkflowIT.independentWorkspacesResumeInspectMigrateAndReplay",
         "McpServerSkillWorkflowIT.inventoryMatchesPackagedCatalogAndEverySkillDependency",
@@ -2592,7 +2966,45 @@
         "McpServerCorrelationIT.executableJarCorrelatesCrossServiceEventsWithConsumerRuntimeEvidence",
         "McpServerPerformanceProfilerIT.realWorkloadOwnsJfrLifecycleSampledMethodAttributionAndCorrelation",
         "McpServerInvestigationRegressionWorkflowIT.reproducedExceptionBecomesAFailingGuardThatSurvivesRestartAndHealthyTraffic"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-regression-plan-crafter/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-plan-crafter/references/authoring-checklist.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-plan-crafter/references/spec-rules.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-plan-crafter/references/templates/contract.template.json",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-plan-crafter/references/templates/metadata.template.json",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-plan-crafter/references/templates/plan.template.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "ec24cfe3f82fdc5831ce34cdd45e5f5cbef92dd9185b8a00fdc2cd851dc4a4ae"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "regression-result",
@@ -2623,9 +3035,9 @@
         "execution.result.json.steps[].assertions[]"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_partial",
+      "limitations": "Standalone prompt blocked: persisted step/evidence omits endpoint identity. Combined suite/result prompt rendered using its just-executed persisted plan context. Generic standalone rendering remains unproven.",
       "scenarios": [
         "McpServerSkillWorkflowIT.independentWorkspacesResumeInspectMigrateAndReplay",
         "McpServerSkillWorkflowIT.inventoryMatchesPackagedCatalogAndEverySkillDependency",
@@ -2636,7 +3048,40 @@
         "McpServerDownstreamRecoveryWorkflowIT.restartRetainsTerminalFailureAndARepairedDownstreamRequiresANewRun",
         "McpServerRunArtifactRecoveryIT.failedCanonicalMoveRollsBackCompanionsBeforeReadAndRetry",
         "McpServerRunArtifactRecoveryIT.largeMixedShapeEvidenceRemainsReadableAndProjectsOnceAfterRestart"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-regression-result/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-result/references/authoring-checklist.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-result/references/spec-rules.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-result/references/templates/http_result_table/endpoint_table_result.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-result/references/templates/index.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "8d69a87d26d792670249c1d9906a4cdcff293d85fdeb770948340f4abcf3ff44"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "regression-suite",
@@ -2708,9 +3153,9 @@
       "runtimeDependencies": [
         "Node.js: six bundled decision/summary helpers"
       ],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_completed_with_persistence_gap",
+      "limitations": "Real Petclinic two-plan ordered profile passed. JSON persisted; SQLite runtime projections remain empty.",
       "scenarios": [
         "McpServerSkillWorkflowIT.independentWorkspacesResumeInspectMigrateAndReplay",
         "McpServerSkillWorkflowIT.inventoryMatchesPackagedCatalogAndEverySkillDependency",
@@ -2718,15 +3163,131 @@
         "McpServerCorrelationIT.executableJarCorrelatesCrossServiceEventsWithConsumerRuntimeEvidence",
         "McpServerPerformanceProfilerIT.realWorkloadOwnsJfrLifecycleSampledMethodAttributionAndCorrelation",
         "McpServerDownstreamRecoveryWorkflowIT.restartRetainsTerminalFailureAndARepairedDownstreamRequiresANewRun"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/README.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/artifact-contract.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/execution-contract.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/execution-fsm.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/output-contract.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/probe-verification-policy.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/project-context-and-preflight.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/reason-codes.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/runtime-policy.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/strict-probe-gate.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/references/synthesis-and-routing.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/scripts/cleanup-runtime.js",
+            "disposition": "non_invocation",
+            "rationale": "Local Node decision/report helper; no MCP transport or retired entrypoint dependency."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/scripts/preflight-resolve.js",
+            "disposition": "non_invocation",
+            "rationale": "Local Node decision/report helper; no MCP transport or retired entrypoint dependency."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/scripts/probe-gate-check.js",
+            "disposition": "non_invocation",
+            "rationale": "Local Node decision/report helper; no MCP transport or retired entrypoint dependency."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/scripts/runtime-converge.js",
+            "disposition": "non_invocation",
+            "rationale": "Local Node decision/report helper; no MCP transport or retired entrypoint dependency."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/scripts/step-execution-check.js",
+            "disposition": "non_invocation",
+            "rationale": "Local Node decision/report helper; no MCP transport or retired entrypoint dependency."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/scripts/summarize-run.js",
+            "disposition": "non_invocation",
+            "rationale": "Local Node decision/report helper; no MCP transport or retired entrypoint dependency."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/templates/fail-closed.result.json",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/templates/needs-user-input.result.json",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite/templates/run-summary.result.json",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "0884e49043fd2487f3960f5b6ca4590d19e82ffe6123809d669f3b040e467fe9"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "regression-suite-diagnostic",
       "path": "skills/mcp-java-dev-tools-regression-suite-diagnostic/SKILL.md",
       "sequence": [
-        "artifact_management.run_result.list",
+        "artifact_management.regression_plan.validate",
+        "artifact_management.regression_plan.read",
+        "artifact_management.project_context.read",
+        "artifact_management.run_result.query",
         "artifact_management.run_result.read",
-        "artifact_management.run_result.query"
+        "probe.status"
       ],
       "dependencies": [
         "skills/mcp-java-dev-tools-regression-suite-diagnostic/SKILL.md",
@@ -2747,9 +3308,9 @@
         "diagnosis.result.json"
       ],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerSkillWorkflowIT.independentWorkspacesResumeInspectMigrateAndReplay",
         "McpServerSkillWorkflowIT.inventoryMatchesPackagedCatalogAndEverySkillDependency",
@@ -2760,7 +3321,54 @@
         "McpServerDownstreamRecoveryWorkflowIT.restartRetainsTerminalFailureAndARepairedDownstreamRequiresANewRun",
         "McpServerRunArtifactRecoveryIT.failedCanonicalMoveRollsBackCompanionsBeforeReadAndRetry",
         "McpServerRunArtifactRecoveryIT.largeMixedShapeEvidenceRemainsReadableAndProjectsOnceAfterRestart"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite-diagnostic/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite-diagnostic/agents/openai.yaml",
+            "disposition": "non_invocation",
+            "rationale": "Discovery/UI metadata; no executable MCP invocation."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite-diagnostic/references/diagnostic-cases.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite-diagnostic/references/diagnostic-workflow.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite-diagnostic/references/evidence-model.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite-diagnostic/references/failure-classification.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite-diagnostic/references/mcp-query-playbook.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-regression-suite-diagnostic/references/report-contract.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "fc904827a5805b04dce71fc07431842509f5f630482c3ee0172fc72901ace8ff"
+      }
     },
     {
       "name": "security-plan-crafter",
@@ -2778,13 +3386,31 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_completed",
+      "limitations": "Created real Petclinic Black-box and Sidecar-assisted plans, preserved initially blocked runs, corrected only the coordinator-provided unsupported safety enum via CDE and validated new inputs.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerSecuritySidecarIT.realFreshRequiredAndForbiddenHitsDistinguishPassInternalAndCorroboratedFindings"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-security-plan-crafter/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-security-plan-crafter/references/knowledge-pack-index.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          }
+        ],
+        "revisionSha256Lf": "615e5be1ed474b3d74c92e501f86bb1794bd4f2c153ebf500778e97383469d57"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "security-result",
@@ -2799,15 +3425,28 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_partial",
+      "limitations": "Rendered real finite-case outcomes and fresh runtime evidence. Expanded matrix/knowledge compatibility metadata and individual content digests were not present; SQLite projections were empty.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerSecuritySidecarIT.realFreshRequiredAndForbiddenHitsDistinguishPassInternalAndCorroboratedFindings",
         "McpServerRunArtifactRecoveryIT.failedCanonicalMoveRollsBackCompanionsBeforeReadAndRetry",
         "McpServerRunArtifactRecoveryIT.largeMixedShapeEvidenceRemainsReadableAndProjectsOnceAfterRestart"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-security-result/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          }
+        ],
+        "revisionSha256Lf": "d34b307a42d9864d105a59f4e44e6bed3e0101a4a99301d4d538ac72ffc09ef0"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "security-suite",
@@ -2824,21 +3463,37 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
-      "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
+      "actualSkillUse": "prompt_invoked_completed_with_persistence_gap",
+      "limitations": "Real Petclinic Black-box and Sidecar-assisted plans passed after correcting a coordinator-supplied safety enum in a fresh suite; blocked first runs retained. JSON persisted; SQLite projections empty.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerSecuritySidecarIT.realFreshRequiredAndForbiddenHitsDistinguishPassInternalAndCorroboratedFindings"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-security-suite/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          }
+        ],
+        "revisionSha256Lf": "8c0ee065550b27ac65453b6c218bf4d8ae7117d3999a28a222d3b1803783134e"
+      },
+      "actualSkillEvidence": "docs/acceptance/mcpjvm-658-cde-skills.md"
     },
     {
       "name": "security-suite-diagnostic",
       "path": "skills/mcp-java-dev-tools-security-suite-diagnostic/SKILL.md",
       "sequence": [
-        "artifact_management.run_result.list",
+        "artifact_management.security_plan.validate",
+        "artifact_management.security_plan.read",
+        "artifact_management.project_context.read",
+        "artifact_management.run_result.query",
         "artifact_management.run_result.read",
-        "artifact_management.run_result.query"
+        "probe.status"
       ],
       "dependencies": [
         "skills/mcp-java-dev-tools-security-suite-diagnostic/SKILL.md",
@@ -2851,15 +3506,62 @@
       ],
       "directArtifactDependencies": [],
       "runtimeDependencies": [],
-      "automatedClaim": "Tool/Artifact compatibility only; legacy Tool/action notation mapped to CDE operationId + arguments + confirmed",
+      "automatedClaim": "Tool/Artifact/helper compatibility through canonical Java CDE operations; not actual Skill use",
       "actualSkillUse": "not_exercised",
-      "limitations": "No LLM/Skill interpreter or prose-quality claim. See #656 acceptance record.",
+      "limitations": "Automated compatibility is separate from prose use. #658 records selected actual Skill use and remaining unexercised Skills; no all-Skill runtime claim.",
       "scenarios": [
         "McpServerSkillSuiteIT.lifecycleRegistryAndAllSuiteResultsRemainConsumableAfterRestart",
         "McpServerSecuritySidecarIT.realFreshRequiredAndForbiddenHitsDistinguishPassInternalAndCorroboratedFindings",
         "McpServerRunArtifactRecoveryIT.failedCanonicalMoveRollsBackCompanionsBeforeReadAndRetry",
         "McpServerRunArtifactRecoveryIT.largeMixedShapeEvidenceRemainsReadableAndProjectsOnceAfterRestart"
-      ]
+      ],
+      "guidance": {
+        "ticket": 658,
+        "disposition": "updated",
+        "files": [
+          {
+            "path": "skills/mcp-java-dev-tools-security-suite-diagnostic/SKILL.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-security-suite-diagnostic/agents/openai.yaml",
+            "disposition": "non_invocation",
+            "rationale": "Discovery/UI metadata; no executable MCP invocation."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-security-suite-diagnostic/references/diagnostic-cases.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-security-suite-diagnostic/references/diagnostic-workflow.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-security-suite-diagnostic/references/evidence-model.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-security-suite-diagnostic/references/failure-classification.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-security-suite-diagnostic/references/mcp-query-playbook.md",
+            "disposition": "updated",
+            "rationale": "Canonical CDE invocation, Java-owned schemas/startup or persisted-identity guidance; workflow safety retained."
+          },
+          {
+            "path": "skills/mcp-java-dev-tools-security-suite-diagnostic/references/report-contract.md",
+            "disposition": "non_invocation",
+            "rationale": "Artifact/template/report/domain guidance; no retired executable MCP call. Retained unchanged."
+          }
+        ],
+        "revisionSha256Lf": "f16ed256f72374fd69bb579d4c86bc14800a055cf36ac7cdd1b4684469cf3e0a"
+      }
     }
   ],
   "retired": [
@@ -3347,5 +4049,32 @@
     "commandTemplate": "mvn -B -f mcp-server/pom.xml -pl application -am verify -Pjava-it '-Dit.test=<selector>'",
     "prerequisites": "Resolve the owner capability document before running; build selected immutable fixtures and configure required tools."
   },
-  "workflowOrganization": "Behavior-focused classes expand cross-feature execution, diagnosis and recovery. Skill references are many-to-many traceability; no one-class-per-Skill or literal prose replay requirement."
+  "workflowOrganization": "Behavior-focused classes expand cross-feature execution, diagnosis and recovery. Skill references are many-to-many traceability; no one-class-per-Skill or literal prose replay requirement.",
+  "activeGuidance": [
+    {
+      "path": "README.md",
+      "disposition": "updated",
+      "rationale": "Active CDE invocation/startup sections agree with shipped Skills; capability field documentation retains namespace labels."
+    },
+    {
+      "path": "mcp-server/README.md",
+      "disposition": "updated",
+      "rationale": "Active CDE invocation/startup sections agree with shipped Skills; capability field documentation retains namespace labels."
+    },
+    {
+      "path": "docs/how-it-works/README.md",
+      "disposition": "updated",
+      "rationale": "Active CDE invocation/startup sections agree with shipped Skills; capability field documentation retains namespace labels."
+    },
+    {
+      "path": "docs/data-fields/README.md",
+      "disposition": "updated",
+      "rationale": "Active CDE invocation/startup sections agree with shipped Skills; capability field documentation retains namespace labels."
+    },
+    {
+      "path": "docs/acceptance/mcpjvm-656-skill-workflows-it.md",
+      "disposition": "historical",
+      "rationale": "Original acceptance/evidence retained; obsolete invocation limitations explicitly labeled and linked to #658."
+    }
+  ]
 }

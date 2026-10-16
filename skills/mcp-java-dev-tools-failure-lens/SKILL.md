@@ -5,12 +5,29 @@ description: Investigate a pasted Java stack trace against an attached Sidecar A
 
 # Failure Lens
 
-Use only the public `failure_analysis`, `jvm_lifecycle`, Route Synthesis, and Probe MCP Tools. Do not call MCP transport from another Feature Module, use private actions, search files for credentials, or create a generic request harness.
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `failure_analysis.analyze_trace`
+- `route_synthesis.infer_target`
+- `route_synthesis.create_recipe`
+- `probe.reset`
+- `transport_execute.execute`
+- `probe.wait_for_hit`
+- `probe.capture`
+- `failure_analysis.verify_reproduction`
+
+Use only the public Failure Analysis operations, JVM Lifecycle operations, Route Synthesis, and Probe operations through CDE. Do not call MCP transport from another Feature Module, use private actions, search files for credentials, or create a generic request harness.
 
 ## Preconditions
 
 - Require a pasted Java stack trace, project context, explicit attempt/time bounds, and an attached responsive Sidecar Agent.
-- Pass `{ mode, attemptLimit, elapsedTimeLimitMs }` as the bounded `investigation` context to both `failure_analysis` actions. The Tool does not infer authorization.
+- Pass `{ mode, attemptLimit, elapsedTimeLimitMs }` as the bounded `investigation` context to both Failure Analysis operations actions. The Tool does not infer authorization.
 - When the Sidecar requires observe authentication, pass the user-supplied value as `sidecarAuthorization`; it is sent only as an `Authorization` header and must never be displayed or persisted.
 - Ask whether the investigation is `guided` or `hands_off` before any protected action.
 - In guided mode, ask before JVM attachment, trigger execution, supplied authentication use, side-effecting operations, or a materially different retry.
@@ -18,12 +35,12 @@ Use only the public `failure_analysis`, `jvm_lifecycle`, Route Synthesis, and Pr
 
 ## Workflow
 
-1. If no Sidecar is attached, use `jvm_lifecycle` to list JVMs. Require exact user selection when ambiguous. Attach only under the selected mode's authorization.
-2. Call `failure_analysis` with `action="analyze_trace"`, the original trace, and the Sidecar base URL. Do not claim a diagnosis from this action.
+1. If no Sidecar is attached, use JVM Lifecycle operations to list JVMs. Require exact user selection when ambiguous. Attach only under the selected mode's authorization.
+2. Call `failure_analysis.analyze_trace`, the original trace, and the Sidecar base URL. Do not claim a diagnosis from this action.
 3. Call Route Synthesis with the returned bounded candidates to identify an existing supported trigger. Keep Route Synthesis as a separate MCP call.
 4. Use Probe to arm a bounded temporary session when actuation is needed, with `ttlMs` no greater than the investigation limit. Reset the selected Strict Line Keys before each attempt. Record Strict Line Key evidence.
 5. Execute only an authorized supported trigger. If authentication or safety blocks execution, ask the user to perform the operation manually while the Probes remain armed.
-6. Obtain the capture identifier and confirmed Line Hit, then call `failure_analysis` with `action="verify_reproduction"`.
+6. Obtain the capture identifier and confirmed Line Hit, then call `failure_analysis.verify_reproduction`.
 7. Report a diagnosis only for `REPRODUCED`. For every other result, report attempt facts and state that no diagnosis is claimed.
 8. On every terminal path, disarm any session this workflow armed, reset its selected Strict Line Keys, and deactivate the Sidecar only when this workflow attached it. Report each result as `cleanupStatus`. The Sidecar actuation TTL is the interrupted-session fallback; it is not evidence of successful cleanup.
 

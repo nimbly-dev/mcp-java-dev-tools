@@ -55,9 +55,9 @@ test("[UT][skills][regression_suite_diagnostic_skill] diagnostic skill proves th
   assert.match(skill, /Never execute triggers, plans, suites, replay exports, or resumes/);
   assert.match(skill, /Never mutate or repair runtimes, Probes, plans/);
   assert.match(workflowText(), /summary-first, windowed, or cursor-bounded/);
-  assert.match(playbook, /"action":"validate"/);
-  assert.match(playbook, /"action":"query"/);
-  assert.match(playbook, /"stateSurface":"run_state"/);
+  assert.match(playbook, /"operationId": "artifact_management\.regression_plan\.validate"/);
+  assert.match(playbook, /"operationId": "artifact_management\.run_result\.query"/);
+  assert.match(playbook, /"stateSurface": "run_state"/);
   assert.match(evidence, /Deprecated shared JSON indexes must never be used/);
 });
 
@@ -69,7 +69,7 @@ test("[UT][skills][regression_suite_diagnostic_skill] diagnostic skill keeps his
   assert.match(skill, /historical execution evidence separate from optional live runtime evidence/);
   assert.match(evidence, /Canonical per-run Artifacts are authoritative/);
   assert.match(evidence, /SQLite is an operational\/query projection/);
-  assert.match(playbook, /"action": "status"/);
+  assert.match(playbook, /"operationId": "probe\.status"/);
   assert.match(playbook, /"probeId"/);
   assert.match(playbook, /"key": "fully\.qualified\.Class#method:line"/);
   assert.match(playbook, /diagnostic_runtime_unavailable/);

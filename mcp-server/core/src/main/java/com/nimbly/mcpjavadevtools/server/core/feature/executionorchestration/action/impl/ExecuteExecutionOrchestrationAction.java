@@ -116,9 +116,16 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
                 return blocked("runtime_suite_missing", "add the requested executionProfile to the selected project", input);
             }
             JsonNode profile = resolvedProfile.profile();
+            if (!profile.path("plans").isArray() || profile.path("plans").isEmpty()) {
+                return blocked("execution_profile_invalid", "configure at least one ordered plan", input);
+            }
             ExecutionOrchestrationResult invalidCheckpoint = validateCheckpoint(input, profile);
             if (invalidCheckpoint != null) {
                 return invalidCheckpoint;
+            }
+            ExecutionOrchestrationResult recoveryFailure = recoverPersistedRuns(input, profile);
+            if (recoveryFailure != null) {
+                return recoveryFailure;
             }
             return executeProfile(input, profile, resolvedProfile.workspace());
         } finally {
@@ -398,9 +405,6 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
     }
 
     private ExecutionOrchestrationResult runProfile(Input input, JsonNode profile, JsonNode workspace) {
-        if (!profile.path("plans").isArray() || profile.path("plans").isEmpty()) {
-            return blocked("execution_profile_invalid", "configure at least one ordered plan", input);
-        }
         String suiteType = profile.path("suiteType").asText();
         Map<String, Object> suiteContext = suiteContext(input);
         List<Map<String, Object>> prior = terminalOutcomes(
@@ -421,6 +425,9 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
             checkpoint();
             outcome = redactOutcomeContext(outcome);
             outcome = persist(input, suiteType, plan, outcome);
+            if ("execution_run_artifact_persist_failed".equals(outcome.get("reasonCode"))) {
+                return blocked("execution_run_artifact_persist_failed", "restore run storage and retry", input);
+            }
             outcomes.add(outcome);
             promoteContext(suiteContext, plan, outcome);
             ExecutionOrchestrationResult progress = persistCheckpoint(
@@ -496,16 +503,43 @@ public final class ExecuteExecutionOrchestrationAction implements ExecutionOrche
         return persistedOutcome(input, suiteType, plan) != null;
     }
 
+    private ExecutionOrchestrationResult recoverPersistedRuns(Input input, JsonNode profile) {
+        for (JsonNode plan : ordered(profile.path("plans"))) {
+            checkpoint();
+            if (Input.text(plan.path("planName")) == null) {
+                continue;
+            }
+            ObjectNode request = runSelector(input, profile.path("suiteType").asText(), plan);
+            var prior = artifacts.execute(new ArtifactManagementRequest(ArtifactType.RUN_RESULT, ArtifactAction.READ, request));
+            JsonNode artifact = mapper.valueToTree(prior.details().get("artifact"));
+            if (!"ok".equals(prior.status()) || !artifact.isObject()) {
+                continue;
+            }
+            request.set("payload", artifact);
+            var recovered = artifacts.execute(new ArtifactManagementRequest(ArtifactType.RUN_RESULT, ArtifactAction.UPSERT, request));
+            if (!"ok".equals(recovered.status())) {
+                Map<String, Object> metadata = new LinkedHashMap<>(input.metadata());
+                metadata.put("planName", plan.path("planName").asText());
+                metadata.put("runId", request.path("runId").asText());
+                metadata.put("projectionReasonCode", recovered.reasonCode());
+                return ExecutionOrchestrationResult.blocked("execution_run_artifact_persist_failed",
+                        "restore run storage and retry before resuming execution", metadata);
+            }
+        }
+        return null;
+    }
+
+    private ObjectNode runSelector(Input input, String suiteType, JsonNode plan) {
+        return mapper.createObjectNode().put("projectName", input.projectName()).put("suiteType", suiteType)
+                .put("planName", plan.path("planName").asText()).put("runId", runId(input, plan.path("order").asInt()));
+    }
+
     private Map<String, Object> persistedOutcome(Input input, String suiteType, JsonNode plan) {
         String planName = Input.text(plan.path("planName"));
         if (planName == null) {
             return null;
         }
-        ObjectNode request = mapper.createObjectNode();
-        request.put("projectName", input.projectName());
-        request.put("suiteType", suiteType);
-        request.put("planName", planName);
-        request.put("runId", runId(input, plan.path("order").asInt()));
+        ObjectNode request = runSelector(input, suiteType, plan);
         var result = artifacts.execute(new ArtifactManagementRequest(ArtifactType.RUN_RESULT, ArtifactAction.READ, request));
         if (!"ok".equals(result.status())) {
             return null;

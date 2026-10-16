@@ -5,6 +5,18 @@ description: "Read-only diagnosis of Regression Suite plan readiness and executi
 
 # Regression Suite Diagnostic
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.run_result.list`
+- `artifact_management.run_result.read`
+- `artifact_management.run_result.query`
+
 Produce a deterministic, evidence-backed diagnosis without becoming an executor, planner, state store, or Artifact implementation.
 
 ## Routes
@@ -25,8 +37,8 @@ Read `references/diagnostic-workflow.md` for sequencing and bounded-read rules. 
 
 Use existing MCP Tools only:
 
-- `artifact_management` for plan validation/read, project-context read, run Artifact read, and applicable SQLite queries;
-- `probe` with `action="status"` only for optional current readiness observation.
+- Artifact Management operations for plan validation/read, project-context read, run Artifact read, and applicable SQLite queries;
+- `probe.status` only for optional current readiness observation.
 
 Never execute triggers, plans, suites, replay exports, or resumes. Never mutate or repair runtimes, Probes, plans, project context, Probe configuration, Artifacts, or SQLite state. Never use deprecated shared JSON indexes as a query fallback.
 

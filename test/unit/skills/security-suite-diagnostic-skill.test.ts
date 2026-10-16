@@ -52,9 +52,9 @@ test("[UT][skills][security_suite_diagnostic_skill] preserves read-only and boun
   const evidence = readSkillFile("references", "evidence-model.md");
   assert.match(skill, /never executes, resumes, mutates, rebuilds, repairs, or cleans up/);
   assert.match(skill, /Never return credentials, tokens, cookies/);
-  assert.match(playbook, /"artifactType":"security_plan"/);
-  assert.match(playbook, /"artifactType":"run_result"/);
-  assert.match(playbook, /"stateSurface":"run_state"/);
+  assert.match(playbook, /"operationId": "artifact_management\.security_plan\.validate"/);
+  assert.match(playbook, /"operationId": "artifact_management\.run_result\.read"/);
+  assert.match(playbook, /"stateSurface": "run_state"/);
   assert.match(playbook, /Forbidden operations/);
   assert.match(evidence, /Canonical run Artifact/);
   assert.match(evidence, /SQLite projection/);

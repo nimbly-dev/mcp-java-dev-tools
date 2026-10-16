@@ -1,12 +1,14 @@
 # How It Works
 
+Invoke capability operations through the Java CDE Tools: discover with `operation_catalog`, read current schemas/safety with `operation_describe`, then call `operation_execute` with `operationId`, `arguments`, and outer `confirmed`. Capability names below are operation namespaces, not additional public Tools. See [the Java runtime launch](../../mcp-server/README.md#runtime-boundary) and [Skill migration evidence](../acceptance/mcpjvm-658-cde-skills.md).
+
 ![MCP JVM DEV TOOLS Workflow Diagram (0.1.0v)](./MCP-JVM-dev-tools-diagram.png)
 
 This document walks you through how `mcp-java-dev-tools` operates in practice — what it needs to run, how the orchestration flow works, and what each use case looks like end-to-end.
 
 The public server exposes `operation_catalog`, `operation_describe`, and
 `operation_execute`. Capability/action notation below (for example,
-`probe` with `action=status`) is shorthand for the corresponding canonical
+`probe.status`) is shorthand for the corresponding canonical
 operation ID and arguments passed through `operation_execute`; those capability
 names are not additional public MCP tools.
 
@@ -83,16 +85,16 @@ Return the exact request plan and probe verification steps.
 ### What Happens
 
 1. The orchestrator resolves the project root and passes `projectRootAbs`
-2. `artifact_management` with `artifactType=project_context` and `action=validate` optionally validates the scoped project context for that root
-3. `route_synthesis` with `action=create_recipe` is called with `projectRootAbs`, `intentMode=line_probe`, exact FQCN in `classHint`, method/line hints, optional `apiBasePath`, and auth context
+2. `artifact_management.project_context.validate` optionally validates the scoped project context for that root
+3. `route_synthesis.create_recipe` is called with `projectRootAbs`, `intentMode=line_probe`, exact FQCN in `classHint`, method/line hints, optional `apiBasePath`, and auth context
 4. The tool performs code-based route inference through synthesizer plugins backed by the generic JVM AST request-mapping resolver, returning `executionReadiness`, `requestCandidates`, `inferredTarget`, and `selectedMode`
 5. Framework adapters resolve annotation semantics (for example Spring `@RequestParam`, `@PathVariable`, `@RequestBody`) into normalized parameter metadata before HTTP materialization
 6. Generic HTTP transport materializes path/query/body templates from normalized parameters and applies optional project fixture profile overrides from `.mcp-java-dev-tools/request-template.properties`
 7. If `resultType=report`, treat it as fail-closed - read the compact execution metadata (`executionPlan.routingReason`, `executionPlan.steps[].actionCode`) and synthesis diagnostics
-8. On a ready state, `probe` with `action=reset` clears the baseline counter for the strict line key
+8. On a ready state, `probe.reset` clears the baseline counter for the strict line key
 9. The orchestrator fires the selected HTTP trigger using the bearer token
-10. `probe` with `action=wait_for_hit` confirms the line was executed; if unavailable, `probe` with `action=status` provides a detailed status payload
-11. When `capturePreview.captureId` is present, `probe` with `action=capture` retrieves the full runtime capture for arguments and context evidence
+10. `probe.wait_for_hit` confirms the line was executed; if unavailable, `probe.status` provides a detailed status payload
+11. When `capturePreview.captureId` is present, `probe.capture` retrieves the full runtime capture for arguments and context evidence
 
 ### What You Get Back
 
@@ -127,13 +129,13 @@ Return endpoint-level HTTP results and any probe-verifiable evidence.
 ### What Happens
 
 1. The orchestrator resolves the API project and passes `projectRootAbs`
-2. `artifact_management` with `artifactType=project_context` and `action=validate` optionally validates the scoped project context
-3. For each route under the controller, `route_synthesis` with `action=create_recipe` is called with the exact FQCN (and shared `apiBasePath` when applicable) to produce executable request candidates and auth/readiness diagnostics
-4. If `route_synthesis` with `action=create_recipe` returns `resultType=report`, that route is treated as fail-closed; use the compact execution metadata and diagnostics for routing decisions
+2. `artifact_management.project_context.validate` optionally validates the scoped project context
+3. For each route under the controller, `route_synthesis.create_recipe` is called with the exact FQCN (and shared `apiBasePath` when applicable) to produce executable request candidates and auth/readiness diagnostics
+4. If `route_synthesis.create_recipe` returns `resultType=report`, that route is treated as fail-closed; use the compact execution metadata and diagnostics for routing decisions
 5. The orchestrator fires regression HTTP requests route-by-route with bearer auth and records outcomes
 6. Probe verification is only applied when strict line targets are available for an endpoint
-7. For probe-eligible endpoints: `probe` with `action=reset` -> execute HTTP request -> `probe` with `action=wait_for_hit` (or `action=status`) confirms runtime line execution
-8. Any capture preview discovered during status checks can be expanded via `probe` with `action=capture`
+7. For probe-eligible endpoints: `probe.reset` -> execute HTTP request -> `probe.wait_for_hit` (or `probe.status`) confirms runtime line execution
+8. Any capture preview discovered during status checks can be expanded via `probe.capture`
 9. Endpoints without strict line mapping remain HTTP-only and must be explicitly marked as non-probe-verified
 
 ### What You Get Back
@@ -167,9 +169,9 @@ For every failed or flagged run, generate a reproducible recipe and include runt
 
 1. Run the full Use Case 2 regression flow and collect all endpoint outcomes
 2. Filter endpoints into `failed` or `flagged` sets (non-2xx, contract mismatch, probe-miss, etc.)
-3. For each failed/flagged endpoint, call `route_synthesis` with `action=create_recipe` to produce a focused rerun recipe tied to the observed failure context
-4. If strict line verification is possible, run `probe` with `action=reset` -> targeted HTTP rerun -> `probe` with `action=wait_for_hit` / `action=status`
-5. If a capture preview exists, call `probe` with `action=capture` and attach the evidence to that endpoint's recipe package
+3. For each failed/flagged endpoint, call `route_synthesis.create_recipe` to produce a focused rerun recipe tied to the observed failure context
+4. If strict line verification is possible, run `probe.reset` -> targeted HTTP rerun -> `probe.wait_for_hit` / `probe.status`
+5. If a capture preview exists, call `probe.capture` and attach the evidence to that endpoint's recipe package
 6. If the runtime route can't be uniquely validated during rerun, emit a fail-closed pushback artifact, not speculative guidance
 
 ### What You Get Back

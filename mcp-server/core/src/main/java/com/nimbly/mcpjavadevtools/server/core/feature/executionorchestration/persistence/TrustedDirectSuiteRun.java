@@ -98,6 +98,9 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
                     || !prior.path("directResult").isObject()) {
                 return blocked.apply("direct_suite_run_conflict");
             }
+            if (!recoverProjection(suiteType, project, plan, runId, prior)) {
+                return blocked.apply("execution_run_artifact_persist_failed");
+            }
             String status = prior.path("directResult").path("status").asText();
             if ("in_progress".equals(status)) {
                 JsonNode continuation = prior.path("directResult").path("details").path("continuation");
@@ -117,6 +120,13 @@ public class TrustedDirectSuiteRun implements TrustedSuiteExecution {
             return blocked.apply("execution_run_artifact_persist_failed");
         }
         return result;
+    }
+
+    private boolean recoverProjection(String suite, String project, String plan, String runId, JsonNode prior) {
+        ObjectNode request = runRequest(suite, project, plan, runId);
+        request.set("payload", prior);
+        return "ok".equals(artifacts.execute(
+                new ArtifactManagementRequest(ArtifactType.RUN_RESULT, ArtifactAction.UPSERT, request)).status());
     }
 
     private ObjectNode resolvedInput(String suiteType, String project, String profile,

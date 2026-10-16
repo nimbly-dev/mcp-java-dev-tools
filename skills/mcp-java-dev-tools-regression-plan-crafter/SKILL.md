@@ -5,6 +5,20 @@ description: "Create or update deterministic regression plans (`metadata.json`, 
 
 # MCP JVM Regression Plan Crafter
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.project_context.read`
+- `route_synthesis.create_recipe`
+- `artifact_management.regression_plan.validate`
+- `artifact_management.regression_plan.upsert`
+- `artifact_management.regression_plan.read`
+
 Use this skill to author or refine a persisted regression plan spec package before execution/replay.
 
 ## Execution Mode
@@ -25,7 +39,7 @@ Produce a deterministic, fail-closed plan package:
 3. `.mcpjvm/<project_name>/plans/regression/<regression_name>/plan.md`
 
 Do not hand-author `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/...` artifacts in this skill. Those are machine-generated during execution.
-Use `artifact_management` (`artifactType=regression_plan`) as the canonical MCP Tool for read/validate/upsert/list lifecycle operations.
+Use the canonical `artifact_management.regression_plan.read`, `.validate`, `.upsert`, and `.list` operations through CDE.
 
 ## Portable Source of Truth
 
@@ -235,7 +249,7 @@ When user asks to craft a plan, produce or update:
 
 Never require manual hand-construction when templates can be applied.
 Use the template files, then specialize fields from the user context.
-Persist through `artifact_management` with `action=upsert` after `action=validate`.
+For an existing plan, read and validate its persisted state through `artifact_management.regression_plan.read` and `artifact_management.regression_plan.validate` before updating it. For a new plan, `validate` reports `artifact_missing`; it does not validate a supplied in-memory payload. Persist the prepared payload through the authorized `artifact_management.regression_plan.upsert`, which validates before writing, then validate/read back the persisted plan. Stop on any failed validation or upsert; do not continue into suite execution.
 
 ## Fail-Closed Cases
 
@@ -275,7 +289,7 @@ When crafting or updating plans, output:
 
 ## Non-Goals
 
-1. Do not create additional MCP tools beyond the existing `artifact_management` path.
+1. Do not create additional MCP tools beyond the existing Artifact Management operations path.
 2. Do not execute regression runs from this skill.
 3. Do not write `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>` artifacts manually.
 

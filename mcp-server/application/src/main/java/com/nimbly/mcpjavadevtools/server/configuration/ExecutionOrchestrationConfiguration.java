@@ -15,7 +15,10 @@ import com.nimbly.mcpjavadevtools.server.core.feature.suite.regression.Regressio
 import com.nimbly.mcpjavadevtools.server.core.feature.suite.security.SecuritySuiteFeature;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceSnapshot;
-import com.nimbly.mcpjavadevtools.server.lifecycle.FileExecutionSuiteStateStore;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.ArtifactExecutionSuiteStateStore;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactJsonStore;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactWorkspaceProvider;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
 import com.nimbly.mcpjavadevtools.server.lifecycle.ApplicationExecutionRuntimeLifecycle;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -60,8 +63,9 @@ public class ExecutionOrchestrationConfiguration {
     }
 
     @Bean
-    ExecutionSuiteStateStore executionSuiteStateStore(WorkspaceContext context, ObjectMapper mapper) {
-        return new FileExecutionSuiteStateStore(context, mapper);
+    ExecutionSuiteStateStore executionSuiteStateStore(ArtifactWorkspaceProvider workspace, ArtifactJsonStore json,
+            SqliteRunStateStore projections, ObjectMapper mapper) {
+        return new ArtifactExecutionSuiteStateStore(workspace, json, projections, mapper);
     }
 
     @Bean

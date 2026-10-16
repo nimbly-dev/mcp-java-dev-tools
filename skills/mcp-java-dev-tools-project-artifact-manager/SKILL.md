@@ -5,6 +5,19 @@ description: "Manage `.mcpjvm/<project>/projects.json` project context artifacts
 
 # MCP Java Dev Tools Project Artifact Manager
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.project_context.list`
+- `artifact_management.project_context.read`
+- `artifact_management.project_context.validate`
+- `artifact_management.project_context.upsert`
+
 Use this skill to manage project-level artifacts while keeping probe routing in `probe-config.json`.
 
 ## Scope
@@ -15,12 +28,12 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 4. Add/update shared scripts used by execution profiles.
 5. Add/update external systems and health checks.
 6. Resolve env key references (never env values).
-7. Use `artifact_management` as the canonical MCP Tool for read/validate/upsert/list artifact lifecycle operations.
+7. Use Artifact Management operations as the canonical operations for read/validate/upsert/list artifact lifecycle operations.
 
 ## Rules
 
 1. If project name is missing, ask the user first and do not create files yet.
-2. Treat `projectName` as the canonical Artifact identity for `artifact_management` calls.
+2. Treat `projectName` as the canonical Artifact identity for Artifact Management operations calls.
 3. Use `projectRootAbs` only as deterministic scope validation or cross-check input when needed.
 4. `probe-config.json` remains authoritative for probes and baseUrl routing.
 5. `projects.json` MUST NOT duplicate probe endpoint config.
@@ -56,7 +69,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 {
   "workspaces": [
     {
-      "executionRoot": "C:\\workspace\\example",
+      "projectRoot": "C:\\workspace\\example",
       "envFile": ".env",
       "variables": {
         "contextBindings": {
@@ -165,17 +178,17 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 
 1. Resolve workspace root.
 2. Ask for project name when missing.
-3. Call `artifact_management` with `artifactType=project_context` and `action=read|list` to load current state; use `query.select=["artifact"]` before updating an existing Artifact.
+3. Call `artifact_management.project_context.read` / `artifact_management.project_context.list` to load current state; use `query.select=["artifact"]` before updating an existing Artifact.
 4. Normalize and prepare requested changes in-memory.
-5. Call `artifact_management` with `artifactType=project_context` and `action=validate` before persistence, passing explicit `projectName` and optional `projectRootAbs` only when a scope cross-check is required.
-6. Call `artifact_management` with `artifactType=project_context` and `action=upsert` to persist. Omitted fields are preserved by default; include `replace: true` only for an intentional complete replacement.
+5. For an existing Artifact, call `artifact_management.project_context.validate` with explicit `projectName` and optional `projectRootAbs` for a scope cross-check. This validates persisted state; it does not accept a proposed payload.
+6. Call `artifact_management.project_context.upsert` with the prepared `payload` to persist. Java validates the proposed payload and merged output before writing. Stop on a validation failure. Omitted fields are preserved by default; include `replace: true` only for an intentional complete replacement. Validate and read back the persisted Artifact after success, including first creation.
 7. Validate end-to-end and return deterministic summary.
 8. Hand off state-store migration and verification requests to `mcp-java-dev-tools-project-state-migration`; do not choose or execute `run_result` maintenance actions in this Skill Workflow.
 
 ## Misaligned Field Fix Rules
 
 1. Always run normalization before validation and write.
-2. Treat the TypeScript validator contract in `tools/spec/project-artifact-spec/src/project_artifact.util.ts` as canonical.
+2. Use Java Describe and `artifact_management.project_context.validate` as the authoritative validation contract.
 3. Do not use `templates/projects.terminal.example.json` as a strict allowlist for field removal.
 4. Optional validator-supported fields are canonical and must not be removed as non-canonical:
    1. `executionProfiles[].runtimeConfig`
@@ -186,7 +199,7 @@ Use this skill to manage project-level artifacts while keeping probe routing in 
 
 ## Validate Action (Keep It Lean)
 
-1. Run a dedicated `validate` pass before writing updates.
+1. Validate existing persisted state before updates; upsert owns validation of a proposed payload before writing, including first creation. Validate and read back after success.
 2. Reuse rules in `references/validation-rules.md` to avoid duplicating logic in `SKILL.md`.
 3. Return compact fail-closed output:
    1. `status`

@@ -5,6 +5,26 @@ description: "Discover bounded Java method drill candidates or run a Probe-guide
 
 # MCP Java Dev Tools Bug Drill
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `route_synthesis.class_methods`
+- `route_synthesis.infer_target`
+- `route_synthesis.create_recipe`
+- `probe.check`
+- `probe.status`
+- `probe.reset`
+- `transport_execute.execute`
+- `probe.wait_for_hit`
+- `probe.capture`
+- `probe.actuate`
+- `probe.profiler`
+
 Use this Skill Workflow to discover bounded Java method drill candidates and continue into a deep runtime investigation when the user selects one. Keep static intent, Route Synthesis output, and live Probe evidence separate. The workflow may establish a reproduction and collect runtime evidence, but it must not modify application source or persist investigation state.
 
 ## Scope and boundaries
@@ -12,12 +32,12 @@ Use this Skill Workflow to discover bounded Java method drill candidates and con
 This workflow:
 
 - returns Markdown only;
-- uses the existing `route_synthesis` MCP Tool and `probe` MCP Tool;
-- uses the existing `transport_execute` MCP Tool only to send a complete, authorized trigger for a supported transport protocol;
+- uses the existing Route Synthesis operations and Probe operations;
+- uses the existing `transport_execute.execute` operation only to send a complete, authorized trigger for a supported transport protocol;
 - may use existing Probe actions `check`, `status`, `reset`, `actuate`, `wait_for_hit`, `capture`, and conditionally `profiler`;
 - does not add an MCP Tool or Probe action;
 - does not invoke regression, performance, security, or CI suite tooling;
-- does not use `artifact_management` or persist Artifacts;
+- does not use Artifact Management operations or persist Artifacts;
 - does not mutate Java source, project state, Probe configuration, or application configuration.
 
 Probe reset, bounded actuation, and evidence capture are runtime investigation operations within this workflow. If actuation is used, it must be explicitly bounded and cleaned up before the report is returned.
@@ -34,8 +54,8 @@ Use discovery mode when the user asks to find methods, controllers, listeners, c
 
 - Resolve one deterministic `projectRootAbs` before discovery. Inspect the active Probe registry as read-only context: preserve the single implicit target when exactly one exists, or present the available targets and mark explicit Probe selection as required when multiple exist.
 - Bound source inspection to the selected project and the requested target shape; do not scan unrelated projects or manufacture candidates from arbitrary source files.
-- Use `route_synthesis` with `action=class_methods` or `action=infer_target` plus bounded source inspection to identify candidate FQCNs, methods, executable lines, source locations, and any synthesized trigger context.
-- Do not call `transport_execute`, reset a Probe, actuate application behavior, or claim runtime evidence in discovery mode.
+- Use `route_synthesis.class_methods` or `route_synthesis.infer_target` plus bounded source inspection to identify candidate FQCNs, methods, executable lines, source locations, and any synthesized trigger context.
+- Do not call `transport_execute.execute`, reset a Probe, actuate application behavior, or claim runtime evidence in discovery mode.
 - Present each candidate with its exact Strict Line Key, source location, trigger readiness (`ready`, `needs_user_input`, or `unavailable`), and the Probe target that would be reused or explicitly selected.
 - End with one explicit continuation instruction, such as `Reply with drill <candidate>`; do not imply that discovery itself verified a method.
 
@@ -85,7 +105,7 @@ Resolve the target in this order:
 
 1. Use an explicit `probeId` when provided.
 2. Otherwise use an explicit Probe base URL when provided.
-3. Otherwise call `probe` with `action=check` without a selector and accept an implicit target only when the Probe registry resolves exactly one target.
+3. Otherwise call `probe.check` without a selector and accept an implicit target only when the Probe registry resolves exactly one target.
 
 Do not choose among multiple registry targets by name similarity, URL ordering, process ordering, recency, or any other heuristic. Reuse the exact resolved selector consistently for every later Probe action. A missing, ambiguous, unreachable, or unstable target blocks the runtime phase.
 
@@ -133,7 +153,7 @@ Read the selected source only as needed to identify:
 - candidate runtime paths;
 - bounded Strict Line Keys in the form `fully.qualified.Class#method:line`.
 
-Use `route_synthesis` with `action=class_methods` or `action=infer_target` for deterministic method and line discovery. Pass the exact FQCN as `classHint`, the method as `methodHint`, the optional `lineHint`, the selected project root, and the resolved Probe selector when runtime line validation is supported.
+Use `route_synthesis.class_methods` or `route_synthesis.infer_target` for deterministic method and line discovery. Pass the exact FQCN as `classHint`, the method as `methodHint`, the optional `lineHint`, the selected project root, and the resolved Probe selector when runtime line validation is supported.
 
 Treat a line as runtime-valid only when the Route Synthesis or Probe evidence identifies it. Do not guess a line from a declaration, stack trace, source proximity, or heuristic branch scoring. If the method or an executable line cannot be resolved, return `blocked` with one primary reason code such as `bug_drill_target_not_found`, `bug_drill_target_ambiguous`, or `bug_drill_line_unresolved`.
 
@@ -141,7 +161,7 @@ When `class_methods` or `infer_target` identifies the executable line, carry its
 
 ### 3. Derive one safe candidate reproduction
 
-Call `route_synthesis` with `action=create_recipe` and:
+Call `route_synthesis.create_recipe` and:
 
 - `intentMode=line_probe`;
 - the exact FQCN and method;
@@ -158,21 +178,21 @@ The candidate reproduction is not proof. Before execution, require explicit conf
 
 Treat a candidate as a bug only when the runtime evidence contains an exception/error attributable to the selected method, a failure matching the supplied symptom, or a reproducible result that contradicts an explicit expected behavior. A live Line Hit, successful transport, normal return, or absence of an exception proves execution only; it is not bug evidence.
 
-Execute a trigger through `transport_execute` only when all of the following are true:
+Execute a trigger through `transport_execute.execute` only when all of the following are true:
 
 1. The selected protocol is explicit and supported by the active transport executor (`http`, `grpc`, `kafka`, or `custom` as applicable).
 2. The request object is complete for that protocol and comes from public Route Synthesis fields plus explicitly supplied user context. Do not pass a Route Synthesis object through unchanged when its shape does not match the transport request contract.
 3. Any endpoint, route, payload, metadata, headers, credentials, or timeout values required by the selected protocol are present and non-conflicting.
 4. `options.wrappedOnly=true` is set, and the request timeout is 20,000 ms when the protocol supports one, unless a lower user limit applies.
 
-If `transport_execute` is unavailable, the selected protocol is unsupported, the request is incomplete, or confirmation is missing, return `blocked` with `transport_not_supported`, `bug_drill_reproduction_unavailable`, or `needs_user_input` as appropriate. Do not use raw HTTP, `curl`, an unwrapped client, or a protocol-specific fallback. If the user executes the sanitized request outside the current session, record the reproduction as unverified until live Probe evidence is collected in the same bounded run.
+If `transport_execute.execute` is unavailable, the selected protocol is unsupported, the request is incomplete, or confirmation is missing, return `blocked` with `transport_not_supported`, `bug_drill_reproduction_unavailable`, or `needs_user_input` as appropriate. Do not use raw HTTP, `curl`, an unwrapped client, or a protocol-specific fallback. If the user executes the sanitized request outside the current session, record the reproduction as unverified until live Probe evidence is collected in the same bounded run.
 
 ### 4. Establish Probe readiness before runtime drilling
 
 Before any trigger attempt:
 
-1. Call `probe` with `action=check` using the resolved selector.
-2. Call `probe` with `action=status` using the same selector and the selected Strict Line Key or bounded key set, with `timeoutMs=15000` unless a lower user limit applies.
+1. Call `probe.check` using the resolved selector.
+2. Call `probe.status` using the same selector and the selected Strict Line Key or bounded key set, with `timeoutMs=15000` unless a lower user limit applies.
 3. Confirm that each status row is valid and known to the Probe. A zero hit count is acceptable at readiness; `invalid_line_target`, `status_failed`, a missing status row, or an unresolvable key is not.
 4. Confirm that the response is reachable and suitable for the selected target.
 
@@ -182,14 +202,14 @@ If readiness fails, stop the runtime phase. Do not reset, actuate, trigger, or g
 
 For each permitted attempt, use this sequence:
 
-1. Call `probe` with `action=reset` for the selected Strict Line Key or bounded key set, with `timeoutMs=15000` unless a lower user limit applies.
-2. If actuation was explicitly enabled, call `probe` with outer `action=actuate` and input `action=arm`, using the same selector, `sessionId`, `targetKey`, `returnBoolean`, and explicit `ttlMs` before sending the trigger. If arming fails, do not trigger.
-3. Execute the complete synthesized or user-provided trigger request once through `transport_execute` with its explicit protocol, `options.wrappedOnly=true`, and a 20,000 ms request timeout when supported, unless a lower user limit applies.
-4. Call `probe` with `action=wait_for_hit` using `timeoutMs=15000`, `pollIntervalMs=500`, and `maxRetries=1`, unless lower user limits apply.
-5. Use `probe` with `action=status` when a wait result is absent, ambiguous, or requires a bounded final count.
-6. Use `probe` with `action=capture` only when `status` provides a valid capture identifier.
-7. Use `probe` with `action=profiler` only when explicitly needed within the safety limits; profiler evidence supports interpretation but never substitutes for a Strict Line Hit.
-8. If actuation was armed, call `probe` with outer `action=actuate` and input `action=disarm`, using the same selector and `sessionId` on every success or failure path before returning the report. If disarm cannot be confirmed, return `blocked` with `bug_drill_cleanup_failed` and do not claim verification.
+1. Call `probe.reset` for the selected Strict Line Key or bounded key set, with `timeoutMs=15000` unless a lower user limit applies.
+2. If actuation was explicitly enabled, call `probe.actuate` with `arguments.action=arm`, using the same selector, `sessionId`, `targetKey`, `returnBoolean`, and explicit `ttlMs` before sending the trigger. If arming fails, do not trigger.
+3. Execute the complete synthesized or user-provided trigger request once through `transport_execute.execute` with its explicit protocol, `options.wrappedOnly=true`, and a 20,000 ms request timeout when supported, unless a lower user limit applies.
+4. Call `probe.wait_for_hit` using `timeoutMs=15000`, `pollIntervalMs=500`, and `maxRetries=1`, unless lower user limits apply.
+5. Use `probe.status` when a wait result is absent, ambiguous, or requires a bounded final count.
+6. Use `probe.capture` only when `status` provides a valid capture identifier.
+7. Use `probe.profiler` only when explicitly needed within the safety limits; profiler evidence supports interpretation but never substitutes for a Strict Line Hit.
+8. If actuation was armed, call `probe.actuate` with `arguments.action=disarm`, using the same selector and `sessionId` on every success or failure path before returning the report. If disarm cannot be confirmed, return `blocked` with `bug_drill_cleanup_failed` and do not claim verification.
 
 Stop after the configured attempt limit, when the target is proven, or when a deterministic blocked condition occurs. Do not retry indefinitely, repeat a side-effecting request without authorization, or treat a timeout as a hit.
 

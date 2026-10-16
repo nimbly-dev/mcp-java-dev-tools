@@ -64,6 +64,7 @@ final class SqliteRunStateProjectionRebuilder {
                     }
                 }
             }
+            rebuildSuiteContinuations(connection, databasePath, projectName, strict, reasons);
             if (strict && invalid > 0) {
                 throw strictFailure(invalid, reasons);
             }
@@ -74,6 +75,30 @@ final class SqliteRunStateProjectionRebuilder {
             throw exception;
         } finally {
             connection.setAutoCommit(true);
+        }
+    }
+
+    private void rebuildSuiteContinuations(Connection connection, Path database, String project,
+            boolean strict, List<String> reasons) throws SQLException {
+        ArtifactPathPolicy paths = new ArtifactPathPolicy(database.toAbsolutePath().getParent().getParent().getParent());
+        Path suites = paths.resolve(".mcpjvm", project, "suite-runs");
+        for (Path directory : reader.safeDirectories(suites, paths)) {
+            Path source = paths.check(directory.resolve("execution_orchestration.result.json"));
+            try {
+                var state = reader.readBoundedJson(source);
+                String id = directory.getFileName().toString();
+                if (state == null || !state.isObject() || !id.equals(state.path("suiteRunId").asText())) {
+                    throw new java.io.IOException("invalid suite checkpoint");
+                }
+                writer.insertSuiteContinuation(connection, project, id, state.path("progressSummary"), paths.relative(source));
+            } catch (java.io.IOException failure) {
+                if (strict) {
+                    throw new ArtifactOperationException("state_store_rebuild_strict_failed", "Suite checkpoint is invalid");
+                }
+                if (reasons.size() < MAX_REASON_ROWS) {
+                    reasons.add(directory.getFileName() + ":suite_checkpoint_invalid");
+                }
+            }
         }
     }
 

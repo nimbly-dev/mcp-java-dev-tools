@@ -56,7 +56,7 @@ final class SqliteRunStateProjectionWriter {
             insertNullable(insert, 11, source.executionProfile());
             insertNullable(insert, 12, source.suiteRunId());
             insertNullable(insert, 13, source.activePhase());
-            insertNullable(insert, 14, json.boundedJson(source.artifact()));
+            insertNullable(insert, 14, json.projectionJson(source.artifact(), source.runDirPathRel()));
             insert.setString(15, source.runDirPathRel());
             insert.executeUpdate();
         }
@@ -73,17 +73,23 @@ final class SqliteRunStateProjectionWriter {
                 firstPresent(root, "externalVerification", "externalVerificationResults"));
         JsonNode continuation = firstPresent(root, "continuation", "progressSummary");
         if (continuation != null && !continuation.isMissingNode() && !continuation.isNull()) {
-            String encoded = json.boundedJson(continuation);
-            try (var insert = connection.prepareStatement(
-                    "INSERT INTO suite_continuation_state(project_name, suite_run_id, state_json, source_path_rel) "
-                            + "VALUES (?, ?, ?, ?) ON CONFLICT(project_name, suite_run_id) DO UPDATE SET "
-                            + "state_json = excluded.state_json, source_path_rel = excluded.source_path_rel")) {
-                insert.setString(1, projectName);
-                insert.setString(2, root.path("suiteRunId").asText(source.runId()));
-                insert.setString(3, encoded);
-                insert.setString(4, source.runDirPathRel());
-                insert.executeUpdate();
-            }
+            insertSuiteContinuation(connection, projectName, root.path("suiteRunId").asText(source.runId()),
+                    continuation, source.runDirPathRel());
+        }
+    }
+
+    void insertSuiteContinuation(Connection connection, String projectName, String suiteRunId,
+            JsonNode continuation, String sourcePath) throws SQLException {
+        String encoded = json.projectionJson(continuation, sourcePath);
+        try (var insert = connection.prepareStatement(
+                "INSERT INTO suite_continuation_state(project_name, suite_run_id, state_json, source_path_rel) "
+                        + "VALUES (?, ?, ?, ?) ON CONFLICT(project_name, suite_run_id) DO UPDATE SET "
+                        + "state_json = excluded.state_json, source_path_rel = excluded.source_path_rel")) {
+            insert.setString(1, projectName);
+            insert.setString(2, suiteRunId);
+            insert.setString(3, encoded);
+            insert.setString(4, sourcePath);
+            insert.executeUpdate();
         }
     }
 
@@ -96,7 +102,7 @@ final class SqliteRunStateProjectionWriter {
         if (value == null || value.isMissingNode() || value.isNull()) {
             return;
         }
-        String encoded = json.boundedJson(value);
+        String encoded = json.projectionJson(value, source.runDirPathRel());
         try (var insert = connection.prepareStatement(
                 "INSERT INTO " + table + "(project_name, plan_name, run_id, state_json, source_path_rel) "
                         + "VALUES (?, ?, ?, ?, ?) ON CONFLICT(project_name, plan_name, run_id) DO UPDATE SET "

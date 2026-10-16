@@ -32,6 +32,23 @@ import org.junit.jupiter.api.io.TempDir;
 
 class RegressionPlanExecutorTest {
 
+    @Test
+    void resultsRetainDeclaredEndpointIdentityWithoutUrlCredentialsQueryOrResolvedContext() {
+        for (String field : List.of("path", "pathTemplate", "url")) {
+            ObjectNode input = validPlan();
+            ObjectNode http = (ObjectNode) input.path("contract").path("steps").get(0).path("transport").path("http");
+            http.remove("path");
+            String endpoint = field.equals("url") ? "https://user:password@example.test/owners/${ownerId}" : "/owners/${ownerId}";
+            http.put(field, endpoint + "?token=literal-secret#private-fragment");
+            ((ObjectNode) input.path("providedContext")).put("ownerId", "resolved-private-id");
+            RegressionSuiteResult result = feature.executePlan(input);
+            var step = mapper.valueToTree(result.details()).path("steps").get(0);
+            assertThat(step.path("method").asText()).isEqualTo("GET");
+            assertThat(step.path("path").asText()).isEqualTo("/owners/${ownerId}");
+            assertThat(result.toString()).doesNotContain("password", "literal-secret", "private-fragment", "resolved-private-id");
+        }
+    }
+
     @TempDir
     Path temporaryDirectory;
 

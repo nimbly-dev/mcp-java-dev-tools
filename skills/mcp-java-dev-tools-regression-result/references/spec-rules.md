@@ -43,6 +43,11 @@ Allowed `Probe Coverage` enum values:
 
 ## Deterministic Rendering
 
+For Java-produced runs, map Endpoint from persisted `steps[].method` and
+`steps[].path`. The path is the declared route/template, not resolved request
+context. Do not read a mutable current plan to reconstruct missing identity in
+an older run; retain the documented fail-closed behavior for such artifacts.
+
 1. Rows sorted by `step.order` ascending.
 2. Tie-break by endpoint text.
 3. Missing optional fields render stable placeholders (`n/a`).

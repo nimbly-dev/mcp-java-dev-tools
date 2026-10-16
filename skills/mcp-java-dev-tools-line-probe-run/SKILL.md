@@ -5,6 +5,23 @@ description: "Run strict single-line JVM probe verification. Use for line-hit ch
 
 # MCP JVM Line Probe Run
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `probe.check`
+- `artifact_management.project_context.validate`
+- `route_synthesis.create_recipe`
+- `probe.reset`
+- `transport_execute.execute`
+- `probe.wait_for_hit`
+- `probe.status`
+- `probe.capture`
+
 Use this workflow only for strict one-line verification runs.
 
 ## Contract
@@ -15,7 +32,7 @@ Use this workflow only for strict one-line verification runs.
 
 ## MCP-First Requirement
 
-1. Mandatory tools: `probe`, `artifact_management`, `route_synthesis`.
+1. Required CDE operations: Probe operations, Artifact Management operations, Route Synthesis operations.
 2. If MCP toolchain is unavailable, stop immediately and return:
    - `reasonCode=toolchain_unavailable`
    - `nextAction=enable_mcp_jvm_debugger_tools_then_rerun`
@@ -32,15 +49,15 @@ Use this workflow only for strict one-line verification runs.
    - probe base URL (or probe port)
    - optional `apiBasePath`
    - auth requirement/token only if needed.
-1. Validate probe connectivity first with `probe` using `action=check` on the selected probe base URL.
-2. Call `artifact_management` with `artifactType=project_context`, `action=validate`, and typed `input`.
+1. Validate probe connectivity first with `probe.check` on the selected probe base URL.
+2. Call `artifact_management.project_context.validate` with typed `arguments`.
 3. Prefer explicit `projectName` for multi-project or microservice workspaces.
 4. Include `projectRootAbs` when the orchestrator needs deterministic root validation or scope cross-checking.
-5. Call `route_synthesis` with `action=create_recipe`, `intentMode=line_probe`, strict line target context, and exact FQCN in `classHint`.
+5. Call `route_synthesis.create_recipe`, `intentMode=line_probe`, strict line target context, and exact FQCN in `classHint`.
 6. Provide `apiBasePath` when runtime is deployed with a context path (for example `/api/v1`).
 7. Ask for context path at most once per run; reuse the same `apiBasePath` for subsequent attempts in that run.
 8. Runtime synthesis scope is runtime-only (`src/main/java` + generated-main roots); test sources are excluded.
-9. If `route_synthesis action=create_recipe` returns `resultType=report`, read compact execution metadata:
+9. If `route_synthesis.create_recipe` returns `resultType=report`, read compact execution metadata:
    - `executionPlan.routingReason` (code)
    - `executionPlan.steps[].actionCode` (code)
    - avoid depending on verbose instruction text.
@@ -61,10 +78,10 @@ Use this workflow only for strict one-line verification runs.
    - probe reachability
    - API reachability
    - strict target alignment (`Class#method:line` resolvability or class-scoped line discovery)
-17. Treat `route_synthesis action=class_methods` / `action=infer_target` line outputs as runtime-validated only; when unresolved, do not guess a line and fail closed.
+17. Treat `route_synthesis.class_methods` / `route_synthesis.infer_target` line outputs as runtime-validated only; when unresolved, do not guess a line and fail closed.
 18. When capture preview is available, use `capturePreview.executionPaths` as runtime evidence; do not re-derive call paths heuristically.
 19. Execute probe flow:
-   - `probe` with `action=reset` -> trigger HTTP request -> `probe` with `action=wait_for_hit` / `action=status`
+   - `probe.reset` -> trigger HTTP request -> `probe.wait_for_hit` / `probe.status`
 20. Cleanup (disable actuation when used).
 21. When a Regression Suite records a Strict Line observation, report baseline, final count, and delta as historical evidence. Do not claim a Probe remains armed from a stored snapshot; live Sidecar status is authoritative.
 
@@ -72,23 +89,23 @@ Use this workflow only for strict one-line verification runs.
 
 Before starting execution:
 
-1. Probe endpoint must be reachable (`probe` with `action=check` succeeds for selected probe base URL).
+1. Probe endpoint must be reachable (`probe.check` succeeds for selected probe base URL).
 2. API and probe endpoints must be explicitly known and must not be assumed identical unless validated.
 3. Strict target must be provided (`Class#method:line` or inferable from exact `classHint` + `methodHint` + `lineHint`).
 4. Auth input must be present only when required by synthesis/auth diagnostics.
 
 ## Fallback: Manual Probe-Verified Execution
 
-If `route_synthesis action=create_recipe` does not infer a request candidate, continue manually:
+If `route_synthesis.create_recipe` does not infer a request candidate, continue manually:
 
 1. Gather only missing inputs:
    - endpoint path/method from user or runtime docs
    - request body/query shape from DTO/controller contract
    - auth token only if required.
 2. Keep probe verification strict:
-   - `probe` with `action=reset` on target line key
+   - `probe.reset` on target line key
    - execute trigger HTTP request against discovered API base URL
-   - verify with `probe` using `action=wait_for_hit` (or `action=status`).
+   - verify with `probe.wait_for_hit` (or `probe.status`).
 3. Report deterministic outcome:
    - include `reasonCode`, `failedStep`, `evidence`, `attemptedStrategies`
    - include executable human `Repro Steps`.
@@ -127,7 +144,7 @@ Always include:
    - `runDurationMs` (`runEndEpoch - runStartEpoch`)
    - optional human-readable UTC timestamps for operator readability
 7. `Synthesis Diagnostics` (`synthesizerUsed`, `reasonCode`, `failedStep` when present)
-8. `Runtime Evidence` (`capturePreview.executionPaths` and `probe action=capture -> result.capture.executionPaths` when available)
+8. `Runtime Evidence` (`capturePreview.executionPaths` and `probe.capture` → `result.actionResult.capture.executionPaths` when available)
 9. `Repro Steps` (ordered, executable, numbered, per-recipe)
 10. `Cleanup`
 11. `Trust Note`

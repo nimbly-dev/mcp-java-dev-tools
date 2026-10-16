@@ -36,4 +36,19 @@ final class SqliteRunStateJson {
             throw new SQLException("state surface could not be encoded", exception);
         }
     }
+
+    String projectionJson(JsonNode value, String sourcePath) throws SQLException {
+        try {
+            String encoded = mapper.writeValueAsString(ArtifactRedactionPolicy.sanitizeJson(value));
+            if (encoded.getBytes(StandardCharsets.UTF_8).length <= 64 * 1024) {
+                return encoded;
+            }
+            // Full evidence remains in the bounded canonical Artifact; never silently truncate state.
+            return boundedJson(mapper.createObjectNode().put("projectionStatus", "artifact_only")
+                    .put("reasonCode", "state_projection_size_limit_exceeded")
+                    .put("sourcePathRel", sourcePath));
+        } catch (IOException failure) {
+            throw new SQLException("state projection could not be encoded", failure);
+        }
+    }
 }

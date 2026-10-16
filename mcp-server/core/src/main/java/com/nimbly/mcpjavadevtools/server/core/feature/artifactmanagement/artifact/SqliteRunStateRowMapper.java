@@ -38,9 +38,16 @@ final class SqliteRunStateRowMapper {
         Object started = row.get("started_at_epoch_ms");
         output.put("updatedAtEpochMs", completed instanceof Number ? completed : started);
         putIfPresent(output, "runDirPathRel", row.get("run_dir_path_rel"));
-        if (row.get("state_json") != null && !output.containsKey("status")) {
+        if (row.get("state_json") != null) {
             try {
-                output.put("state", mapper.readTree(String.valueOf(row.get("state_json"))));
+                JsonNode state = mapper.readTree(String.valueOf(row.get("state_json")));
+                if ("artifact_only".equals(state.path("projectionStatus").asText())) {
+                    output.put("projection", state);
+                    return output;
+                }
+                if (!output.containsKey("status")) {
+                    output.put("state", state);
+                }
             } catch (IOException exception) {
                 throw new ArtifactOperationException("run_state_detail_invalid", "run-state detail is invalid");
             }

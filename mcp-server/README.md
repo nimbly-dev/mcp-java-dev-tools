@@ -129,6 +129,8 @@ This lane uses existing real JVM/Probe, exception investigation, correlation,
 suite, restart, migration and receiving-tool replay scenarios. Automated
 Tool/Artifact/helper compatibility and actual conversational Skill use are
 reported separately.
+The [#658 Skill follow-up](../docs/acceptance/mcpjvm-658-cde-skills.md) records
+the revised CDE guidance, per-file dispositions, and selected actual Skill use.
 Behavior-focused workflow classes also cover exception investigation becoming a
 durable regression guard and downstream repair requiring a fresh run after
 restart. Skill references provide many-to-many traceability across these flows.

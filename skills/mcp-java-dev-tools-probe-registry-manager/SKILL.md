@@ -5,15 +5,28 @@ description: "Manage probe registry configuration (`probe-config.json`): add/upd
 
 # MCP Java Dev Tools Probe Registry Manager
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.probe_config.read`
+- `artifact_management.probe_config.validate`
+- `artifact_management.probe_config.upsert`
+- `artifact_management.probe_config.reload`
+
 Use this skill for operational management of `.mcpjvm/probe-config.json` and registry runtime refresh.
 
 ## Scope
 
 1. Add/update/remove probe entries in `.mcpjvm/probe-config.json`.
 2. Validate deterministic registry shape (`defaultProfile`, `workspaces[]`, `profiles`, `probes`).
-3. Trigger runtime refresh through `artifact_management` with `artifactType=probe_config` and `action=reload` after changes.
+3. Trigger runtime refresh through `artifact_management.probe_config.reload` after changes.
 4. Provide ready-to-paste MCP client configuration snippets.
-5. Use `artifact_management` with `artifactType=probe_config` for read/validate/upsert/reload Artifact operations.
+5. Use the `artifact_management.probe_config.read`, `.validate`, `.upsert`, and `.reload` operations described above.
 
 ## Rules
 
@@ -71,12 +84,12 @@ Notes:
 
 ## Workflow
 
-1. Call `artifact_management` with `artifactType=probe_config` and `action=read`.
-2. Validate registry contract through `artifact_management` `action=validate`.
+1. Call `artifact_management.probe_config.read`.
+2. Validate registry contract through `artifact_management.probe_config.validate`.
 3. Apply requested mutation (add/update/remove workspace/profile/probe).
-4. Persist via `artifact_management` with `artifactType=probe_config` and `action=upsert`.
-5. Re-validate with `artifact_management` `action=validate`.
-6. Call `artifact_management` with `artifactType=probe_config` and `action=reload`.
+4. Persist via `artifact_management.probe_config.upsert`.
+5. Re-validate with `artifact_management.probe_config.validate`.
+6. Call `artifact_management.probe_config.reload`.
 7. Return:
    - change summary
    - any Fail-Closed validation errors
@@ -120,15 +133,18 @@ When setting `include[]`:
 
 ## MCP Run Snippet Template
 
+Use Java 21+ and the packaged server directory, including its adjacent `sidecar/` artifacts. The workspace must be explicit.
+
 ```json
 {
   "mcpServers": {
     "mcp-java-dev-tools": {
-      "command": "node",
-      "args": ["C:\\path\\to\\mcp-jvm-debugger\\dist\\server.js"],
-      "env": {
-        "MCP_JAVA_AGENT_JAR": "C:\\path\\to\\mcp-java-dev-tools-agent-0.1.8-all.jar"
-      }
+      "command": "java",
+      "args": [
+        "-jar",
+        "<absolute-package-directory>/mcp-java-dev-tools-server-0.1.9.jar",
+        "--workspace-root=<absolute-workspace>"
+      ]
     }
   }
 }

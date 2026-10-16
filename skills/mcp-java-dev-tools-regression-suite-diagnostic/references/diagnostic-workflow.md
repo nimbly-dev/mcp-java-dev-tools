@@ -2,8 +2,8 @@
 
 ## Plan validation
 
-1. Read and validate the named Regression Plan through `artifact_management`.
-2. Read the selected `project_context` through `artifact_management`.
+1. Read and validate the named Regression Plan through Artifact Management operations.
+2. Read the selected `project_context` through Artifact Management operations.
 3. Conditionally read execution-profile context, runtime context, health-check policy, Probe configuration, and project-owned resiliency defaults.
 4. Cross-check prerequisites, targets, Strict Line Keys, Watchers, external verification, execution profile references, and project policy.
 5. Return `executable`, `blocked`, or `invalid` with one phase/reason and one safe next action.

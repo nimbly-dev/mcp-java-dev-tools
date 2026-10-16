@@ -72,7 +72,9 @@ class McpServerRegressionRequestIT extends RegressionMcpSupport {
             assertThat(JSON.readTree(received.body()).path("quantity").asInt()).isEqualTo(2);
             assertThat(target.received().uri()).isEqualTo("/next/observed");
             target.assertNoRequest();
-            assertRun(server, workspace, "requests", "ordered", "pass");
+            JsonNode persisted = assertRun(server, workspace, "requests", "ordered", "pass");
+            assertThat(persisted.path("steps").get(0).path("method").asText()).isEqualTo("POST");
+            assertThat(persisted.path("steps").get(0).path("path").asText()).isEqualTo("/orders/a%20b");
             // This smoke uses only generated non-secret fixture data; retain its actual CDE wire evidence.
             Files.write(workspace.getParent().resolve("smoke-stdio.jsonl"), server.stdoutLines());
         }

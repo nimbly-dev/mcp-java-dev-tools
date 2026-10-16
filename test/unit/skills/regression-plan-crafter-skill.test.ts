@@ -157,7 +157,7 @@ test("[UT][skills][regression_plan_crafter_skill] regression suite skill remains
   assert.match(suiteText, /treat `steps` as windowable/i);
   assert.match(
     suiteText,
-    /load each ordered plan through `artifact_management` .* explicit pagination/i,
+    /load each ordered plan through `artifact_management\.regression_plan\.read` .* explicit pagination/i,
   );
   assert.match(
     suiteText,
@@ -165,11 +165,11 @@ test("[UT][skills][regression_plan_crafter_skill] regression suite skill remains
   );
   assert.match(
     suiteText,
-    /the orchestrator should load runtime suite plan inputs through these paged `artifact_management` calls/i,
+    /the orchestrator should load runtime suite plan inputs through these paged Artifact Management operations calls/i,
   );
   assert.match(
     suiteText,
-    /`artifact_management` is the maintained read path for execution profile lookup and regression plan loading/i,
+    /Artifact Management operations is the maintained read path for execution profile lookup and regression plan loading/i,
   );
   assert.match(suiteText, /maxPlansPerCall/);
   assert.match(suiteText, /status="in_progress"/);

@@ -5,6 +5,20 @@ description: "Run MCP-first HTTP regression suites (endpoint, service, or API sc
 
 # MCP JVM Regression Suite
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.project_context.read`
+- `artifact_management.regression_plan.read`
+- `regression_suite.execute_plan`
+- `execution_orchestration.execute`
+- `artifact_management.run_result.read`
+
 Single-call execution skill for regression plans.
 
 ## Intent Router
@@ -52,14 +66,16 @@ Single-call execution skill for regression plans.
 ## Branch Router
 
 1. `execution_profile` present => `runtime_suite_branch`:
-   - load workspace execution profile by `executionProfile` through `artifact_management` (`artifactType=project_context`, `action=read`) using explicit typed input: `{ "projectName": "<project_name>", "query": { "select": ["executionProfiles"] } }`
+   - load workspace execution profile by `executionProfile` through `artifact_management.project_context.read` using these operation `arguments`: `{ "projectName": "<project_name>", "query": { "select": ["executionProfiles"] } }`
    - validate ordered `plans[]` and execution policy
-   - load each ordered plan through `artifact_management` (`artifactType=regression_plan`, `action=read`) with explicit pagination for windowable sections before execution
+   - load each ordered plan through `artifact_management.regression_plan.read` with explicit pagination for windowable sections before execution
    - execute plans in order using suite policy
 2. `plan_name` present => `single_plan_branch`:
    - execute one regression plan using phase pipeline below
 3. both `execution_profile` and `plan_name` present => fail closed (`execution_input_conflict`)
 4. neither present => fail closed (`execution_input_required`)
+
+These are user-intent selectors. For a single plan, resolve its containing execution profile from project context and invoke `regression_suite.execute_plan` with the described `projectName`, `executionProfile`, `planName`, and a fresh `suiteRunId`. An execution-profile request uses `execution_orchestration.execute` with bounded `maxPlansPerCall`. The Java owner performs request execution and persists run Artifacts; local Node helpers only evaluate supplied facts or render summaries.
 
 ## FSM Router
 
@@ -103,10 +119,10 @@ Runtime suite branch (`execution_profile`) rules:
    - `requestTimeoutMs`
    - `retryMax`
 5. Do not accept unrecognized `runtimeConfig` keys.
-6. For actual runtime suite execution, treat `artifact_management` as the canonical plan loader:
-   - do not read `contract.json`, `metadata.json`, or `plan.md` directly when the same data can be loaded through `artifact_management`
+6. For actual runtime suite execution, treat Artifact Management operations as the canonical plan loader:
+   - do not read `contract.json`, `metadata.json`, or `plan.md` directly when the same data can be loaded through Artifact Management operations
    - do not use shell/file reads as the primary source for plan steps or prerequisites
-   - fail closed rather than bypassing `artifact_management` for regression plan loading when MCP path is available
+   - fail closed rather than bypassing Artifact Management operations for regression plan loading when MCP path is available
 7. For each plan in `execution_profile` order, use a staged plan load:
    - first read `query.select=["summary","targets"]`
    - then read `prerequisites` with explicit `{ "offset": ..., "limit": ... }`
@@ -114,8 +130,8 @@ Runtime suite branch (`execution_profile`) rules:
    - continue windowing until all required plan sections are loaded
 8. Do not replace runtime-suite artifact paging with ad hoc small-enough full reads.
 9. For `execution_profile` prompts, the maintained execution path MUST use resumable orchestration slices:
-   - call `execution_orchestration` with `maxPlansPerCall`
-   - if the tool returns `status="in_progress"`, re-call `execution_orchestration` with the returned `suiteRunId`
+   - call `execution_orchestration.execute` with `maxPlansPerCall`
+   - after CDE success, if `result.status="in_progress"`, re-call `execution_orchestration.execute` with the returned `suiteRunId`
    - continue the same run until terminal `pass`, `fail`, `blocked`, or `partial_fail`
 10. Do not restart from the beginning when resumable progress exists:
 
@@ -160,13 +176,13 @@ Runtime suite branch (`execution_profile`) rules:
 
 `contract.steps[].extract[]` uses `scope="plan"` by default. Plan context is available to later steps, dependent Watchers, and external verification in that plan. A value intended for a later profile plan must use `scope="suite"` and `secret=false`; suite promotion is explicit and only occurs after the producer plan passes. Secret classification is explicit and is never inferred from output key names. A later plan that references an unpromoted suite key fails closed with `suite_context_forward_reference`, while secret suite promotion returns `suite_context_secret_forbidden`.
 
-During resume, call `execution_orchestration` with the same `suiteRunId`. Continue the persisted active phase and preserve completed-step context; do not resend completed triggers. Secret values remain redacted from Artifacts, MCP output, SQLite summaries, and logs.
+During resume, call `execution_orchestration.execute` with the same `suiteRunId`. Continue the persisted active phase and preserve completed-step context; do not resend completed triggers. Secret values remain redacted from Artifacts, MCP output, SQLite summaries, and logs.
 
 1. Always use bounded or windowed reads for Artifact inspection, logs, and generated scripts.
 2. Do not switch to full Artifact reads based on artifact size; this workflow should use paged/windowed inspection by default.
 3. Never dump full `contract.json`, `execution.result.json`, `evidence.json`, or export scripts into context when a bounded/windowed read can answer the question.
 4. When a plan contains `watchers` or `externalVerification`, inspect those sections with the same bounded-read discipline used for `steps`.
-5. For `artifact_management` `regression_plan` reads:
+5. For Artifact Management operations `regression_plan` reads:
    - use `query.select`
    - treat `targets` as full
    - treat `prerequisites` as windowable
@@ -174,7 +190,7 @@ During resume, call `execution_orchestration` with the same `suiteRunId`. Contin
 6. When inspecting regression plans, always prefer explicit windows such as:
    - `query: { "select": ["summary", "prerequisites", "steps"], "prerequisites": { "offset": 0, "limit": 50 }, "steps": { "offset": 0, "limit": 25 } }`
 7. For actual runtime suite execution, do not treat windowing as debug-only:
-   - the orchestrator should load runtime suite plan inputs through these paged `artifact_management` calls as the maintained execution path
+   - the orchestrator should load runtime suite plan inputs through these paged Artifact Management operations calls as the maintained execution path
    - this applies even when a direct file read might seem cheaper
 8. For file/shell inspection outside MCP Artifact reads, always prefer bounded reads such as:
    - `rg`
@@ -196,14 +212,14 @@ Use these references/templates:
 8. `templates/fail-closed.result.json`
 9. `templates/needs-user-input.result.json`
 10. `templates/run-summary.result.json`
-11. `artifact_management` MCP Tool (operational source) for artifact lifecycle reads/validations:
+11. Artifact Management operations (operational source) for artifact lifecycle reads/validations:
 
-- `artifactType=project_context` (`read|validate|list`)
-- `artifactType=regression_plan` (`read|validate|list`)
-- `artifactType=run_result` (`list|read|rebuild`)
-- `artifactType=run_result`, `action=cleanup` for bounded SQLite retention maintenance. Use explicit `input.projectName` and the optional `input.retention` policy; `dryRun` defaults to `true`.
+- `artifact_management.project_context.read` / `artifact_management.project_context.validate` / `artifact_management.project_context.list`
+- `artifact_management.regression_plan.read` / `artifact_management.regression_plan.validate` / `artifact_management.regression_plan.list`
+- `artifact_management.run_result.list` / `artifact_management.run_result.read` / `artifact_management.run_result.rebuild`
+- `artifact_management.run_result.cleanup` for bounded SQLite retention maintenance. Use explicit `arguments.projectName` and the optional `arguments.retention` policy; `dryRun` defaults to `true`.
 
-12. For orchestrated runtime-suite execution, `artifact_management` is the maintained read path for execution profile lookup and regression plan loading.
+12. For orchestrated runtime-suite execution, Artifact Management operations is the maintained read path for execution profile lookup and regression plan loading.
 
 ## SQLite Retention Maintenance
 
@@ -211,9 +227,8 @@ Retention cleanup is an explicit maintenance operation, separate from runtime sh
 
 ```json
 {
-  "artifactType": "run_result",
-  "action": "cleanup",
-  "input": {
+  "operationId": "artifact_management.run_result.cleanup",
+  "arguments": {
     "projectName": "<project_name>",
     "retention": {
       "terminalOlderThanDays": 90,
@@ -221,7 +236,8 @@ Retention cleanup is an explicit maintenance operation, separate from runtime sh
       "dryRun": true,
       "maxDeleteBatch": 500
     }
-  }
+  },
+  "confirmed": true
 }
 ```
 
@@ -242,17 +258,15 @@ Run a dry run first. Age and count retention apply together; cleanup excludes ac
 5. Do not author `correlation.json` directly; use canonical artifact writer flow.
 6. When `watchers[]` execute, watcher outcome state is first-class Artifact data and must be preserved in `execution.result.json` and `evidence.json`.
 7. When `externalVerification[]` execute, external-verification outcome state is first-class Artifact data and must be preserved in `execution.result.json` and `evidence.json`.
-8. `run_id` MUST be canonical:
-   - `MM-DD-YYYY-hh-mm-ssAM`
-   - example: `05-09-2026-08-33-41PM`
-9. Never invent ad-hoc run IDs (for example `20260509T134827387Z-customers`).
-10. If run_id is non-canonical, fail closed before artifact write.
+8. Supply `suiteRunId` according to Java Describe and preserve Java's returned/persisted `runId` for reads and continuation (direct execution can use `<suiteRunId>-1`).
+9. Never manufacture or rename a persisted run identity; Java owns its validation.
+10. Keep terminal runs immutable; use a new suite identity for a fresh run.
 11. Runtime suite branch additionally references runtime manifest semantics at:
 
 - `.mcpjvm/<project_name>/projects.json` with matching workspace `executionProfiles[]`
 
 12. In multi-project workspaces (multiple `.mcpjvm/*/projects.json`), always pass explicit `projectName` in artifact reads to avoid ambiguity.
-13. Persisted artifact access in this workflow should route through `artifact_management` wherever MCP path is available.
+13. Persisted artifact access in this workflow should route through Artifact Management operations wherever MCP path is available.
 14. Treat persisted suite status as the canonical resumable state for long-running workflows:
 
 - `suiteRunId`
@@ -261,7 +275,7 @@ Run a dry run first. Age and count retention apply together; cleanup excludes ac
 - completed `planRuns[]`
 
 15. SQLite operational state is never a replacement for canonical run Artifacts. Persist canonical evidence first, then persist the checkpoint; a checkpoint-persistence failure blocks safe continuation and must return deterministic recovery guidance.
-16. SQLite recovery is a maintenance workflow, not normal suite execution. Rebuild only from canonical run Artifacts through `artifact_management` with `artifactType=run_result` and `action=rebuild`; do not use legacy `correlation-index.json` or invent active checkpoint state.
+16. SQLite recovery is a maintenance workflow, not normal suite execution. Rebuild only from canonical run Artifacts through `artifact_management.run_result.rebuild`; do not use legacy `correlation-index.json` or invent active checkpoint state.
 17. Never invoke legacy JSON backfill during normal suite execution or as a post-cutover fallback; it is an explicit pre-cutover maintenance action only.
 18. Cutover is an explicit maintenance action; once complete, SQLite is required and no legacy correlation-index writer or query fallback is permitted.
 19. Correlation projection must preserve the same `runId` and `correlationSessionId`; a fresh suite run must not reuse a terminal Correlation result from an older run merely because its key matches.
@@ -269,8 +283,8 @@ Run a dry run first. Age and count retention apply together; cleanup excludes ac
 
 ## MCP-First and Wrapped Transport
 
-1. Mandatory MCP tools: `probe`, `artifact_management`, `route_synthesis`.
-2. HTTP execution uses `transport_execute` (wrapped-only); no raw curl fallback.
+1. Required CDE operations: Probe operations, Artifact Management operations, Route Synthesis operations.
+2. HTTP execution uses `transport_execute.execute` (wrapped-only); no raw curl fallback.
 3. Watchers must remain bounded and fail closed; do not replace watcher polling with unbounded sleeps or open-ended retries.
 4. External verification contracts must keep secret-bearing connection or credential material outside persisted plan defaults.
 5. If toolchain is unavailable:

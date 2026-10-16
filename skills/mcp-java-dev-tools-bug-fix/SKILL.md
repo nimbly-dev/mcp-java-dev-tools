@@ -5,7 +5,24 @@ description: "Create a proposal-only, evidence-backed Java bug-fix diagnosis fro
 
 # MCP Java Dev Tools Bug Fix
 
-Create a bounded proposal for an issue-led Java source fix. Separate reported behavior, expected behavior, static localization, runtime reproduction evidence, and the proposed change. This workflow may inspect source and use existing MCP Tools for focused proof, but it never edits application source, applies a fix, persists an Artifact, or claims that a fix is complete.
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `route_synthesis.infer_target`
+- `route_synthesis.create_recipe`
+- `probe.check`
+- `probe.status`
+- `probe.reset`
+- `transport_execute.execute`
+- `probe.wait_for_hit`
+- `probe.capture`
+
+Create a bounded proposal for an issue-led Java source fix. Separate reported behavior, expected behavior, static localization, runtime reproduction evidence, and the proposed change. This workflow may inspect source and use existing operations for focused proof, but it never edits application source, applies a fix, persists an Artifact, or claims that a fix is complete.
 
 ## Scope and boundaries
 
@@ -14,7 +31,7 @@ Create a bounded proposal for an issue-led Java source fix. Separate reported be
 - Do not create or persist Artifacts.
 - Do not invoke regression, performance, security, or CI suite tooling.
 - Do not add a new MCP Tool or Probe action.
-- Reuse existing `route_synthesis`, `probe`, and, only when the trigger is complete and explicitly authorized, `transport_execute`.
+- Reuse existing Route Synthesis operations, Probe operations, and, only when the trigger is complete and explicitly authorized, `transport_execute.execute`.
 - Keep issue context and expected behavior separate from inferred code intent.
 - Never report the bug as fixed; report a proposed change and the evidence supporting or limiting it.
 
@@ -58,7 +75,7 @@ Use the smallest bounded investigation that can connect the behavioral steps to 
 1. Use an explicit project root when supplied; otherwise use the current workspace root only when it is the single deterministic project scope.
 2. Use supplied endpoint/class/method information directly when present.
 3. Otherwise search only the selected project scope for exact route names, event names, exception text, domain terms, and relevant framework annotations from the issue. Keep this search bounded to at most five candidate source files and exclude unrelated services and tests unless the behavioral steps require them.
-4. Convert those search results into exact `classHint` and `methodHint` values, then use `route_synthesis` with `action=class_methods` or `action=infer_target` for deterministic method and line resolution.
+4. Convert those search results into exact `classHint` and `methodHint` values, then use `route_synthesis.class_methods` or `route_synthesis.infer_target` for deterministic method and line resolution.
 5. Resolve exact FQCN, method, signature when overloaded, source location, and executable Strict Line Keys when possible.
 6. Preserve unresolved alternatives as candidates; do not choose by name similarity, directory order, stack proximity, or confidence score.
 
@@ -77,7 +94,7 @@ Translate the behavioral steps into a transport-neutral reproduction model:
 
 Preserve every behavioral action as an ordered reproduction step. Do not collapse a multi-step flow into one request. Record the tool or observation required for each step and whether that step can be executed safely with the existing MCP Tools.
 
-Use `route_synthesis` with `action=create_recipe` and `intentMode=line_probe` or `regression` only when its required project, target, and line context are available. Preserve only public structured fields such as `resultType`, `status`, `reasonCode`, `failedStep`, `requestCandidates`, `trigger`, `evidence`, `executionPlan`, and `attemptedStrategies`. Do not invent an endpoint, payload, credential, event topic, route, or protocol.
+Use `route_synthesis.create_recipe` and `intentMode=line_probe` or `regression` only when its required project, target, and line context are available. Preserve only public structured fields such as `resultType`, `status`, `reasonCode`, `failedStep`, `requestCandidates`, `trigger`, `evidence`, `executionPlan`, and `attemptedStrategies`. Do not invent an endpoint, payload, credential, event topic, route, or protocol.
 
 If the technical request cannot be safely derived, retain the behavioral steps as the reproduction and mark technical reproduction as unavailable. Do not substitute a guessed request for the user's behavioral description.
 
@@ -89,20 +106,20 @@ Resolve Probe selection in this order:
 
 1. explicit `probeId`;
 2. explicit Probe base URL;
-3. one implicit registry target only when `probe action=check` resolves exactly one target.
+3. one implicit registry target only when `probe.check` resolves exactly one target.
 
 If the target is missing, ambiguous, unreachable, or cannot observe the selected method, stop runtime work and retain a blocked evidence record. Do not guess a Probe or silently switch services.
 
 For a safe, authorized runtime reproduction:
 
-1. call `probe action=check`;
-2. call `probe action=status` for the selected Strict Line Key or bounded key set;
-3. call `probe action=reset` before the attempt;
-4. execute every required trigger step in the recorded order through `transport_execute` only when each step has an explicit supported protocol, a complete request, and `options.wrappedOnly=true`;
+1. call `probe.check`;
+2. call `probe.status` for the selected Strict Line Key or bounded key set;
+3. call `probe.reset` before the attempt;
+4. execute every required trigger step in the recorded order through `transport_execute.execute` only when each step has an explicit supported protocol, a complete request, and `options.wrappedOnly=true`;
 5. perform each required bounded wait, event observation, or Probe check between trigger steps;
-6. call `probe action=wait_for_hit` with bounded timeout, polling, and retry limits for each step that requires a Line Hit;
-7. call `probe action=status` for an ambiguous or final count;
-8. call `probe action=capture` only when a valid capture identifier is provided.
+6. call `probe.wait_for_hit` with bounded timeout, polling, and retry limits for each step that requires a Line Hit;
+7. call `probe.status` for an ambiguous or final count;
+8. call `probe.capture` only when a valid capture identifier is provided.
 
 If any required behavioral step cannot be represented or safely executed with the existing MCP Tools, do not execute a partial sequence and do not claim runtime reproduction. Report the behavioral steps, the executable prefix if any, and the missing step as `bug_fix_reproduction_unavailable`.
 

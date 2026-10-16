@@ -22,6 +22,31 @@ function walk(relative) {
     entry.isDirectory() ? walk(`${relative}/${entry.name}`) : [`${relative}/${entry.name}`]);
 }
 function requireThat(condition, message) { if (!condition) problems.push(message); }
+// Validate executable examples, not prose wording or a second copy of Java policy.
+export function skillInvocationProblems(source, operationIds) {
+  const found = [];
+  for (const match of source.matchAll(/```json\s*\r?\n([\s\S]*?)\r?\n\s*```/g)) {
+    let input;
+    try { input = JSON.parse(match[1]); } catch { found.push('invalid JSON example'); continue; }
+    if (input === null || typeof input !== 'object' || Array.isArray(input)) continue;
+    if (input.artifactType && input.action && input.input) found.push('retired Artifact Tool envelope');
+    if (input.action && input.input) found.push('retired action/input envelope');
+    if (Object.hasOwn(input, 'operationId') && typeof input.operationId !== 'string') {
+      found.push('invalid operation ID');
+    } else if (input.operationId && !input.operationId.includes('<')) {
+      if (!operationIds.has(input.operationId)) found.push(`unsupported example: ${input.operationId}`);
+      if (!input.arguments || typeof input.arguments !== 'object' || Array.isArray(input.arguments)
+          || typeof input.confirmed !== 'boolean') found.push('invalid CDE Execute envelope');
+      if (input.operationId.startsWith('jvm_lifecycle.') && Object.hasOwn(input.arguments ?? {}, 'confirm')) {
+        found.push('inner lifecycle confirmation');
+      }
+    }
+    for (const server of Object.values(input.mcpServers ?? {})) {
+      if (server?.command === 'node') found.push('retired Node MCP startup');
+    }
+  }
+  return found;
+}
 requireThat(supported.size === inventory.operations.length, 'duplicate operation mapping');
 const manifest = 'mcp-server/core/src/main/resources/META-INF/mcpjvm/operations';
 const declared = [];
@@ -49,6 +74,16 @@ for (const skill of inventory.skills) {
   const dependencies = walk(directory).filter(file => !file.includes('/agents/')).sort();
   requireThat(JSON.stringify(dependencies) === JSON.stringify([...skill.dependencies].sort()), `${skill.name}: dependency inventory drift`);
   requireThat(skill.sequence.every(id => supported.has(id) || id === 'local_sanitized_evidence_to_markdown_no_publication'), `${skill.name}: unsupported operation`);
+  const dispositions = skill.guidance?.files ?? [];
+  requireThat(JSON.stringify(walk(directory).sort()) === JSON.stringify(dispositions.map(row => row.path).sort()),
+    `${skill.name}: incomplete guidance disposition`);
+  for (const row of dispositions) {
+    requireThat(['updated', 'already_cde_correct', 'non_invocation'].includes(row.disposition)
+      && typeof row.rationale === 'string' && row.rationale.length > 0, `${row.path}: invalid guidance disposition`);
+    if (row.path.endsWith('.md')) {
+      for (const problem of skillInvocationProblems(read(row.path), supported)) problems.push(`${row.path}: ${problem}`);
+    }
+  }
 }
 
 const evidence = new Map();
@@ -91,14 +126,16 @@ const requiredMissing = workflows.filter(s => s.disposition !== 'covered'
   || s.latestAttempt?.outcome !== 'passed' || s.latestAttempt?.cleanupSucceeded !== true);
 const report = { ticket: 656, generatedAt: new Date().toISOString(), inventoryValid: problems.length === 0,
   claim: 'Consolidated Tool/Artifact evidence. Prior successful evidence does not imply freshness after source/input/environment changes.',
-  actualSkillUse: 'not_exercised', problems,
+  actualSkillUse: inventory.skills.filter(s => s.actualSkillUse !== 'not_exercised')
+    .map(s => ({ name: s.name, actualSkillUse: s.actualSkillUse, evidence: s.actualSkillEvidence })), problems,
   counts: { operations: supported.size, skills: inventory.skills.length, scenarios: scenarios.length,
     observedSuccessful: scenarios.filter(s => s.disposition === 'covered').length, workflowScenarios: workflows.length,
     notApplicableOnCurrentHost: scenarios.filter(s => !s.applicableOnCurrentHost).length },
   workflowAcceptance: requiredMissing.length ? 'blocked' : 'evidence_present_requires_provenance_check',
   requiredMissing: requiredMissing.map(s => s.scenarioId), operations, scenarios,
   skills: inventory.skills.map(s => ({ name: s.name, sequence: s.sequence, directArtifactDependencies: s.directArtifactDependencies,
-    dependencies: s.dependencies, actualSkillUse: s.actualSkillUse, limitations: s.limitations })) };
+    dependencies: s.dependencies, guidance: s.guidance, actualSkillUse: s.actualSkillUse,
+    actualSkillEvidence: s.actualSkillEvidence, limitations: s.limitations })) };
 fs.mkdirSync(path.dirname(output), { recursive: true });
 fs.writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify({ inventoryValid: report.inventoryValid, counts: report.counts,

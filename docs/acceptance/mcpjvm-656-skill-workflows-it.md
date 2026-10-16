@@ -1,5 +1,11 @@
 # #656 cross-feature and Skill-facing Java acceptance
 
+Historical acceptance record. The legacy invocation prose and Node startup
+limitation recorded below describe the #656 revision, not current instructions.
+[#658](mcpjvm-658-cde-skills.md) supersedes that guidance and separately records
+selected actual Skill use. The automated evidence below retains its original
+scope; it does not become an all-Skill prose-execution claim.
+
 This child consolidates #646–#655 and adds deterministic packaged-MCP workflows.
 It preserves the accepted #611/#644 Java-only CDE runtime, Sidecar architecture,
 operation schemas and Artifact contracts. The bounded run-companion persistence

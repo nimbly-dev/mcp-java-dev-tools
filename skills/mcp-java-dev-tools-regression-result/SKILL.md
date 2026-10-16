@@ -5,6 +5,18 @@ description: "Render regression run results from artifacts into deterministic su
 
 # MCP JVM Regression Result
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.run_result.list`
+- `artifact_management.run_result.read`
+- `artifact_management.run_result.query`
+
 Use this workflow to generate run summaries from persisted artifacts under `.mcpjvm/<project_name>/plans/regression/<plan>/runs/<run_id>/`.
 
 ## Execution Mode
@@ -32,11 +44,11 @@ If user request conflicts with these rules, fail closed and return deterministic
 
 Operational source for artifact reads:
 
-1. `artifact_management` MCP Tool:
-   - `artifactType=run_result`, `action=read|list|rebuild|backfill|cutover`
+1. Artifact Management operations:
+   - `artifact_management.run_result.read` / `artifact_management.run_result.list` / `artifact_management.run_result.rebuild` / `artifact_management.run_result.backfill` / `artifact_management.run_result.cutover`
 
-For cross-run or active Watcher inspection, use the same MCP Tool with
-`action=query` and `stateSurface=watcher_state`. This is inspection-only
+For cross-run or active Watcher inspection, use `artifact_management.run_result.query`
+with `arguments.stateSurface=watcher_state`. This is inspection-only
 SQLite state, not fresh execution evidence and not a resume/retry command.
 Use canonical Watcher statuses (`in_progress`, `pass`, `fail_assertion`,
 `blocked_dependency`, `blocked_runtime`) and outcomes; render `active` only
@@ -119,3 +131,5 @@ Blocked response must include:
 1. exact missing/invalid artifact or template id
 2. deterministic reason code
 3. single next action
+
+For MCP result reads, set `arguments.suiteType=regression` and retain the exact persisted `planName`/`runId`; do not select by directory ordering or confuse identically named runs from different suite types.

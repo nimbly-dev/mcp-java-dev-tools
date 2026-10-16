@@ -10,7 +10,7 @@ Use these checks during `validate` to keep `SKILL.md` concise and deterministic.
 4. `defaults.orchestrator.resumePollTimeoutMs` must be greater than or equal to `defaults.orchestrator.resumePollIntervalMs`.
 5. `runtimeContexts[]` should exist when the project artifact manages runtime startup.
 6. Runtime `mode` must be `terminal` or `docker`.
-7. `tools/spec/project-artifact-spec/src/project_artifact.util.ts` is the canonical validation contract.
+7. Java Describe and `artifact_management.project_context.validate` own the current validation contract.
 8. `templates/projects.terminal.example.json` is an authoring starter, not a strict schema allowlist.
 9. Do not remove validator-supported optional fields as non-canonical:
    1. `executionProfiles[].runtimeConfig`

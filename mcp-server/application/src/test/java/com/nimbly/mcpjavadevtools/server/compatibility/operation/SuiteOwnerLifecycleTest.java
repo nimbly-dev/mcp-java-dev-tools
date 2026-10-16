@@ -53,9 +53,10 @@ import com.nimbly.mcpjavadevtools.server.core.operation.execution.OperationExecu
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestDocument;
 import com.nimbly.mcpjavadevtools.server.core.operation.manifest.OperationManifestLoader;
 import com.nimbly.mcpjavadevtools.server.core.operation.safety.OperationSafetyPolicy;
-import com.nimbly.mcpjavadevtools.server.lifecycle.FileExecutionSuiteStateStore;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.run.ArtifactExecutionSuiteStateStore;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.ArtifactJsonStore;
+import com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.artifact.SqliteRunStateStore;
 import com.nimbly.mcpjavadevtools.server.lifecycle.ApplicationExecutionRuntimeLifecycle;
-import com.nimbly.mcpjavadevtools.server.lifecycle.WorkspaceContext;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.io.IOException;
@@ -74,7 +75,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.boot.DefaultApplicationArguments;
 
 /** Product persistence and cleanup evidence when orchestration times out inside a real Suite owner. */
 class SuiteOwnerLifecycleTest {
@@ -285,13 +285,12 @@ class SuiteOwnerLifecycleTest {
     }
 
     private OperationDirectory directory(OwnerGate gate, ExecutionRuntimeLifecycle lifecycle, long timeoutMillis) {
-        WorkspaceContext context = new WorkspaceContext(
-                new DefaultApplicationArguments("--workspace-root=" + workspace));
         var action = new ExecuteExecutionOrchestrationAction(
                 artifacts(), performance(gate), security(gate), regression(gate), JSON,
                 (project, type, plan, run) -> Optional.of(workspace.resolve(".mcpjvm").resolve(project)
                         .resolve("plans").resolve(type).resolve(plan).resolve("runs").resolve(run).toString()),
-                new FileExecutionRunLease(workspace), new FileExecutionSuiteStateStore(context, JSON), lifecycle);
+                new FileExecutionRunLease(workspace), new ArtifactExecutionSuiteStateStore(
+                        () -> Optional.of(workspace), new ArtifactJsonStore(JSON), new SqliteRunStateStore(JSON), JSON), lifecycle);
         var registration = ExecutionOrchestrationOperationRegistrations.create(List.of(action), JSON).get(0);
         var timed = withTimeout(registration, timeoutMillis);
         var builtIn = OperationManifestLoader.loadBuiltIn();
@@ -336,7 +335,8 @@ class SuiteOwnerLifecycleTest {
         while (Instant.now().isBefore(deadline)) {
             if (Files.isRegularFile(state)) {
                 JsonNode persisted = JSON.readTree(Files.readString(state));
-                if ("terminal".equals(persisted.path("runtimeLifecycle").path("status").asText())) {
+                if ("terminal".equals(persisted.path("runtimeLifecycle").path("status").asText())
+                        && !Files.exists(suite.resolve("execution.lock"))) {
                     return;
                 }
             }

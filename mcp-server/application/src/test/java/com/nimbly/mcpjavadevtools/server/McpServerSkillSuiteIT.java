@@ -26,9 +26,9 @@ class McpServerSkillSuiteIT extends OrchestrationMcpSupport {
             ok(s.server, "project_context.upsert", Map.of("projectName", PROJECT, "payload", project(s.workspace)));
             ok(s.server, "project_context.validate", Map.of("projectName", PROJECT));
             runSuites(s, target);
+            assertThat(query(s.server, "run_state", Map.of("runId", "shared-1")).path("items")).hasSize(3);
             try (McpServerProcess restarted = start(s.workspace)) {
                 assertThat(artifact(restarted, "probe_config.reload", Map.of()).path("status").asText()).isEqualTo("reloaded");
-                ok(restarted, "run_result.rebuild", Map.of("projectName", PROJECT, "strict", true));
                 for (String suite : List.of("regression", "performance", "security")) {
                     assertResult(restarted, s, suite);
                 }

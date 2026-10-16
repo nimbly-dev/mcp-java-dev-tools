@@ -345,6 +345,9 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("order", step.path("order").asInt());
         output.put("id", step.path("id").asText());
+        JsonNode http = step.path("transport").path("http");
+        output.put("method", http.path("method").asText("GET").toUpperCase(java.util.Locale.ROOT));
+        output.put("path", declaredPath(http));
         output.put("status", status);
         output.put("reasonCode", reasonCode == null ? "transport_failed" : reasonCode);
         if (result != null) {
@@ -354,6 +357,14 @@ public final class RegressionPlanExecutor implements RegressionSuiteFeature {
             output.put("durationMs", result.durationMs());
         }
         return Map.copyOf(output);
+    }
+
+    private static String declaredPath(JsonNode http) {
+        String declared = http.path("pathTemplate").asText(http.path("path").asText(http.path("url").asText("")));
+        // Persist declared route identity, never resolved context, URL credentials or query values.
+        String route = declared.split("[?#]", 2)[0];
+        String path = route.replaceFirst("^[A-Za-z][A-Za-z0-9+.-]*://[^/]*", "");
+        return path.isEmpty() ? "/" : path;
     }
 
     private RegressionSuiteResult failed(

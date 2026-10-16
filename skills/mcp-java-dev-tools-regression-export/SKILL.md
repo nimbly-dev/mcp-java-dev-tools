@@ -5,6 +5,19 @@ description: "Export regression execution profiles to runnable replay artifacts 
 
 # MCP JVM Regression Export
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.project_context.read`
+- `artifact_management.regression_plan.read`
+- `execution_profile_export.export`
+- `artifact_management.execution_export.read`
+
 Use this Skill Workflow to export replay artifacts from the current regression execution profile plus regression plan Artifact state.
 
 ## Scope Guard
@@ -51,6 +64,8 @@ Optional:
 7. `includeHealthcheckGate` (`true` default; may be overridden by `projects.json` session export defaults)
 8. `includeResolvedSecrets` must be supplied explicitly per request to enable secret export; `projects.json.sessionExport` must not auto-enable secret inclusion.
 
+Invoke `execution_profile_export.export` for profile/plan export with these options mapped to the exact camelCase argument names in Describe. Pass desired startup/health-check options explicitly; do not assume an omitted flag enables them. `artifact_management.execution_export.generate` has its own Describe schema and is not an interchangeable argument envelope.
+
 ## Profile Selection
 
 Resolve in this selector order:
@@ -65,10 +80,10 @@ Resolve in this selector order:
 
 Operational source for Artifact lifecycle:
 
-1. `artifact_management` MCP Tool:
-   - `artifactType=project_context` (`read|validate|list`)
-   - `artifactType=regression_plan` (`read|validate|list`)
-   - `artifactType=execution_export` (`generate|read|list`)
+1. Artifact Management operations:
+   - `artifact_management.project_context.read` / `artifact_management.project_context.validate` / `artifact_management.project_context.list`
+   - `artifact_management.regression_plan.read` / `artifact_management.regression_plan.validate` / `artifact_management.regression_plan.list`
+   - `artifact_management.execution_export.generate` / `artifact_management.execution_export.read` / `artifact_management.execution_export.list`
 
 Artifact references:
 

@@ -13,7 +13,7 @@ test("[UT][skills][failure_lens] documents public MCP composition and bounded au
   const skill = readSkill();
 
   for (const phrase of [
-    "public `failure_analysis`, `jvm_lifecycle`, Route Synthesis, and Probe MCP Tools",
+    "JVM Lifecycle operations, Route Synthesis, and Probe operations through CDE",
     "guided",
     "hands_off",
     "attemptLimit",

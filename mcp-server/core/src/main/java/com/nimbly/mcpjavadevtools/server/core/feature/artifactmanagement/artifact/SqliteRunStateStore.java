@@ -10,6 +10,7 @@ public final class SqliteRunStateStore {
 
     private final SqliteRunStateQuery query;
     private final SqliteRunStateProjectionRebuilder projection;
+    private final SqliteRunStateRuntimeProjection runtimeProjection;
     private final SqliteRunStateLegacyBackfill backfill;
     private final SqliteRunStateCutover cutover = new SqliteRunStateCutover();
     private final SqliteRunStateCleanup cleanup = new SqliteRunStateCleanup();
@@ -28,12 +29,23 @@ public final class SqliteRunStateStore {
         SqliteRunStateProjectionWriter writer = new SqliteRunStateProjectionWriter(json);
         query = new SqliteRunStateQuery(mapper);
         projection = new SqliteRunStateProjectionRebuilder(reader, writer);
+        runtimeProjection = new SqliteRunStateRuntimeProjection(reader, writer);
         backfill = new SqliteRunStateLegacyBackfill(reader, json);
     }
 
     /** Ensures a project-owned SQLite store and its projection tables exist. */
     public Map<String, Object> ensure(Path databasePath, String projectName) {
         return SqliteRunStateDatabase.ensure(databasePath, projectName);
+    }
+
+    /** Projects one newly persisted run without scanning or rebuilding historical runs. */
+    public void projectRun(Path databasePath, String projectName, String suiteType, String planName, String runId) {
+        runtimeProjection.projectRun(databasePath, projectName, suiteType, planName, runId);
+    }
+
+    /** Projects the current canonical orchestration checkpoint. */
+    public void projectSuite(Path databasePath, String projectName, String suiteRunId) {
+        runtimeProjection.projectSuite(databasePath, projectName, suiteRunId);
     }
 
     /** Removes only a newly provisioned and still-empty store after project creation fails. */

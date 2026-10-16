@@ -30,4 +30,4 @@
     - `failedStep`
     - `reasonMeta`
 15. Missing required execution profile or plan evidence fails closed with deterministic reason code and actionable next action.
-16. Never handcraft replay scripts; only emit artifacts produced by the `execution_profile_export` MCP Tool output paths.
+16. Never handcraft replay scripts; only emit artifacts produced by the `execution_profile_export.export` operation output paths.

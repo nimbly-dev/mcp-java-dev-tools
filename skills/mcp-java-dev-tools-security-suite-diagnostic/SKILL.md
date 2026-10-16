@@ -6,6 +6,18 @@ description: >-
 
 # MCP Java Dev Tools Security Suite Diagnostic
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.run_result.list`
+- `artifact_management.run_result.read`
+- `artifact_management.run_result.query`
+
 ## Overview
 
 Use this workflow to explain whether a Security Suite plan is executable and what caused a persisted run to pass, fail, block, partially fail, remain in progress, or become inconclusive. It applies the Security Suite contract for `securityMode=blackbox` and `securityMode=sidecar_assisted` while preserving the separation between canonical Artifact history, the SQLite operational projection, and current live Probe truth.
@@ -21,7 +33,7 @@ Load the relevant reference files before diagnosing:
 
 ## Scope and safety boundary
 
-This is a diagnostic workflow, not a Security Suite executor or repair tool. Use only existing read-oriented MCP Tool actions such as `artifact_management` reads/queries and, when the plan is Sidecar-assisted, a bounded `probe` status check. Do not invoke suite execution, resume an interrupted run, mutate plans or Artifacts, rebuild or backfill SQLite, perform cutover/retention, or clean up state.
+This is a diagnostic workflow, not a Security Suite executor or repair tool. Use only existing read-oriented MCP Tool actions such as Artifact Management operations reads/queries and, when the plan is Sidecar-assisted, a bounded Probe operations status check. Do not invoke suite execution, resume an interrupted run, mutate plans or Artifacts, rebuild or backfill SQLite, perform cutover/retention, or clean up state.
 
 Never return credentials, tokens, cookies, raw request or response bodies, unredacted headers, exploit payloads, source fragments, or secrets. Report redacted evidence references, case IDs, finding IDs, severity/category, proof classification, phase, and reason code only.
 

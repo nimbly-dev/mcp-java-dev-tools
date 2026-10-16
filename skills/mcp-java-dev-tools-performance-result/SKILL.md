@@ -5,6 +5,18 @@ description: "Render performance run results from Artifacts under `.mcpjvm/.../p
 
 # MCP JVM Performance Result
 
+## Java CDE invocation
+
+The public MCP Tools are `operation_catalog`, `operation_describe`, and `operation_execute`. Discover supported IDs with Catalog; call Describe with `{"operationId":"<id>"}` before execution. Java Describe owns the current argument schema and safety requirements.
+
+Call `operation_execute` with `{"operationId":"<id>","arguments":{},"confirmed":false}`, replacing `arguments` with the described fields. Set outer `confirmed:true` only for an authorized operation when Describe requires it. Do not send the retired Tool/action/input envelope or an inner lifecycle `confirm`. Nested operation-specific actions remain in `arguments.action` only when Describe declares them. Read the CDE status first, then the capability result in `result`; use structured MCP content and preserve reason codes. Artifact details are under `result.details`; Probe and lifecycle action data are under `result.actionResult`.
+
+This workflow consumes these canonical IDs as needed (not an instruction to execute every operation):
+
+- `artifact_management.run_result.list`
+- `artifact_management.run_result.read`
+- `artifact_management.run_result.query`
+
 Use this workflow to generate performance run summaries from persisted Artifacts under `.mcpjvm/<project_name>/plans/performance/<plan>/runs/<run_id>/`.
 
 ## Execution Mode
@@ -31,7 +43,7 @@ If user request conflicts with these rules, fail closed and return deterministic
 
 Operational source for Artifact reads:
 
-1. `artifact_management` MCP Tool when performance result reads are exposed canonically
+1. `artifact_management.run_result.read` / `artifact_management.run_result.list` with `suiteType=performance`
 
 Artifact semantics/reference paths:
 
@@ -133,3 +145,5 @@ When one or more required Artifact files are missing for the requested `run_id`,
 - `nextAction=Re-run the plan to regenerate Artifacts, or provide the run ID of an existing persisted run.`
 
 Optional Artifact files such as `context.resolved.json` and `execution-timing.msta.json` MUST NOT trigger blocked output by themselves when every required output field remains deterministically mappable from persisted Artifacts. If a missing optional Artifact prevents deterministic rendering of a required field such as `MSTA`, the skill MUST fail closed and MUST NOT reconstruct that field from transient logs.
+
+For MCP result reads, set `arguments.suiteType=performance` and retain the exact persisted `planName`/`runId`; do not select by directory ordering or confuse identically named runs from different suite types.

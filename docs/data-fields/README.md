@@ -69,7 +69,7 @@ Rules:
 
 examples:
 
-`route_synthesis` with `action=create_recipe`:
+`route_synthesis.create_recipe`:
 
 ```json
 {
@@ -83,7 +83,7 @@ examples:
 }
 ```
 
-`route_synthesis` with `action=infer_target`:
+`route_synthesis.infer_target`:
 
 ```json
 {
@@ -506,6 +506,41 @@ Postman variable normalization policy:
 - Referenced required prerequisites that remain unresolved fail closed (`postman_export_blocked` with `reasonMeta.cause=required_prerequisite_unresolved`).
 
 ## artifact_management
+
+Ordinary run-result persistence incrementally projects the selected canonical run
+into `run-state.sqlite`; ordered suite checkpoint writes also project their
+`progressSummary` into `suite_continuation_state`. Neither path rebuilds or scans
+historical runs. SQLite failures are reported as persistence failures even when
+the canonical JSON was already published. Explicit rebuild remains a recovery
+operation and restores continuation rows from canonical suite checkpoints.
+Idempotent run upserts reproject an identical persisted result without changing
+its canonical files or companion timestamps. Ordered and direct suite retries
+perform this recovery before accepting a persisted terminal result or resuming
+its continuation; a projection failure remains blocked and never reruns a
+completed application request merely to recreate SQLite state.
+Ordered recovery is a suite-wide prerequisite before runtime preparation,
+context restoration or owner execution, including `in_progress` runs. Failure
+stops the call regardless of `executionPolicy` or per-plan `onFail`; those
+policies apply to plan outcomes, not storage recovery. A fresh run persistence
+failure also stops before context promotion or any later plan.
+`state_store_projection_failed` means the SQLite update failed after JSON
+publication; `state_store_projection_source_invalid` rejects an invalid selected
+canonical source. Existing lock/schema failures retain their reason codes.
+
+The canonical JSON limit remains 4 MiB, while each SQLite state JSON value stays
+bounded to 64 KiB. Larger valid canonical results still persist successfully.
+When projected detail exceeds that bound, the row retains its identity/status/
+counters and returns `projection` with `projectionStatus=artifact_only`,
+`reasonCode=state_projection_size_limit_exceeded`, and `sourcePathRel` pointing
+to the canonical source directory or suite checkpoint. Such a row does not
+return synthetic partial detail/window fields; read the canonical Artifact
+for complete evidence. The same explicit reference applies to oversized
+Watcher, external-verification, correlation and continuation projections.
+
+Regression `steps[]` now includes additive `method` and `path` fields for
+standalone result rendering. `path` is the declared route/template, with URL
+authority, query and fragment removed; runtime substitutions and credentials
+are not included. Existing runs without these fields remain unchanged.
 
 Suite-owned `execution.result.json` files retain their execution envelope and
 also expose observed `steps`, `watchers`, `externalVerification`,

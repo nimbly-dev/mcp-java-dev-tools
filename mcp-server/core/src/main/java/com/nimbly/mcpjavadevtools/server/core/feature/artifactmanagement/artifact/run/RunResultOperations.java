@@ -99,7 +99,12 @@ public final class RunResultOperations {
             files.put(context, resolved);
             files.put(evidence, runEvidence(payload, planName));
             files.put(result, payload);
-            support.jsonStore().writeSet(files);
+            if (!alreadyPersisted(result, payload, files)) {
+                support.jsonStore().writeSet(files);
+            }
+            support.runStateStore().projectRun(
+                    workspace.paths().resolve(".mcpjvm", projectName, "run-state.sqlite"),
+                    projectName, suiteType, planName, runId);
             return support.success(request, Map.of(
                     "projectName", projectName,
                     "planName", planName,
@@ -107,6 +112,15 @@ public final class RunResultOperations {
                     "path", workspace.paths().relative(result),
                     "status", "persisted"));
         });
+    }
+
+    private boolean alreadyPersisted(Path result, JsonNode payload, Map<Path, JsonNode> files) {
+        if (!files.keySet().stream().allMatch(Files::isRegularFile)) {
+            return false;
+        }
+        return support.jsonStore().read(result).equals(
+                com.nimbly.mcpjavadevtools.server.core.feature.artifactmanagement.policy.ArtifactRedactionPolicy
+                        .sanitizeJson(payload));
     }
 
     private ObjectNode runEvidence(JsonNode payload, String planName) {

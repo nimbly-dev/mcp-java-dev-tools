@@ -23,4 +23,4 @@
     - `scripts/` when shared execution profile scripts are referenced
 12. `sh` and `ps1` exports execute shared `executionProfiles[].scriptRefs[]` by declared phase and use export-local `project.env` for script `envFileArg` values.
 13. Missing required execution profile or plan evidence fails closed with deterministic reason code and actionable next action.
-14. Never handcraft `replay.sh`; only emit artifacts produced by the `execution_profile_export` MCP Tool output paths.
+14. Never handcraft `replay.sh`; only emit artifacts produced by the `execution_profile_export.export` operation output paths.
