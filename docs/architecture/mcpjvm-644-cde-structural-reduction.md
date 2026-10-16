@@ -138,6 +138,13 @@ export generation, and existing result envelopes.
 No remaining capability type is `TEMPORARY`. None of the retained Feature
 boundaries is used to rediscover an operation on a multi-operation CDE path.
 
+The bounded [#660 Security ownership inventory](../acceptance/mcpjvm-660-security-ownership.md)
+records the later decomposition within `SecurityPlanExecutor`. Its direct CDE
+registration and the trusted Artifact execution boundary above remain intact;
+package-private collaborators own request preparation, finite matrix execution,
+Sidecar evidence and result assembly. This adds no executable directory or
+architecture enforcement exception. Historical counts below describe #644.
+
 ## Final reduction and cutover evidence
 
 | Area | Baseline | Final | Change |
