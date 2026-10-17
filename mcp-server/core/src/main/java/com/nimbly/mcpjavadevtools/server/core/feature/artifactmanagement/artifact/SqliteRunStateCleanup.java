@@ -9,10 +9,6 @@ import java.util.Map;
 /** Applies bounded terminal-run retention while preserving protected rows. */
 final class SqliteRunStateCleanup {
 
-    Map<String, Object> cleanup(Path databasePath, String projectName, boolean dryRun) {
-        return cleanup(databasePath, projectName, dryRun, 90, 1000, 500);
-    }
-
     Map<String, Object> cleanup(
             Path databasePath,
             String projectName,

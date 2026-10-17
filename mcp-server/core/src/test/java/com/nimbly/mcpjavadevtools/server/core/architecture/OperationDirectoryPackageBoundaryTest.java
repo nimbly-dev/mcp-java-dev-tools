@@ -39,7 +39,6 @@ class OperationDirectoryPackageBoundaryTest {
             "OperationExecutionResult.java",
             "OperationId.java",
             "OperationInvocation.java",
-            "OperationInvocationExecutionBridge.java",
             "package-info.java");
     private static final Set<String> FORBIDDEN_OPERATION_PACKAGES = Set.of(
             "common", "domain", "helper", "manager", "service", "shared", "util", "utility");

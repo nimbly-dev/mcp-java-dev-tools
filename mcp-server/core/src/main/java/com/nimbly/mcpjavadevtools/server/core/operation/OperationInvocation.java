@@ -28,7 +28,7 @@ public record OperationInvocation(
         return Objects.requireNonNull(input, "input must not be null").deepCopy();
     }
 
-    /** Returns the source input to the package-owned execution bridge. */
+    /** Returns the bounded snapshot to the package-owned aggregate directory. */
     JsonNode rawInput() {
         return Objects.requireNonNull(input, "input must not be null");
     }

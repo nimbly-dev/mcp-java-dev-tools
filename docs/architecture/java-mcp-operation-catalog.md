@@ -46,6 +46,8 @@ one-to-three ownership split. #644 retired the temporary resolved-API and
 compile-time relocation snapshots after #616 removed their baseline fixture.
 Current package ownership is enforced by `OperationDirectoryPackageBoundaryTest`
 and the surviving operation contract and behavior tests.
+The invocation execution bridge listed below was removed in #662; the aggregate
+directory now passes the package-private bounded input snapshot directly to execution.
 
 | Before package | After package | Types |
 | --- | --- | --- |

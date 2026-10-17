@@ -89,11 +89,6 @@ public final class SqliteRunStateStore {
         return cutover.cutover(databasePath, projectName);
     }
 
-    /** Returns cleanup preview and applies only an explicitly non-dry-run request. */
-    public Map<String, Object> cleanup(Path databasePath, String projectName, boolean dryRun) {
-        return cleanup.cleanup(databasePath, projectName, dryRun);
-    }
-
     /** Applies bounded terminal-run retention while preserving the newest protected rows. */
     public Map<String, Object> cleanup(
             Path databasePath,

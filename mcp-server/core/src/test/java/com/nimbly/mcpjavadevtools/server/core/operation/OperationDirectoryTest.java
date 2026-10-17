@@ -95,8 +95,8 @@ class OperationDirectoryTest {
                 .isFalse();
         assertThat(result.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
         assertThat(result.result().path("message").asText()).isEqualTo("hello");
-        assertThat(directory.execute(OperationId.of("demo.echo"),
-                JSON.readTree("{\"message\":\"hello\",\"unknown\":true}")).status())
+        assertThat(directory.execute(new OperationInvocation(OperationId.of("demo.echo"),
+                JSON.readTree("{\"message\":\"hello\",\"unknown\":true}"))).status())
                 .isEqualTo(OperationExecutionStatus.INVALID_INPUT);
         assertThat(directory.traceInventory()).singleElement()
                 .satisfies(trace -> {
@@ -104,6 +104,25 @@ class OperationDirectoryTest {
                     assertThat(trace.toolName()).isEqualTo("demo");
                     assertThat(trace.action()).isEqualTo("echo");
                 });
+    }
+
+    @Test
+    void rejectsNullAndUnknownInvocationsWithTheSameDeterministicOutcome() {
+        OperationDirectory directory = new OperationDirectory(List.of(), document());
+        OperationId unknownId = OperationId.of("unknown.operation");
+
+        OperationExecutionResult absent = directory.execute(null);
+        OperationExecutionResult missingId = directory.execute(new OperationInvocation(null, null));
+        OperationExecutionResult unknown = directory.execute(new OperationInvocation(unknownId, null));
+
+        assertThat(List.of(absent, missingId, unknown)).allSatisfy(result -> {
+            assertThat(result.status()).isEqualTo(OperationExecutionStatus.UNSUPPORTED_OPERATION);
+            assertThat(result.reasonCode()).isEqualTo("unsupported_operation");
+            assertThat(result.reason()).isEqualTo("The operation ID is not registered.");
+        });
+        assertThat(absent.operationId()).isNull();
+        assertThat(missingId.operationId()).isNull();
+        assertThat(unknown.operationId()).isEqualTo(unknownId);
     }
 
     @Test
@@ -339,8 +358,8 @@ class OperationDirectoryTest {
         OperationDirectory directory = new OperationDirectory(
                 List.of(registration), document(documentation));
 
-        assertThat(directory.execute(OperationId.of("demo.secret"),
-                JSON.readTree("{\"message\":\"secret\"}")).status())
+        assertThat(directory.execute(new OperationInvocation(OperationId.of("demo.secret"),
+                JSON.readTree("{\"message\":\"secret\"}"))).status())
                 .isEqualTo(OperationExecutionStatus.CONFIRMATION_REQUIRED);
         OperationExecutionResult result = directory.execute(new OperationInvocation(
                 OperationId.of("demo.secret"), JSON.readTree("{\"message\":\"secret\"}"), true));
@@ -462,11 +481,31 @@ class OperationDirectoryTest {
         OperationInvocation invocation = new OperationInvocation(
                 OperationId.of("demo.construction_snapshot"), source);
         source.put("message", "mutated");
+        ((ObjectNode) invocation.input()).put("message", "accessor mutation");
 
         OperationExecutionResult result = directory.execute(invocation);
 
         assertThat(result.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
         assertThat(result.result().path("message").asText()).isEqualTo("original");
+    }
+
+    @Test
+    void boundsInvocationSnapshotsBeforeCopyingInput() throws Exception {
+        OperationId id = OperationId.of("demo.bounded_snapshot");
+        ObjectNode exact = hardSizedObject(OperationSafetyLimits.MAX_INPUT_BYTES, 3);
+        assertThat(new OperationInvocation(id, exact).input()).isEqualTo(exact);
+
+        ObjectNode oversized = hardSizedObject(OperationSafetyLimits.MAX_INPUT_BYTES + 1, 3);
+        assertThatIllegalArgumentException().isThrownBy(() -> new OperationInvocation(id, oversized))
+                .withMessage("invocation input exceeds its safety bound");
+
+        ObjectNode deep = JSON.createObjectNode();
+        ObjectNode current = deep;
+        for (int depth = 0; depth <= OperationSafetyLimits.MAX_JSON_DEPTH; depth++) {
+            current = current.putObject("child");
+        }
+        assertThatIllegalArgumentException().isThrownBy(() -> new OperationInvocation(id, deep))
+                .withMessage("invocation input exceeds its safety bound");
     }
 
     @Test

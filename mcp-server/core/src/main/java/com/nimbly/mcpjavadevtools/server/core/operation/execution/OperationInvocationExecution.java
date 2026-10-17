@@ -2,8 +2,6 @@ package com.nimbly.mcpjavadevtools.server.core.operation.execution;
 
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationExecutionResult;
 import com.nimbly.mcpjavadevtools.server.core.operation.OperationId;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationInvocation;
-import com.nimbly.mcpjavadevtools.server.core.operation.OperationInvocationExecutionBridge;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,15 +42,6 @@ public class OperationInvocationExecution {
             new ThreadPoolExecutor.AbortPolicy());
 
     private OperationInvocationExecution() {
-    }
-
-    public static OperationExecutionResult run(
-            OperationManifest manifest, ObjectMapper mapper, OperationInvocation invocation) {
-        if (invocation == null) {
-            return failure(null, OperationExecutionStatus.UNSUPPORTED_OPERATION,
-                    "unsupported_operation", "The operation ID is not registered.");
-        }
-        return OperationInvocationExecutionBridge.run(manifest, mapper, invocation);
     }
 
     /** Executes an already-materialized input without taking an unbounded pre-validation copy. */

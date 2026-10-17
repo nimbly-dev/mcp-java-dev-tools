@@ -76,9 +76,11 @@ public class OperationDirectory {
     /** Executes one exact invocation without requiring a preceding describe call. */
     public OperationExecutionResult execute(OperationInvocation invocation) {
         if (invocation == null) {
-            return OperationInvocationExecution.run(manifest, mapper, invocation);
+            return OperationInvocationExecution.run(manifest, mapper, null, null, false);
         }
-        return OperationInvocationExecutionBridge.run(manifest, mapper, invocation);
+        return OperationInvocationExecution.run(
+                manifest, mapper, invocation.operationId(), invocation.rawInput(),
+                invocation.confirmed());
     }
 
     /** Convenience exact-ID execution entry point. */
