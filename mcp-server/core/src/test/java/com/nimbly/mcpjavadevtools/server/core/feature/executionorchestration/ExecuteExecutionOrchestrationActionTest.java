@@ -205,6 +205,73 @@ class ExecuteExecutionOrchestrationActionTest {
     }
 
     @Test
+    void terminalRetryReusesCleanupEvidenceWithoutRepeatingSuiteEffects() throws Exception {
+        Map<String, JsonNode> runs = new HashMap<>();
+        AtomicInteger suiteCalls = new AtomicInteger();
+        AtomicInteger prepareCalls = new AtomicInteger();
+        AtomicInteger cleanupCalls = new AtomicInteger();
+        ExecutionRuntimeLifecycle lifecycle = new ExecutionRuntimeLifecycle() {
+            @Override
+            public RuntimeLifecycleResult prepare(RuntimeLifecycleRequest request) {
+                prepareCalls.incrementAndGet();
+                return new RuntimeLifecycleResult(true, true, "attached", Map.of("status", "attached"));
+            }
+
+            @Override
+            public RuntimeLifecycleResult cleanup(RuntimeLifecycleRequest request) {
+                cleanupCalls.incrementAndGet();
+                return new RuntimeLifecycleResult(true, true, "cleaned", Map.of("status", "terminal", "cleanupStatus", "ok"));
+            }
+        };
+        PerformanceSuiteFeature performance = request -> {
+            suiteCalls.incrementAndGet();
+            return PerformanceSuiteResult.completed(runDetails());
+        };
+        var action = feature(statefulArtifacts(runs), performance, lifecycle,
+                new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease());
+        var request = new ExecutionOrchestrationRequest(ExecutionOrchestrationAction.EXECUTE, mapper.readTree("""
+                {"projectName":"demo","executionProfile":"nightly","suiteRunId":"terminal"}
+                """));
+        assertThat(action.execute(request).status()).isEqualTo("pass");
+        Map<String, JsonNode> completedRuns = Map.copyOf(runs);
+
+        assertThat(action.execute(request).status()).isEqualTo("pass");
+        assertThat(suiteCalls).hasValue(2);
+        assertThat(prepareCalls).hasValue(1);
+        assertThat(cleanupCalls).hasValue(1);
+        assertThat(runs).isEqualTo(completedRuns);
+    }
+
+    @Test
+    void failedRunRecoveryBlocksNewEffectsAndReleasesTheLease() throws Exception {
+        Map<String, JsonNode> runs = new HashMap<>();
+        ArtifactManagementFeature stored = statefulArtifacts(runs);
+        var request = new ExecutionOrchestrationRequest(ExecutionOrchestrationAction.EXECUTE, mapper.readTree("""
+                {"projectName":"demo","executionProfile":"nightly","suiteRunId":"recovery","maxPlansPerCall":1}
+                """));
+        assertThat(feature(stored).execute(request).status()).isEqualTo("in_progress");
+        ArtifactManagementFeature brokenRecovery = input -> {
+            if (input.artifactType() == ArtifactType.RUN_RESULT && input.action() == ArtifactAction.UPSERT) {
+                return ArtifactManagementResult.blocked("storage_unavailable", "restore storage", Map.of());
+            }
+            return stored.execute(input);
+        };
+        AtomicInteger suiteCalls = new AtomicInteger();
+        var lease = new com.nimbly.mcpjavadevtools.server.core.feature.executionorchestration.lease.InMemoryExecutionRunLease();
+        PerformanceSuiteFeature performance = input -> {
+            suiteCalls.incrementAndGet();
+            return PerformanceSuiteResult.completed(runDetails());
+        };
+        var action = feature(brokenRecovery, performance, lifecycle(new AtomicInteger()), lease);
+
+        assertThat(action.execute(request).reasonCode()).isEqualTo("execution_run_artifact_persist_failed");
+        assertThat(suiteCalls).hasValue(0);
+        assertThat(runs).hasSize(1);
+        assertThat(lease.acquire("demo", "recovery")).isTrue();
+        lease.release("demo", "recovery");
+    }
+
+    @Test
     void registersTheOrchestrationRowWithBoundedResumeAndCancellationMetadata() throws Exception {
         var feature = feature(statefulArtifacts(new HashMap<>()));
         var registration = ExecutionOrchestrationOperationRegistrations.create(List.of(feature), mapper).getFirst();
