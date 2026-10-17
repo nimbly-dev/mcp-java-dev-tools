@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const inventory = JSON.parse(fs.readFileSync(path.join(root, 'docs/acceptance/java-it-coverage.json'), 'utf8'));
+const inventory = JSON.parse(fs.readFileSync(path.join(root, 'mcp-server/test-support/java-it-coverage.json'), 'utf8'));
 const args = process.argv.slice(2);
 const outputArg = args.indexOf('--output');
 const output = path.resolve(root, outputArg < 0 ? 'test/.tmp/656-coverage-report.json' : args[outputArg + 1]);
@@ -16,6 +16,7 @@ const problems = [];
 const operations = inventory.operations.map(row => ({ ...inventory.scenarioGroups[row.scenarioGroup], ...row }));
 const supported = new Set(operations.map(row => row.operationId));
 const scenarioIds = new Set(inventory.scenarios.map(row => row.id));
+const scenariosById = new Map(inventory.scenarios.map(row => [row.id, row]));
 function read(relative) { return fs.readFileSync(path.join(root, relative), 'utf8'); }
 function walk(relative) {
   return fs.readdirSync(path.join(root, relative), { withFileTypes: true }).flatMap(entry =>
@@ -61,11 +62,15 @@ for (const entry of read(`${manifest}/index.xml`).matchAll(/<resource name="([^"
 requireThat(declared.length === supported.size && declared.every(id => supported.has(id)), 'manifest operations differ from inventory');
 for (const row of operations) {
   requireThat(row.scenarios.length > 0 && row.scenarios.every(id => scenarioIds.has(id)), `${row.operationId}: unmapped scenario`);
-  requireThat(fs.existsSync(path.join(root, row.behaviorInventory)), `${row.operationId}: missing behavior inventory`);
+  const sources = [...new Set(row.scenarios.map(id => scenariosById.get(id)?.source))].sort();
+  requireThat(JSON.stringify(sources) === JSON.stringify([...row.behaviorSources].sort()),
+    `${row.operationId}: behavior sources differ from mapped scenarios`);
   requireThat(['covered', 'partially covered', 'missing', 'intentionally retired'].includes(row.disposition), `${row.operationId}: invalid disposition`);
 }
 for (const row of inventory.scenarios) {
   requireThat(read(row.source).includes(`void ${row.id.split('.').at(-1)}(`), `${row.id}: missing test method`);
+  requireThat(row.assertionsReference === `${row.source}#${row.id.split('.').at(-1)}`,
+    `${row.id}: assertions must reference the executable scenario`);
 }
 const actualSkills = walk('skills').filter(file => file.endsWith('/SKILL.md')).sort();
 requireThat(JSON.stringify(actualSkills) === JSON.stringify(inventory.skills.map(s => s.path).sort()), 'added/unmapped Skill');
@@ -116,7 +121,7 @@ const scenarios = inventory.scenarios.map(row => {
     command: inventory.scenarioContract.commandTemplate.replace('<selector>', row.selector),
     cleanupContract: inventory.scenarioContract.cleanup,
     disposition: passed ? 'covered' : 'missing',
-    basis: passed ? 'observed prior successful scenario; capability document owns variants and reuse applicability' : 'no successful local evidence',
+    basis: passed ? 'observed prior successful scenario; mapped executable source owns variants; reuse requires provenance check' : 'no successful local evidence',
     latestAttempt: records[0] ?? null, successfulEvidence: passed ?? null,
     sourceSha256: crypto.createHash('sha256').update(read(row.source)).digest('hex') };
 });

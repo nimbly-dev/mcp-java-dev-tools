@@ -124,7 +124,7 @@ The reference implementation is documented in
 ## Execution Orchestration ownership
 
 The #661 responsibility/dependency map and verification disposition are recorded
-in [orchestration ownership acceptance](../acceptance/mcpjvm-661-orchestration-ownership.md).
+in [issue #661](https://github.com/nimbly-dev/mcp-java-dev-tools/issues/661).
 The action retains one ordered execution and lifecycle flow; concrete owners
 handle suite checkpoints, plan-run Artifacts and context policy through existing
 boundaries. This disposition does not expand AST enforcement or introduce a

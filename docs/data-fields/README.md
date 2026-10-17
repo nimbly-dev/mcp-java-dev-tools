@@ -452,7 +452,7 @@ the declared direct-Java JAR and repository-owned helper/agent, verifies the exa
 spawned PID/start identity, and records deactivation/runtime cleanup evidence.
 The generated README lists platform/runtime prerequisites. Security workload
 export and Performance-to-Postman remain deterministic unsupported selections.
-See [#655 scenarios, commands and evidence](../acceptance/mcpjvm-655-orchestration-it.md).
+See [orchestration and replay test commands](../../mcp-server/README.md#integration-test-lanes).
 
 Java CDE clients invoke `operation_execute` with
 `{"operationId":"execution_profile_export.export","arguments":{...},"confirmed":true}`.
@@ -753,7 +753,7 @@ Direct execution
 advertises no cancellation support. After resuming a checkpoint that omitted an
 ephemeral secret extraction, freeform HTTP/SQL evidence is conservatively redacted;
 phase controls and verdicts remain readable. Secrets needed later must be available
-from a runtime source. See [the #652 evidence and runnable selections](../acceptance/mcpjvm-652-regression-it.md).
+from a runtime source. See [Regression test commands](../../mcp-server/README.md#integration-test-lanes).
 
 ## performance_suite (Java CDE)
 
@@ -847,7 +847,7 @@ The CDE selector and result envelopes are unchanged. Builtin/default-provider
 and analysis restoration under #653 is additive; no retired invocation returns.
 The operation remains non-cancellable: cancelling the MCP wait suppresses that
 response while bounded execution finishes and persists a recoverable result.
-See [#653 runnable scenarios and evidence](../acceptance/mcpjvm-653-performance-it.md).
+See [Performance test commands](../../mcp-server/README.md#integration-test-lanes).
 
 ## execution_orchestration
 

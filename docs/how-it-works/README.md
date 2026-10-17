@@ -1,6 +1,6 @@
 # How It Works
 
-Invoke capability operations through the Java CDE Tools: discover with `operation_catalog`, read current schemas/safety with `operation_describe`, then call `operation_execute` with `operationId`, `arguments`, and outer `confirmed`. Capability names below are operation namespaces, not additional public Tools. See [the Java runtime launch](../../mcp-server/README.md#runtime-boundary) and [Skill migration evidence](../acceptance/mcpjvm-658-cde-skills.md).
+Invoke capability operations through the Java CDE Tools: discover with `operation_catalog`, read current schemas/safety with `operation_describe`, then call `operation_execute` with `operationId`, `arguments`, and outer `confirmed`. Capability names below are operation namespaces, not additional public Tools. See [the Java runtime launch](../../mcp-server/README.md#runtime-boundary) and [Skill workflow test commands](../../mcp-server/README.md#integration-test-lanes).
 
 ![MCP JVM DEV TOOLS Workflow Diagram (0.1.0v)](./MCP-JVM-dev-tools-diagram.png)
 

@@ -35,7 +35,7 @@ class SkillWorkflowSupport extends McpServerStdioSupport {
     }
 
     static void assertInventory(McpServerProcess server, Path workspace) throws Exception {
-        Path file = repositoryRoot().resolve("docs/acceptance/java-it-coverage.json");
+        Path file = repositoryRoot().resolve("mcp-server/test-support/java-it-coverage.json");
         JsonNode inventory = JSON.readTree(file.toFile());
         Set<String> expected = new HashSet<>();
         for (JsonNode row : inventory.path("operations")) {

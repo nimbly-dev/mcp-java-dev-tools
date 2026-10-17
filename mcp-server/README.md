@@ -104,96 +104,128 @@ bash ./scripts/package-java-mcp-server.sh
 # Windows PowerShell: .\scripts\package-java-mcp-server.ps1
 ```
 
-After packaging, from this directory:
+All commands below run from the repository root. Java 21+ JDK (including
+Attach API, jcmd/JFR and keytool) and Maven 3.8.6+ are required. The packaging
+script above builds the reusable Sidecar artifacts; to build those alone:
 
 ```text
-mvn -B verify
-mvn -B dependency:tree -pl application
-java -jar application/target/mcp-java-dev-tools-server-0.1.9.jar
+mvn -B -f java-agent/pom.xml -pl core/core-jvm-attach,core/core-probe -am package -DskipTests
 ```
 
-`mvn test` runs independent Surefire unit tests without integration setup.
-`mvn verify` also applies Maven Enforcer, Checkstyle, PMD and application
-packaging; it does not implicitly run process ITs or package fixtures.
-Explicitly enable `-Pjava-it,java-it-lifecycle` for the complete shared lifecycle
-selection, `-Pjava-it,java-it-smoke` for real functional smoke, or
-`-Pjava-it,java-it-fixtures,java-it-regression-fixtures` with the declared
-receiving-tool/JMeter/Docker prerequisites for the complete application IT lane.
-See [the exact commands, prerequisites and coverage inventory](../docs/acceptance/mcpjvm-646-java-it.md).
+The application package checks and copies the Sidecar helper and agent. Explicit
+prebuilt inputs may use `mcp.sidecar.helper.source` and
+`mcp.sidecar.agent.source`. Independent unit tests require no Sidecar, fixture
+packaging or integration tools:
 
-The complete cross-feature and Skill-facing Tool/Artifact workflow selection is
-`-Pjava-it,java-it-workflows,java-it-fixtures`; its separate inventory smoke is
-`-Pjava-it,java-it-workflows-smoke`. See the
-[consolidated operation/Skill inventory, prerequisites and full Java IT command](../docs/acceptance/mcpjvm-656-skill-workflows-it.md).
-This lane uses existing real JVM/Probe, exception investigation, correlation,
-suite, restart, migration and receiving-tool replay scenarios. Automated
-Tool/Artifact/helper compatibility and actual conversational Skill use are
-reported separately.
-The [#658 Skill follow-up](../docs/acceptance/mcpjvm-658-cde-skills.md) records
-the revised CDE guidance, per-file dispositions, and selected actual Skill use.
-Behavior-focused workflow classes also cover exception investigation becoming a
-durable regression guard and downstream repair requiring a fresh run after
-restart. Skill references provide many-to-many traceability across these flows.
+```text
+mvn -B -f mcp-server/pom.xml -pl application -am test
+mvn -B -f mcp-server/pom.xml -pl application -am verify
+mvn -B -f mcp-server/pom.xml -pl application dependency:tree
+```
 
-The generated Regression capability selection is
-`-Pjava-it,java-it-regression,java-it-regression-fixtures`. It includes real strict
-Probe routes, producer/consumer and executor/KCL correlation, HTTP Watchers,
-SQLite/PostgreSQL verification, redaction, failures and persisted phase recovery.
-PostgreSQL requires a running Docker engine; its owned container uses temporary
-memory storage and is removed on cleanup. The separate one-scenario smoke is
-`-Pjava-it,java-it-regression-smoke` and has no Spring/Docker prerequisite.
-See [#652 commands and behavior inventory](../docs/acceptance/mcpjvm-652-regression-it.md).
+`test` runs Surefire unit tests. `verify` also applies Maven Enforcer,
+Checkstyle, PMD and application packaging; process ITs and fixture builds remain
+opt-in. Test reports live in each module's `target/surefire-reports` and
+`application/target/failsafe-reports`.
 
-The complete Performance capability selection is
-`-Pjava-it,java-it-performance,java-it-jvm-fixtures`. It requires explicitly
-configured Apache JMeter, exercises real JMeter and builtin workloads, and
-includes profiler/JFR, MSTA, failure, timeout and continuation scenarios.
-MSTA calibration uses real wall samples, repeated sleep ranges, independent
-timers for CPU work on the tested machine, and a minute-outlier rejection.
-The separate smoke selection is
-`-Pjava-it,java-it-performance-smoke,java-it-jvm-fixtures`.
-See [#653 prerequisites, commands and assertions](../docs/acceptance/mcpjvm-653-performance-it.md).
+### Integration test lanes
 
-The Security capability selection is
-`-Pjava-it,java-it-security,java-it-jvm-fixtures`. It runs controlled Black-box
-mutation cases, project credentials/refresh, real Sidecar line evidence, persisted
-findings, safety limits, failure and recovery. It requires the current JDK and
-PowerShell on Windows or `sh` on Unix for credential refresh; no external scan or
-JMeter is used. The separate one-scenario smoke selection is
-`-Pjava-it,java-it-security-smoke` and does not build or attach a Spring fixture.
-See [#654 commands, coverage and evidence](../docs/acceptance/mcpjvm-654-security-it.md).
+Run the packaged catalog/dependency smoke without Spring fixtures or external
+receiving tools:
 
-For real JVM Lifecycle/Probe acceptance, use
-`-Pjava-it,java-it-jvm,java-it-jvm-fixtures`; the separate
-`-Pjava-it,java-it-jvm-smoke,java-it-jvm-fixtures` selection runs one real strict
-lambda-hit workflow. See [JVM/Probe scenarios and evidence](../docs/acceptance/mcpjvm-647-jvm-probe-it.md).
-Those tests initialize the server,
-assert exactly the three CDE tools, execute real operation paths, perform a real
-attach/deactivate against a separate target JVM, verify target survival,
-confirm JSON-RPC-only stdout, and prove the sanitized startup-failure boundary.
-Parent exit and descendant cleanup also have real child-process coverage.
+```text
+mvn -B -f mcp-server/pom.xml -pl application -am verify '-Pjava-it,java-it-workflows-smoke'
+```
 
-Route Synthesis's complete capability selection is
-`-Pjava-it,java-it-route,java-it-jvm-fixtures`; its separate one-scenario smoke
-selection is `-Pjava-it,java-it-route-smoke,java-it-jvm-fixtures`.
-See [Route Synthesis scenarios, corrections and evidence](../docs/acceptance/mcpjvm-648-route-synthesis-it.md).
+For a capability lane, use the same command with the profiles from the table.
+Every selection includes `java-it`; smoke is a separate subset. Fixture
+profiles package the existing social-platform applications with Maven from
+`maven.home` (override with `mcp.fixture.maven.executable`). Reuse already built
+fixtures only when source, inputs and environment are unchanged.
 
-Failure Analysis's complete supported capability selection is
-`-Pjava-it,java-it-failure,java-it-jvm-fixtures`; its separate smoke selection is
-`-Pjava-it,java-it-failure-smoke,java-it-jvm-fixtures`.
-See [Failure Analysis scenarios, Skill dependencies and evidence](../docs/acceptance/mcpjvm-649-failure-analysis-it.md).
+| Lane | Complete profiles (after `java-it,`) | Smoke profiles (after `java-it,`) | Additional prerequisites and scope |
+| --- | --- | --- | --- |
+| Shared lifecycle | `java-it-lifecycle` | `java-it-smoke` | Protocol, Roots, workspace, status Resource, shutdown and process cleanup; smoke exercises Catalog/Describe and Artifact writes |
+| JVM/Probe | `java-it-jvm,java-it-jvm-fixtures` | `java-it-jvm-smoke,java-it-jvm-fixtures` | Real attach/deactivate and fresh Strict Line Hits against a separate fixture JVM |
+| Route Synthesis | `java-it-route,java-it-jvm-fixtures` | `java-it-route-smoke,java-it-jvm-fixtures` | Source/runtime discovery, recipes, transport effects and capture |
+| Failure Analysis | `java-it-failure,java-it-jvm-fixtures` | `java-it-failure-smoke,java-it-jvm-fixtures` | Real fixture exception/JFR, bounded reproduction and failure evidence |
+| Artifact persistence | `java-it-artifact,java-it-fixtures` | `java-it-artifact-smoke` | Registry/project/plan/run/export, SQLite, safety and restart; smoke needs no Spring fixture |
+| Transport | `java-it-transport` | `java-it-transport-smoke` | Local HTTP/HTTPS targets; JDK keytool for temporary certificates, no Spring or JMeter |
+| Regression | `java-it-regression,java-it-fixtures,java-it-regression-fixtures` | `java-it-regression-smoke` | Producer/consumer and executor/KCL correlation, strict Probes, Watchers, HTTP/SQLite/PostgreSQL verification and recovery; complete lane needs Docker for PostgreSQL, smoke needs no Spring/Docker |
+| Performance | `java-it-performance,java-it-jvm-fixtures` | `java-it-performance-smoke,java-it-jvm-fixtures` | Configured Apache JMeter, builtin workloads, thresholds, profiler/JFR, MSTA and recovery |
+| Security | `java-it-security,java-it-jvm-fixtures` | `java-it-security-smoke` | Controlled Black-box/Sidecar cases, persisted findings and recovery; PowerShell on Windows or sh on Unix for credential refresh, no external scanner/JMeter; smoke needs no Spring fixture |
+| Orchestration/export | `java-it-orchestration,java-it-fixtures` | `java-it-orchestration-smoke` | Ordered work, leases, slicing, runtime ownership and receiving-tool replay; Node, PowerShell, Bash, Newman, JMeter and Docker with Compose for complete lane |
+| Cross-feature/Skill workflows | `java-it-workflows,java-it-fixtures` | `java-it-workflows-smoke` | Real JVM/Probe, suites, restart, migration, exception/recovery and receiving-tool replay; Node, PowerShell, Bash, Newman and JMeter for complete lane |
 
-Artifact persistence's complete capability selection is
-`-Pjava-it,java-it-artifact,java-it-fixtures`; its separate registry lifecycle
-smoke selection is `-Pjava-it,java-it-artifact-smoke`.
-See [Artifact operations, storage corrections and evidence](../docs/acceptance/mcpjvm-650-artifact-it.md).
+Provision selected tools separately. Node is used by shipped Skill helpers and
+replay runners; no npm dependencies are needed for the server or coverage
+validator. Postman replay requires an installed Newman script. Pass absolute
+locations as Maven properties when defaults on PATH are unsuitable:
 
-Transport's complete HTTP/HTTPS, authentication, timeout and cancellation
-selection is `-Pjava-it,java-it-transport`; its separate one-scenario smoke
-selection is `-Pjava-it,java-it-transport-smoke`. Both use local controlled
-targets and need no Spring fixture packaging or JMeter. HTTPS additionally uses
-the current JDK's `keytool` to generate ephemeral scenario-local certificates.
-See [Transport scenarios, contracts and evidence](../docs/acceptance/mcpjvm-651-transport-it.md).
+| Property | Selection |
+| --- | --- |
+| `mcpItNode` | Node executable (default `node`) |
+| `mcpItPowerShell` | PowerShell executable (default `pwsh`) |
+| `mcpItBash` | Bash executable (default `bash`) |
+| `mcpItNewmanScript` | Required path to `newman/bin/newman.js` for Postman replay |
+| `mcpjvm.acceptance.jmeterHome` | Apache JMeter home; `JMETER_HOME` is the fallback |
+| `mcpItDocker` | Docker executable (default `docker`) for replay helpers |
+
+Docker cases require a running engine, Compose and access to the images/build
+inputs declared in the existing PostgreSQL and replay test helpers. Native Linux
+replay builds its owned image and mounts the configured JMeter home. Missing
+required tools fail the selected lane. Platform-specific signal/file-lock cases
+run only on their supported host.
+
+For example, run one existing scenario without narrowing the unit-test lane:
+
+```text
+mvn -B -f mcp-server/pom.xml -pl application -am verify -Pjava-it '-Dit.test=McpServerSkillWorkflowIT#inventoryMatchesPackagedCatalogAndEverySkillDependency'
+```
+
+Add the table's fixture profiles and required tool properties for other
+scenarios. The complete application IT selection is an explicit opt-in with no
+capability or method filter. In PowerShell, after provisioning the tools:
+
+```powershell
+$itTools = @(
+  '-DmcpItBash=<absolute Bash executable>',
+  '-DmcpItPowerShell=<absolute pwsh executable>',
+  '-DmcpItNode=<absolute Node executable>',
+  '-DmcpItNewmanScript=<absolute newman/bin/newman.js>',
+  '-Dmcpjvm.acceptance.jmeterHome=<absolute JMeter home>'
+)
+mvn -B -f mcp-server/pom.xml -pl application -am verify '-Pjava-it,java-it-fixtures,java-it-regression-fixtures' @itTools
+```
+
+The test-only [coverage inventory](test-support/java-it-coverage.json) maps
+operations and Skills to executable scenario IDs, source assertions, dependencies
+and commands. It is consumed by `SkillWorkflowSupport` and the dependency-free
+validator; Java registrations remain the only executable operation directory.
+Run the surviving repository Skill/resource checks and inventory validation:
+
+```text
+node scripts/run-unit-tests.cjs
+node mcp-server/test-support/java-it-coverage.mjs
+node mcp-server/test-support/java-it-coverage.mjs --require-workflow-evidence
+```
+
+The validator writes its derived report under `test/.tmp`; an optional
+`--output test/.tmp/<name>.json` selects another local output. Inventory validity,
+prior successful evidence, and fresh execution are separate claims. The strict
+workflow option requires successful local workflow records and a passing latest
+attempt; applicability after source/input/environment changes still needs a
+provenance check. Automated Tool/Artifact/helper checks do not establish actual
+conversational use of every Skill. Historical delivery evidence belongs to the
+linked GitHub issues.
+
+Scenario input, isolated workspaces and sanitized evidence live beneath resolved
+`test/.tmp/java-it-<run>/s-<scenario>`, independent of caller cwd. Fixture source
+is immutable. `JavaItScenario` owns and stops spawned processes/descendants even
+on failure, verifies termination and removes scenario files while retaining
+bounded `evidence.json`. `-DmcpItRetainFiles=true` retains files only, never
+processes. A persisted result records historical runtime observations; it cannot
+prove a fresh Probe hit after reset or restart.
 
 ## Initial maintainability baseline
 

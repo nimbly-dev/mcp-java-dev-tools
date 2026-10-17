@@ -18,7 +18,7 @@ current Java owners. Dedicated resource assertions retain step, extraction,
 external-verification, placeholder, suite-promotion, correlation, and Performance
 load/threshold semantics. These independent sections do not establish executable
 plan readiness: the guide's incomplete correlation shape and oversized Watcher
-timeout remain tracked for repair in #665. Performance validation fills only
+timeout still need separate template repair. Performance validation fills only
 illustrative request values and stops at an in-process health-check stub.
 
 For affected Java modules, run `mvn -pl <module> -am verify` from the owning

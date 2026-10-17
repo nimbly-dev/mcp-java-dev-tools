@@ -23,19 +23,12 @@ For operator workflows and end-to-end execution flows, see [docs/how-it-works/RE
 | JDK         | `21`     | MCP server and Sidecar Agent runtime |
 | Maven       | `3.8.6+` | Java build and verification |
 
-Java unit tests and real process integration tests have independent lanes. See
-[Consolidated capability and Skill workflow acceptance](docs/acceptance/mcpjvm-656-skill-workflows-it.md),
-[Java IT commands, prerequisites and coverage](docs/acceptance/mcpjvm-646-java-it.md) and
-[Real JVM/Probe capability acceptance](docs/acceptance/mcpjvm-647-jvm-probe-it.md)
-for UT, on-demand smoke, complete capability and full opt-in selections. The
-Java server exposes `mcp-java-dev-tools://status` for safe runtime/workspace
-metadata alongside the three CDE Tools.
-
-For the complete HTTP/HTTPS transport capability and its separate smoke lane,
-see [Transport authentication, cancellation and coverage](docs/acceptance/mcpjvm-651-transport-it.md).
-
-For real JMeter/builtin workloads, profiler evidence and Performance recovery,
-see [Performance capability acceptance](docs/acceptance/mcpjvm-653-performance-it.md).
+Java unit tests and process integration tests have independent lanes. See the
+[Java MCP test commands and prerequisites](mcp-server/README.md#build-and-verification)
+for unit, smoke, capability and full opt-in selections, including real JVM/Probe,
+HTTP/HTTPS transport, Performance and cross-feature Skill workflows. The Java
+server exposes `mcp-java-dev-tools://status` for safe runtime/workspace metadata
+alongside the three CDE Tools.
 
 ---
 
@@ -326,7 +319,8 @@ Use `operation_describe` with `{"operationId":"probe.check"}`, then
 `operation_execute` with `{"operationId":"probe.check","arguments":{"baseUrl":"http://127.0.0.1:<probe-port>"},"confirmed":false}`.
 Java Describe owns current schemas and confirmation requirements; confirmation
 belongs outside `arguments`. Shipped Skills use this boundary. See
-[Skill migration and actual MCP use](docs/acceptance/mcpjvm-658-cde-skills.md).
+[the executable operation and Skill inventory](mcp-server/test-support/java-it-coverage.json)
+and [workflow test commands](mcp-server/README.md#integration-test-lanes).
 
 Probe config Artifact runtime behavior:
 
