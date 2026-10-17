@@ -107,9 +107,11 @@
                 <mkdir dir="${project.build.directory}/sidecar" />
                 <copy file="${mcp.sidecar.helper.source}"
                       tofile="${project.build.directory}/sidecar/jvm-attach-helper.jar"
+                      overwrite="true"
                       preservelastmodified="true" />
                 <copy file="${mcp.sidecar.agent.source}"
                       tofile="${project.build.directory}/sidecar/sidecar-agent.jar"
+                      overwrite="true"
                       preservelastmodified="true" />
               </target>
             </configuration>

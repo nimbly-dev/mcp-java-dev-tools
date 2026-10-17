@@ -6,7 +6,7 @@ usage() {
 Run a Spring app with MCP Java agent wiring in a new Git Bash window.
 
 Usage:
-  ./spring-integration/run-spring-app-with-mcp.sh [options]
+  ./scripts/spring-integration/run-spring-app-with-mcp.sh [options]
 
 Options:
   --project <absPath>       Absolute path to Spring project
@@ -21,7 +21,7 @@ EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 PROJECT_PATH=""
 APP_PORT="8080"
@@ -204,8 +204,13 @@ find_free_port() {
 
 find_agent_jar() {
   local jar
-  jar="$(ls -1 "$REPO_ROOT"/java-agent/core/core-probe/target/mcp-java-dev-tools-agent-*-all.jar 2>/dev/null | LC_ALL=C sort | tail -n1 || true)"
-  echo "$jar"
+  jar="$REPO_ROOT/mcp-server/application/target/sidecar/sidecar-agent.jar"
+  [[ -f "$jar" ]] || return 0
+  # JAVA_TOOL_OPTIONS is parsed by Java, outside Git Bash's argument conversion.
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) cygpath -am -- "$jar" ;;
+    *) printf '%s\n' "$jar" ;;
+  esac
 }
 
 select_run_command() {
@@ -282,7 +287,7 @@ fi
 
 AGENT_OPTS="host=127.0.0.1;port=$AGENT_PORT;include=$BASE_PACKAGE.**;exclude=$AGENT_EXCLUDE"
 
-JAVA_AGENT_ARG="-javaagent:$AGENT_JAR=$AGENT_OPTS"
+JAVA_AGENT_ARG="-javaagent:\"$AGENT_JAR\"=$AGENT_OPTS"
 JDWP_ARG=""
 if [[ -n "$JDWP_PORT" ]]; then
   JDWP_ARG="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:$JDWP_PORT"
@@ -293,7 +298,8 @@ cat >"$LAUNCH_SCRIPT" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$PROJECT_PATH"
-export JAVA_TOOL_OPTIONS="\${JAVA_TOOL_OPTIONS:-} $JAVA_AGENT_ARG $JDWP_ARG"
+JAVA_AGENT_ARG=$(printf '%q' "$JAVA_AGENT_ARG")
+export JAVA_TOOL_OPTIONS="\${JAVA_TOOL_OPTIONS:-} \${JAVA_AGENT_ARG} $JDWP_ARG"
 echo "MCP probe base URL: http://127.0.0.1:$AGENT_PORT"
 echo "Inferred include base package: $BASE_PACKAGE.**"
 echo "Spring app port: $APP_PORT"

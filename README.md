@@ -39,38 +39,37 @@ bash ./scripts/package-java-mcp-server.sh
 # Windows PowerShell: .\scripts\package-java-mcp-server.ps1
 ```
 
-This verifies the Java MCP reactor and produces the deployable runtime:
+This verifies `application` and its required Maven modules and produces the deployable runtime:
 
 - **MCP server** -> `mcp-server/application/target/mcp-java-dev-tools-server-0.1.9.jar`
 - **Packaged lifecycle helper** -> `mcp-server/application/target/sidecar/jvm-attach-helper.jar`
 - **Packaged Sidecar Agent** -> `mcp-server/application/target/sidecar/sidecar-agent.jar`
 
-The Java package builds without npm or TypeScript. The separate JavaScript Skill
-helpers and coverage validator use Node's standard library without installed
-dependencies. See [mcp-server/README.md](./mcp-server/README.md) for runtime and
+Deploy only these three JARs, preserving the adjacent `sidecar/` directory. They
+can run outside this checkout without TypeScript sources, `dist`, `node_modules`,
+or Node on `PATH`. Server `0.1.9` packages the independently versioned `0.1.8`
+Sidecar/helper; the versions need not match. Build both through the packaging
+script, or use the explicit prebuilt inputs described in the module README.
+
+The Java package builds without npm or TypeScript. The six separate regression
+Skill helpers and coverage validator require Node 18+ and use its standard
+library without installed dependencies. See [mcp-server/README.md](./mcp-server/README.md) for runtime and
 module boundaries, and [test/README.md](./test/README.md) for the surviving checks.
 
 ## Installation
 
 ### Installer
 
-Installer flow is split into install and update scripts (Codex and Kiro skills).
+Install and update run from a checkout with Bash, Maven and JDK 21 (Git Bash on
+Windows), and support Codex, Kiro and Claude Code.
 
 ```bash
 ./scripts/install.sh
 ```
 
-This installs the default skill set:
-
-- `mcp-java-dev-tools-line-probe-run`
-- `mcp-java-dev-tools-regression-suite`
-- `mcp-java-dev-tools-regression-plan-crafter`
-- `mcp-java-dev-tools-regression-result`
-- `mcp-java-dev-tools-issue-report`
-- `mcp-java-dev-tools-bug-drill`
-- `mcp-java-dev-tools-bug-fix`
-- `mcp-java-dev-tools-failure-lens`
-- `mcp-java-dev-tools-probe-registry-manager`
+This installs all shipped `skills/mcp-java-dev-tools-*` folders, including the
+Probe, JVM lifecycle, diagnosis, Artifact and suite workflows. Use repeatable
+`--skill-name` options to select a subset.
 
 To update/overwrite existing installed skills (and add missing new skills):
 
@@ -82,7 +81,13 @@ Both scripts:
 
 - package and verify the Java MCP server and its Sidecar artifacts
 - sync shipped skills into the target client skill directory
-- generate client-specific `java -jar` MCP configuration when requested
+- generate client-specific `java -jar` MCP configuration with an absolute JAR
+  path and explicit workspace when requested
+
+Install configures MCP by default. Update preserves client configuration unless
+`--configure-mcp` is supplied. Codex configuration is auto-written; Claude Code
+and Kiro receive a JSON snippet to merge manually. `--no-apply-mcp` prints a
+Codex snippet without writing its configuration.
 
 Kiro and Claude Code behavior during install/update:
 
@@ -100,15 +105,23 @@ MCP server configuration can be skipped:
 The installer auto-detects the packaged server JAR. To select one explicitly:
 
 ```bash
-./scripts/install.sh --server-jar /absolute/path/to/mcp-java-dev-tools-server-0.1.9.jar
+./scripts/install.sh --client codex --server-jar "/absolute/package path/mcp-java-dev-tools-server-0.1.9.jar" --workspace-root "/absolute/workspace path"
 ```
+
+`--workspace-root` defaults to the directory where the installer was invoked;
+it must already exist. The installer syncs Skills and configures a launch path;
+it does not copy the Java distribution into a client folder. When using a
+prebuilt package, pass `--no-build-server` and keep its JAR and `sidecar/` together.
+For isolated testing, use `--codex-home <temporary-directory>`,
+`--kiro-skills-dir <temporary-directory>` or
+`--claude-skills-dir <temporary-directory>` to keep client changes local.
 
 ### Spring Integration Launcher
 
 Use the helper launcher to run a Spring app with auto-inferred Java agent include scope and probe port:
 
 ```bash
-./spring-integration/run-spring-app-with-mcp.sh
+./scripts/spring-integration/run-spring-app-with-mcp.sh
 ```
 
 Behavior:
@@ -118,6 +131,10 @@ Behavior:
 - assigns probe port starting at `9173` and increments if occupied
 - opens a new Git Bash window and starts the Spring app with `JAVA_TOOL_OPTIONS` including `-javaagent`
 
+This optional Windows launcher uses the packaged `target/sidecar/sidecar-agent.jar`.
+It requires Git Bash, a Spring build tool, and Node when reading a Probe registry;
+these are separate from Java MCP startup prerequisites.
+
 ### Manual Setup
 
 Configure the MCP client to launch the packaged Java STDIO server:
@@ -125,7 +142,7 @@ Configure the MCP client to launch the packaged Java STDIO server:
 ```toml
 [mcp_servers.mcp-java-dev-tools]
 command = "java"
-args = ["-jar", "C:\\absolute\\path\\to\\mcp-java-dev-tools-server-0.1.9.jar"]
+args = ["-jar", "C:/absolute/package path/mcp-java-dev-tools-server-0.1.9.jar", "--workspace-root=C:/absolute/workspace path"]
 ```
 
 Keep the JAR beside its generated `sidecar/` directory. The server reserves

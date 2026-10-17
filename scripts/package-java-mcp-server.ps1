@@ -18,6 +18,7 @@ if ($LASTEXITCODE -ne 0) {
 
 $serverArgs = @(
     "-f", (Join-Path $repoRoot "mcp-server/pom.xml"),
+    "-pl", "application", "-am",
     "verify"
 )
 if ($SkipTests) {

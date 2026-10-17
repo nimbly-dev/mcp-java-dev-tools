@@ -22,6 +22,7 @@ CONFIGURE_MCP=1
 APPLY_MCP_CONFIG=1
 MCP_SERVER_NAME="mcp-java-dev-tools"
 MCP_SERVER_JAR_INPUT=""
+MCP_WORKSPACE_ROOT_INPUT="$(pwd -P)"
 
 usage_common() {
   cat <<'EOF'
@@ -32,11 +33,12 @@ Options:
   --kiro-skills-dir <path>    Override Kiro skills directory (default: ~/.kiro/skills)
   --claude-skills-dir <path>  Override Claude Code skills directory (default: ~/.claude/skills)
   --no-build-server           Skip Java agent and MCP server packaging
-  --configure-mcp             Configure the Java MCP server (default: enabled)
+  --configure-mcp             Configure MCP (install default; update opt-in)
   --no-configure-mcp          Skip MCP server configuration
   --no-apply-mcp              Do not auto-write Codex config; print a snippet only
   --mcp-server-name <name>    MCP server entry name (default: mcp-java-dev-tools)
   --server-jar <path>         Executable Java MCP server jar (auto-detected by default)
+  --workspace-root <path>     Workspace for MCP Artifacts (default: current directory)
   --help                      Show help
 EOF
 }
@@ -86,6 +88,14 @@ dedupe_skill_names() {
 parse_common_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --client|--skill-name|--codex-home|--kiro-skills-dir|--claude-skills-dir|--mcp-server-name|--server-jar|--workspace-root)
+        if [[ $# -lt 2 || -z "$2" || "$2" == --* ]]; then
+          echo "Missing value for $1" >&2
+          return 2
+        fi
+        ;;
+    esac
+    case "$1" in
       --client)
         CLIENT="${2:-}"
         CLIENT_FROM_ARG=1
@@ -108,6 +118,7 @@ parse_common_args() {
       --no-apply-mcp) APPLY_MCP_CONFIG=0; shift ;;
       --mcp-server-name) MCP_SERVER_NAME="${2:-}"; shift 2 ;;
       --server-jar) MCP_SERVER_JAR_INPUT="$(expand_home "${2:-}")"; shift 2 ;;
+      --workspace-root) MCP_WORKSPACE_ROOT_INPUT="$(expand_home "${2:-}")"; shift 2 ;;
       --help|-h) return 99 ;;
       *)
         echo "Unknown argument: $1" >&2
@@ -167,6 +178,10 @@ validate_common_config() {
   fi
 
   if [[ "$CONFIGURE_MCP" -eq 1 ]]; then
+    if [[ ! -d "$MCP_WORKSPACE_ROOT_INPUT" ]]; then
+      echo "--workspace-root must name an existing directory." >&2
+      exit 1
+    fi
     if [[ -z "$MCP_SERVER_NAME" ]]; then
       echo "--mcp-server-name must be non-empty when --configure-mcp is enabled." >&2
       exit 1
@@ -511,14 +526,15 @@ apply_codex_mcp_config() {
 
   mv "$tmp" "$cfg"
 
-  local toml_server_jar
+  local toml_server_jar toml_workspace
   toml_server_jar="$(escape_toml_basic_string "$(native_absolute_server_jar_path)")"
+  toml_workspace="$(escape_toml_basic_string "$(native_absolute_path "$MCP_WORKSPACE_ROOT_INPUT")")"
 
   cat >> "$cfg" <<EOF
 
 [mcp_servers.${MCP_SERVER_NAME}]
 command = "java"
-args = ["-jar", "${toml_server_jar}"]
+args = ["-jar", "${toml_server_jar}", "--workspace-root=${toml_workspace}"]
 EOF
 
   echo "- Applied Java MCP server config to $cfg"
@@ -528,21 +544,25 @@ print_mcp_config() {
   local native_server_jar
   local toml_server_jar
   local json_server_jar
+  local native_workspace toml_workspace json_workspace
 
   native_server_jar="$(native_absolute_server_jar_path)"
   toml_server_jar="$(escape_toml_basic_string "$native_server_jar")"
   json_server_jar="$(escape_json_string "$native_server_jar")"
+  native_workspace="$(native_absolute_path "$MCP_WORKSPACE_ROOT_INPUT")"
+  toml_workspace="$(escape_toml_basic_string "$native_workspace")"
+  json_workspace="$(escape_json_string "$native_workspace")"
 
   if [[ "$CLIENT" == "codex" ]]; then
     cat <<EOF
 
-Java MCP server configured.
-Codex config applied to ~/.codex/config.toml (unless --no-apply-mcp was used).
+Java MCP server configuration (auto-write controlled by --no-apply-mcp).
+Codex config target: $CODEX_HOME/config.toml
 Reference block:
 
 [mcp_servers.${MCP_SERVER_NAME}]
 command = "java"
-args = ["-jar", "${toml_server_jar}"]
+args = ["-jar", "${toml_server_jar}", "--workspace-root=${toml_workspace}"]
 
 Then restart Codex/MCP session and run:
 1. operation_execute { "operationId": "artifact_management.probe_config.reload", "arguments": {}, "confirmed": true }
@@ -561,7 +581,7 @@ Add or merge this block into your project MCP configuration:
   "mcpServers": {
     "${MCP_SERVER_NAME}": {
       "command": "java",
-      "args": ["-jar", "${json_server_jar}"]
+      "args": ["-jar", "${json_server_jar}", "--workspace-root=${json_workspace}"]
     }
   }
 }
@@ -582,7 +602,7 @@ Add or merge this block into your Kiro MCP settings:
   "mcpServers": {
     "${MCP_SERVER_NAME}": {
       "command": "java",
-      "args": ["-jar", "${json_server_jar}"]
+      "args": ["-jar", "${json_server_jar}", "--workspace-root=${json_workspace}"]
     }
   }
 }
@@ -594,14 +614,23 @@ EOF
 }
 
 native_absolute_server_jar_path() {
+  native_absolute_path "$MCP_SERVER_JAR_INPUT"
+}
+
+native_absolute_path() {
+  local input="$1"
   case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)
-      cygpath -am -- "$MCP_SERVER_JAR_INPUT"
+      cygpath -am -- "$input"
       ;;
     *)
-      local jar_directory
-      jar_directory="$(cd "$(dirname "$MCP_SERVER_JAR_INPUT")" && pwd -P)"
-      printf '%s/%s\n' "$jar_directory" "$(basename "$MCP_SERVER_JAR_INPUT")"
+      if [[ -d "$input" ]]; then
+        (cd "$input" && pwd -P)
+      else
+        local directory
+        directory="$(cd "$(dirname "$input")" && pwd -P)"
+        printf '%s/%s\n' "$directory" "$(basename "$input")"
+      fi
       ;;
   esac
 }

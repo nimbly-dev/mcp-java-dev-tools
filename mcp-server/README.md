@@ -90,10 +90,23 @@ Configure an MCP host with Java 21 installed:
   "command": "java",
   "args": [
     "-jar",
-    "<absolute-path>/mcp-java-dev-tools-server-0.1.9.jar"
+    "<absolute-path>/mcp-java-dev-tools-server-0.1.9.jar",
+    "--workspace-root=<absolute-workspace-path>"
   ]
 }
 ```
+
+Copy the executable JAR and adjacent `sidecar/` directory together to deploy.
+The workspace is separate from the package location; no checkout, TypeScript,
+`dist`, `node_modules`, or Node on `PATH` is needed for the Java process.
+Server `0.1.9` currently consumes Sidecar/helper `0.1.8` artifacts through their
+existing lifecycle protocol. Artifact versions are independent.
+
+The checkout installers support `--server-jar`, `--no-build-server` and
+`--workspace-root`, plus isolated client/Skill destinations. See the
+[root installation instructions](../README.md#installer). Update preserves MCP
+configuration unless `--configure-mcp` is explicit. Retained regression Skill
+helpers require Node 18+ separately, with no npm install.
 
 ## Build and verification
 
@@ -127,6 +140,26 @@ mvn -B -f mcp-server/pom.xml -pl application dependency:tree
 Checkstyle, PMD and application packaging; process ITs and fixture builds remain
 opt-in. Test reports live in each module's `target/surefire-reports` and
 `application/target/failsafe-reports`.
+
+Installer checks use only temporary client/Skill directories, including paths
+with spaces:
+
+```text
+bash scripts/tests/java-mcp-config-paths.sh
+```
+
+On Windows, verify a copied distribution from an unrelated directory with
+Node removed from the launched Java process's `PATH`:
+
+```powershell
+./scripts/tests/java-mcp-native-config.ps1 -ServerJar 'C:/staging path/mcp-java-dev-tools-server-0.1.9.jar' -WorkspaceRoot 'C:/workspace path' -WorkingDirectory 'C:/staging path'
+```
+
+Create those directories and copy the JAR plus `sidecar/` first. This check uses
+generated client arguments, initializes real STDIO, checks the three CDE Tools,
+runs Catalog/Describe/JVM discovery, verifies explicit workspace binding and
+protocol-only stdout, and requires exit 0 on stdin close. Remove the isolated
+staging and workspace directories after verification.
 
 ### Integration test lanes
 

@@ -24,7 +24,9 @@ EOF
   usage_common
 }
 
-if ! parse_common_args "$@"; then
+if parse_common_args "$@"; then
+  :
+else
   code=$?
   if [[ "$code" -eq 99 ]]; then
     usage
