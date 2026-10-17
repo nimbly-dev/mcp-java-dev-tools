@@ -1,41 +1,30 @@
-# Test Layout
+# Test layout
 
-Centralized test assets live under the top-level `test` tree. Unit tests are
-organized by the TypeScript owner they exercise; integration tests are
-organized by product owner, externally exercised boundary, action, fixture,
-and scenario.
+Java tests live with their owning Maven modules under `java-agent` and
+`mcp-server`. Repository fixtures remain under `test/fixtures`; generated test
+workspaces and evidence stay under the ignored `test/.tmp` directory.
 
-## Structure
+The surviving `test/unit/skills/*.test.cjs` and `test/unit/docs/*.test.cjs`
+assert Skill guidance, portable bundled resources, CDE example boundaries, and
+documentation data. Run them from the repository root with Node:
 
 ```text
-test/
-|- unit/
-|  |- contracts/
-|  |- core/
-|  |- features/
-|  |- spec/
-|  |- synthesizers/
-|  |- transport/
-|  |- skills/
-|  \- docs/
-|- fixtures/
-|  \- spring-apps/
-\- integration/
-   |- transport/
-   \- features/
+node scripts/run-unit-tests.cjs
 ```
 
-## Intent
+No npm install, TypeScript compiler, or package manifest is required. Java Core
+tests validate bundled crafter templates and guide Artifacts using their
+current Java owners. Dedicated resource assertions retain step, extraction,
+external-verification, placeholder, suite-promotion, correlation, and Performance
+load/threshold semantics. These independent sections do not establish executable
+plan readiness: the guide's incomplete correlation shape and oversized Watcher
+timeout remain tracked for repair in #665. Performance validation fills only
+illustrative request values and stops at an in-process health-check stub.
 
-- `fixtures/spring-apps` contains real Spring fixture projects used only for integration testing.
-- `unit` contains focused tests organized by Contract, Core, Feature Module,
-  Artifact Spec, Synthesizer, Transport, Skill, or documentation owner.
-- `fixtures/spring-apps` contains real Spring fixture projects used only for integration testing.
-- `integration` contains cross-module tests that exercise:
-  - TS orchestration
-  - Java request-mapping synthesis
-  - MCP tool execution against a live probe runtime
-  - probe runtime behavior
-
-Integration tests are intentionally outside `unit` because they validate the
-integrated toolchain rather than a single module in isolation.
+For affected Java modules, run `mvn -pl <module> -am verify` from the owning
+reactor. The [Java MCP README](../mcp-server/README.md) describes the existing
+packaged STDIO integration selections, fixture prerequisites, and the retained
+`mcp-server/test-support/java-it-coverage.mjs` inventory validator. The six
+shipped regression Skill helpers remain under
+`skills/mcp-java-dev-tools-regression-suite/scripts` and are exercised by
+`McpServerSkillWorkflowIT.repositoryHelpersPreserveBlockedFailedAndCleanupBoundaries`.

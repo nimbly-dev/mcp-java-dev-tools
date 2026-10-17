@@ -1,8 +1,0 @@
-{
-  "name": "@mcp-java-dev-tools/tools-contracts",
-  "private": true,
-  "version": "0.1.0",
-  "description": "Stable MCP Tool contracts and deterministic reason-code vocabulary",
-  "main": "src/index.ts",
-  "types": "src/index.ts"
-}

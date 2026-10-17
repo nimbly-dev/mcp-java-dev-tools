@@ -52,10 +52,10 @@ This verifies the Java MCP reactor and produces the deployable runtime:
 - **Packaged lifecycle helper** -> `mcp-server/application/target/sidecar/jvm-attach-helper.jar`
 - **Packaged Sidecar Agent** -> `mcp-server/application/target/sidecar/sidecar-agent.jar`
 
-Legacy TypeScript sources may be inspected during migration to identify behavior
-that must be implemented in Java. They are not a runtime, test, or acceptance
-path for the packaged MCP server. See [mcp-server/README.md](./mcp-server/README.md)
-for runtime and module boundaries.
+The Java package builds without npm or TypeScript. The separate JavaScript Skill
+helpers and coverage validator use Node's standard library without installed
+dependencies. See [mcp-server/README.md](./mcp-server/README.md) for runtime and
+module boundaries, and [test/README.md](./test/README.md) for the surviving checks.
 
 ## Installation
 

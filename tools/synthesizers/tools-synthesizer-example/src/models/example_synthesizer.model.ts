@@ -1,1 +1,0 @@
-export const EXAMPLE_MARKER_FILE = ".mcp-java-dev-tools-example-framework";

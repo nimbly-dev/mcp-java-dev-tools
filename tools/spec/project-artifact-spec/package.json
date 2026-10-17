@@ -1,8 +1,0 @@
-{
-  "name": "@mcp-java-dev-tools/tools-project-artifact-spec",
-  "private": true,
-  "version": "0.1.0",
-  "description": "Artifact Spec models, validation, and path policy for project Artifacts",
-  "main": "src/project_artifact.util.ts",
-  "types": "src/project_artifact.util.ts"
-}

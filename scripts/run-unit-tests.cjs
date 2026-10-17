@@ -18,7 +18,7 @@ function collectTestFiles(root) {
         stack.push(next);
         continue;
       }
-      if (entry.isFile() && next.endsWith(".test.ts")) {
+      if (entry.isFile() && next.endsWith(".test.cjs")) {
         out.push(next);
       }
     }
@@ -27,14 +27,10 @@ function collectTestFiles(root) {
 }
 
 function runNodeTests(files, concurrency) {
-  if (files.length === 0) return Promise.resolve(0);
+  if (files.length === 0) throw new Error("No dependency-free unit tests found");
   const args = [
     "--test",
     ...(typeof concurrency === "number" ? ["--test-concurrency", String(concurrency)] : []),
-    "-r",
-    "ts-node/register",
-    "-r",
-    "tsconfig-paths/register",
     ...files,
   ];
   return new Promise((resolve) => {
@@ -51,10 +47,7 @@ function runNodeTests(files, concurrency) {
 async function main() {
   const allFiles = testRoots.flatMap(collectTestFiles).sort();
 
-  // SQLite-backed unit fixtures can still hold Windows file handles during
-  // teardown when independent test files run concurrently. Keep the unit
-  // phase deterministic; integration-test concurrency is configured separately
-  // by package.json and remains unchanged.
+  // Run the surviving Skill and resource assertions without npm dependencies.
   const unitExit = await runNodeTests(allFiles, 1);
 
   if (unitExit !== 0) {

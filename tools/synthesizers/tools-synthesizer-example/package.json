@@ -1,7 +1,0 @@
-{
-  "name": "@mcp-java-dev-tools/tools-synthesizer-example",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Opt-in example synthesizer plugin scaffold",
-  "main": "src/adapter.ts"
-}

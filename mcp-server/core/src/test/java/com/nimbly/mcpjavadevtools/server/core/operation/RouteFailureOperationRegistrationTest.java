@@ -338,8 +338,7 @@ class RouteFailureOperationRegistrationTest {
     }
 
     @Test
-    void comparesReleasedTypeScriptMapperAndSynthesizerSemanticsThroughCdeBindings() throws Exception {
-        JsonNode released = releasedTypeScriptRouteResult();
+    void preservesSpringMapperAndSynthesizerSemanticsThroughCdeBindings() {
         JsonNode javaOwner = JSON.valueToTree(new DefaultRouteSynthesisFeature(routeHandlers())
                 .execute(JSON.convertValue(recipeInput(), CreateRecipeRequest.class)));
         OperationExecutionResult handlers = directory.execute(new OperationInvocation(
@@ -348,22 +347,18 @@ class RouteFailureOperationRegistrationTest {
         OperationExecutionResult recipe = directory.execute(new OperationInvocation(
                 OperationId.of("route_synthesis.create_recipe"), recipeInput(), true));
 
-        JsonNode mapperCandidate = released.path("mapping").path("requestCandidate");
-        JsonNode synthesizerCandidate = released.path("synthesis").path("requestCandidate");
         JsonNode cdeHandler = handlers.result().path("actionResult").path("handlers").get(0);
         JsonNode cdeCandidate = recipe.result().path("actionResult").path("requestCandidates").get(0);
-        assertThat(released.path("mapping").path("status").asText()).isEqualTo("ok");
-        assertThat(released.path("mapping").path("framework").asText()).isEqualTo("spring_mvc");
-        assertThat(cdeHandler.path("httpMethod")).isEqualTo(mapperCandidate.path("method"));
-        assertThat(cdeHandler.path("path")).isEqualTo(mapperCandidate.path("path"));
-        assertThat(released.path("synthesis").path("status").asText()).isEqualTo("recipe");
+        assertThat(handlers.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
+        assertThat(recipe.status()).isEqualTo(OperationExecutionStatus.SUCCEEDED);
+        assertThat(cdeHandler.path("httpMethod").asText()).isEqualTo("GET");
+        assertThat(cdeHandler.path("path").asText()).isEqualTo("/stdio/run");
         assertThat(recipe.result().path("resultType").asText()).isEqualTo("recipe");
         assertThat(javaOwner.path("actionResult").path("synthesizerUsed").asText()).isEqualTo("spring_http");
-        assertThat(released.path("synthesis").path("synthesizerUsed").asText()).isEqualTo("spring");
-        assertThat(recipe.result().path("actionResult").path("synthesizerUsed"))
-                .isEqualTo(released.path("synthesis").path("synthesizerUsed"));
-        assertThat(cdeCandidate.path("method")).isEqualTo(synthesizerCandidate.path("method"));
-        assertThat(cdeCandidate.path("path")).isEqualTo(synthesizerCandidate.path("path"));
+        assertThat(recipe.result().path("actionResult").path("synthesizerUsed").asText())
+                .isEqualTo("spring");
+        assertThat(cdeCandidate.path("method").asText()).isEqualTo("GET");
+        assertThat(cdeCandidate.path("path").asText()).isEqualTo("/stdio/run");
     }
 
     @Test
@@ -464,65 +459,6 @@ class RouteFailureOperationRegistrationTest {
 
     private static boolean confirmed(String operationId) {
         return "route_synthesis.create_recipe".equals(operationId);
-    }
-
-    private JsonNode releasedTypeScriptRouteResult() throws Exception {
-        String script = """
-                (async () => {
-                  const { resolveRequestMappingAst } =
-                    require('./tools/transport/tools-mcp-server/src/lib/request_mapping_ast_resolver');
-                  const { synthesizeSpringRecipe } =
-                    require('./tools/synthesizers/tools-spring-http/src/synthesis.util');
-                  const root = process.env.MCPJVM_PARITY_ROOT;
-                  const mapping = await resolveRequestMappingAst({
-                    projectRootAbs: root,
-                    searchRootsAbs: [root],
-                    classHint: 'example.StdioController',
-                    methodHint: 'run'
-                  });
-                  const synthesis = await synthesizeSpringRecipe({
-                    rootAbs: root,
-                    workspaceRootAbs: root,
-                    searchRootsAbs: [root],
-                    classHint: 'example.StdioController',
-                    methodHint: 'run',
-                    intentMode: 'regression'
-                  }, { resolveRequestMappingFn: async () => mapping });
-                  console.log('MCPJVM_CDE_PARITY=' + JSON.stringify({ mapping, synthesis }));
-                })().catch(error => { console.error(error); process.exit(1); });
-                """;
-        Path root = repositoryRoot();
-        ProcessBuilder builder = new ProcessBuilder(
-                "node", "-r", "ts-node/register", "-r", "tsconfig-paths/register", "-e", script)
-                .directory(root.toFile())
-                .redirectErrorStream(true);
-        builder.environment().put("MCPJVM_PARITY_ROOT", workspace.toString());
-        builder.environment().put("MCP_JAVA_BIN", Path.of(
-                System.getProperty("java.home"), "bin",
-                System.getProperty("os.name").toLowerCase().contains("win") ? "java.exe" : "java").toString());
-        Process process = builder.start();
-        boolean completed = process.waitFor(30, TimeUnit.SECONDS);
-        if (!completed) {
-            process.destroyForcibly();
-        }
-        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertThat(completed).as(output).isTrue();
-        assertThat(process.exitValue()).as(output).isZero();
-        String marker = "MCPJVM_CDE_PARITY=";
-        String payload = output.lines().filter(line -> line.startsWith(marker))
-                .map(line -> line.substring(marker.length())).findFirst().orElseThrow();
-        return JSON.readTree(payload);
-    }
-
-    private static Path repositoryRoot() {
-        Path current = Path.of("").toAbsolutePath().normalize();
-        while (current != null && !Files.isDirectory(current.resolve("tools/contracts"))) {
-            current = current.getParent();
-        }
-        if (current == null) {
-            throw new IllegalStateException("repository root could not be located");
-        }
-        return current;
     }
 
     private OperationDirectory observedDirectory(

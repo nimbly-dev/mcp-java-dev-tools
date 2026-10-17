@@ -1,0 +1,21 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+const root = path.resolve("skills");
+test("[UT][skills] Security foundation registers all public Skill Workflows", () => {
+    const names = [
+        "mcp-java-dev-tools-security-plan-crafter",
+        "mcp-java-dev-tools-security-suite",
+        "mcp-java-dev-tools-security-result",
+        "mcp-java-dev-tools-security-suite-diagnostic",
+    ];
+    for (const name of names) {
+        const skillPath = path.join(root, name, "SKILL.md");
+        assert.equal(fs.existsSync(skillPath), true, skillPath);
+        const text = fs.readFileSync(skillPath, "utf8");
+        assert.match(text, new RegExp(`name: ${name}`));
+        assert.match(text, /securityMode/);
+        assert.match(text, /fail.?closed/i);
+    }
+});

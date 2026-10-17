@@ -26,15 +26,9 @@ buildNumber.properties
 .kiro/
 .agents/
 GEMINI.md
-node_modules
-dist/
 java-agent/target/
 java-agent/probe-rules.txt
 /logs
-test/*.test.js
-test/*.test.js.map
-test/*.test.d.ts
-test/*.test.d.ts.map
 AGENTS.md
 test/.tmp/
 .idea

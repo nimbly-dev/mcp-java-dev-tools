@@ -1,8 +1,0 @@
-{
-  "name": "@mcp-java-dev-tools/tools-feature-regression-suite",
-  "private": true,
-  "version": "0.1.0",
-  "description": "Regression plan, watcher, external-verification, correlation, and run-Artifact runtime",
-  "main": "index.ts",
-  "types": "index.ts"
-}

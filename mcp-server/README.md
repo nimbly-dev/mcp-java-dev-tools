@@ -2,9 +2,9 @@
 
 This Maven reactor is the public Java 21 STDIO MCP runtime for `v0.1.9`.
 Spring AI exposes one Catalog-Describe-Execute boundary backed by the aggregate
-Java operation directory. Legacy TypeScript sources may be read to identify
-behavior that still needs to move, but all MCP behavior is implemented and
-verified in Java; TypeScript execution is not an acceptance path.
+Java operation directory. The Maven package has no npm or TypeScript build
+dependency. Separate JavaScript Skill helpers and the integration coverage
+validator remain available without npm dependencies.
 
 ## Modules and ownership
 
